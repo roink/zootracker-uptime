@@ -144,6 +144,23 @@ def create_visit(
     return visit
 
 
+# new endpoints to explicitly log a visit for a user
+@app.post("/users/{user_id}/visits", response_model=schemas.ZooVisitRead)
+def create_visit_for_user(
+    user_id: uuid.UUID,
+    visit_in: schemas.ZooVisitCreate,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    if user_id != user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot log visit for another user")
+    visit = models.ZooVisit(user_id=user.id, **visit_in.model_dump())
+    db.add(visit)
+    db.commit()
+    db.refresh(visit)
+    return visit
+
+
 @app.get("/visits", response_model=list[schemas.ZooVisitRead])
 def list_visits(
     db: Session = Depends(get_db),
