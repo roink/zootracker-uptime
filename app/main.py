@@ -6,7 +6,9 @@ from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from jose import jwt, JWTError
-from passlib.context import CryptContext
+import hashlib
+import secrets
+import hmac
 
 from . import models, schemas
 from .database import SessionLocal
@@ -14,8 +16,6 @@ from .database import SessionLocal
 SECRET_KEY = os.getenv("SECRET_KEY", "secret")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 app = FastAPI(title="Zoo Tracker API")
 
@@ -30,12 +30,17 @@ def get_db():
         db.close()
 
 
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+def hash_password(password: str, salt: bytes | None = None) -> tuple[str, str]:
+    if salt is None:
+        salt = secrets.token_bytes(16)
+    hashed = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 100000)
+    return salt.hex(), hashed.hex()
 
 
-def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
+def verify_password(plain_password: str, salt_hex: str, hashed_password: str) -> bool:
+    salt = bytes.fromhex(salt_hex)
+    new_hash = hashlib.pbkdf2_hmac("sha256", plain_password.encode(), salt, 100000)
+    return hmac.compare_digest(new_hash.hex(), hashed_password)
 
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
@@ -86,8 +91,13 @@ def read_root():
 def create_user(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
     if get_user(db, user_in.email):
         raise HTTPException(status_code=400, detail="Email already registered")
-    hashed = get_password_hash(user_in.password)
-    user = models.User(name=user_in.name, email=user_in.email, password_hash=hashed)
+    salt, hashed = hash_password(user_in.password)
+    user = models.User(
+        name=user_in.name,
+        email=user_in.email,
+        password_salt=salt,
+        password_hash=hashed,
+    )
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -97,7 +107,7 @@ def create_user(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
 @app.post("/token", response_model=schemas.Token)
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = get_user(db, form_data.username)
-    if not user or not verify_password(form_data.password, user.password_hash):
+    if not user or not verify_password(form_data.password, user.password_salt, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect username or password")
     access_token = create_access_token({"sub": str(user.id)})
     return {"access_token": access_token, "token_type": "bearer"}

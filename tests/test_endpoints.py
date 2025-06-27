@@ -93,6 +93,13 @@ def test_post_visit_and_retrieve(data):
     assert visits[0]["zoo_id"] == str(zoo_id)
 
 
+def test_visit_requires_auth(data):
+    zoo_id = data["zoo"].id
+    visit = {"zoo_id": str(zoo_id), "visit_date": str(date.today())}
+    resp = client.post("/visits", json=visit)
+    assert resp.status_code == 401
+
+
 def test_post_sighting(data):
     token = register_and_login()
     zoo_id = data["zoo"].id
@@ -106,4 +113,16 @@ def test_post_sighting(data):
     assert resp.status_code == 200
     body = resp.json()
     assert body["animal_id"] == str(animal_id)
+
+
+def test_sighting_requires_auth(data):
+    zoo_id = data["zoo"].id
+    animal_id = data["animal"].id
+    sighting = {
+        "zoo_id": str(zoo_id),
+        "animal_id": str(animal_id),
+        "sighting_datetime": datetime.utcnow().isoformat(),
+    }
+    resp = client.post("/sightings", json=sighting)
+    assert resp.status_code == 401
 
