@@ -1,5 +1,6 @@
 import os
 from datetime import date, datetime
+import uuid
 
 import pytest
 from fastapi.testclient import TestClient
@@ -69,22 +70,23 @@ def register_and_login():
         json={"name": "Alice", "email": email, "password": "secret"},
     )
     assert resp.status_code == 200
+    user_id = resp.json()["id"]
     resp = client.post(
         "/token",
         data={"username": email, "password": "secret"},
         headers={"content-type": "application/x-www-form-urlencoded"},
     )
     assert resp.status_code == 200
-    return resp.json()["access_token"]
+    return resp.json()["access_token"], user_id
 
 
 def test_create_user_and_authenticate():
-    token = register_and_login()
+    token, _ = register_and_login()
     assert token
 
 
 def test_post_visit_and_retrieve(data):
-    token = register_and_login()
+    token, _ = register_and_login()
     zoo_id = data["zoo"].id
     visit = {"zoo_id": str(zoo_id), "visit_date": str(date.today())}
     resp = client.post("/visits", json=visit, headers={"Authorization": f"Bearer {token}"})
@@ -105,7 +107,7 @@ def test_visit_requires_auth(data):
 
 
 def test_post_sighting(data):
-    token = register_and_login()
+    token, _ = register_and_login()
     zoo_id = data["zoo"].id
     animal_id = data["animal"].id
     sighting = {
@@ -129,4 +131,45 @@ def test_sighting_requires_auth(data):
     }
     resp = client.post("/sightings", json=sighting)
     assert resp.status_code == 401
+
+
+def test_sighting_other_user_forbidden(data):
+    token1, _ = register_and_login()
+    _, other_user_id = register_and_login()
+    zoo_id = data["zoo"].id
+    animal_id = data["animal"].id
+    sighting = {
+        "zoo_id": str(zoo_id),
+        "animal_id": str(animal_id),
+        "sighting_datetime": datetime.utcnow().isoformat(),
+        "user_id": str(other_user_id),
+    }
+    resp = client.post("/sightings", json=sighting, headers={"Authorization": f"Bearer {token1}"})
+    assert resp.status_code == 403
+
+
+def test_sighting_invalid_zoo(data):
+    token, _ = register_and_login()
+    animal_id = data["animal"].id
+    invalid_zoo = uuid.uuid4()
+    sighting = {
+        "zoo_id": str(invalid_zoo),
+        "animal_id": str(animal_id),
+        "sighting_datetime": datetime.utcnow().isoformat(),
+    }
+    resp = client.post("/sightings", json=sighting, headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 404
+
+
+def test_sighting_invalid_animal(data):
+    token, _ = register_and_login()
+    zoo_id = data["zoo"].id
+    invalid_animal = uuid.uuid4()
+    sighting = {
+        "zoo_id": str(zoo_id),
+        "animal_id": str(invalid_animal),
+        "sighting_datetime": datetime.utcnow().isoformat(),
+    }
+    resp = client.post("/sightings", json=sighting, headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 404
 
