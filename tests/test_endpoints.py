@@ -61,6 +61,7 @@ _counter = 0
 
 
 def register_and_login():
+    """Create a new user and return an auth token and user id."""
     global _counter
     email = f"alice{_counter}@example.com"
     _counter += 1
@@ -69,25 +70,30 @@ def register_and_login():
         json={"name": "Alice", "email": email, "password": "secret"},
     )
     assert resp.status_code == 200
+    user_id = resp.json()["id"]
     resp = client.post(
         "/token",
         data={"username": email, "password": "secret"},
         headers={"content-type": "application/x-www-form-urlencoded"},
     )
     assert resp.status_code == 200
-    return resp.json()["access_token"]
+    return resp.json()["access_token"], user_id
 
 
 def test_create_user_and_authenticate():
-    token = register_and_login()
+    token, _ = register_and_login()
     assert token
 
 
 def test_post_visit_and_retrieve(data):
-    token = register_and_login()
+    token, user_id = register_and_login()
     zoo_id = data["zoo"].id
     visit = {"zoo_id": str(zoo_id), "visit_date": str(date.today())}
-    resp = client.post("/visits", json=visit, headers={"Authorization": f"Bearer {token}"})
+    resp = client.post(
+        f"/users/{user_id}/visits",
+        json=visit,
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert resp.status_code == 200
 
     resp = client.get("/visits", headers={"Authorization": f"Bearer {token}"})
@@ -98,14 +104,15 @@ def test_post_visit_and_retrieve(data):
 
 
 def test_visit_requires_auth(data):
+    _, user_id = register_and_login()
     zoo_id = data["zoo"].id
     visit = {"zoo_id": str(zoo_id), "visit_date": str(date.today())}
-    resp = client.post("/visits", json=visit)
+    resp = client.post(f"/users/{user_id}/visits", json=visit)
     assert resp.status_code == 401
 
 
 def test_post_sighting(data):
-    token = register_and_login()
+    token, _ = register_and_login()
     zoo_id = data["zoo"].id
     animal_id = data["animal"].id
     sighting = {
@@ -129,4 +136,43 @@ def test_sighting_requires_auth(data):
     }
     resp = client.post("/sightings", json=sighting)
     assert resp.status_code == 401
+
+
+def test_visit_wrong_user(data):
+    token1, user1 = register_and_login()
+    _, user2 = register_and_login()
+    zoo_id = data["zoo"].id
+    visit = {"zoo_id": str(zoo_id), "visit_date": str(date.today())}
+    resp = client.post(
+        f"/users/{user2}/visits",
+        json=visit,
+        headers={"Authorization": f"Bearer {token1}"},
+    )
+    assert resp.status_code == 403
+
+
+def test_multiple_visits(data):
+    token, user_id = register_and_login()
+    zoo_id = data["zoo"].id
+    visit1 = {"zoo_id": str(zoo_id), "visit_date": str(date.today())}
+    resp = client.post(
+        f"/users/{user_id}/visits",
+        json=visit1,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+
+    tomorrow = date.fromordinal(date.today().toordinal() + 1)
+    visit2 = {"zoo_id": str(zoo_id), "visit_date": str(tomorrow)}
+    resp = client.post(
+        f"/users/{user_id}/visits",
+        json=visit2,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+
+    resp = client.get("/visits", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+    visits = resp.json()
+    assert len(visits) == 2
 
