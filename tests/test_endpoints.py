@@ -7,6 +7,10 @@ from fastapi.testclient import TestClient
 # set up database url before importing app
 os.environ["DATABASE_URL"] = "sqlite:///./test.db"
 
+# ensure a fresh database for every test run
+if os.path.exists("test.db"):
+    os.remove("test.db")
+
 from app.database import Base, engine, SessionLocal
 from app import models
 from app.main import app, get_db

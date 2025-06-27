@@ -2,7 +2,7 @@ from datetime import date, datetime
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, ConfigDict
 
 
 class UserCreate(BaseModel):
@@ -16,8 +16,7 @@ class UserRead(BaseModel):
     name: str
     email: EmailStr
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class Token(BaseModel):
@@ -30,16 +29,14 @@ class ZooRead(BaseModel):
     name: str
     address: Optional[str] = None
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AnimalRead(BaseModel):
     id: UUID
     common_name: str
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ZooVisitCreate(BaseModel):
@@ -54,8 +51,7 @@ class ZooVisitRead(BaseModel):
     visit_date: date
     notes: Optional[str] = None
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AnimalSightingCreate(BaseModel):
@@ -73,5 +69,4 @@ class AnimalSightingRead(BaseModel):
     notes: Optional[str] = None
     photo_url: Optional[str] = None
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
