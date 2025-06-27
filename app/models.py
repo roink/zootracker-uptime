@@ -1,5 +1,6 @@
 from sqlalchemy import Column, String, Text, Date, DateTime, ForeignKey, DECIMAL
 from sqlalchemy.dialects.postgresql import UUID
+import uuid
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -9,7 +10,7 @@ from .database import Base
 class User(Base):
     __tablename__ = "users"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String(255), nullable=False)
     email = Column(String(255), nullable=False, unique=True)
     password_hash = Column(String(255), nullable=False)
@@ -24,7 +25,7 @@ class User(Base):
 class Zoo(Base):
     __tablename__ = "zoos"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String(255), nullable=False)
     address = Column(Text)
     latitude = Column(DECIMAL(9, 6))
@@ -42,7 +43,7 @@ class Zoo(Base):
 class Category(Base):
     __tablename__ = "categories"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String(100), nullable=False, unique=True)
 
     animals = relationship("Animal", back_populates="category")
@@ -51,7 +52,7 @@ class Category(Base):
 class Animal(Base):
     __tablename__ = "animals"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     common_name = Column(String(255), nullable=False)
     scientific_name = Column(String(255))
     category_id = Column(UUID(as_uuid=True), ForeignKey("categories.id"), nullable=False)
@@ -78,7 +79,7 @@ class ZooAnimal(Base):
 class ZooVisit(Base):
     __tablename__ = "zoo_visits"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     zoo_id = Column(UUID(as_uuid=True), ForeignKey("zoos.id", ondelete="CASCADE"), nullable=False)
     visit_date = Column(Date, nullable=False)
@@ -93,7 +94,7 @@ class ZooVisit(Base):
 class AnimalSighting(Base):
     __tablename__ = "animal_sightings"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     zoo_id = Column(UUID(as_uuid=True), ForeignKey("zoos.id", ondelete="CASCADE"), nullable=False)
     animal_id = Column(UUID(as_uuid=True), ForeignKey("animals.id", ondelete="CASCADE"), nullable=False)
@@ -111,7 +112,7 @@ class AnimalSighting(Base):
 class Achievement(Base):
     __tablename__ = "achievements"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String(255), nullable=False, unique=True)
     description = Column(Text)
     criteria = Column(Text)
@@ -125,7 +126,7 @@ class Achievement(Base):
 class UserAchievement(Base):
     __tablename__ = "user_achievements"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     achievement_id = Column(UUID(as_uuid=True), ForeignKey("achievements.id", ondelete="CASCADE"), nullable=False)
     awarded_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
