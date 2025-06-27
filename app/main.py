@@ -113,6 +113,15 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     return {"access_token": access_token, "token_type": "bearer"}
 
 
+# alias used by the planned front-end
+@app.post("/auth/login", response_model=schemas.Token)
+def login_alias(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    token_data = login(form_data, db)
+    user = get_user(db, form_data.username)
+    token_data["user_id"] = str(user.id)
+    return token_data
+
+
 @app.get("/zoos", response_model=list[schemas.ZooRead])
 def search_zoos(q: str = "", db: Session = Depends(get_db)):
     query = db.query(models.Zoo)
@@ -129,6 +138,17 @@ def list_animals(q: str = "", db: Session = Depends(get_db)):
         pattern = f"%{q}%"
         query = query.filter(models.Animal.common_name.ilike(pattern))
     return query.all()
+
+
+# list animals available at a specific zoo
+@app.get("/zoos/{zoo_id}/animals", response_model=list[schemas.AnimalRead])
+def list_zoo_animals(zoo_id: uuid.UUID, db: Session = Depends(get_db)):
+    return (
+        db.query(models.Animal)
+        .join(models.ZooAnimal, models.Animal.id == models.ZooAnimal.animal_id)
+        .filter(models.ZooAnimal.zoo_id == zoo_id)
+        .all()
+    )
 
 
 @app.post("/visits", response_model=schemas.ZooVisitRead)

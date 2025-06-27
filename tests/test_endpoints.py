@@ -48,6 +48,10 @@ def seed_data():
     db.commit()
     db.refresh(animal)
 
+    link = models.ZooAnimal(zoo_id=zoo.id, animal_id=animal.id)
+    db.add(link)
+    db.commit()
+
     db.close()
     return {"zoo": zoo, "animal": animal}
 
@@ -349,3 +353,29 @@ def test_get_seen_animals_empty(data):
     )
     assert resp.status_code == 200
     assert resp.json() == []
+
+
+def test_login_alias_route():
+    global _counter
+    email = f"alias{_counter}@example.com"
+    _counter += 1
+    resp = client.post(
+        "/users",
+        json={"name": "Alias", "email": email, "password": "secret"},
+    )
+    assert resp.status_code == 200
+    resp = client.post(
+        "/auth/login",
+        data={"username": email, "password": "secret"},
+        headers={"content-type": "application/x-www-form-urlencoded"},
+    )
+    assert resp.status_code == 200
+    assert "access_token" in resp.json()
+
+
+def test_get_animals_for_zoo(data):
+    resp = client.get(f"/zoos/{data['zoo'].id}/animals")
+    assert resp.status_code == 200
+    animals = resp.json()
+    assert len(animals) == 1
+    assert animals[0]["id"] == str(data["animal"].id)
