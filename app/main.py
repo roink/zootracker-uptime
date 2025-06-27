@@ -201,3 +201,23 @@ def list_sightings(
     user: models.User = Depends(get_current_user),
 ):
     return db.query(models.AnimalSighting).filter_by(user_id=user.id).all()
+
+
+@app.get("/users/{user_id}/animals", response_model=list[schemas.AnimalRead])
+def list_seen_animals(
+    user_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    if user_id != user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Cannot view animals for another user")
+    animals = (
+        db.query(models.Animal)
+        .join(models.AnimalSighting,
+              models.Animal.id == models.AnimalSighting.animal_id)
+        .filter(models.AnimalSighting.user_id == user_id)
+        .distinct()
+        .all()
+    )
+    return animals
