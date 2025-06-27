@@ -17,3 +17,21 @@ docker compose up --build
 ```
 
 The API will be available at `http://localhost:8000` and the database listens on `localhost:5432`.
+
+### Database Initialization
+
+Run the table creation script once before starting the API:
+
+```bash
+python -m app.create_tables
+```
+
+To verify the connection you can open a Python shell:
+
+```python
+from app.database import SessionLocal
+from app import models
+session = SessionLocal()
+print(session.query(models.Zoo).all())
+```
+
