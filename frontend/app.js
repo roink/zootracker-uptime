@@ -1,6 +1,9 @@
 const { useState, useEffect } = React;
 
-const API = ""; // same origin
+// Base URL of the FastAPI backend. When the frontend is served on a different
+// port (e.g. via `python -m http.server`), the API won't be on the same origin
+// anymore, so we explicitly point to the backend running on port 8000.
+const API = "http://localhost:8000";
 
 function Signup({ onSignedUp }) {
   const [name, setName] = useState("");
