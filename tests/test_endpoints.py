@@ -218,3 +218,36 @@ def test_multiple_visits(data):
     visits = resp.json()
     assert len(visits) == 2
 
+
+def test_get_visits_requires_auth():
+    resp = client.get("/visits")
+    assert resp.status_code == 401
+
+
+def test_get_visits_empty(data):
+    token, _ = register_and_login()
+    resp = client.get("/visits", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+def test_visits_are_user_specific(data):
+    token1, user1 = register_and_login()
+    token2, _ = register_and_login()
+    zoo_id = data["zoo"].id
+    visit = {"zoo_id": str(zoo_id), "visit_date": str(date.today())}
+    resp = client.post(
+        f"/users/{user1}/visits",
+        json=visit,
+        headers={"Authorization": f"Bearer {token1}"},
+    )
+    assert resp.status_code == 200
+
+    resp = client.get("/visits", headers={"Authorization": f"Bearer {token2}"})
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+    resp = client.get("/visits", headers={"Authorization": f"Bearer {token1}"})
+    assert resp.status_code == 200
+    visits = resp.json()
+    assert len(visits) == 1
