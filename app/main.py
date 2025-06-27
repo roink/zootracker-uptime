@@ -137,7 +137,7 @@ def create_visit(
     db: Session = Depends(get_db),
     user: models.User = Depends(get_current_user),
 ):
-    visit = models.ZooVisit(user_id=user.id, **visit_in.dict())
+    visit = models.ZooVisit(user_id=user.id, **visit_in.model_dump())
     db.add(visit)
     db.commit()
     db.refresh(visit)
@@ -158,7 +158,7 @@ def create_sighting(
     db: Session = Depends(get_db),
     user: models.User = Depends(get_current_user),
 ):
-    sighting = models.AnimalSighting(user_id=user.id, **sighting_in.dict())
+    sighting = models.AnimalSighting(user_id=user.id, **sighting_in.model_dump())
     db.add(sighting)
     db.commit()
     db.refresh(sighting)
