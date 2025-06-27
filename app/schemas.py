@@ -59,6 +59,7 @@ class AnimalSightingCreate(BaseModel):
     animal_id: UUID
     sighting_datetime: datetime
     notes: Optional[str] = None
+    user_id: Optional[UUID] = None
 
 
 class AnimalSightingRead(BaseModel):

@@ -1,5 +1,6 @@
 import os
 from datetime import date, datetime
+import uuid
 
 import pytest
 from fastapi.testclient import TestClient
@@ -137,6 +138,47 @@ def test_sighting_requires_auth(data):
     resp = client.post("/sightings", json=sighting)
     assert resp.status_code == 401
 
+
+
+def test_sighting_other_user_forbidden(data):
+    token1, _ = register_and_login()
+    _, other_user_id = register_and_login()
+    zoo_id = data["zoo"].id
+    animal_id = data["animal"].id
+    sighting = {
+        "zoo_id": str(zoo_id),
+        "animal_id": str(animal_id),
+        "sighting_datetime": datetime.utcnow().isoformat(),
+        "user_id": str(other_user_id),
+    }
+    resp = client.post("/sightings", json=sighting, headers={"Authorization": f"Bearer {token1}"})
+    assert resp.status_code == 403
+
+
+def test_sighting_invalid_zoo(data):
+    token, _ = register_and_login()
+    animal_id = data["animal"].id
+    invalid_zoo = uuid.uuid4()
+    sighting = {
+        "zoo_id": str(invalid_zoo),
+        "animal_id": str(animal_id),
+        "sighting_datetime": datetime.utcnow().isoformat(),
+    }
+    resp = client.post("/sightings", json=sighting, headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 404
+
+
+def test_sighting_invalid_animal(data):
+    token, _ = register_and_login()
+    zoo_id = data["zoo"].id
+    invalid_animal = uuid.uuid4()
+    sighting = {
+        "zoo_id": str(zoo_id),
+        "animal_id": str(invalid_animal),
+        "sighting_datetime": datetime.utcnow().isoformat(),
+    }
+    resp = client.post("/sightings", json=sighting, headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 404
 
 def test_visit_wrong_user(data):
     token1, user1 = register_and_login()

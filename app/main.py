@@ -175,7 +175,20 @@ def create_sighting(
     db: Session = Depends(get_db),
     user: models.User = Depends(get_current_user),
 ):
-    sighting = models.AnimalSighting(user_id=user.id, **sighting_in.model_dump())
+    if sighting_in.user_id is not None and sighting_in.user_id != user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Cannot log sighting for another user")
+
+    if db.get(models.Zoo, sighting_in.zoo_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="Zoo not found")
+
+    if db.get(models.Animal, sighting_in.animal_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="Animal not found")
+
+    data = sighting_in.model_dump(exclude={"user_id"})
+    sighting = models.AnimalSighting(user_id=user.id, **data)
     db.add(sighting)
     db.commit()
     db.refresh(sighting)
