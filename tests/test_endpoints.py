@@ -113,12 +113,13 @@ def test_visit_requires_auth(data):
 
 
 def test_post_sighting(data):
-    token, _ = register_and_login()
+    token, user_id = register_and_login()
     zoo_id = data["zoo"].id
     animal_id = data["animal"].id
     sighting = {
         "zoo_id": str(zoo_id),
         "animal_id": str(animal_id),
+        "user_id": str(user_id),
         "sighting_datetime": datetime.utcnow().isoformat(),
     }
     resp = client.post("/sightings", json=sighting, headers={"Authorization": f"Bearer {token}"})
@@ -133,6 +134,7 @@ def test_sighting_requires_auth(data):
     sighting = {
         "zoo_id": str(zoo_id),
         "animal_id": str(animal_id),
+        "user_id": str(uuid.uuid4()),
         "sighting_datetime": datetime.utcnow().isoformat(),
     }
     resp = client.post("/sightings", json=sighting)
@@ -156,12 +158,13 @@ def test_sighting_other_user_forbidden(data):
 
 
 def test_sighting_invalid_zoo(data):
-    token, _ = register_and_login()
+    token, user_id = register_and_login()
     animal_id = data["animal"].id
     invalid_zoo = uuid.uuid4()
     sighting = {
         "zoo_id": str(invalid_zoo),
         "animal_id": str(animal_id),
+        "user_id": str(user_id),
         "sighting_datetime": datetime.utcnow().isoformat(),
     }
     resp = client.post("/sightings", json=sighting, headers={"Authorization": f"Bearer {token}"})
@@ -169,12 +172,13 @@ def test_sighting_invalid_zoo(data):
 
 
 def test_sighting_invalid_animal(data):
-    token, _ = register_and_login()
+    token, user_id = register_and_login()
     zoo_id = data["zoo"].id
     invalid_animal = uuid.uuid4()
     sighting = {
         "zoo_id": str(zoo_id),
         "animal_id": str(invalid_animal),
+        "user_id": str(user_id),
         "sighting_datetime": datetime.utcnow().isoformat(),
     }
     resp = client.post("/sightings", json=sighting, headers={"Authorization": f"Bearer {token}"})
@@ -260,6 +264,7 @@ def test_get_seen_animals_success(data):
     sighting = {
         "zoo_id": str(zoo_id),
         "animal_id": str(animal_id),
+        "user_id": str(user_id),
         "sighting_datetime": datetime.utcnow().isoformat(),
     }
     resp = client.post(
