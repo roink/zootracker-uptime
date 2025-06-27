@@ -257,6 +257,47 @@ def test_visits_are_user_specific(data):
     assert len(visits) == 1
 
 
+def test_visit_missing_zoo_id_fails(data):
+    token, user_id = register_and_login()
+    visit = {"visit_date": str(date.today())}
+    resp = client.post(
+        f"/users/{user_id}/visits",
+        json=visit,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 422
+
+
+def test_visit_missing_date_fails(data):
+    token, user_id = register_and_login()
+    zoo_id = data["zoo"].id
+    visit = {"zoo_id": str(zoo_id)}
+    resp = client.post(
+        f"/users/{user_id}/visits",
+        json=visit,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 422
+
+
+def test_visit_has_user_id_in_db(data):
+    token, user_id = register_and_login()
+    zoo_id = data["zoo"].id
+    visit = {"zoo_id": str(zoo_id), "visit_date": str(date.today())}
+    resp = client.post(
+        f"/users/{user_id}/visits",
+        json=visit,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    visit_id = resp.json()["id"]
+    db = SessionLocal()
+    stored = db.get(models.ZooVisit, uuid.UUID(visit_id))
+    db.close()
+    assert stored is not None
+    assert stored.user_id == uuid.UUID(user_id)
+
+
 def test_get_seen_animals_success(data):
     token, user_id = register_and_login()
     zoo_id = data["zoo"].id
