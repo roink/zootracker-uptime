@@ -4,7 +4,7 @@ from datetime import timedelta, datetime
 import os
 import uuid
 
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
@@ -31,6 +31,12 @@ app.add_middleware(
 )
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+
+def require_json(request: Request) -> None:
+    """Ensure the request uses a JSON content-type."""
+    if request.headers.get("content-type") != "application/json":
+        raise HTTPException(status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE)
 
 
 def get_db():
@@ -105,8 +111,11 @@ def read_root():
     return {"message": "Zoo Tracker API"}
 
 
-@app.post("/users", response_model=schemas.UserRead)
-def create_user(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
+@app.post("/users", response_model=schemas.UserRead, dependencies=[Depends(require_json)])
+def create_user(
+    user_in: schemas.UserCreate,
+    db: Session = Depends(get_db),
+):
     """Register a new user with a hashed password."""
     if get_user(db, user_in.email):
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -211,7 +220,11 @@ def get_animal_detail(animal_id: uuid.UUID, db: Session = Depends(get_db)):
     )
 
 
-@app.post("/visits", response_model=schemas.ZooVisitRead)
+@app.post(
+    "/visits",
+    response_model=schemas.ZooVisitRead,
+    dependencies=[Depends(require_json)],
+)
 def create_visit(
     visit_in: schemas.ZooVisitCreate,
     db: Session = Depends(get_db),
@@ -226,7 +239,11 @@ def create_visit(
 
 
 # new endpoints to explicitly log a visit for a user
-@app.post("/users/{user_id}/visits", response_model=schemas.ZooVisitRead)
+@app.post(
+    "/users/{user_id}/visits",
+    response_model=schemas.ZooVisitRead,
+    dependencies=[Depends(require_json)],
+)
 def create_visit_for_user(
     user_id: uuid.UUID,
     visit_in: schemas.ZooVisitCreate,
@@ -252,7 +269,11 @@ def list_visits(
     return db.query(models.ZooVisit).filter_by(user_id=user.id).all()
 
 
-@app.post("/sightings", response_model=schemas.AnimalSightingRead)
+@app.post(
+    "/sightings",
+    response_model=schemas.AnimalSightingRead,
+    dependencies=[Depends(require_json)],
+)
 def create_sighting(
     sighting_in: schemas.AnimalSightingCreate,
     db: Session = Depends(get_db),
