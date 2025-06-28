@@ -127,6 +127,35 @@ def test_create_user_extra_field_rejected():
     assert resp.status_code == 422
 
 
+def test_create_user_name_too_long():
+    long_name = "a" * 256
+    resp = client.post(
+        "/users",
+        json={"name": long_name, "email": "toolong@example.com", "password": "secret"},
+    )
+    assert resp.status_code == 422
+
+
+def test_create_user_email_too_long():
+    # construct an email longer than 255 characters
+    local_part = "a" * 244
+    long_email = f"{local_part}@example.com"
+    resp = client.post(
+        "/users",
+        json={"name": "Alice", "email": long_email, "password": "secret"},
+    )
+    assert resp.status_code == 422
+
+
+def test_create_user_password_too_long():
+    long_pw = "p" * 256
+    resp = client.post(
+        "/users",
+        json={"name": "Alice", "email": "alice@example.com", "password": long_pw},
+    )
+    assert resp.status_code == 422
+
+
 def test_login_empty_username_password():
     """Login with empty credentials should return 400."""
     resp = client.post(
@@ -257,6 +286,25 @@ def test_sighting_extra_field_rejected(data):
     )
     assert resp.status_code == 422
 
+
+def test_sighting_notes_too_long(data):
+    token, user_id = register_and_login()
+    zoo_id = data["zoo"].id
+    animal_id = data["animal"].id
+    sighting = {
+        "zoo_id": str(zoo_id),
+        "animal_id": str(animal_id),
+        "user_id": str(user_id),
+        "sighting_datetime": datetime.utcnow().isoformat(),
+        "notes": "n" * 1001,
+    }
+    resp = client.post(
+        "/sightings",
+        json=sighting,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 422
+
 def test_visit_wrong_user(data):
     token1, user1 = register_and_login()
     _, user2 = register_and_login()
@@ -378,6 +426,22 @@ def test_visit_extra_field_rejected(data):
         "zoo_id": str(zoo_id),
         "visit_date": str(date.today()),
         "unexpected": "boom",
+    }
+    resp = client.post(
+        f"/users/{user_id}/visits",
+        json=visit,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 422
+
+
+def test_visit_notes_too_long(data):
+    token, user_id = register_and_login()
+    zoo_id = data["zoo"].id
+    visit = {
+        "zoo_id": str(zoo_id),
+        "visit_date": str(date.today()),
+        "notes": "n" * 1001,
     }
     resp = client.post(
         f"/users/{user_id}/visits",
