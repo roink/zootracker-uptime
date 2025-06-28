@@ -26,6 +26,19 @@ Run the table creation script once before starting the API:
 python -m app.create_tables
 ```
 
+### Loading Example Data
+
+CSV files with sample records for all tables are provided under `example_data/`.
+After creating the tables you can populate the database with this data:
+
+```bash
+python -m app.load_example_data
+```
+
+This inserts around 10 zoos, 20 animals and users, as well as related
+records for visits, sightings and achievements. The data is useful for
+local testing and development.
+
 To verify the connection you can open a Python shell:
 
 ```python
