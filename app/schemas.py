@@ -9,9 +9,9 @@ from pydantic import BaseModel, EmailStr, ConfigDict, Field
 
 class UserCreate(BaseModel):
     """Schema for user registration."""
-    name: str = Field(..., min_length=1)
-    email: EmailStr = Field(..., min_length=1)
-    password: str = Field(..., min_length=1)
+    name: str = Field(..., min_length=1, max_length=255)
+    email: EmailStr = Field(..., min_length=1, max_length=255)
+    password: str = Field(..., min_length=1, max_length=255)
 
     model_config = ConfigDict(extra="forbid")
 
@@ -67,7 +67,7 @@ class ZooVisitCreate(BaseModel):
     """Input data required to log a zoo visit."""
     zoo_id: UUID
     visit_date: date
-    notes: Optional[str] = None
+    notes: Optional[str] = Field(default=None, max_length=1000)
 
     model_config = ConfigDict(extra="forbid")
 
@@ -88,7 +88,7 @@ class AnimalSightingCreate(BaseModel):
     animal_id: UUID
     user_id: UUID
     sighting_datetime: datetime
-    notes: Optional[str] = None
+    notes: Optional[str] = Field(default=None, max_length=1000)
 
     model_config = ConfigDict(extra="forbid")
 
