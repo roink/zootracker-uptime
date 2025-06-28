@@ -42,7 +42,13 @@ def seed_data():
     db.commit()
     db.refresh(category)
 
-    zoo = models.Zoo(name="Central Zoo")
+    zoo = models.Zoo(
+        name="Central Zoo",
+        address="123 Zoo St",
+        latitude=10.0,
+        longitude=20.0,
+        description="A fun place",
+    )
     db.add(zoo)
     db.commit()
     db.refresh(zoo)
@@ -392,7 +398,6 @@ def test_get_animals_for_zoo(data):
     assert len(animals) == 1
     assert animals[0]["id"] == str(data["animal"].id)
 
-
 def test_get_animal_detail_success(data):
     resp = client.get(f"/animals/{data['animal'].id}")
     assert resp.status_code == 200
@@ -400,7 +405,19 @@ def test_get_animal_detail_success(data):
     assert body["id"] == str(data["animal"].id)
     assert body["zoos"][0]["id"] == str(data["zoo"].id)
 
-
 def test_get_animal_detail_not_found():
     resp = client.get(f"/animals/{uuid.uuid4()}")
+    assert resp.status_code == 404
+
+def test_get_zoo_details(data):
+    resp = client.get(f"/zoos/{data['zoo'].id}")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["id"] == str(data["zoo"].id)
+    assert body["address"] == "123 Zoo St"
+    assert body["description"] == "A fun place"
+
+
+def test_get_zoo_invalid_id():
+    resp = client.get(f"/zoos/{uuid.uuid4()}")
     assert resp.status_code == 404

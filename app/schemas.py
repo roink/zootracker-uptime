@@ -39,6 +39,18 @@ class ZooRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class ZooDetail(BaseModel):
+    """Full information about a zoo including location and description."""
+    id: UUID
+    name: str
+    address: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    description: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class AnimalRead(BaseModel):
     """Minimal representation of an animal."""
     id: UUID

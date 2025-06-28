@@ -153,6 +153,15 @@ def search_zoos(q: str = "", db: Session = Depends(get_db)):
     return query.all()
 
 
+@app.get("/zoos/{zoo_id}", response_model=schemas.ZooDetail)
+def get_zoo(zoo_id: uuid.UUID, db: Session = Depends(get_db)):
+    """Retrieve detailed information about a zoo."""
+    zoo = db.get(models.Zoo, zoo_id)
+    if zoo is None:
+        raise HTTPException(status_code=404, detail="Zoo not found")
+    return zoo
+
+
 @app.get("/animals", response_model=list[schemas.AnimalRead])
 def list_animals(q: str = "", db: Session = Depends(get_db)):
     """List animals optionally filtered by a search query."""
