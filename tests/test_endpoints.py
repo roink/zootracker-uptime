@@ -103,6 +103,39 @@ def test_create_user_and_authenticate():
     token, _ = register_and_login()
     assert token
 
+
+def test_create_user_empty_fields():
+    """Empty strings for required user fields should fail."""
+    resp = client.post(
+        "/users",
+        json={"name": "", "email": "", "password": ""},
+    )
+    assert resp.status_code == 422
+
+
+def test_create_user_extra_field_rejected():
+    """Unknown fields should result in a 422 error."""
+    resp = client.post(
+        "/users",
+        json={
+            "name": "Bob",
+            "email": "bob@example.com",
+            "password": "secret",
+            "unexpected": "boom",
+        },
+    )
+    assert resp.status_code == 422
+
+
+def test_login_empty_username_password():
+    """Login with empty credentials should return 400."""
+    resp = client.post(
+        "/token",
+        data={"username": "", "password": ""},
+        headers={"content-type": "application/x-www-form-urlencoded"},
+    )
+    assert resp.status_code == 400
+
 # --- Visit endpoints ---
 
 
@@ -204,6 +237,25 @@ def test_sighting_invalid_animal(data):
     }
     resp = client.post("/sightings", json=sighting, headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code == 404
+
+
+def test_sighting_extra_field_rejected(data):
+    token, user_id = register_and_login()
+    zoo_id = data["zoo"].id
+    animal_id = data["animal"].id
+    sighting = {
+        "zoo_id": str(zoo_id),
+        "animal_id": str(animal_id),
+        "user_id": str(user_id),
+        "sighting_datetime": datetime.utcnow().isoformat(),
+        "unexpected": "boom",
+    }
+    resp = client.post(
+        "/sightings",
+        json=sighting,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 422
 
 def test_visit_wrong_user(data):
     token1, user1 = register_and_login()
@@ -317,6 +369,22 @@ def test_visit_has_user_id_in_db(data):
     db.close()
     assert stored is not None
     assert stored.user_id == uuid.UUID(user_id)
+
+
+def test_visit_extra_field_rejected(data):
+    token, user_id = register_and_login()
+    zoo_id = data["zoo"].id
+    visit = {
+        "zoo_id": str(zoo_id),
+        "visit_date": str(date.today()),
+        "unexpected": "boom",
+    }
+    resp = client.post(
+        f"/users/{user_id}/visits",
+        json=visit,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 422
 
 
 def test_get_seen_animals_success(data):
