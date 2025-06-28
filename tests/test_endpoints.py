@@ -1,3 +1,5 @@
+"""Integration tests covering the main API endpoints."""
+
 import os
 from datetime import date, datetime
 import uuid
@@ -18,6 +20,7 @@ from app.main import app, get_db
 
 
 def override_get_db():
+    """Provide a test database session."""
     db = SessionLocal()
     try:
         yield db
@@ -32,6 +35,7 @@ client = TestClient(app)
 
 
 def seed_data():
+    """Populate the test database with minimal reference data."""
     db = SessionLocal()
     category = models.Category(name="Mammal")
     db.add(category)
@@ -58,11 +62,12 @@ def seed_data():
 
 @pytest.fixture(scope="module")
 def data():
+    """Provide seeded data to tests that need it."""
     records = seed_data()
     yield records
 
 
-_counter = 0
+_counter = 0  # used to create unique email addresses
 
 
 def register_and_login():
@@ -84,13 +89,19 @@ def register_and_login():
     assert resp.status_code == 200
     return resp.json()["access_token"], user_id
 
+# --- Authentication and user management tests ---
+
 
 def test_create_user_and_authenticate():
+    """Ensure that a new user can register and obtain a token."""
     token, _ = register_and_login()
     assert token
 
+# --- Visit endpoints ---
+
 
 def test_post_visit_and_retrieve(data):
+    """Create a visit and verify it can be retrieved."""
     token, user_id = register_and_login()
     zoo_id = data["zoo"].id
     visit = {"zoo_id": str(zoo_id), "visit_date": str(date.today())}
@@ -371,6 +382,7 @@ def test_login_alias_route():
     )
     assert resp.status_code == 200
     assert "access_token" in resp.json()
+# --- Zoo endpoints ---
 
 
 def test_get_animals_for_zoo(data):

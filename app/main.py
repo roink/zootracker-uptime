@@ -1,3 +1,5 @@
+"""FastAPI application providing the Zoo Tracker API."""
+
 from datetime import timedelta, datetime
 import os
 import uuid
@@ -32,6 +34,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 
 def get_db():
+    """Provide a database session for a single request."""
     db = SessionLocal()
     try:
         yield db
@@ -40,6 +43,7 @@ def get_db():
 
 
 def hash_password(password: str, salt: bytes | None = None) -> tuple[str, str]:
+    """Return a salt and hashed password for storage."""
     if salt is None:
         salt = secrets.token_bytes(16)
     hashed = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 100000)
@@ -47,12 +51,14 @@ def hash_password(password: str, salt: bytes | None = None) -> tuple[str, str]:
 
 
 def verify_password(plain_password: str, salt_hex: str, hashed_password: str) -> bool:
+    """Verify a password against the stored salt and hash."""
     salt = bytes.fromhex(salt_hex)
     new_hash = hashlib.pbkdf2_hmac("sha256", plain_password.encode(), salt, 100000)
     return hmac.compare_digest(new_hash.hex(), hashed_password)
 
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
+    """Generate a signed JWT token for authentication."""
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
@@ -63,10 +69,12 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
 
 
 def get_user(db: Session, email: str) -> models.User | None:
+    """Retrieve a user by email or return ``None`` if not found."""
     return db.query(models.User).filter(models.User.email == email).first()
 
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> models.User:
+    """Return the authenticated user based on the provided JWT token."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -93,11 +101,13 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
 
 @app.get("/")
 def read_root():
+    """Health check endpoint for the API."""
     return {"message": "Zoo Tracker API"}
 
 
 @app.post("/users", response_model=schemas.UserRead)
 def create_user(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
+    """Register a new user with a hashed password."""
     if get_user(db, user_in.email):
         raise HTTPException(status_code=400, detail="Email already registered")
     salt, hashed = hash_password(user_in.password)
@@ -115,6 +125,7 @@ def create_user(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
 
 @app.post("/token", response_model=schemas.Token)
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    """Authenticate a user and return an access token."""
     user = get_user(db, form_data.username)
     if not user or not verify_password(form_data.password, user.password_salt, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect username or password")
@@ -122,9 +133,10 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     return {"access_token": access_token, "token_type": "bearer"}
 
 
-# alias used by the planned front-end
 @app.post("/auth/login", response_model=schemas.Token)
+# alias used by the planned front-end
 def login_alias(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    """Alternate login endpoint used by the front-end."""
     token_data = login(form_data, db)
     user = get_user(db, form_data.username)
     token_data["user_id"] = str(user.id)
@@ -133,6 +145,7 @@ def login_alias(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = 
 
 @app.get("/zoos", response_model=list[schemas.ZooRead])
 def search_zoos(q: str = "", db: Session = Depends(get_db)):
+    """Search for zoos whose names contain the given query."""
     query = db.query(models.Zoo)
     if q:
         pattern = f"%{q}%"
@@ -142,6 +155,7 @@ def search_zoos(q: str = "", db: Session = Depends(get_db)):
 
 @app.get("/animals", response_model=list[schemas.AnimalRead])
 def list_animals(q: str = "", db: Session = Depends(get_db)):
+    """List animals optionally filtered by a search query."""
     query = db.query(models.Animal)
     if q:
         pattern = f"%{q}%"
@@ -152,6 +166,7 @@ def list_animals(q: str = "", db: Session = Depends(get_db)):
 # list animals available at a specific zoo
 @app.get("/zoos/{zoo_id}/animals", response_model=list[schemas.AnimalRead])
 def list_zoo_animals(zoo_id: uuid.UUID, db: Session = Depends(get_db)):
+    """Return animals that are associated with a specific zoo."""
     return (
         db.query(models.Animal)
         .join(models.ZooAnimal, models.Animal.id == models.ZooAnimal.animal_id)
@@ -166,6 +181,7 @@ def create_visit(
     db: Session = Depends(get_db),
     user: models.User = Depends(get_current_user),
 ):
+    """Create a visit record for the authenticated user."""
     visit = models.ZooVisit(user_id=user.id, **visit_in.model_dump())
     db.add(visit)
     db.commit()
@@ -181,6 +197,7 @@ def create_visit_for_user(
     db: Session = Depends(get_db),
     user: models.User = Depends(get_current_user),
 ):
+    """Create a visit for a specific user. Users may only log their own visits."""
     if user_id != user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot log visit for another user")
     visit = models.ZooVisit(user_id=user.id, **visit_in.model_dump())
@@ -195,6 +212,7 @@ def list_visits(
     db: Session = Depends(get_db),
     user: models.User = Depends(get_current_user),
 ):
+    """List all visits for the authenticated user."""
     return db.query(models.ZooVisit).filter_by(user_id=user.id).all()
 
 
@@ -204,6 +222,7 @@ def create_sighting(
     db: Session = Depends(get_db),
     user: models.User = Depends(get_current_user),
 ):
+    """Record an animal sighting for the authenticated user."""
     if sighting_in.user_id != user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -231,6 +250,7 @@ def list_sightings(
     db: Session = Depends(get_db),
     user: models.User = Depends(get_current_user),
 ):
+    """Retrieve all animal sightings recorded by the current user."""
     return db.query(models.AnimalSighting).filter_by(user_id=user.id).all()
 
 
@@ -240,6 +260,7 @@ def list_seen_animals(
     db: Session = Depends(get_db),
     user: models.User = Depends(get_current_user),
 ):
+    """Return all unique animals seen by the specified user."""
     if user_id != user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                             detail="Cannot view animals for another user")

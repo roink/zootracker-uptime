@@ -1,3 +1,5 @@
+"""SQLAlchemy ORM models for the Zoo Tracker application."""
+
 from sqlalchemy import Column, String, Text, Date, DateTime, ForeignKey, DECIMAL
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
@@ -8,6 +10,7 @@ from .database import Base
 
 
 class User(Base):
+    """A registered user of the application."""
     __tablename__ = "users"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -24,6 +27,7 @@ class User(Base):
 
 
 class Zoo(Base):
+    """A zoo location that can be visited."""
     __tablename__ = "zoos"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -42,6 +46,7 @@ class Zoo(Base):
 
 
 class Category(Base):
+    """Top-level classification of animals (e.g. Mammal)."""
     __tablename__ = "categories"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -51,6 +56,7 @@ class Category(Base):
 
 
 class Animal(Base):
+    """An animal that can belong to a category and appear in zoos."""
     __tablename__ = "animals"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -68,6 +74,7 @@ class Animal(Base):
 
 
 class ZooAnimal(Base):
+    """Association table linking animals to zoos."""
     __tablename__ = "zoo_animals"
 
     zoo_id = Column(UUID(as_uuid=True), ForeignKey("zoos.id", ondelete="CASCADE"), primary_key=True)
@@ -78,6 +85,7 @@ class ZooAnimal(Base):
 
 
 class ZooVisit(Base):
+    """Record of a user visiting a zoo."""
     __tablename__ = "zoo_visits"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -93,6 +101,7 @@ class ZooVisit(Base):
 
 
 class AnimalSighting(Base):
+    """A specific instance of a user seeing an animal at a zoo."""
     __tablename__ = "animal_sightings"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -111,6 +120,7 @@ class AnimalSighting(Base):
 
 
 class Achievement(Base):
+    """An achievement that can be awarded to a user."""
     __tablename__ = "achievements"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -125,6 +135,7 @@ class Achievement(Base):
 
 
 class UserAchievement(Base):
+    """Link table recording when a user earned an achievement."""
     __tablename__ = "user_achievements"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
