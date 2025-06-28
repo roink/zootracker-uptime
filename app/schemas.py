@@ -4,14 +4,16 @@ from datetime import date, datetime
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, ConfigDict
+from pydantic import BaseModel, EmailStr, ConfigDict, Field
 
 
 class UserCreate(BaseModel):
     """Schema for user registration."""
-    name: str
-    email: EmailStr
-    password: str
+    name: str = Field(..., min_length=1)
+    email: EmailStr = Field(..., min_length=1)
+    password: str = Field(..., min_length=1)
+
+    model_config = ConfigDict(extra="forbid")
 
 
 class UserRead(BaseModel):
@@ -20,7 +22,7 @@ class UserRead(BaseModel):
     name: str
     email: EmailStr
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
 
 
 class Token(BaseModel):
@@ -29,6 +31,8 @@ class Token(BaseModel):
     token_type: str
     user_id: Optional[UUID] = None
 
+    model_config = ConfigDict(extra="forbid")
+
 
 class ZooRead(BaseModel):
     """Basic information about a zoo."""
@@ -36,7 +40,7 @@ class ZooRead(BaseModel):
     name: str
     address: Optional[str] = None
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
 
 
 class ZooDetail(BaseModel):
@@ -48,7 +52,7 @@ class ZooDetail(BaseModel):
     longitude: Optional[float] = None
     description: Optional[str] = None
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
 
 
 class AnimalRead(BaseModel):
@@ -56,7 +60,7 @@ class AnimalRead(BaseModel):
     id: UUID
     common_name: str
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
 
 
 class ZooVisitCreate(BaseModel):
@@ -64,6 +68,8 @@ class ZooVisitCreate(BaseModel):
     zoo_id: UUID
     visit_date: date
     notes: Optional[str] = None
+
+    model_config = ConfigDict(extra="forbid")
 
 
 class ZooVisitRead(BaseModel):
@@ -73,7 +79,7 @@ class ZooVisitRead(BaseModel):
     visit_date: date
     notes: Optional[str] = None
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
 
 
 class AnimalSightingCreate(BaseModel):
@@ -83,6 +89,8 @@ class AnimalSightingCreate(BaseModel):
     user_id: UUID
     sighting_datetime: datetime
     notes: Optional[str] = None
+
+    model_config = ConfigDict(extra="forbid")
 
 
 class AnimalSightingRead(BaseModel):
@@ -94,7 +102,7 @@ class AnimalSightingRead(BaseModel):
     notes: Optional[str] = None
     photo_url: Optional[str] = None
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
 
 
 class AnimalDetail(BaseModel):
@@ -107,4 +115,4 @@ class AnimalDetail(BaseModel):
     description: Optional[str] = None
     zoos: list[ZooRead] = []
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, extra="forbid")

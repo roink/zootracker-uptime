@@ -126,6 +126,8 @@ def create_user(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
 @app.post("/token", response_model=schemas.Token)
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     """Authenticate a user and return an access token."""
+    if not form_data.username or not form_data.password:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing username or password")
     user = get_user(db, form_data.username)
     if not user or not verify_password(form_data.password, user.password_salt, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect username or password")
