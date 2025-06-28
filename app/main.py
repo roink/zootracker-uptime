@@ -3,8 +3,11 @@
 from datetime import timedelta, datetime
 import os
 import uuid
+import logging
 
 from fastapi import FastAPI, Depends, HTTPException, Request, status
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
@@ -20,6 +23,16 @@ SECRET_KEY = os.getenv("SECRET_KEY", "secret")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
+# configure application logging
+LOG_FILE = os.getenv("LOG_FILE", "app.log")
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(
+    level=LOG_LEVEL,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[logging.FileHandler(LOG_FILE), logging.StreamHandler()],
+)
+logger = logging.getLogger("zoo_tracker")
+
 app = FastAPI(title="Zoo Tracker API")
 
 # allow all CORS origins/methods/headers for the API
@@ -31,6 +44,28 @@ app.add_middleware(
 )
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+
+def _get_user_id_from_request(request: Request) -> str:
+    """Return the user id from the auth token or ``anonymous``."""
+    auth = request.headers.get("Authorization")
+    if auth and auth.lower().startswith("bearer "):
+        token = auth.split(" ", 1)[1]
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            return payload.get("sub") or "unknown"
+        except JWTError:
+            return "unknown"
+    return "anonymous"
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """Log incoming requests and their response status."""
+    logger.info("%s %s", request.method, request.url.path)
+    response = await call_next(request)
+    logger.info("%s %s -> %s", request.method, request.url.path, response.status_code)
+    return response
 
 
 def require_json(request: Request) -> None:
@@ -103,6 +138,32 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     if user is None:
         raise credentials_exception
     return user
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Log validation errors and return the standard 422 response."""
+    user_id = _get_user_id_from_request(request)
+    logger.warning(
+        "Validation error on %s by %s: %s",
+        request.url.path,
+        user_id,
+        exc.errors(),
+    )
+    return JSONResponse(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content={"detail": exc.errors()})
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler_logged(request: Request, exc: HTTPException):
+    """Log HTTP exceptions with path and user information."""
+    user_id = _get_user_id_from_request(request)
+    logger.warning(
+        "Request to %s rejected for %s with status %s",
+        request.url.path,
+        user_id,
+        exc.status_code,
+    )
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 
 
 @app.get("/")
