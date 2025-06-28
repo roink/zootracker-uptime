@@ -19,7 +19,7 @@ function Signup({ onSignedUp }) {
     });
     if (resp.ok) {
       const user = await resp.json();
-      onSignedUp(user, email, password);
+      onSignedUp(user, email);
     } else {
       alert("Sign up failed");
     }
@@ -53,7 +53,7 @@ function Login({ emailPrefill, onLoggedIn }) {
     if (resp.ok) {
       const data = await resp.json();
       localStorage.setItem("token", data.access_token);
-      onLoggedIn(data.access_token, data.user_id);
+      onLoggedIn(data.access_token, data.user_id, email);
     } else {
       alert("Login failed");
     }
@@ -69,28 +69,8 @@ function Login({ emailPrefill, onLoggedIn }) {
   );
 }
 
-function ZooList({ token, onSelectZoo }) {
-  const [zoos, setZoos] = useState([]);
 
-  useEffect(() => {
-    fetch(`${API}/zoos`).then((r) => r.json()).then(setZoos);
-  }, []);
-
-  return (
-    <div>
-      <h2>Zoos</h2>
-      <ul>
-        {zoos.map((z) => (
-          <li key={z.id}>
-            <button onClick={() => onSelectZoo(z)}>{z.name}</button>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function ZooDetail({ zoo, token, onBack }) {
+function ZooDetail({ zoo, onBack }) {
   const [animals, setAnimals] = useState([]);
 
   useEffect(() => {
@@ -178,41 +158,154 @@ function SeenAnimals({ token, userId, refresh }) {
   );
 }
 
+function LogVisit({ token, userId, zoos, onLogged }) {
+  const [zooId, setZooId] = useState(zoos[0]?.id || "");
+  const [visitDate, setVisitDate] = useState("");
+
+  useEffect(() => {
+    if (!zooId && zoos.length > 0) {
+      setZooId(zoos[0].id);
+    }
+  }, [zoos]);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    const visit = { zoo_id: zooId, visit_date: visitDate };
+    const resp = await fetch(`${API}/users/${userId}/visits`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(visit),
+    });
+    if (resp.ok) {
+      onLogged && onLogged();
+      setVisitDate("");
+    } else {
+      alert("Failed to log visit");
+    }
+  };
+
+  return (
+    <form onSubmit={submit}>
+      <h3>Log Visit</h3>
+      <select value={zooId} onChange={(e) => setZooId(e.target.value)}>
+        {zoos.map((z) => (
+          <option key={z.id} value={z.id}>{z.name}</option>
+        ))}
+      </select>
+      <input
+        type="date"
+        value={visitDate}
+        onChange={(e) => setVisitDate(e.target.value)}
+      />
+      <button type="submit">Log Visit</button>
+    </form>
+  );
+}
+
+function ZooSearch({ onSelectZoo }) {
+  const [query, setQuery] = useState("");
+  const [zoos, setZoos] = useState([]);
+
+  const search = () => {
+    fetch(`${API}/zoos?q=${encodeURIComponent(query)}`)
+      .then((r) => r.json())
+      .then(setZoos);
+  };
+
+  useEffect(search, []);
+
+  return (
+    <div>
+      <h2>Search Zoos</h2>
+      <input
+        placeholder="Search"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+      />
+      <button onClick={search}>Search</button>
+      <ul>
+        {zoos.map((z) => (
+          <li key={z.id}>
+            <button onClick={() => onSelectZoo(z)}>{z.name}</button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function AnimalSearch() {
+  const [query, setQuery] = useState("");
+  const [animals, setAnimals] = useState([]);
+
+  const search = () => {
+    fetch(`${API}/animals?q=${encodeURIComponent(query)}`)
+      .then((r) => r.json())
+      .then(setAnimals);
+  };
+
+  useEffect(search, []);
+
+  return (
+    <div>
+      <h2>Search Animals</h2>
+      <input
+        placeholder="Search"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+      />
+      <button onClick={search}>Search</button>
+      <ul>
+        {animals.map((a) => (
+          <li key={a.id}>{a.common_name}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function AuthStatus({ token, email }) {
+  return (
+    <div>
+      {token ? <p>Logged in as {email}</p> : <p>Not logged in</p>}
+    </div>
+  );
+}
+
 function App() {
   const [token, setToken] = useState(localStorage.getItem("token"));
   const [userId, setUserId] = useState(null);
-  const [step, setStep] = useState(token ? "zoos" : "signup");
+  const [userEmail, setUserEmail] = useState(null);
   const [zoos, setZoos] = useState([]);
   const [animals, setAnimals] = useState([]);
   const [selectedZoo, setSelectedZoo] = useState(null);
   const [refreshCounter, setRefreshCounter] = useState(0);
 
   useEffect(() => {
-    if (token) {
-      fetch(`${API}/zoos`).then((r) => r.json()).then(setZoos);
-      fetch(`${API}/animals`).then((r) => r.json()).then(setAnimals);
-      // decode token to get user id not necessary because API doesn't provide
-    }
-  }, [token]);
+    fetch(`${API}/zoos`).then((r) => r.json()).then(setZoos);
+    fetch(`${API}/animals`).then((r) => r.json()).then(setAnimals);
+  }, []);
 
-  const handleSignedUp = (user, email, password) => {
+  const handleSignedUp = (user, email) => {
     setUserId(user.id);
-    setStep("login");
+    setUserEmail(email);
   };
 
-  const handleLoggedIn = (tok, uid) => {
+  const handleLoggedIn = (tok, uid, email) => {
     setToken(tok);
     setUserId(uid);
-    setStep("zoos");
+    setUserEmail(email);
   };
 
   const handleZooSelect = (z) => {
     setSelectedZoo(z);
-    setStep("zooDetail");
   };
 
   const handleBack = () => {
-    setStep("zoos");
+    setSelectedZoo(null);
   };
 
   const refreshSeen = () => {
@@ -221,21 +314,18 @@ function App() {
 
   return (
     <div>
-      {step === "signup" && <Signup onSignedUp={handleSignedUp} />}
-      {step === "login" && <Login onLoggedIn={handleLoggedIn} />}
-      {step === "zoos" && (
+      <AuthStatus token={token} email={userEmail} />
+      <Signup onSignedUp={handleSignedUp} />
+      <Login emailPrefill={userEmail} onLoggedIn={handleLoggedIn} />
+      <ZooSearch onSelectZoo={handleZooSelect} />
+      {selectedZoo && <ZooDetail zoo={selectedZoo} onBack={handleBack} />}
+      <AnimalSearch />
+      {token && userId && (
         <>
-          <ZooList token={token} onSelectZoo={handleZooSelect} />
-          {token && userId && (
-            <LogSighting token={token} userId={userId} animals={animals} zoos={zoos} onLogged={refreshSeen} />
-          )}
-          {token && userId && (
-            <SeenAnimals token={token} userId={userId} refresh={refreshCounter} />
-          )}
+          <LogVisit token={token} userId={userId} zoos={zoos} onLogged={refreshSeen} />
+          <LogSighting token={token} userId={userId} animals={animals} zoos={zoos} onLogged={refreshSeen} />
+          <SeenAnimals token={token} userId={userId} refresh={refreshCounter} />
         </>
-      )}
-      {step === "zooDetail" && selectedZoo && (
-        <ZooDetail zoo={selectedZoo} token={token} onBack={handleBack} />
       )}
     </div>
   );
