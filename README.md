@@ -29,7 +29,7 @@ python -m app.create_tables
 ### Loading Example Data
 
 CSV files with sample records for all tables are provided under `example_data/`.
-After creating the tables you can populate the database with this data:
+The loader will create any missing tables automatically, so you can simply run:
 
 ```bash
 python -m app.load_example_data

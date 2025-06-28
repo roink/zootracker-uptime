@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from .database import SessionLocal
 from . import models
 from .main import hash_password
+from .create_tables import create_tables
 
 
 def _uuid(val: str) -> uuid.UUID:
@@ -151,6 +152,7 @@ LOAD_ORDER = [
 
 def main(data_path: str = "example_data"):
     path = Path(data_path)
+    create_tables()
     db = SessionLocal()
     try:
         for func in LOAD_ORDER:
