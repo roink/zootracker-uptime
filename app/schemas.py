@@ -1,3 +1,5 @@
+"""Pydantic schemas used for request and response models."""
+
 from datetime import date, datetime
 from typing import Optional
 from uuid import UUID
@@ -6,12 +8,14 @@ from pydantic import BaseModel, EmailStr, ConfigDict
 
 
 class UserCreate(BaseModel):
+    """Schema for user registration."""
     name: str
     email: EmailStr
     password: str
 
 
 class UserRead(BaseModel):
+    """Schema returned when reading user information."""
     id: UUID
     name: str
     email: EmailStr
@@ -20,12 +24,14 @@ class UserRead(BaseModel):
 
 
 class Token(BaseModel):
+    """Authentication token response."""
     access_token: str
     token_type: str
     user_id: Optional[UUID] = None
 
 
 class ZooRead(BaseModel):
+    """Basic information about a zoo."""
     id: UUID
     name: str
     address: Optional[str] = None
@@ -34,6 +40,7 @@ class ZooRead(BaseModel):
 
 
 class AnimalRead(BaseModel):
+    """Minimal representation of an animal."""
     id: UUID
     common_name: str
 
@@ -41,12 +48,14 @@ class AnimalRead(BaseModel):
 
 
 class ZooVisitCreate(BaseModel):
+    """Input data required to log a zoo visit."""
     zoo_id: UUID
     visit_date: date
     notes: Optional[str] = None
 
 
 class ZooVisitRead(BaseModel):
+    """Zoo visit data returned from the API."""
     id: UUID
     zoo_id: UUID
     visit_date: date
@@ -56,6 +65,7 @@ class ZooVisitRead(BaseModel):
 
 
 class AnimalSightingCreate(BaseModel):
+    """Input data for recording an animal sighting."""
     zoo_id: UUID
     animal_id: UUID
     user_id: UUID
@@ -64,6 +74,7 @@ class AnimalSightingCreate(BaseModel):
 
 
 class AnimalSightingRead(BaseModel):
+    """Full representation of an animal sighting."""
     id: UUID
     zoo_id: UUID
     animal_id: UUID

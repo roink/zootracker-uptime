@@ -1,5 +1,8 @@
+# Compose file used for local development
 version: '3.9'
+
 services:
+  # PostgreSQL database container
   db:
     image: postgres:15
     restart: always
@@ -12,6 +15,7 @@ services:
     ports:
       - "5432:5432"
 
+  # Application container running the FastAPI app
   app:
     build: .
     volumes:
@@ -22,5 +26,6 @@ services:
       - db
     ports:
       - "8000:8000"
+
 volumes:
   db_data:
