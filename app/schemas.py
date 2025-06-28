@@ -83,3 +83,16 @@ class AnimalSightingRead(BaseModel):
     photo_url: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class AnimalDetail(BaseModel):
+    """Detailed information about an animal including available zoos."""
+
+    id: UUID
+    common_name: str
+    scientific_name: Optional[str] = None
+    category: Optional[str] = None
+    description: Optional[str] = None
+    zoos: list[ZooRead] = []
+
+    model_config = ConfigDict(from_attributes=True)

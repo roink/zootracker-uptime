@@ -175,6 +175,31 @@ def list_zoo_animals(zoo_id: uuid.UUID, db: Session = Depends(get_db)):
     )
 
 
+@app.get("/animals/{animal_id}", response_model=schemas.AnimalDetail)
+def get_animal_detail(animal_id: uuid.UUID, db: Session = Depends(get_db)):
+    """Retrieve a single animal and the zoos where it can be found."""
+    animal = db.get(models.Animal, animal_id)
+    if animal is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="Animal not found")
+
+    zoos = (
+        db.query(models.Zoo)
+        .join(models.ZooAnimal, models.Zoo.id == models.ZooAnimal.zoo_id)
+        .filter(models.ZooAnimal.animal_id == animal_id)
+        .all()
+    )
+
+    return schemas.AnimalDetail(
+        id=animal.id,
+        common_name=animal.common_name,
+        scientific_name=animal.scientific_name,
+        category=animal.category.name if animal.category else None,
+        description=animal.description,
+        zoos=zoos,
+    )
+
+
 @app.post("/visits", response_model=schemas.ZooVisitRead)
 def create_visit(
     visit_in: schemas.ZooVisitCreate,
