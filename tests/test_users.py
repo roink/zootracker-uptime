@@ -1,6 +1,8 @@
 import uuid
 from datetime import date, datetime
 from .conftest import client, register_and_login, SessionLocal
+
+_counter = 0  # used to generate unique email addresses
 from app import models
 
 def test_create_user_and_authenticate():
