@@ -53,6 +53,17 @@ def seed_data():
     db.commit()
     db.refresh(zoo)
 
+    far_zoo = models.Zoo(
+        name="Far Zoo",
+        address="456 Distant Rd",
+        latitude=50.0,
+        longitude=60.0,
+        description="Too far away",
+    )
+    db.add(far_zoo)
+    db.commit()
+    db.refresh(far_zoo)
+
     animal = models.Animal(common_name="Lion", category_id=category.id)
     db.add(animal)
     db.commit()
@@ -63,7 +74,7 @@ def seed_data():
     db.commit()
 
     db.close()
-    return {"zoo": zoo, "animal": animal}
+    return {"zoo": zoo, "animal": animal, "far_zoo": far_zoo}
 
 
 @pytest.fixture(scope="module")
@@ -607,3 +618,25 @@ def test_get_zoo_details(data):
 def test_get_zoo_invalid_id():
     resp = client.get(f"/zoos/{uuid.uuid4()}")
     assert resp.status_code == 404
+
+
+def test_search_zoos_with_radius(data):
+    """Zoos outside the radius should not be returned."""
+    params = {
+        "latitude": data["zoo"].latitude,
+        "longitude": data["zoo"].longitude,
+        "radius_km": 100,
+    }
+    resp = client.get("/zoos", params=params)
+    assert resp.status_code == 200
+    ids = {z["id"] for z in resp.json()}
+    assert str(data["zoo"].id) in ids
+    assert str(data["far_zoo"].id) not in ids
+
+
+def test_search_zoos_name_only(data):
+    """Name search should work without location parameters."""
+    resp = client.get("/zoos", params={"q": "Central"})
+    assert resp.status_code == 200
+    names = [z["name"] for z in resp.json()]
+    assert "Central Zoo" in names
