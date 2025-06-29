@@ -249,11 +249,16 @@ function LandingPage({ onSignedUp, onLoggedIn, email }) {
   );
 }
 
-function DashboardPage({ token, userId, refresh }) {
+function DashboardPage({ token, userId, zoos, animals, refresh, onUpdate }) {
   return (
-    <div>
-      <SeenAnimals token={token} userId={userId} refresh={refresh} />
-    </div>
+    <Dashboard
+      token={token}
+      userId={userId}
+      zoos={zoos}
+      animals={animals}
+      refresh={refresh}
+      onUpdate={onUpdate}
+    />
   );
 }
 
@@ -381,10 +386,32 @@ function App() {
           path="/"
           element={
             token ? (
-              <DashboardPage token={token} userId={userId} refresh={refreshCounter} />
+              <DashboardPage
+                token={token}
+                userId={userId}
+                zoos={zoos}
+                animals={animals}
+                refresh={refreshCounter}
+                onUpdate={refreshSeen}
+              />
             ) : (
               <Landing />
             )
+          }
+        />
+        <Route
+          path="/home"
+          element={
+            <RequireAuth token={token}>
+              <DashboardPage
+                token={token}
+                userId={userId}
+                zoos={zoos}
+                animals={animals}
+                refresh={refreshCounter}
+                onUpdate={refreshSeen}
+              />
+            </RequireAuth>
           }
         />
         <Route
