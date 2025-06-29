@@ -262,13 +262,29 @@ function DashboardPage({ token, userId, zoos, animals, refresh, onUpdate }) {
   );
 }
 
-function ZoosPage({ selectedZoo, onSelectZoo, onBack }) {
+function LegacyZoosPage({ selectedZoo, onSelectZoo, onBack }) {
   return (
     <div>
       <ZooSearch onSelectZoo={onSelectZoo} />
       {selectedZoo && <ZooDetail zoo={selectedZoo} onBack={onBack} />}
     </div>
   );
+}
+
+function ZooDetailPage() {
+  const { id } = ReactRouterDOM.useParams();
+  const navigate = useNavigate();
+  const [zoo, setZoo] = useState(null);
+
+  useEffect(() => {
+    fetch(`${API}/zoos/${id}`).then((r) => r.json()).then(setZoo);
+  }, [id]);
+
+  if (!zoo) {
+    return <div>Loading...</div>;
+  }
+
+  return <ZooDetail zoo={zoo} onBack={() => navigate(-1)} />;
 }
 
 function AnimalsPage() {
@@ -322,7 +338,6 @@ function App() {
   const [userEmail, setUserEmail] = useState(null);
   const [zoos, setZoos] = useState([]);
   const [animals, setAnimals] = useState([]);
-  const [selectedZoo, setSelectedZoo] = useState(null);
   const [refreshCounter, setRefreshCounter] = useState(0);
   const [showAdd, setShowAdd] = useState(false);
 
@@ -426,11 +441,15 @@ function App() {
           path="/zoos"
           element={
             <RequireAuth token={token}>
-              <ZoosPage
-                selectedZoo={selectedZoo}
-                onSelectZoo={setSelectedZoo}
-                onBack={() => setSelectedZoo(null)}
-              />
+              <ZoosPage token={token} />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/zoos/:id"
+          element={
+            <RequireAuth token={token}>
+              <ZooDetailPage />
             </RequireAuth>
           }
         />
