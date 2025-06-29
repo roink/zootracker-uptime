@@ -75,7 +75,7 @@ def seed_data():
     return {"zoo": zoo, "animal": animal, "far_zoo": far_zoo}
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def data():
     """Provide seeded data to tests that need it."""
     records = seed_data()
