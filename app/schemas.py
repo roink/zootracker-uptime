@@ -105,6 +105,25 @@ class AnimalSightingRead(BaseModel):
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 
 
+class ZooVisitUpdate(BaseModel):
+    """Fields allowed when updating a zoo visit."""
+
+    visit_date: Optional[date] = None
+    notes: Optional[str] = Field(default=None, max_length=1000)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class AnimalSightingUpdate(BaseModel):
+    """Fields allowed when updating an animal sighting."""
+
+    sighting_datetime: Optional[datetime] = None
+    notes: Optional[str] = Field(default=None, max_length=1000)
+    photo_url: Optional[str] = Field(default=None, max_length=512)
+
+    model_config = ConfigDict(extra="forbid")
+
+
 class AnimalDetail(BaseModel):
     """Detailed information about an animal including available zoos."""
 

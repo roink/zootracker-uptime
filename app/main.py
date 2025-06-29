@@ -335,6 +335,34 @@ def list_visits(
     return db.query(models.ZooVisit).filter_by(user_id=user.id).all()
 
 
+@app.patch(
+    "/visits/{visit_id}",
+    response_model=schemas.ZooVisitRead,
+    dependencies=[Depends(require_json)],
+)
+def update_visit(
+    visit_id: uuid.UUID,
+    visit_in: schemas.ZooVisitUpdate,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    """Update a visit's date or notes."""
+    visit = db.get(models.ZooVisit, visit_id)
+    if visit is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Visit not found")
+    if visit.user_id != user.id and not getattr(user, "is_admin", False):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to update this visit")
+
+    data = visit_in.model_dump(exclude_unset=True)
+    for key, value in data.items():
+        setattr(visit, key, value)
+
+    db.add(visit)
+    db.commit()
+    db.refresh(visit)
+    return visit
+
+
 @app.post(
     "/sightings",
     response_model=schemas.AnimalSightingRead,
@@ -362,6 +390,34 @@ def create_sighting(
 
     data = sighting_in.model_dump()
     sighting = models.AnimalSighting(**data)
+    db.add(sighting)
+    db.commit()
+    db.refresh(sighting)
+    return sighting
+
+
+@app.patch(
+    "/sightings/{sighting_id}",
+    response_model=schemas.AnimalSightingRead,
+    dependencies=[Depends(require_json)],
+)
+def update_sighting(
+    sighting_id: uuid.UUID,
+    sighting_in: schemas.AnimalSightingUpdate,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    """Update notes, datetime, or photo for a sighting."""
+    sighting = db.get(models.AnimalSighting, sighting_id)
+    if sighting is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sighting not found")
+    if sighting.user_id != user.id and not getattr(user, "is_admin", False):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to update this sighting")
+
+    data = sighting_in.model_dump(exclude_unset=True)
+    for key, value in data.items():
+        setattr(sighting, key, value)
+
     db.add(sighting)
     db.commit()
     db.refresh(sighting)
