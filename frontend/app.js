@@ -1,4 +1,5 @@
 const { useState, useEffect } = React;
+const { BrowserRouter, Routes, Route, Link, Navigate, useNavigate } = ReactRouterDOM;
 
 // Base URL of the FastAPI backend. When the frontend is served on a different
 // port (e.g. via `python -m http.server`), the API won't be on the same origin
@@ -268,11 +269,78 @@ function AnimalSearch() {
 }
 
 function AuthStatus({ token, email }) {
+  return <div>{token ? <p>Logged in as {email}</p> : <p>Not logged in</p>}</div>;
+}
+
+function LandingPage({ onSignedUp, onLoggedIn, email }) {
   return (
     <div>
-      {token ? <p>Logged in as {email}</p> : <p>Not logged in</p>}
+      <Signup onSignedUp={onSignedUp} />
+      <Login emailPrefill={email} onLoggedIn={onLoggedIn} />
     </div>
   );
+}
+
+function DashboardPage({ token, userId, refresh }) {
+  return (
+    <div>
+      <SeenAnimals token={token} userId={userId} refresh={refresh} />
+    </div>
+  );
+}
+
+function ZoosPage({ selectedZoo, onSelectZoo, onBack }) {
+  return (
+    <div>
+      <ZooSearch onSelectZoo={onSelectZoo} />
+      {selectedZoo && <ZooDetail zoo={selectedZoo} onBack={onBack} />}
+    </div>
+  );
+}
+
+function AnimalsPage() {
+  return <AnimalSearch />;
+}
+
+function BadgesPage() {
+  return <h2>Badges</h2>;
+}
+
+function ProfilePage({ email }) {
+  return (
+    <div>
+      <h2>Profile</h2>
+      <p>{email}</p>
+    </div>
+  );
+}
+
+function NavBar({ onAddClick }) {
+  const navigate = useNavigate();
+  return (
+    <nav
+      style={{
+        position: "fixed",
+        bottom: 0,
+        width: "100%",
+        background: "#eee",
+        padding: "10px",
+        display: "flex",
+        justifyContent: "space-around",
+      }}
+    >
+      <button onClick={() => navigate("/")}>🏠</button>
+      <button onClick={() => navigate("/zoos")}>🏛️</button>
+      <button onClick={() => navigate("/animals")}>🐾</button>
+      <button onClick={onAddClick}>➕</button>
+      <button onClick={() => navigate("/badges")}>🎖️</button>
+      <button onClick={() => navigate("/profile")}>👤</button>
+    </nav>
+  );
+}
+
+function RequireAuth({ token, children }) {
+  return token ? children : <Navigate to="/" replace />;
 }
 
 function App() {
@@ -283,6 +351,7 @@ function App() {
   const [animals, setAnimals] = useState([]);
   const [selectedZoo, setSelectedZoo] = useState(null);
   const [refreshCounter, setRefreshCounter] = useState(0);
+  const [showAdd, setShowAdd] = useState(false);
 
   useEffect(() => {
     fetch(`${API}/zoos`).then((r) => r.json()).then(setZoos);
@@ -300,35 +369,95 @@ function App() {
     setUserEmail(email);
   };
 
-  const handleZooSelect = (z) => {
-    setSelectedZoo(z);
-  };
-
-  const handleBack = () => {
-    setSelectedZoo(null);
-  };
-
   const refreshSeen = () => {
     setRefreshCounter((c) => c + 1);
   };
 
   return (
-    <div>
-      <AuthStatus token={token} email={userEmail} />
-      <Signup onSignedUp={handleSignedUp} />
-      <Login emailPrefill={userEmail} onLoggedIn={handleLoggedIn} />
-      <ZooSearch onSelectZoo={handleZooSelect} />
-      {selectedZoo && <ZooDetail zoo={selectedZoo} onBack={handleBack} />}
-      <AnimalSearch />
-      {token && userId && (
-        <>
-          <LogVisit token={token} userId={userId} zoos={zoos} onLogged={refreshSeen} />
-          <LogSighting token={token} userId={userId} animals={animals} zoos={zoos} onLogged={refreshSeen} />
-          <SeenAnimals token={token} userId={userId} refresh={refreshCounter} />
-        </>
+    <BrowserRouter>
+      {token && <NavBar onAddClick={() => setShowAdd((s) => !s)} />}
+      {showAdd && token && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: "60px",
+            right: "10px",
+            background: "white",
+            border: "1px solid #ccc",
+            padding: "10px",
+          }}
+        >
+          <LogVisit
+            token={token}
+            userId={userId}
+            zoos={zoos}
+            onLogged={() => {
+              refreshSeen();
+              setShowAdd(false);
+            }}
+          />
+          <LogSighting
+            token={token}
+            userId={userId}
+            animals={animals}
+            zoos={zoos}
+            onLogged={() => {
+              refreshSeen();
+              setShowAdd(false);
+            }}
+          />
+        </div>
       )}
-    </div>
+      <Routes>
+        <Route
+          path="/"
+          element={
+            token ? (
+              <DashboardPage token={token} userId={userId} refresh={refreshCounter} />
+            ) : (
+              <LandingPage onSignedUp={handleSignedUp} onLoggedIn={handleLoggedIn} email={userEmail} />
+            )
+          }
+        />
+        <Route
+          path="/zoos"
+          element={
+            <RequireAuth token={token}>
+              <ZoosPage
+                selectedZoo={selectedZoo}
+                onSelectZoo={setSelectedZoo}
+                onBack={() => setSelectedZoo(null)}
+              />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/animals"
+          element={
+            <RequireAuth token={token}>
+              <AnimalsPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/badges"
+          element={
+            <RequireAuth token={token}>
+              <BadgesPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <RequireAuth token={token}>
+              <ProfilePage email={userEmail} />
+            </RequireAuth>
+          }
+        />
+      </Routes>
+    </BrowserRouter>
   );
 }
 
-ReactDOM.render(<App />, document.getElementById("root"));
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
