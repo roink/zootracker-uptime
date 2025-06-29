@@ -179,6 +179,19 @@ def test_create_user_requires_json():
     assert resp.status_code == 415
 
 
+def test_create_user_accepts_charset():
+    """Content type with charset parameter should be accepted."""
+    global _counter
+    email = f"jsoncharset{_counter}@example.com"
+    _counter += 1
+    resp = client.post(
+        "/users",
+        json={"name": "Alice", "email": email, "password": "secret"},
+        headers={"content-type": "application/json; charset=utf-8"},
+    )
+    assert resp.status_code == 200
+
+
 def test_login_empty_username_password():
     """Login with empty credentials should return 400."""
     resp = client.post(
@@ -230,6 +243,18 @@ def test_create_visit_requires_json(data):
     assert resp.status_code == 415
 
 
+def test_create_visit_accepts_charset(data):
+    token, _ = register_and_login()
+    zoo_id = data["zoo"].id
+    visit = {"zoo_id": str(zoo_id), "visit_date": str(date.today())}
+    resp = client.post(
+        "/visits",
+        json=visit,
+        headers={"Authorization": f"Bearer {token}", "content-type": "application/json; charset=utf-8"},
+    )
+    assert resp.status_code == 200
+
+
 def test_create_visit_for_user_requires_json(data):
     token, user_id = register_and_login()
     zoo_id = data["zoo"].id
@@ -240,6 +265,18 @@ def test_create_visit_for_user_requires_json(data):
         headers={"Authorization": f"Bearer {token}", "content-type": "text/plain"},
     )
     assert resp.status_code == 415
+
+
+def test_create_visit_for_user_accepts_charset(data):
+    token, user_id = register_and_login()
+    zoo_id = data["zoo"].id
+    visit = {"zoo_id": str(zoo_id), "visit_date": str(date.today())}
+    resp = client.post(
+        f"/users/{user_id}/visits",
+        json=visit,
+        headers={"Authorization": f"Bearer {token}", "content-type": "application/json; charset=utf-8"},
+    )
+    assert resp.status_code == 200
 
 
 def test_post_sighting(data):
@@ -287,6 +324,24 @@ def test_sighting_requires_json(data):
         headers={"Authorization": f"Bearer {token}", "content-type": "text/plain"},
     )
     assert resp.status_code == 415
+
+
+def test_sighting_accepts_charset(data):
+    token, user_id = register_and_login()
+    zoo_id = data["zoo"].id
+    animal_id = data["animal"].id
+    sighting = {
+        "zoo_id": str(zoo_id),
+        "animal_id": str(animal_id),
+        "user_id": str(user_id),
+        "sighting_datetime": datetime.utcnow().isoformat(),
+    }
+    resp = client.post(
+        "/sightings",
+        json=sighting,
+        headers={"Authorization": f"Bearer {token}", "content-type": "application/json; charset=utf-8"},
+    )
+    assert resp.status_code == 200
 
 
 
@@ -815,7 +870,7 @@ def test_patch_sighting_forbidden(data):
     )
     assert resp.status_code == 403
 
-    def test_search_zoos_with_radius(data):
+def test_search_zoos_with_radius(data):
     """Zoos outside the radius should not be returned."""
     params = {
         "latitude": data["zoo"].latitude,
