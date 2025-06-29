@@ -714,7 +714,108 @@ def test_get_zoo_invalid_id():
     assert resp.status_code == 404
 
 
-def test_search_zoos_with_radius(data):
+def test_patch_visit_success(data):
+    token, user_id = register_and_login()
+    zoo_id = data["zoo"].id
+    visit = {"zoo_id": str(zoo_id), "visit_date": str(date.today())}
+    resp = client.post(
+        f"/users/{user_id}/visits",
+        json=visit,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    visit_id = resp.json()["id"]
+
+    tomorrow = date.fromordinal(date.today().toordinal() + 1)
+    resp = client.patch(
+        f"/visits/{visit_id}",
+        json={"visit_date": str(tomorrow), "notes": "updated"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["visit_date"] == str(tomorrow)
+    assert body["notes"] == "updated"
+
+
+def test_patch_visit_forbidden(data):
+    token1, user1 = register_and_login()
+    token2, _ = register_and_login()
+    zoo_id = data["zoo"].id
+    visit = {"zoo_id": str(zoo_id), "visit_date": str(date.today())}
+    resp = client.post(
+        f"/users/{user1}/visits",
+        json=visit,
+        headers={"Authorization": f"Bearer {token1}"},
+    )
+    assert resp.status_code == 200
+    visit_id = resp.json()["id"]
+
+    resp = client.patch(
+        f"/visits/{visit_id}",
+        json={"notes": "hacked"},
+        headers={"Authorization": f"Bearer {token2}"},
+    )
+    assert resp.status_code == 403
+
+
+def test_patch_sighting_success(data):
+    token, user_id = register_and_login()
+    zoo_id = data["zoo"].id
+    animal_id = data["animal"].id
+    sighting = {
+        "zoo_id": str(zoo_id),
+        "animal_id": str(animal_id),
+        "user_id": str(user_id),
+        "sighting_datetime": datetime.utcnow().isoformat(),
+    }
+    resp = client.post(
+        "/sightings",
+        json=sighting,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    sighting_id = resp.json()["id"]
+
+    photo = "http://example.com/photo.jpg"
+    resp = client.patch(
+        f"/sightings/{sighting_id}",
+        json={"notes": "great", "photo_url": photo},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["notes"] == "great"
+    assert body["photo_url"] == photo
+
+
+def test_patch_sighting_forbidden(data):
+    token1, user1 = register_and_login()
+    token2, _ = register_and_login()
+    zoo_id = data["zoo"].id
+    animal_id = data["animal"].id
+    sighting = {
+        "zoo_id": str(zoo_id),
+        "animal_id": str(animal_id),
+        "user_id": str(user1),
+        "sighting_datetime": datetime.utcnow().isoformat(),
+    }
+    resp = client.post(
+        "/sightings",
+        json=sighting,
+        headers={"Authorization": f"Bearer {token1}"},
+    )
+    assert resp.status_code == 200
+    sighting_id = resp.json()["id"]
+
+    resp = client.patch(
+        f"/sightings/{sighting_id}",
+        json={"notes": "oops"},
+        headers={"Authorization": f"Bearer {token2}"},
+    )
+    assert resp.status_code == 403
+
+    def test_search_zoos_with_radius(data):
     """Zoos outside the radius should not be returned."""
     params = {
         "latitude": data["zoo"].latitude,
