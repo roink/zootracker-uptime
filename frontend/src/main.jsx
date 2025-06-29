@@ -79,6 +79,9 @@ function ZooDetail({ zoo, token, userId, onBack }) {
           src={`https://maps.google.com/maps?q=${zoo.latitude},${zoo.longitude}&z=14&output=embed`}
         ></iframe>
       )}
+      {zoo.description && (
+        <p style={{ marginTop: '10px', whiteSpace: 'pre-wrap' }}>{zoo.description}</p>
+      )}
       <div style={{ marginTop: '10px' }}>Visited? {visited ? '☑️ Yes' : '✘ No'}</div>
       <button onClick={() => setShowVisitForm((v) => !v)} style={{ marginTop: '10px' }}>
         Log a Visit
