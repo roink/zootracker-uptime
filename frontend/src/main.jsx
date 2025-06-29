@@ -306,8 +306,8 @@ function RequireAuth({ token, children }) {
 
 function App() {
   const [token, setToken] = useState(localStorage.getItem("token"));
-  const [userId, setUserId] = useState(null);
-  const [userEmail, setUserEmail] = useState(null);
+  const [userId, setUserId] = useState(localStorage.getItem("userId"));
+  const [userEmail, setUserEmail] = useState(localStorage.getItem("userEmail"));
   const [zoos, setZoos] = useState([]);
   const [animals, setAnimals] = useState([]);
   const [refreshCounter, setRefreshCounter] = useState(0);
@@ -321,12 +321,17 @@ function App() {
   const handleSignedUp = (user, email) => {
     setUserId(user.id);
     setUserEmail(email);
+    localStorage.setItem("userId", user.id);
+    localStorage.setItem("userEmail", email);
   };
 
   const handleLoggedIn = (tok, uid, email) => {
     setToken(tok);
     setUserId(uid);
     setUserEmail(email);
+    localStorage.setItem("token", tok);
+    localStorage.setItem("userId", uid);
+    localStorage.setItem("userEmail", email);
   };
 
   const refreshSeen = () => {
