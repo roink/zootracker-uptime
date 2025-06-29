@@ -37,38 +37,6 @@ function Signup({ onSignedUp }) {
   );
 }
 
-function Login({ emailPrefill, onLoggedIn }) {
-  const [email, setEmail] = useState(emailPrefill || "");
-  const [password, setPassword] = useState("");
-
-  const submit = async (e) => {
-    e.preventDefault();
-    const body = new URLSearchParams();
-    body.append("username", email);
-    body.append("password", password);
-    const resp = await fetch(`${API}/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body,
-    });
-    if (resp.ok) {
-      const data = await resp.json();
-      localStorage.setItem("token", data.access_token);
-      onLoggedIn(data.access_token, data.user_id, email);
-    } else {
-      alert("Login failed");
-    }
-  };
-
-  return (
-    <form onSubmit={submit}>
-      <h2>Login</h2>
-      <input placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
-      <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
-      <button type="submit">Login</button>
-    </form>
-  );
-}
 
 
 function ZooDetail({ zoo, onBack }) {
