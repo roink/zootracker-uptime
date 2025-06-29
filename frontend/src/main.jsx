@@ -12,6 +12,7 @@ import LoginPage from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import ZoosPage from "./pages/Zoos";
 import AnimalsPage from "./pages/Animals";
+import AnimalDetailPage from "./pages/AnimalDetail";
 import { LogVisit, LogSighting } from "./components/logForms";
 
 
@@ -407,6 +408,14 @@ function App() {
           element={
             <RequireAuth token={token}>
               <AnimalsPage token={token} userId={userId} />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/animals/:id"
+          element={
+            <RequireAuth token={token}>
+              <AnimalDetailPage token={token} userId={userId} />
             </RequireAuth>
           }
         />
