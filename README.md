@@ -50,16 +50,14 @@ print(session.query(models.Zoo).all())
 
 ### Running the Frontend
 
-The demo frontend under `frontend/` must be served via HTTP. Opening
-`index.html` directly with the `file://` scheme leads to CORS errors and a blank
-page. Start a small web server from the directory:
+The frontend uses [Vite](https://vitejs.dev/) during development. Install the
+dependencies once and start the dev server:
 
 ```bash
-# from the repository root
 cd frontend
-# choose a port that isn't used by FastAPI (e.g. 8080)
-python -m http.server 8080
+npm install
+npm run dev
 ```
 
-Then open <http://localhost:8080>. The frontend will talk to the API on port
-`8000`.
+Vite will serve the application on <http://localhost:5173> with the correct CORS
+and MIME headers so it can communicate with the API on port `8000`.

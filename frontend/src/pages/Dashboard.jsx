@@ -1,12 +1,16 @@
-function Dashboard({ token, userId, zoos, animals, refresh, onUpdate }) {
-  const [visits, setVisits] = React.useState([]);
-  const [seenAnimals, setSeenAnimals] = React.useState([]);
-  const [sightings, setSightings] = React.useState([]);
-  const [badges, setBadges] = React.useState([]);
-  const [showVisitForm, setShowVisitForm] = React.useState(false);
-  const [showSightingForm, setShowSightingForm] = React.useState(false);
+import React, { useState, useEffect, useMemo } from 'react';
+import { LogVisit, LogSighting } from '../components/logForms';
+import { API } from '../api';
 
-  React.useEffect(() => {
+export default function Dashboard({ token, userId, zoos, animals, refresh, onUpdate }) {
+  const [visits, setVisits] = useState([]);
+  const [seenAnimals, setSeenAnimals] = useState([]);
+  const [sightings, setSightings] = useState([]);
+  const [badges, setBadges] = useState([]);
+  const [showVisitForm, setShowVisitForm] = useState(false);
+  const [showSightingForm, setShowSightingForm] = useState(false);
+
+  useEffect(() => {
     fetch(`${API}/visits`, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => r.json())
       .then(setVisits);
@@ -26,7 +30,7 @@ function Dashboard({ token, userId, zoos, animals, refresh, onUpdate }) {
       .catch(() => setBadges([]));
   }, [token, userId, refresh]);
 
-  const feedItems = React.useMemo(() => {
+  const feedItems = useMemo(() => {
     const v = visits.map((x) => ({ type: 'visit', date: x.visit_date, item: x }));
     const s = sightings.map((x) => ({ type: 'sighting', date: x.sighting_datetime, item: x }));
     return [...v, ...s].sort((a, b) => new Date(b.date) - new Date(a.date));
