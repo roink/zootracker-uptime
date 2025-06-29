@@ -10,10 +10,22 @@ export default function AnimalDetailPage({ token, userId }) {
   const [sightings, setSightings] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [location, setLocation] = useState(null);
+  const [zoos, setZoos] = useState([]);
 
   useEffect(() => {
     fetch(`${API}/animals/${id}`).then((r) => r.json()).then(setAnimal);
   }, [id]);
+
+  useEffect(() => {
+    const params = [];
+    if (location) {
+      params.push(`latitude=${location.lat}`);
+      params.push(`longitude=${location.lon}`);
+    }
+    fetch(`${API}/animals/${id}/zoos${params.length ? `?${params.join('&')}` : ''}`)
+      .then((r) => r.json())
+      .then(setZoos);
+  }, [id, location]);
 
   useEffect(() => {
     if (!token) return;
@@ -64,14 +76,6 @@ export default function AnimalDetailPage({ token, userId }) {
     return 6371 * c;
   };
 
-  let zoos = animal.zoos || [];
-  if (location) {
-    zoos = [...zoos].sort((a, b) => {
-      const da = distanceKm(a) ?? Number.MAX_VALUE;
-      const db = distanceKm(b) ?? Number.MAX_VALUE;
-      return da - db;
-    });
-  }
   const closestZoo = zoos[0];
 
   return (

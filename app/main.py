@@ -318,6 +318,58 @@ def get_animal_detail(animal_id: uuid.UUID, db: Session = Depends(get_db)):
     )
 
 
+@app.get(
+    "/animals/{animal_id}/zoos",
+    response_model=list[schemas.ZooDetail],
+)
+def list_zoos_for_animal(
+    animal_id: uuid.UUID,
+    latitude: float | None = None,
+    longitude: float | None = None,
+    db: Session = Depends(get_db),
+):
+    """Return zoos that house the given animal ordered by distance if provided."""
+    animal = db.get(models.Animal, animal_id)
+    if animal is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Animal not found")
+
+    if latitude is not None and not -90 <= latitude <= 90:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid latitude")
+    if longitude is not None and not -180 <= longitude <= 180:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid longitude")
+
+    zoos = (
+        db.query(models.Zoo)
+        .join(models.ZooAnimal, models.Zoo.id == models.ZooAnimal.zoo_id)
+        .filter(models.ZooAnimal.animal_id == animal_id)
+        .all()
+    )
+
+    if latitude is not None and longitude is not None:
+        from math import radians, cos, sin, asin, sqrt
+
+        def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+            lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
+            dlat = lat2 - lat1
+            dlon = lon2 - lon1
+            a = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
+            c = 2 * asin(sqrt(a))
+            return 6371 * c
+
+        zoos.sort(
+            key=lambda z: haversine(
+                float(latitude),
+                float(longitude),
+                float(z.latitude) if z.latitude is not None else 0.0,
+                float(z.longitude) if z.longitude is not None else 0.0,
+            )
+            if z.latitude is not None and z.longitude is not None
+            else float("inf")
+        )
+
+    return zoos
+
+
 @app.post(
     "/visits",
     response_model=schemas.ZooVisitRead,
