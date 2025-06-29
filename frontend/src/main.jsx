@@ -13,6 +13,7 @@ import Dashboard from "./pages/Dashboard";
 import ZoosPage from "./pages/Zoos";
 import AnimalsPage from "./pages/Animals";
 import AnimalDetailPage from "./pages/AnimalDetail";
+import NewVisitPage from "./pages/NewVisit";
 import { LogVisit, LogSighting } from "./components/logForms";
 
 
@@ -22,9 +23,8 @@ function ZooDetail({ zoo, token, userId, onBack }) {
   const [animals, setAnimals] = useState([]);
   const [visits, setVisits] = useState([]);
   const [seenAnimals, setSeenAnimals] = useState([]);
-  const [showVisitForm, setShowVisitForm] = useState(false);
-  const [loggingAnimal, setLoggingAnimal] = useState(null);
   const navigate = useNavigate();
+  const [loggingAnimal, setLoggingAnimal] = useState(null);
 
   const loadAnimals = () => {
     fetch(`${API}/zoos/${zoo.id}/animals`).then((r) => r.json()).then(setAnimals);
@@ -85,22 +85,16 @@ function ZooDetail({ zoo, token, userId, onBack }) {
         <p style={{ marginTop: '10px', whiteSpace: 'pre-wrap' }}>{zoo.description}</p>
       )}
       <div style={{ marginTop: '10px' }}>Visited? {visited ? '☑️ Yes' : '✘ No'}</div>
-      <button onClick={() => setShowVisitForm((v) => !v)} style={{ marginTop: '10px' }}>
+      <button
+        onClick={() =>
+          navigate('/visits/new', {
+            state: { zooId: zoo.id, from: `/zoos/${zoo.id}` },
+          })
+        }
+        style={{ marginTop: '10px' }}
+      >
         Log a Visit
       </button>
-      {showVisitForm && (
-        <div style={{ marginTop: '10px' }}>
-          <LogVisit
-            token={token}
-            userId={userId}
-            zoos={[zoo]}
-            onLogged={() => {
-              loadVisits();
-              setShowVisitForm(false);
-            }}
-          />
-        </div>
-      )}
       <h4 style={{ marginTop: '20px' }}>Animals</h4>
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
@@ -416,6 +410,14 @@ function App() {
           element={
             <RequireAuth token={token}>
               <AnimalDetailPage token={token} userId={userId} />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/visits/new"
+          element={
+            <RequireAuth token={token}>
+              <NewVisitPage token={token} />
             </RequireAuth>
           }
         />
