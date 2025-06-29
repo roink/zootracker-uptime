@@ -912,3 +912,36 @@ def test_search_zoos_name_only(data):
     assert resp.status_code == 200
     names = [z["name"] for z in resp.json()]
     assert "Central Zoo" in names
+
+
+def test_animal_zoos_sorted_by_distance(data):
+    """Zoos for an animal should be ordered by proximity when location is given."""
+    # link far_zoo to the animal for this test
+    db = SessionLocal()
+    db.add(models.ZooAnimal(zoo_id=data["far_zoo"].id, animal_id=data["animal"].id))
+    db.commit()
+    db.close()
+
+    params = {
+        "latitude": data["zoo"].latitude,
+        "longitude": data["zoo"].longitude,
+    }
+    resp = client.get(f"/animals/{data['animal'].id}/zoos", params=params)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body) == 2
+    assert body[0]["id"] == str(data["zoo"].id)
+
+
+def test_animal_zoos_invalid_params(data):
+    """Invalid animal ids or coordinates should fail."""
+    bad = client.get(f"/animals/{uuid.uuid4()}/zoos")
+    assert bad.status_code == 404
+
+    params = {"latitude": 200, "longitude": 0}
+    resp = client.get(f"/animals/{data['animal'].id}/zoos", params=params)
+    assert resp.status_code == 400
+
+    params = {"latitude": 0, "longitude": 200}
+    resp = client.get(f"/animals/{data['animal'].id}/zoos", params=params)
+    assert resp.status_code == 400
