@@ -64,7 +64,12 @@ async def log_requests(request: Request, call_next):
     """Log incoming requests and their response status."""
     logger.info("%s %s", request.method, request.url.path)
     response = await call_next(request)
-    logger.info("%s %s -> %s", request.method, request.url.path, response.status_code)
+    logger.info(
+        "%s %s -> %s", request.method, request.url.path, response.status_code
+    )
+    if response.status_code == status.HTTP_400_BAD_REQUEST:
+        user_id = _get_user_id_from_request(request)
+        logger.warning("400 response for %s by %s", request.url.path, user_id)
     return response
 
 
