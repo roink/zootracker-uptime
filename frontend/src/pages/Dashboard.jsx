@@ -11,10 +11,12 @@ export default function Dashboard({ token, userId, zoos, animals, refresh, onUpd
   const [showSightingForm, setShowSightingForm] = useState(false);
 
   useEffect(() => {
+    const uid = userId || localStorage.getItem('userId');
     fetch(`${API}/visits`, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => r.json())
       .then(setVisits);
-    fetch(`${API}/users/${userId}/animals`, {
+    if (!uid) return;
+    fetch(`${API}/users/${uid}/animals`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => r.json())
@@ -22,7 +24,7 @@ export default function Dashboard({ token, userId, zoos, animals, refresh, onUpd
     fetch(`${API}/sightings`, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => r.json())
       .then(setSightings);
-    fetch(`${API}/users/${userId}/achievements`, {
+    fetch(`${API}/users/${uid}/achievements`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => (r.ok ? r.json() : []))
