@@ -75,7 +75,7 @@ async def log_requests(request: Request, call_next):
 
 def require_json(request: Request) -> None:
     """Ensure the request uses a JSON content-type."""
-    if request.headers.get("content-type") != "application/json":
+    if not request.headers.get("content-type", "").lower().startswith("application/json"):
         raise HTTPException(status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE)
 
 
