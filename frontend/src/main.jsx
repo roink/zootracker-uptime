@@ -11,6 +11,7 @@ import RegisterPage from "./pages/Register";
 import LoginPage from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import ZoosPage from "./pages/Zoos";
+import AnimalsPage from "./pages/Animals";
 import { LogVisit, LogSighting } from "./components/logForms";
 
 
@@ -182,35 +183,6 @@ function ZooSearch({ onSelectZoo }) {
   );
 }
 
-function AnimalSearch() {
-  const [query, setQuery] = useState("");
-  const [animals, setAnimals] = useState([]);
-
-  const search = () => {
-    fetch(`${API}/animals?q=${encodeURIComponent(query)}`)
-      .then((r) => r.json())
-      .then(setAnimals);
-  };
-
-  useEffect(search, []);
-
-  return (
-    <div>
-      <h2>Search Animals</h2>
-      <input
-        placeholder="Search"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-      />
-      <button onClick={search}>Search</button>
-      <ul>
-        {animals.map((a) => (
-          <li key={a.id}>{a.common_name}</li>
-        ))}
-      </ul>
-    </div>
-  );
-}
 
 function AuthStatus({ token, email }) {
   return <div>{token ? <p>Logged in as {email}</p> : <p>Not logged in</p>}</div>;
@@ -262,9 +234,6 @@ function ZooDetailPage({ token, userId }) {
   );
 }
 
-function AnimalsPage() {
-  return <AnimalSearch />;
-}
 
 function BadgesPage() {
   return <h2>Badges</h2>;
@@ -437,7 +406,7 @@ function App() {
           path="/animals"
           element={
             <RequireAuth token={token}>
-              <AnimalsPage />
+              <AnimalsPage token={token} userId={userId} />
             </RequireAuth>
           }
         />
