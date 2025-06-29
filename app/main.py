@@ -221,13 +221,45 @@ def login_alias(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = 
 
 
 @app.get("/zoos", response_model=list[schemas.ZooRead])
-def search_zoos(q: str = "", db: Session = Depends(get_db)):
-    """Search for zoos whose names contain the given query."""
+def search_zoos(
+    q: str = "",
+    latitude: float | None = None,
+    longitude: float | None = None,
+    radius_km: float = 50.0,
+    db: Session = Depends(get_db),
+):
+    """Search for zoos by name and optional distance from a point."""
     query = db.query(models.Zoo)
     if q:
         pattern = f"%{q}%"
         query = query.filter(models.Zoo.name.ilike(pattern))
-    return query.all()
+
+    zoos = query.all()
+
+    if latitude is not None and longitude is not None:
+        def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+            """Return distance in kilometers between two lat/lon points."""
+            from math import radians, cos, sin, asin, sqrt
+
+            lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
+            dlat = lat2 - lat1
+            dlon = lon2 - lon1
+            a = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
+            c = 2 * asin(sqrt(a))
+            return 6371 * c
+
+        results = []
+        for zoo in zoos:
+            if zoo.latitude is None or zoo.longitude is None:
+                continue
+            dist = haversine(
+                float(latitude), float(longitude), float(zoo.latitude), float(zoo.longitude)
+            )
+            if dist <= radius_km:
+                results.append(zoo)
+        return results
+
+    return zoos
 
 
 @app.get("/zoos/{zoo_id}", response_model=schemas.ZooDetail)
