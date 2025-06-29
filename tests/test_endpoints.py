@@ -370,6 +370,59 @@ def test_sighting_notes_too_long(data):
     )
     assert resp.status_code == 422
 
+
+def test_delete_sighting_success(data):
+    token, user_id = register_and_login()
+    zoo_id = data["zoo"].id
+    animal_id = data["animal"].id
+    sighting = {
+        "zoo_id": str(zoo_id),
+        "animal_id": str(animal_id),
+        "user_id": str(user_id),
+        "sighting_datetime": datetime.utcnow().isoformat(),
+    }
+    resp = client.post(
+        "/sightings",
+        json=sighting,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    sighting_id = resp.json()["id"]
+
+    resp = client.delete(
+        f"/sightings/{sighting_id}", headers={"Authorization": f"Bearer {token}"}
+    )
+    assert resp.status_code == 204
+    db = SessionLocal()
+    deleted = db.get(models.AnimalSighting, uuid.UUID(sighting_id))
+    db.close()
+    assert deleted is None
+
+
+def test_delete_sighting_unauthorized(data):
+    token1, user1 = register_and_login()
+    token2, _ = register_and_login()
+    zoo_id = data["zoo"].id
+    animal_id = data["animal"].id
+    sighting = {
+        "zoo_id": str(zoo_id),
+        "animal_id": str(animal_id),
+        "user_id": str(user1),
+        "sighting_datetime": datetime.utcnow().isoformat(),
+    }
+    resp = client.post(
+        "/sightings",
+        json=sighting,
+        headers={"Authorization": f"Bearer {token1}"},
+    )
+    assert resp.status_code == 200
+    sighting_id = resp.json()["id"]
+
+    resp = client.delete(
+        f"/sightings/{sighting_id}", headers={"Authorization": f"Bearer {token2}"}
+    )
+    assert resp.status_code == 403
+
 def test_visit_wrong_user(data):
     token1, user1 = register_and_login()
     _, user2 = register_and_login()
@@ -514,6 +567,47 @@ def test_visit_notes_too_long(data):
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 422
+
+
+def test_delete_visit_success(data):
+    token, user_id = register_and_login()
+    zoo_id = data["zoo"].id
+    visit = {"zoo_id": str(zoo_id), "visit_date": str(date.today())}
+    resp = client.post(
+        f"/users/{user_id}/visits",
+        json=visit,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    visit_id = resp.json()["id"]
+
+    resp = client.delete(
+        f"/visits/{visit_id}", headers={"Authorization": f"Bearer {token}"}
+    )
+    assert resp.status_code == 204
+    db = SessionLocal()
+    deleted = db.get(models.ZooVisit, uuid.UUID(visit_id))
+    db.close()
+    assert deleted is None
+
+
+def test_delete_visit_unauthorized(data):
+    token1, user1 = register_and_login()
+    token2, _ = register_and_login()
+    zoo_id = data["zoo"].id
+    visit = {"zoo_id": str(zoo_id), "visit_date": str(date.today())}
+    resp = client.post(
+        f"/users/{user1}/visits",
+        json=visit,
+        headers={"Authorization": f"Bearer {token1}"},
+    )
+    assert resp.status_code == 200
+    visit_id = resp.json()["id"]
+
+    resp = client.delete(
+        f"/visits/{visit_id}", headers={"Authorization": f"Bearer {token2}"}
+    )
+    assert resp.status_code == 403
 
 
 def test_get_seen_animals_success(data):

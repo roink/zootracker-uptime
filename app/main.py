@@ -6,7 +6,7 @@ import uuid
 import logging
 
 from fastapi import FastAPI, Depends, HTTPException, Request, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -367,6 +367,27 @@ def list_visits(
     return db.query(models.ZooVisit).filter_by(user_id=user.id).all()
 
 
+@app.delete("/visits/{visit_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_visit(
+    visit_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    """Delete a visit if owned by the user or the user is admin."""
+    visit = db.get(models.ZooVisit, visit_id)
+    if visit is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Visit not found")
+
+    admin_email = os.getenv("ADMIN_EMAIL")
+    is_admin = admin_email and user.email == admin_email
+    if visit.user_id != user.id and not is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to delete visit")
+
+    db.delete(visit)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @app.post(
     "/sightings",
     response_model=schemas.AnimalSightingRead,
@@ -407,6 +428,27 @@ def list_sightings(
 ):
     """Retrieve all animal sightings recorded by the current user."""
     return db.query(models.AnimalSighting).filter_by(user_id=user.id).all()
+
+
+@app.delete("/sightings/{sighting_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_sighting(
+    sighting_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    """Delete an animal sighting if owned by the user or the user is admin."""
+    sighting = db.get(models.AnimalSighting, sighting_id)
+    if sighting is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sighting not found")
+
+    admin_email = os.getenv("ADMIN_EMAIL")
+    is_admin = admin_email and user.email == admin_email
+    if sighting.user_id != user.id and not is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to delete sighting")
+
+    db.delete(sighting)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @app.get("/users/{user_id}/animals", response_model=list[schemas.AnimalRead])
