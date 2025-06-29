@@ -53,6 +53,17 @@ def seed_data():
     db.commit()
     db.refresh(zoo)
 
+    far_zoo = models.Zoo(
+        name="Far Zoo",
+        address="456 Distant Rd",
+        latitude=50.0,
+        longitude=60.0,
+        description="Too far away",
+    )
+    db.add(far_zoo)
+    db.commit()
+    db.refresh(far_zoo)
+
     animal = models.Animal(common_name="Lion", category_id=category.id)
     db.add(animal)
     db.commit()
@@ -63,7 +74,7 @@ def seed_data():
     db.commit()
 
     db.close()
-    return {"zoo": zoo, "animal": animal}
+    return {"zoo": zoo, "animal": animal, "far_zoo": far_zoo}
 
 
 @pytest.fixture(scope="module")
@@ -359,6 +370,59 @@ def test_sighting_notes_too_long(data):
     )
     assert resp.status_code == 422
 
+
+def test_delete_sighting_success(data):
+    token, user_id = register_and_login()
+    zoo_id = data["zoo"].id
+    animal_id = data["animal"].id
+    sighting = {
+        "zoo_id": str(zoo_id),
+        "animal_id": str(animal_id),
+        "user_id": str(user_id),
+        "sighting_datetime": datetime.utcnow().isoformat(),
+    }
+    resp = client.post(
+        "/sightings",
+        json=sighting,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    sighting_id = resp.json()["id"]
+
+    resp = client.delete(
+        f"/sightings/{sighting_id}", headers={"Authorization": f"Bearer {token}"}
+    )
+    assert resp.status_code == 204
+    db = SessionLocal()
+    deleted = db.get(models.AnimalSighting, uuid.UUID(sighting_id))
+    db.close()
+    assert deleted is None
+
+
+def test_delete_sighting_unauthorized(data):
+    token1, user1 = register_and_login()
+    token2, _ = register_and_login()
+    zoo_id = data["zoo"].id
+    animal_id = data["animal"].id
+    sighting = {
+        "zoo_id": str(zoo_id),
+        "animal_id": str(animal_id),
+        "user_id": str(user1),
+        "sighting_datetime": datetime.utcnow().isoformat(),
+    }
+    resp = client.post(
+        "/sightings",
+        json=sighting,
+        headers={"Authorization": f"Bearer {token1}"},
+    )
+    assert resp.status_code == 200
+    sighting_id = resp.json()["id"]
+
+    resp = client.delete(
+        f"/sightings/{sighting_id}", headers={"Authorization": f"Bearer {token2}"}
+    )
+    assert resp.status_code == 403
+
 def test_visit_wrong_user(data):
     token1, user1 = register_and_login()
     _, user2 = register_and_login()
@@ -503,6 +567,47 @@ def test_visit_notes_too_long(data):
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 422
+
+
+def test_delete_visit_success(data):
+    token, user_id = register_and_login()
+    zoo_id = data["zoo"].id
+    visit = {"zoo_id": str(zoo_id), "visit_date": str(date.today())}
+    resp = client.post(
+        f"/users/{user_id}/visits",
+        json=visit,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    visit_id = resp.json()["id"]
+
+    resp = client.delete(
+        f"/visits/{visit_id}", headers={"Authorization": f"Bearer {token}"}
+    )
+    assert resp.status_code == 204
+    db = SessionLocal()
+    deleted = db.get(models.ZooVisit, uuid.UUID(visit_id))
+    db.close()
+    assert deleted is None
+
+
+def test_delete_visit_unauthorized(data):
+    token1, user1 = register_and_login()
+    token2, _ = register_and_login()
+    zoo_id = data["zoo"].id
+    visit = {"zoo_id": str(zoo_id), "visit_date": str(date.today())}
+    resp = client.post(
+        f"/users/{user1}/visits",
+        json=visit,
+        headers={"Authorization": f"Bearer {token1}"},
+    )
+    assert resp.status_code == 200
+    visit_id = resp.json()["id"]
+
+    resp = client.delete(
+        f"/visits/{visit_id}", headers={"Authorization": f"Bearer {token2}"}
+    )
+    assert resp.status_code == 403
 
 
 def test_get_seen_animals_success(data):
@@ -709,3 +814,24 @@ def test_patch_sighting_forbidden(data):
         headers={"Authorization": f"Bearer {token2}"},
     )
     assert resp.status_code == 403
+
+    def test_search_zoos_with_radius(data):
+    """Zoos outside the radius should not be returned."""
+    params = {
+        "latitude": data["zoo"].latitude,
+        "longitude": data["zoo"].longitude,
+        "radius_km": 100,
+    }
+    resp = client.get("/zoos", params=params)
+    assert resp.status_code == 200
+    ids = {z["id"] for z in resp.json()}
+    assert str(data["zoo"].id) in ids
+    assert str(data["far_zoo"].id) not in ids
+
+
+def test_search_zoos_name_only(data):
+    """Name search should work without location parameters."""
+    resp = client.get("/zoos", params={"q": "Central"})
+    assert resp.status_code == 200
+    names = [z["name"] for z in resp.json()]
+    assert "Central Zoo" in names
