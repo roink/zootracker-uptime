@@ -569,6 +569,28 @@ def test_visit_notes_too_long(data):
     assert resp.status_code == 422
 
 
+def test_create_visit_invalid_zoo(data):
+    token, _ = register_and_login()
+    visit = {"zoo_id": str(uuid.uuid4()), "visit_date": str(date.today())}
+    resp = client.post(
+        "/visits",
+        json=visit,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 404
+
+
+def test_create_visit_for_user_invalid_zoo(data):
+    token, user_id = register_and_login()
+    visit = {"zoo_id": str(uuid.uuid4()), "visit_date": str(date.today())}
+    resp = client.post(
+        f"/users/{user_id}/visits",
+        json=visit,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 404
+
+
 def test_delete_visit_success(data):
     token, user_id = register_and_login()
     zoo_id = data["zoo"].id
@@ -815,7 +837,7 @@ def test_patch_sighting_forbidden(data):
     )
     assert resp.status_code == 403
 
-    def test_search_zoos_with_radius(data):
+def test_search_zoos_with_radius(data):
     """Zoos outside the radius should not be returned."""
     params = {
         "latitude": data["zoo"].latitude,

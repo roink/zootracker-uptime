@@ -329,6 +329,9 @@ def create_visit(
     user: models.User = Depends(get_current_user),
 ):
     """Create a visit record for the authenticated user."""
+    if db.get(models.Zoo, visit_in.zoo_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="Zoo not found")
     visit = models.ZooVisit(user_id=user.id, **visit_in.model_dump())
     db.add(visit)
     db.commit()
@@ -351,6 +354,9 @@ def create_visit_for_user(
     """Create a visit for a specific user. Users may only log their own visits."""
     if user_id != user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot log visit for another user")
+    if db.get(models.Zoo, visit_in.zoo_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="Zoo not found")
     visit = models.ZooVisit(user_id=user.id, **visit_in.model_dump())
     db.add(visit)
     db.commit()
