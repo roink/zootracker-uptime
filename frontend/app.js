@@ -415,9 +415,17 @@ function App() {
             token ? (
               <DashboardPage token={token} userId={userId} refresh={refreshCounter} />
             ) : (
-              <LandingPage onSignedUp={handleSignedUp} onLoggedIn={handleLoggedIn} email={userEmail} />
+              <Landing />
             )
           }
+        />
+        <Route
+          path="/register"
+          element={<RegisterPage onSignedUp={handleSignedUp} />}
+        />
+        <Route
+          path="/login"
+          element={<LoginPage email={userEmail} onLoggedIn={handleLoggedIn} />}
         />
         <Route
           path="/zoos"
