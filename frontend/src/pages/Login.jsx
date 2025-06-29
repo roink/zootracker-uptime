@@ -20,6 +20,8 @@ export default function LoginPage({ email, onLoggedIn }) {
     if (resp.ok) {
       const data = await resp.json();
       localStorage.setItem('token', data.access_token);
+      localStorage.setItem('userId', data.user_id);
+      localStorage.setItem('userEmail', inputEmail);
       if (onLoggedIn) {
         onLoggedIn(data.access_token, data.user_id, inputEmail);
       }
