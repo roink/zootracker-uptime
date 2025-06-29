@@ -7,11 +7,16 @@ export function LogSighting({ token, userId, animals, zoos, onLogged }) {
 
   const submit = async (e) => {
     e.preventDefault();
+    const uid = userId || localStorage.getItem('userId');
+    if (!uid) {
+      alert('User not available');
+      return;
+    }
     const sighting = {
       zoo_id: zooId,
       animal_id: animalId,
-      user_id: userId,
-      sighting_datetime: new Date().toISOString()
+      user_id: uid,
+      sighting_datetime: new Date().toISOString(),
     };
     const resp = await fetch(`${API}/sightings`, {
       method: 'POST',
@@ -58,8 +63,13 @@ export function LogVisit({ token, userId, zoos, onLogged }) {
 
   const submit = async (e) => {
     e.preventDefault();
+    const uid = userId || localStorage.getItem('userId');
+    if (!uid) {
+      alert('User not available');
+      return;
+    }
     const visit = { zoo_id: zooId, visit_date: visitDate };
-    const resp = await fetch(`${API}/users/${userId}/visits`, {
+    const resp = await fetch(`${API}/users/${uid}/visits`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
