@@ -1,41 +1,18 @@
-const { useState, useEffect } = React;
-const { BrowserRouter, Routes, Route, Link, Navigate, useNavigate } = ReactRouterDOM;
+import React, { useState, useEffect } from "react";
+import ReactDOM from "react-dom/client";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useParams } from "react-router-dom";
 
 // Base URL of the FastAPI backend. When the frontend is served on a different
 // port (e.g. via `python -m http.server`), the API won't be on the same origin
 // anymore, so we explicitly point to the backend running on port 8000.
-const API = "http://localhost:8000";
+import { API } from "./api";
+import Landing from "./pages/Landing";
+import RegisterPage from "./pages/Register";
+import LoginPage from "./pages/Login";
+import Dashboard from "./pages/Dashboard";
+import ZoosPage from "./pages/Zoos";
+import { LogVisit, LogSighting } from "./components/logForms";
 
-function Signup({ onSignedUp }) {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-
-  const submit = async (e) => {
-    e.preventDefault();
-    const resp = await fetch(`${API}/users`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email, password }),
-    });
-    if (resp.ok) {
-      const user = await resp.json();
-      onSignedUp(user, email);
-    } else {
-      alert("Sign up failed");
-    }
-  };
-
-  return (
-    <form onSubmit={submit}>
-      <h2>Sign Up</h2>
-      <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
-      <input placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
-      <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
-      <button type="submit">Create Account</button>
-    </form>
-  );
-}
 
 
 
@@ -59,120 +36,6 @@ function ZooDetail({ zoo, onBack }) {
   );
 }
 
-function LogSighting({ token, userId, animals, zoos, onLogged }) {
-  const [animalId, setAnimalId] = useState(animals[0]?.id || "");
-  const [zooId, setZooId] = useState(zoos[0]?.id || "");
-
-  const submit = async (e) => {
-    e.preventDefault();
-    const sighting = {
-      zoo_id: zooId,
-      animal_id: animalId,
-      user_id: userId,
-      sighting_datetime: new Date().toISOString(),
-    };
-    const resp = await fetch(`${API}/sightings`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(sighting),
-    });
-    if (resp.ok) {
-      onLogged();
-    } else {
-      alert("Failed to log sighting");
-    }
-  };
-
-  return (
-    <form onSubmit={submit}>
-      <h3>Log Sighting</h3>
-      <select value={zooId} onChange={(e) => setZooId(e.target.value)}>
-        {zoos.map((z) => (
-          <option key={z.id} value={z.id}>{z.name}</option>
-        ))}
-      </select>
-      <select value={animalId} onChange={(e) => setAnimalId(e.target.value)}>
-        {animals.map((a) => (
-          <option key={a.id} value={a.id}>{a.common_name}</option>
-        ))}
-      </select>
-      <button type="submit">Log</button>
-    </form>
-  );
-}
-
-function SeenAnimals({ token, userId, refresh }) {
-  const [animals, setAnimals] = useState([]);
-
-  useEffect(() => {
-    fetch(`${API}/users/${userId}/animals`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => r.json())
-      .then(setAnimals);
-  }, [userId, refresh]);
-
-  return (
-    <div>
-      <h3>Animals Seen</h3>
-      <ul>
-        {animals.map((a) => (
-          <li key={a.id}>{a.common_name}</li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function LogVisit({ token, userId, zoos, onLogged }) {
-  const [zooId, setZooId] = useState(zoos[0]?.id || "");
-  const [visitDate, setVisitDate] = useState("");
-
-  useEffect(() => {
-    if (!zooId && zoos.length > 0) {
-      setZooId(zoos[0].id);
-    }
-  }, [zoos]);
-
-  const submit = async (e) => {
-    e.preventDefault();
-    const visit = { zoo_id: zooId, visit_date: visitDate };
-    const resp = await fetch(`${API}/users/${userId}/visits`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(visit),
-    });
-    if (resp.ok) {
-      onLogged && onLogged();
-      setVisitDate("");
-    } else {
-      alert("Failed to log visit");
-    }
-  };
-
-  return (
-    <form onSubmit={submit}>
-      <h3>Log Visit</h3>
-      <select value={zooId} onChange={(e) => setZooId(e.target.value)}>
-        {zoos.map((z) => (
-          <option key={z.id} value={z.id}>{z.name}</option>
-        ))}
-      </select>
-      <input
-        type="date"
-        value={visitDate}
-        onChange={(e) => setVisitDate(e.target.value)}
-      />
-      <button type="submit">Log Visit</button>
-    </form>
-  );
-}
 
 function ZooSearch({ onSelectZoo }) {
   const [query, setQuery] = useState("");
@@ -240,14 +103,6 @@ function AuthStatus({ token, email }) {
   return <div>{token ? <p>Logged in as {email}</p> : <p>Not logged in</p>}</div>;
 }
 
-function LandingPage({ onSignedUp, onLoggedIn, email }) {
-  return (
-    <div>
-      <Signup onSignedUp={onSignedUp} />
-      <Login emailPrefill={email} onLoggedIn={onLoggedIn} />
-    </div>
-  );
-}
 
 function DashboardPage({ token, userId, zoos, animals, refresh, onUpdate }) {
   return (
@@ -272,7 +127,7 @@ function LegacyZoosPage({ selectedZoo, onSelectZoo, onBack }) {
 }
 
 function ZooDetailPage() {
-  const { id } = ReactRouterDOM.useParams();
+  const { id } = useParams();
   const navigate = useNavigate();
   const [zoo, setZoo] = useState(null);
 
