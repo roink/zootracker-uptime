@@ -815,7 +815,7 @@ def test_patch_sighting_forbidden(data):
     )
     assert resp.status_code == 403
 
-    def test_search_zoos_with_radius(data):
+def test_search_zoos_with_radius(data):
     """Zoos outside the radius should not be returned."""
     params = {
         "latitude": data["zoo"].latitude,
