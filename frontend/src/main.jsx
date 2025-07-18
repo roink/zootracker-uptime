@@ -15,6 +15,8 @@ import AnimalsPage from "./pages/Animals";
 import AnimalDetailPage from "./pages/AnimalDetail";
 import NewVisitPage from "./pages/NewVisit";
 import { LogVisit, LogSighting } from "./components/logForms";
+import Header from "./components/Header";
+import SearchPage from "./pages/Search";
 
 
 
@@ -243,29 +245,6 @@ function ProfilePage({ email }) {
   );
 }
 
-function NavBar({ onAddClick }) {
-  const navigate = useNavigate();
-  return (
-    <nav
-      style={{
-        position: "fixed",
-        bottom: 0,
-        width: "100%",
-        background: "#eee",
-        padding: "10px",
-        display: "flex",
-        justifyContent: "space-around",
-      }}
-    >
-      <button onClick={() => navigate("/")}>🏠</button>
-      <button onClick={() => navigate("/zoos")}>🏛️</button>
-      <button onClick={() => navigate("/animals")}>🐾</button>
-      <button onClick={onAddClick}>➕</button>
-      <button onClick={() => navigate("/badges")}>🎖️</button>
-      <button onClick={() => navigate("/profile")}>👤</button>
-    </nav>
-  );
-}
 
 function RequireAuth({ token, children }) {
   return token ? children : <Navigate to="/" replace />;
@@ -278,7 +257,6 @@ function App() {
   const [zoos, setZoos] = useState([]);
   const [animals, setAnimals] = useState([]);
   const [refreshCounter, setRefreshCounter] = useState(0);
-  const [showAdd, setShowAdd] = useState(false);
 
   useEffect(() => {
     fetch(`${API}/zoos`).then((r) => r.json()).then(setZoos);
@@ -307,39 +285,7 @@ function App() {
 
   return (
     <BrowserRouter>
-      {token && <NavBar onAddClick={() => setShowAdd((s) => !s)} />}
-      {showAdd && token && (
-        <div
-          style={{
-            position: "fixed",
-            bottom: "60px",
-            right: "10px",
-            background: "white",
-            border: "1px solid #ccc",
-            padding: "10px",
-          }}
-        >
-          <LogVisit
-            token={token}
-            userId={userId}
-            zoos={zoos}
-            onLogged={() => {
-              refreshSeen();
-              setShowAdd(false);
-            }}
-          />
-          <LogSighting
-            token={token}
-            userId={userId}
-            animals={animals}
-            zoos={zoos}
-            onLogged={() => {
-              refreshSeen();
-              setShowAdd(false);
-            }}
-          />
-        </div>
-      )}
+      <Header token={token} />
       <Routes>
         <Route
           path="/"
@@ -413,6 +359,7 @@ function App() {
             </RequireAuth>
           }
         />
+        <Route path="/search" element={<SearchPage />} />
         <Route
           path="/visits/new"
           element={
