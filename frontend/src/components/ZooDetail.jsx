@@ -1,0 +1,135 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { LogSighting } from './logForms';
+import { API } from '../api';
+
+// Detailed view for a single zoo with a list of resident animals.
+// Used by the ZooDetailPage component.
+export default function ZooDetail({ zoo, token, userId, onBack }) {
+  const [animals, setAnimals] = useState([]);
+  const [visits, setVisits] = useState([]);
+  const [seenAnimals, setSeenAnimals] = useState([]);
+  const navigate = useNavigate();
+  const [loggingAnimal, setLoggingAnimal] = useState(null);
+
+  // Fetch animals in this zoo and user visit/sighting data
+  const loadAnimals = () => {
+    fetch(`${API}/zoos/${zoo.id}/animals`).then((r) => r.json()).then(setAnimals);
+  };
+  const loadVisits = () => {
+    if (!token) return;
+    fetch(`${API}/visits`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => (r.ok ? r.json() : []))
+      .then(setVisits)
+      .catch(() => setVisits([]));
+  };
+  const loadSeen = () => {
+    if (!token || !userId) return;
+    fetch(`${API}/users/${userId}/animals`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => (r.ok ? r.json() : []))
+      .then(setSeenAnimals)
+      .catch(() => setSeenAnimals([]));
+  };
+
+  useEffect(() => {
+    loadAnimals();
+    loadVisits();
+    loadSeen();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zoo, token, userId]);
+
+  const visited = visits.some((v) => v.zoo_id === zoo.id);
+  const seenIds = new Set(seenAnimals.map((a) => a.id));
+
+  return (
+    <div className="p-3">
+      <button className="btn btn-link mb-2" onClick={onBack}>
+        Back
+      </button>
+      {zoo.image_url && (
+        <img
+          src={zoo.image_url}
+          alt={zoo.name}
+          className="img-fluid mb-2"
+          style={{ maxHeight: '200px', objectFit: 'cover' }}
+        />
+      )}
+      <h3>{zoo.name}</h3>
+      {zoo.address && <div className="text-muted">📍 {zoo.address}</div>}
+      {zoo.latitude && zoo.longitude && (
+        <iframe
+          title="map"
+          width="100%"
+          height="200"
+          className="border-0 mt-1"
+          src={`https://maps.google.com/maps?q=${zoo.latitude},${zoo.longitude}&z=14&output=embed`}
+        ></iframe>
+      )}
+      {zoo.description && (
+        <p className="mt-2" style={{ whiteSpace: 'pre-wrap' }}>
+          {zoo.description}
+        </p>
+      )}
+      <div className="mt-2">Visited? {visited ? '☑️ Yes' : '✘ No'}</div>
+      <button
+        className="btn btn-primary btn-sm mt-2"
+        onClick={() =>
+          navigate('/visits/new', {
+            state: { zooId: zoo.id, from: `/zoos/${zoo.id}` },
+          })
+        }
+      >
+        Log a Visit
+      </button>
+      <h4 className="mt-3">Animals</h4>
+      <table className="table">
+        <thead>
+          <tr>
+            <th align="left">Name</th>
+            <th className="text-center">Seen?</th>
+            <th className="text-center"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {animals.map((a) => (
+            <tr
+              key={a.id}
+              style={{ cursor: 'pointer' }}
+              onClick={() => navigate(`/animals/${a.id}`)}
+            >
+              <td>{a.common_name}</td>
+              <td className="text-center">{seenIds.has(a.id) ? '✔️' : '—'}</td>
+              <td className="text-center">
+                <button
+                  className="btn btn-sm btn-outline-secondary"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setLoggingAnimal(a);
+                  }}
+                >
+                  ➕
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {loggingAnimal && (
+        <div className="mt-2">
+          <LogSighting
+            token={token}
+            userId={userId}
+            animals={[loggingAnimal]}
+            zoos={[zoo]}
+            onLogged={() => {
+              loadSeen();
+              setLoggingAnimal(null);
+            }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}

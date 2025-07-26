@@ -2,6 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { LogVisit, LogSighting } from '../components/logForms';
 import { API } from '../api';
 
+// User dashboard showing recent visits, sightings and badges. Includes
+// buttons to open forms for logging additional activity.
+
 export default function Dashboard({ token, userId, zoos, animals, refresh, onUpdate }) {
   const [visits, setVisits] = useState([]);
   const [seenAnimals, setSeenAnimals] = useState([]);
@@ -32,6 +35,7 @@ export default function Dashboard({ token, userId, zoos, animals, refresh, onUpd
       .catch(() => setBadges([]));
   }, [token, userId, refresh]);
 
+  // Combine visits and sightings into a single chronologically sorted feed.
   const feedItems = useMemo(() => {
     const v = visits.map((x) => ({ type: 'visit', date: x.visit_date, item: x }));
     const s = sightings.map((x) => ({ type: 'sighting', date: x.sighting_datetime, item: x }));
@@ -42,16 +46,16 @@ export default function Dashboard({ token, userId, zoos, animals, refresh, onUpd
   const animalName = (id) => animals.find((a) => a.id === id)?.common_name || id;
 
   return (
-    <div style={{ padding: '20px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-around', marginBottom: '20px' }}>
-        <div>Zoos Visited: {new Set(visits.map((v) => v.zoo_id)).size}</div>
-        <div>Animals Seen: {seenAnimals.length}</div>
-        <div>Badges: {badges.length}</div>
+    <div className="container">
+      <div className="row text-center mb-3">
+        <div className="col">Zoos Visited: {new Set(visits.map((v) => v.zoo_id)).size}</div>
+        <div className="col">Animals Seen: {seenAnimals.length}</div>
+        <div className="col">Badges: {badges.length}</div>
       </div>
       <h3>Activity Feed</h3>
-      <ul>
+      <ul className="list-group mb-3">
         {feedItems.map((f, idx) => (
-          <li key={idx}>
+          <li key={idx} className="list-group-item">
             {f.type === 'visit'
               ? `Visited ${zooName(f.item.zoo_id)} on ${f.item.visit_date}`
               : `Saw ${animalName(f.item.animal_id)} at ${zooName(f.item.zoo_id)}`}
@@ -59,17 +63,19 @@ export default function Dashboard({ token, userId, zoos, animals, refresh, onUpd
         ))}
       </ul>
       <h3>Recent Badges</h3>
-      <div style={{ display: 'flex', overflowX: 'auto', marginBottom: '20px' }}>
-        {badges.length === 0 && <div style={{ padding: '10px' }}>No badges yet</div>}
+      <div className="d-flex overflow-auto mb-3">
+        {badges.length === 0 && <div className="p-2">No badges yet</div>}
         {badges.map((b) => (
-          <div key={b.id} style={{ marginRight: '10px' }}>{b.name}</div>
+          <div key={b.id} className="me-2">{b.name}</div>
         ))}
       </div>
-      <div style={{ marginTop: '10px' }}>
-        <button onClick={() => setShowSightingForm((s) => !s)} style={{ marginRight: '10px' }}>
+      <div className="mt-2">
+        <button className="btn btn-secondary me-2" onClick={() => setShowSightingForm((s) => !s)}>
           Log Sighting
         </button>
-        <button onClick={() => setShowVisitForm((v) => !v)}>Log Visit</button>
+        <button className="btn btn-primary" onClick={() => setShowVisitForm((v) => !v)}>
+          Log Visit
+        </button>
       </div>
       {showVisitForm && (
         <div style={{ marginTop: '20px' }}>

@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { API } from '../api';
 
+// Registration form for creating a new user account.
+
 export default function RegisterPage({ onSignedUp }) {
   const navigate = useNavigate();
   const [name, setName] = useState('');
@@ -9,6 +11,7 @@ export default function RegisterPage({ onSignedUp }) {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
 
+  // Send the new user details to the backend and navigate home on success.
   const submit = async (e) => {
     e.preventDefault();
     if (password !== confirm) {
@@ -30,14 +33,44 @@ export default function RegisterPage({ onSignedUp }) {
   };
 
   return (
-    <form onSubmit={submit} style={{ padding: '20px' }}>
-      <h2>Sign Up</h2>
-      <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
-      <input placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
-      <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
-      <input type="password" placeholder="Confirm Password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
-      <button type="submit">Create Account</button>
-      <div style={{ marginTop: '10px' }}>
+    <form onSubmit={submit} className="container" style={{ maxWidth: '400px' }}>
+      <h2 className="mb-3">Sign Up</h2>
+      <div className="mb-3">
+        <input
+          className="form-control"
+          placeholder="Name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+      </div>
+      <div className="mb-3">
+        <input
+          className="form-control"
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+      </div>
+      <div className="mb-3">
+        <input
+          className="form-control"
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+      </div>
+      <div className="mb-3">
+        <input
+          className="form-control"
+          type="password"
+          placeholder="Confirm Password"
+          value={confirm}
+          onChange={(e) => setConfirm(e.target.value)}
+        />
+      </div>
+      <button className="btn btn-primary w-100" type="submit">Create Account</button>
+      <div className="mt-3">
         <Link to="/login">Back to Log In</Link>
       </div>
     </form>

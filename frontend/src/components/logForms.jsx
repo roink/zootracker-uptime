@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { API } from '../api';
 
+// Reusable forms for logging sightings and zoo visits. These components are used
+// within the dashboard to submit data to the FastAPI backend.
+
 export function LogSighting({ token, userId, animals, zoos, onLogged }) {
   const [animalId, setAnimalId] = useState(animals[0]?.id || '');
   const [zooId, setZooId] = useState(zoos[0]?.id || '');
 
+  // Send a new sighting to the API for the selected animal and zoo.
   const submit = async (e) => {
     e.preventDefault();
     const uid = userId || localStorage.getItem('userId');
@@ -34,19 +38,31 @@ export function LogSighting({ token, userId, animals, zoos, onLogged }) {
   };
 
   return (
-    <form onSubmit={submit}>
+    <form onSubmit={submit} className="mb-3">
       <h3>Log Sighting</h3>
-      <select value={zooId} onChange={(e) => setZooId(e.target.value)}>
-        {zoos.map((z) => (
-          <option key={z.id} value={z.id}>{z.name}</option>
-        ))}
-      </select>
-      <select value={animalId} onChange={(e) => setAnimalId(e.target.value)}>
-        {animals.map((a) => (
-          <option key={a.id} value={a.id}>{a.common_name}</option>
-        ))}
-      </select>
-      <button type="submit">Log</button>
+      <div className="mb-2">
+        <select
+          className="form-select"
+          value={zooId}
+          onChange={(e) => setZooId(e.target.value)}
+        >
+          {zoos.map((z) => (
+            <option key={z.id} value={z.id}>{z.name}</option>
+          ))}
+        </select>
+      </div>
+      <div className="mb-2">
+        <select
+          className="form-select"
+          value={animalId}
+          onChange={(e) => setAnimalId(e.target.value)}
+        >
+          {animals.map((a) => (
+            <option key={a.id} value={a.id}>{a.common_name}</option>
+          ))}
+        </select>
+      </div>
+      <button className="btn btn-primary" type="submit">Log</button>
     </form>
   );
 }
@@ -61,6 +77,7 @@ export function LogVisit({ token, userId, zoos, onLogged }) {
     }
   }, [zoos]);
 
+  // Record a zoo visit for the chosen date.
   const submit = async (e) => {
     e.preventDefault();
     const uid = userId || localStorage.getItem('userId');
@@ -86,19 +103,28 @@ export function LogVisit({ token, userId, zoos, onLogged }) {
   };
 
   return (
-    <form onSubmit={submit}>
+    <form onSubmit={submit} className="mb-3">
       <h3>Log Visit</h3>
-      <select value={zooId} onChange={(e) => setZooId(e.target.value)}>
-        {zoos.map((z) => (
-          <option key={z.id} value={z.id}>{z.name}</option>
-        ))}
-      </select>
-      <input
-        type="date"
-        value={visitDate}
-        onChange={(e) => setVisitDate(e.target.value)}
-      />
-      <button type="submit">Log Visit</button>
+      <div className="mb-2">
+        <select
+          className="form-select"
+          value={zooId}
+          onChange={(e) => setZooId(e.target.value)}
+        >
+          {zoos.map((z) => (
+            <option key={z.id} value={z.id}>{z.name}</option>
+          ))}
+        </select>
+      </div>
+      <div className="mb-2">
+        <input
+          className="form-control"
+          type="date"
+          value={visitDate}
+          onChange={(e) => setVisitDate(e.target.value)}
+        />
+      </div>
+      <button className="btn btn-primary" type="submit">Log Visit</button>
     </form>
   );
 }
