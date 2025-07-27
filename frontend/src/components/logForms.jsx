@@ -48,14 +48,15 @@ export function LogSighting({
       return;
     }
     const t = setTimeout(() => {
-      const q = zooInput.trim().toLowerCase();
-      const matches = zoos
-        .filter((z) => z.name.toLowerCase().includes(q))
-        .slice(0, 5);
-      setZooSuggestions(matches);
+      fetch(
+        `${API}/search?q=${encodeURIComponent(zooInput.trim())}&limit=5`
+      )
+        .then((r) => r.json())
+        .then((res) => setZooSuggestions(res.zoos))
+        .catch(() => setZooSuggestions([]));
     }, 500);
     return () => clearTimeout(t);
-  }, [zooInput, zoos, zooFocused]);
+  }, [zooInput, zooFocused]);
 
   useEffect(() => {
     if (!animalFocused || !animalInput.trim()) {
@@ -63,14 +64,15 @@ export function LogSighting({
       return;
     }
     const t = setTimeout(() => {
-      const q = animalInput.trim().toLowerCase();
-      const matches = animals
-        .filter((a) => a.common_name.toLowerCase().includes(q))
-        .slice(0, 5);
-      setAnimalSuggestions(matches);
+      fetch(
+        `${API}/search?q=${encodeURIComponent(animalInput.trim())}&limit=5`
+      )
+        .then((r) => r.json())
+        .then((res) => setAnimalSuggestions(res.animals))
+        .catch(() => setAnimalSuggestions([]));
     }, 500);
     return () => clearTimeout(t);
-  }, [animalInput, animals, animalFocused]);
+  }, [animalInput, animalFocused]);
 
   useEffect(() => {
     const a = animals.find(a => a.id === (animalId || defaultAnimalId));
