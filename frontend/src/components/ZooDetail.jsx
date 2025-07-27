@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogSighting } from './logForms';
 import { API } from '../api';
 
 // Detailed view for a single zoo with a list of resident animals.
@@ -10,7 +9,6 @@ export default function ZooDetail({ zoo, token, userId, onBack }) {
   const [visits, setVisits] = useState([]);
   const [seenAnimals, setSeenAnimals] = useState([]);
   const navigate = useNavigate();
-  const [loggingAnimal, setLoggingAnimal] = useState(null);
 
   // Fetch animals in this zoo and user visit/sighting data
   const loadAnimals = () => {
@@ -106,7 +104,13 @@ export default function ZooDetail({ zoo, token, userId, onBack }) {
                   className="btn btn-sm btn-outline-secondary"
                   onClick={(e) => {
                     e.stopPropagation();
-                    setLoggingAnimal(a);
+                    navigate('/sightings/new', {
+                      state: {
+                        zooId: zoo.id,
+                        animalId: a.id,
+                        from: `/zoos/${zoo.id}`,
+                      },
+                    });
                   }}
                 >
                   ➕
@@ -116,20 +120,6 @@ export default function ZooDetail({ zoo, token, userId, onBack }) {
           ))}
         </tbody>
       </table>
-      {loggingAnimal && (
-        <div className="mt-2">
-          <LogSighting
-            token={token}
-            userId={userId}
-            animals={[loggingAnimal]}
-            zoos={[zoo]}
-            onLogged={() => {
-              loadSeen();
-              setLoggingAnimal(null);
-            }}
-          />
-        </div>
-      )}
     </div>
   );
 }

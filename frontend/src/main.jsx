@@ -14,6 +14,7 @@ import ZoosPage from "./pages/Zoos";
 import AnimalsPage from "./pages/Animals";
 import AnimalDetailPage from "./pages/AnimalDetail";
 import NewVisitPage from "./pages/NewVisit";
+import NewSightingPage from "./pages/NewSighting";
 import Header from "./components/Header";
 import SearchPage from "./pages/Search";
 import ZooDetailPage from "./pages/ZooDetail";
@@ -169,6 +170,14 @@ function App() {
           }
         />
         <Route path="/search" element={<SearchPage />} />
+        <Route
+          path="/sightings/new"
+          element={
+            <RequireAuth token={token}>
+              <NewSightingPage token={token} />
+            </RequireAuth>
+          }
+        />
         <Route
           path="/visits/new"
           element={

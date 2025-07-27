@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { LogVisit, LogSighting } from '../components/logForms';
+import { useNavigate } from 'react-router-dom';
+import { LogVisit } from '../components/logForms';
 import { API } from '../api';
 
 // User dashboard showing recent visits, sightings and badges. Includes
@@ -11,7 +12,7 @@ export default function Dashboard({ token, userId, zoos, animals, refresh, onUpd
   const [sightings, setSightings] = useState([]);
   const [badges, setBadges] = useState([]);
   const [showVisitForm, setShowVisitForm] = useState(false);
-  const [showSightingForm, setShowSightingForm] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const uid = userId || localStorage.getItem('userId');
@@ -70,7 +71,12 @@ export default function Dashboard({ token, userId, zoos, animals, refresh, onUpd
         ))}
       </div>
       <div className="mt-2">
-        <button className="btn btn-secondary me-2" onClick={() => setShowSightingForm((s) => !s)}>
+        <button
+          className="btn btn-secondary me-2"
+          onClick={() =>
+            navigate('/sightings/new', { state: { from: '/home' } })
+          }
+        >
           Log Sighting
         </button>
         <button className="btn btn-primary" onClick={() => setShowVisitForm((v) => !v)}>
@@ -86,20 +92,6 @@ export default function Dashboard({ token, userId, zoos, animals, refresh, onUpd
             onLogged={() => {
               onUpdate && onUpdate();
               setShowVisitForm(false);
-            }}
-          />
-        </div>
-      )}
-      {showSightingForm && (
-        <div style={{ marginTop: '20px' }}>
-          <LogSighting
-            token={token}
-            userId={userId}
-            animals={animals}
-            zoos={zoos}
-            onLogged={() => {
-              onUpdate && onUpdate();
-              setShowSightingForm(false);
             }}
           />
         </div>
