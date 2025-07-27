@@ -27,6 +27,10 @@ export function LogSighting({
   // Inputs start with provided names so the form can show defaults
   const [animalInput, setAnimalInput] = useState(initialAnimalName);
   const [zooInput, setZooInput] = useState(initialZooName);
+  const [zooSuggestions, setZooSuggestions] = useState([]);
+  const [animalSuggestions, setAnimalSuggestions] = useState([]);
+  const [zooFocused, setZooFocused] = useState(false);
+  const [animalFocused, setAnimalFocused] = useState(false);
 
 
   useEffect(() => {
@@ -37,6 +41,36 @@ export function LogSighting({
       fetch(`${API}/zoos`).then(r => r.json()).then(setZoos);
     }
   }, [propAnimals, propZoos]);
+
+  useEffect(() => {
+    if (!zooFocused || !zooInput.trim()) {
+      setZooSuggestions([]);
+      return;
+    }
+    const t = setTimeout(() => {
+      const q = zooInput.trim().toLowerCase();
+      const matches = zoos
+        .filter((z) => z.name.toLowerCase().includes(q))
+        .slice(0, 5);
+      setZooSuggestions(matches);
+    }, 500);
+    return () => clearTimeout(t);
+  }, [zooInput, zoos, zooFocused]);
+
+  useEffect(() => {
+    if (!animalFocused || !animalInput.trim()) {
+      setAnimalSuggestions([]);
+      return;
+    }
+    const t = setTimeout(() => {
+      const q = animalInput.trim().toLowerCase();
+      const matches = animals
+        .filter((a) => a.common_name.toLowerCase().includes(q))
+        .slice(0, 5);
+      setAnimalSuggestions(matches);
+    }, 500);
+    return () => clearTimeout(t);
+  }, [animalInput, animals, animalFocused]);
 
   useEffect(() => {
     const a = animals.find(a => a.id === (animalId || defaultAnimalId));
@@ -84,47 +118,77 @@ export function LogSighting({
   return (
     <form onSubmit={submit} className="mb-3">
       <h3>New Sighting</h3>
-      <div className="mb-2">
+      <div className="mb-2 position-relative">
         {/* Searchable zoo field */}
         <input
           className="form-control"
-          list="zoo-list"
           placeholder="Zoo"
           value={zooInput}
           onChange={(e) => {
             const val = e.target.value;
             setZooInput(val);
-            const z = zoos.find((zz) => zz.name === val);
-            setZooId(z ? z.id : '');
+            setZooId('');
           }}
+          onFocus={() => setZooFocused(true)}
+          onBlur={() => setTimeout(() => setZooFocused(false), 100)}
           required
         />
-        <datalist id="zoo-list">
-          {zoos.map((z) => (
-            <option key={z.id} value={z.name} />
-          ))}
-        </datalist>
+        {zooFocused && zooSuggestions.length > 0 && (
+          <ul className="list-group position-absolute top-100 start-0 search-suggestions">
+            {zooSuggestions.map((z) => (
+              <li key={z.id} className="list-group-item">
+                <button
+                  type="button"
+                  className="btn btn-link p-0"
+                  onClick={() => {
+                    setZooId(z.id);
+                    setZooInput(z.name);
+                    setZooSuggestions([]);
+                    setZooFocused(false);
+                  }}
+                >
+                  {z.name}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
-      <div className="mb-2">
+      <div className="mb-2 position-relative">
         {/* Searchable animal field */}
         <input
           className="form-control"
-          list="animal-list"
           placeholder="Animal"
           value={animalInput}
           onChange={(e) => {
             const val = e.target.value;
             setAnimalInput(val);
-            const a = animals.find((aa) => aa.common_name === val);
-            setAnimalId(a ? a.id : '');
+            setAnimalId('');
           }}
+          onFocus={() => setAnimalFocused(true)}
+          onBlur={() => setTimeout(() => setAnimalFocused(false), 100)}
           required
         />
-        <datalist id="animal-list">
-          {animals.map((a) => (
-            <option key={a.id} value={a.common_name} />
-          ))}
-        </datalist>
+        {animalFocused && animalSuggestions.length > 0 && (
+          <ul className="list-group position-absolute top-100 start-0 search-suggestions">
+            {animalSuggestions.map((a) => (
+              <li key={a.id} className="list-group-item">
+                <button
+                  type="button"
+                  className="btn btn-link p-0"
+                  onClick={() => {
+                    setAnimalId(a.id);
+                    setAnimalInput(a.common_name);
+                    setAnimalSuggestions([]);
+                    setAnimalFocused(false);
+                  }}
+                >
+                  {a.common_name}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
       <div className="text-end">
         {onCancel && (
