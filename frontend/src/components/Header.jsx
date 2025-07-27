@@ -1,18 +1,46 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { API } from '../api';
+import SearchSuggestions from './SearchSuggestions';
 
 // Navigation header shown on all pages. Includes a simple search
 // form and links that depend on authentication state.
 
 export default function Header({ token }) {
   const [query, setQuery] = useState('');
+  const [results, setResults] = useState({ zoos: [], animals: [] });
   const navigate = useNavigate();
+
+  // fetch suggestions after the user stops typing for 500ms
+  useEffect(() => {
+    if (!query.trim()) {
+      setResults({ zoos: [], animals: [] });
+      return;
+    }
+    const timeout = setTimeout(() => {
+      fetch(`${API}/search?q=${encodeURIComponent(query.trim())}&limit=5`)
+        .then((r) => r.json())
+        .then(setResults)
+        .catch(() => setResults({ zoos: [], animals: [] }));
+    }, 500);
+    return () => clearTimeout(timeout);
+  }, [query]);
 
   // Navigate to the search page with the entered query.
   const handleSubmit = (e) => {
     e.preventDefault();
     if (query.trim()) {
       navigate(`/search?q=${encodeURIComponent(query.trim())}`);
+    }
+  };
+
+  const handleSelect = (type, id) => {
+    setQuery('');
+    setResults({ zoos: [], animals: [] });
+    if (type === 'zoo') {
+      navigate(`/zoos/${id}`);
+    } else {
+      navigate(`/animals/${id}`);
     }
   };
 
@@ -51,7 +79,7 @@ export default function Header({ token }) {
               </>
             )}
           </ul>
-          <form className="d-flex" onSubmit={handleSubmit}>
+          <form className="d-flex position-relative" onSubmit={handleSubmit}>
             <input
               className="form-control"
               type="search"
@@ -59,6 +87,9 @@ export default function Header({ token }) {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
+            {query && (results.zoos.length || results.animals.length) ? (
+              <SearchSuggestions results={results} onSelect={handleSelect} />
+            ) : null}
           </form>
         </div>
       </div>

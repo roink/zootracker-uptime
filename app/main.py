@@ -281,6 +281,24 @@ def list_animals(q: str = "", db: Session = Depends(get_db)):
     return query.all()
 
 
+@app.get("/search", response_model=schemas.SearchResults)
+def combined_search(q: str = "", limit: int = 5, db: Session = Depends(get_db)):
+    """Return top zoos and animals matching the query."""
+    zoo_q = db.query(models.Zoo)
+    if q:
+        pattern = f"%{q}%"
+        zoo_q = zoo_q.filter(models.Zoo.name.ilike(pattern))
+    zoos = zoo_q.limit(limit).all()
+
+    animal_q = db.query(models.Animal)
+    if q:
+        pattern = f"%{q}%"
+        animal_q = animal_q.filter(models.Animal.common_name.ilike(pattern))
+    animals = animal_q.limit(limit).all()
+
+    return {"zoos": zoos, "animals": animals}
+
+
 # list animals available at a specific zoo
 @app.get("/zoos/{zoo_id}/animals", response_model=list[schemas.AnimalRead])
 def list_zoo_animals(zoo_id: uuid.UUID, db: Session = Depends(get_db)):

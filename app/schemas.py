@@ -135,3 +135,12 @@ class AnimalDetail(BaseModel):
     zoos: list[ZooRead] = []
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")
+
+
+class SearchResults(BaseModel):
+    """Combined search result lists for zoos and animals."""
+
+    zoos: list[ZooRead] = []
+    animals: list[AnimalRead] = []
+
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
