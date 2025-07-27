@@ -1,14 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { API } from '../api';
-import { LogSighting } from '../components/logForms';
 
 export default function AnimalDetailPage({ token, userId }) {
   const { id } = useParams();
   const navigate = useNavigate();
   const [animal, setAnimal] = useState(null);
   const [sightings, setSightings] = useState([]);
-  const [showForm, setShowForm] = useState(false);
   const [location, setLocation] = useState(null);
   const [zoos, setZoos] = useState([]);
 
@@ -156,22 +154,23 @@ export default function AnimalDetailPage({ token, userId }) {
           ))}
         </tbody>
       </table>
-      <button onClick={() => setShowForm((f) => !f)} style={{ marginTop: '10px' }}>
+      <button
+        onClick={() =>
+          // Launch modal with the selected animal and closest zoo prefilled
+          navigate('/sightings/new', {
+            state: {
+              animalId: animal.id,
+              animalName: animal.common_name,
+              zooId: closestZoo ? closestZoo.id : undefined,
+              zooName: closestZoo ? closestZoo.name : undefined,
+              from: `/animals/${animal.id}`,
+            },
+          })
+        }
+        style={{ marginTop: '10px' }}
+      >
         Log Sighting
       </button>
-      {showForm && (
-        <div style={{ marginTop: '10px' }}>
-          <LogSighting
-            token={token}
-            userId={userId}
-            animals={[animal]}
-            zoos={closestZoo ? [closestZoo] : zoos}
-            onLogged={() => {
-              setShowForm(false);
-            }}
-          />
-        </div>
-      )}
     </div>
   );
 }
