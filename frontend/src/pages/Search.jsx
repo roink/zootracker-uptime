@@ -14,12 +14,12 @@ export default function SearchPage() {
 
   useEffect(() => {
     if (!query) return;
-    fetch(`${API}/zoos?q=${encodeURIComponent(query)}`)
+    fetch(`${API}/search?q=${encodeURIComponent(query)}&limit=50`)
       .then((r) => r.json())
-      .then(setZoos);
-    fetch(`${API}/animals?q=${encodeURIComponent(query)}`)
-      .then((r) => r.json())
-      .then(setAnimals);
+      .then((res) => {
+        setZoos(res.zoos);
+        setAnimals(res.animals);
+      });
   }, [query]);
 
   return (
