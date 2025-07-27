@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { API } from '../api';
+import searchCache from '../searchCache';
 import SearchSuggestions from './SearchSuggestions';
 
 // Navigation header shown on all pages. Includes a simple search
@@ -10,20 +11,41 @@ export default function Header({ token }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState({ zoos: [], animals: [] });
   const navigate = useNavigate();
+  const fetchRef = useRef(null);
 
-  // fetch suggestions after the user stops typing for 500ms
+  // Fetch suggestions after the user stops typing and use the shared cache
   useEffect(() => {
     if (!query.trim()) {
       setResults({ zoos: [], animals: [] });
+      if (fetchRef.current) fetchRef.current.abort();
       return;
     }
+    const q = query.trim().toLowerCase();
+    const cached = searchCache[q];
+    if (cached) {
+      setResults(cached);
+      return;
+    }
+    const controller = new AbortController();
+    fetchRef.current = controller;
     const timeout = setTimeout(() => {
-      fetch(`${API}/search?q=${encodeURIComponent(query.trim())}&limit=5`)
+      fetch(`${API}/search?q=${encodeURIComponent(q)}&limit=5`, {
+        signal: controller.signal,
+      })
         .then((r) => r.json())
-        .then(setResults)
-        .catch(() => setResults({ zoos: [], animals: [] }));
+        .then((res) => {
+          searchCache[q] = res;
+          if (!controller.signal.aborted) setResults(res);
+        })
+        .catch(() => {
+          if (!controller.signal.aborted)
+            setResults({ zoos: [], animals: [] });
+        });
     }, 500);
-    return () => clearTimeout(timeout);
+    return () => {
+      clearTimeout(timeout);
+      controller.abort();
+    };
   }, [query]);
 
   // Navigate to the search page with the entered query.
