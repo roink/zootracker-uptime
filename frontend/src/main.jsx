@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from "react";
 import ReactDOM from "react-dom/client";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+  useLocation,
+} from "react-router-dom";
 
 // Base URL of the FastAPI backend. When the frontend is served on a different
 // port (e.g. via `python -m http.server`), the API won't be on the same origin
@@ -60,6 +66,147 @@ function RequireAuth({ token, children }) {
   return token ? children : <Navigate to="/" replace />;
 }
 
+function AppRoutes({
+  token,
+  userId,
+  userEmail,
+  zoos,
+  animals,
+  refreshCounter,
+  onSignedUp,
+  onLoggedIn,
+  refreshSeen,
+}) {
+  const location = useLocation();
+  const state = location.state;
+  const backgroundLocation = state && state.backgroundLocation;
+
+  return (
+    <>
+      <Header token={token} />
+      <Routes location={backgroundLocation || location}>
+        <Route
+          path="/"
+          element={
+            token ? (
+              <DashboardPage
+                token={token}
+                userId={userId}
+                zoos={zoos}
+                animals={animals}
+                refresh={refreshCounter}
+                onUpdate={refreshSeen}
+              />
+            ) : (
+              <Landing />
+            )
+          }
+        />
+        <Route
+          path="/home"
+          element={
+            <RequireAuth token={token}>
+              <DashboardPage
+                token={token}
+                userId={userId}
+                zoos={zoos}
+                animals={animals}
+                refresh={refreshCounter}
+                onUpdate={refreshSeen}
+              />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/register"
+          element={<RegisterPage onSignedUp={onSignedUp} />}
+        />
+        <Route
+          path="/login"
+          element={<LoginPage email={userEmail} onLoggedIn={onLoggedIn} />}
+        />
+        <Route
+          path="/zoos"
+          element={
+            <RequireAuth token={token}>
+              <ZoosPage token={token} />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/zoos/:id"
+          element={
+            <RequireAuth token={token}>
+              <ZooDetailPage token={token} userId={userId} refresh={refreshCounter} />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/animals"
+          element={
+            <RequireAuth token={token}>
+              <AnimalsPage token={token} userId={userId} />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/animals/:id"
+          element={
+            <RequireAuth token={token}>
+              <AnimalDetailPage token={token} userId={userId} refresh={refreshCounter} />
+            </RequireAuth>
+          }
+        />
+        <Route path="/search" element={<SearchPage />} />
+        <Route
+          path="/sightings/new"
+          element={
+            <RequireAuth token={token}>
+              <NewSightingPage token={token} onLogged={refreshSeen} />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/visits/new"
+          element={
+            <RequireAuth token={token}>
+              <NewVisitPage token={token} />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/badges"
+          element={
+            <RequireAuth token={token}>
+              <BadgesPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <RequireAuth token={token}>
+              <ProfilePage email={userEmail} />
+            </RequireAuth>
+          }
+        />
+      </Routes>
+      {backgroundLocation && (
+        <Routes>
+          <Route
+            path="/sightings/new"
+            element={
+              <RequireAuth token={token}>
+                <NewSightingPage token={token} onLogged={refreshSeen} />
+              </RequireAuth>
+            }
+          />
+        </Routes>
+      )}
+    </>
+  );
+}
+
 function App() {
   const [token, setToken] = useState(localStorage.getItem("token"));
   const [userId, setUserId] = useState(localStorage.getItem("userId"));
@@ -95,114 +242,17 @@ function App() {
 
   return (
     <BrowserRouter>
-      <Header token={token} />
-      <Routes>
-        <Route
-          path="/"
-          element={
-            token ? (
-              <DashboardPage
-                token={token}
-                userId={userId}
-                zoos={zoos}
-                animals={animals}
-                refresh={refreshCounter}
-                onUpdate={refreshSeen}
-              />
-            ) : (
-              <Landing />
-            )
-          }
-        />
-        <Route
-          path="/home"
-          element={
-            <RequireAuth token={token}>
-              <DashboardPage
-                token={token}
-                userId={userId}
-                zoos={zoos}
-                animals={animals}
-                refresh={refreshCounter}
-                onUpdate={refreshSeen}
-              />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/register"
-          element={<RegisterPage onSignedUp={handleSignedUp} />}
-        />
-        <Route
-          path="/login"
-          element={<LoginPage email={userEmail} onLoggedIn={handleLoggedIn} />}
-        />
-        <Route
-          path="/zoos"
-          element={
-            <RequireAuth token={token}>
-              <ZoosPage token={token} />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/zoos/:id"
-          element={
-            <RequireAuth token={token}>
-              <ZooDetailPage token={token} userId={userId} />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/animals"
-          element={
-            <RequireAuth token={token}>
-              <AnimalsPage token={token} userId={userId} />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/animals/:id"
-          element={
-            <RequireAuth token={token}>
-              <AnimalDetailPage token={token} userId={userId} />
-            </RequireAuth>
-          }
-        />
-        <Route path="/search" element={<SearchPage />} />
-        <Route
-          path="/sightings/new"
-          element={
-            <RequireAuth token={token}>
-              <NewSightingPage token={token} />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/visits/new"
-          element={
-            <RequireAuth token={token}>
-              <NewVisitPage token={token} />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/badges"
-          element={
-            <RequireAuth token={token}>
-              <BadgesPage />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/profile"
-          element={
-            <RequireAuth token={token}>
-              <ProfilePage email={userEmail} />
-            </RequireAuth>
-          }
-        />
-      </Routes>
+      <AppRoutes
+        token={token}
+        userId={userId}
+        userEmail={userEmail}
+        zoos={zoos}
+        animals={animals}
+        refreshCounter={refreshCounter}
+        onSignedUp={handleSignedUp}
+        onLoggedIn={handleLoggedIn}
+        refreshSeen={refreshSeen}
+      />
     </BrowserRouter>
   );
 }

@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { API } from '../api';
 
 // Detailed view for a single zoo with a list of resident animals.
 // Used by the ZooDetailPage component.
-export default function ZooDetail({ zoo, token, userId, onBack }) {
+export default function ZooDetail({ zoo, token, userId, onBack, refresh }) {
   const [animals, setAnimals] = useState([]);
   const [visits, setVisits] = useState([]);
   const [seenAnimals, setSeenAnimals] = useState([]);
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Fetch animals in this zoo and user visit/sighting data
   const loadAnimals = () => {
@@ -36,7 +37,7 @@ export default function ZooDetail({ zoo, token, userId, onBack }) {
     loadVisits();
     loadSeen();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [zoo, token, userId]);
+  }, [zoo, token, userId, refresh]);
 
   const visited = visits.some((v) => v.zoo_id === zoo.id);
   const seenIds = new Set(seenAnimals.map((a) => a.id));
@@ -112,7 +113,7 @@ export default function ZooDetail({ zoo, token, userId, onBack }) {
                         zooName: zoo.name,
                         animalId: a.id,
                         animalName: a.common_name,
-
+                        backgroundLocation: location,
                         from: `/zoos/${zoo.id}`,
                       },
                     });
