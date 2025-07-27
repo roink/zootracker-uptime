@@ -104,10 +104,15 @@ export default function ZooDetail({ zoo, token, userId, onBack }) {
                   className="btn btn-sm btn-outline-secondary"
                   onClick={(e) => {
                     e.stopPropagation();
+                    // Open the sighting form as a modal overlay with
+                    // the current zoo and animal pre-filled.
                     navigate('/sightings/new', {
                       state: {
                         zooId: zoo.id,
+                        zooName: zoo.name,
                         animalId: a.id,
+                        animalName: a.common_name,
+
                         from: `/zoos/${zoo.id}`,
                       },
                     });

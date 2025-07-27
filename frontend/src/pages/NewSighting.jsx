@@ -12,6 +12,10 @@ export default function NewSightingPage({ token }) {
   const [animals, setAnimals] = useState([]);
   const defaultZooId = location.state?.zooId || '';
   const defaultAnimalId = location.state?.animalId || '';
+  // Names are provided so the form can show values immediately
+  const defaultZooName = location.state?.zooName || '';
+  const defaultAnimalName = location.state?.animalName || '';
+
   const redirectTo = location.state?.from || '/home';
 
   // Load the list of zoos and animals for the search fields
@@ -39,6 +43,9 @@ export default function NewSightingPage({ token }) {
           animals={animals}
           defaultZooId={defaultZooId}
           defaultAnimalId={defaultAnimalId}
+          initialZooName={defaultZooName}
+          initialAnimalName={defaultAnimalName}
+
           onLogged={handleSaved}
           onCancel={handleCancel}
         />

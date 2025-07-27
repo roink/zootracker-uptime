@@ -14,6 +14,9 @@ export function LogSighting({
   zoos: propZoos = null,
   defaultAnimalId = '',
   defaultZooId = '',
+  initialAnimalName = '',
+  initialZooName = '',
+
   onLogged,
   onCancel,
 }) {
@@ -21,8 +24,10 @@ export function LogSighting({
   const [zoos, setZoos] = useState(propZoos || []);
   const [animalId, setAnimalId] = useState(defaultAnimalId);
   const [zooId, setZooId] = useState(defaultZooId);
-  const [animalInput, setAnimalInput] = useState('');
-  const [zooInput, setZooInput] = useState('');
+  // Inputs start with provided names so the form can show defaults
+  const [animalInput, setAnimalInput] = useState(initialAnimalName);
+  const [zooInput, setZooInput] = useState(initialZooName);
+
 
   useEffect(() => {
     if (!propAnimals) {

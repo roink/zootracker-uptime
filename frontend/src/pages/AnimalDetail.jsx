@@ -156,10 +156,14 @@ export default function AnimalDetailPage({ token, userId }) {
       </table>
       <button
         onClick={() =>
+          // Launch modal with the selected animal and closest zoo prefilled
           navigate('/sightings/new', {
             state: {
               animalId: animal.id,
+              animalName: animal.common_name,
               zooId: closestZoo ? closestZoo.id : undefined,
+              zooName: closestZoo ? closestZoo.name : undefined,
+
               from: `/animals/${animal.id}`,
             },
           })
