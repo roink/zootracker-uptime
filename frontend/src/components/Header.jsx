@@ -10,6 +10,7 @@ import SearchSuggestions from './SearchSuggestions';
 export default function Header({ token }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState({ zoos: [], animals: [] });
+  const [focused, setFocused] = useState(false);
   const navigate = useNavigate();
   const fetchRef = useRef(null);
 
@@ -59,6 +60,7 @@ export default function Header({ token }) {
   const handleSelect = (type, id) => {
     setQuery('');
     setResults({ zoos: [], animals: [] });
+    setFocused(false);
     if (type === 'zoo') {
       navigate(`/zoos/${id}`);
     } else {
@@ -108,8 +110,10 @@ export default function Header({ token }) {
               placeholder="Search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              onFocus={() => setFocused(true)}
+              onBlur={() => setTimeout(() => setFocused(false), 100)}
             />
-            {query && (results.zoos.length || results.animals.length) ? (
+            {focused && query && (results.zoos.length || results.animals.length) ? (
               <SearchSuggestions results={results} onSelect={handleSelect} />
             ) : null}
           </form>
