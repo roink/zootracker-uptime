@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { API } from '../api';
-
-// cache for search results by query so repeated typing does not hit the API
-const searchCache = {};
+import searchCache from '../searchCache';
 
 // Reusable forms for logging sightings and zoo visits. These components are used
 // within the dashboard to submit data to the FastAPI backend.
