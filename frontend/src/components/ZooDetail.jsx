@@ -112,6 +112,7 @@ export default function ZooDetail({ zoo, token, userId, onBack }) {
                         zooName: zoo.name,
                         animalId: a.id,
                         animalName: a.common_name,
+
                         from: `/zoos/${zoo.id}`,
                       },
                     });

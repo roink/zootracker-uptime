@@ -163,6 +163,7 @@ export default function AnimalDetailPage({ token, userId }) {
               animalName: animal.common_name,
               zooId: closestZoo ? closestZoo.id : undefined,
               zooName: closestZoo ? closestZoo.name : undefined,
+
               from: `/animals/${animal.id}`,
             },
           })

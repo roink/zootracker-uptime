@@ -16,6 +16,7 @@ export function LogSighting({
   defaultZooId = '',
   initialAnimalName = '',
   initialZooName = '',
+
   onLogged,
   onCancel,
 }) {
@@ -26,6 +27,7 @@ export function LogSighting({
   // Inputs start with provided names so the form can show defaults
   const [animalInput, setAnimalInput] = useState(initialAnimalName);
   const [zooInput, setZooInput] = useState(initialZooName);
+
 
   useEffect(() => {
     if (!propAnimals) {

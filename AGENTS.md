@@ -43,3 +43,4 @@ around 500px) so they do not fill the entire screen on large monitors. When
 opening the sighting modal from another page, pass both the ID **and** name of
 the current animal and zoo in the router state. This lets the form show those
 values immediately while it fetches the full lists for searching.
+
