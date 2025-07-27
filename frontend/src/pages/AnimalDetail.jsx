@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { API } from '../api';
 
 export default function AnimalDetailPage({ token, userId }) {
   const { id } = useParams();
   const navigate = useNavigate();
+  const routerLocation = useLocation();
   const [animal, setAnimal] = useState(null);
   const [sightings, setSightings] = useState([]);
   const [location, setLocation] = useState(null);
@@ -163,6 +164,7 @@ export default function AnimalDetailPage({ token, userId }) {
               animalName: animal.common_name,
               zooId: closestZoo ? closestZoo.id : undefined,
               zooName: closestZoo ? closestZoo.name : undefined,
+              backgroundLocation: routerLocation,
 
               from: `/animals/${animal.id}`,
             },

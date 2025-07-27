@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { API } from '../api';
 
 // Detailed view for a single zoo with a list of resident animals.
@@ -9,6 +9,7 @@ export default function ZooDetail({ zoo, token, userId, onBack }) {
   const [visits, setVisits] = useState([]);
   const [seenAnimals, setSeenAnimals] = useState([]);
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Fetch animals in this zoo and user visit/sighting data
   const loadAnimals = () => {
@@ -112,7 +113,7 @@ export default function ZooDetail({ zoo, token, userId, onBack }) {
                         zooName: zoo.name,
                         animalId: a.id,
                         animalName: a.common_name,
-
+                        backgroundLocation: location,
                         from: `/zoos/${zoo.id}`,
                       },
                     });

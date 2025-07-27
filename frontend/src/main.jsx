@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from "react";
 import ReactDOM from "react-dom/client";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+  useLocation,
+} from "react-router-dom";
 
 // Base URL of the FastAPI backend. When the frontend is served on a different
 // port (e.g. via `python -m http.server`), the API won't be on the same origin
@@ -60,43 +66,25 @@ function RequireAuth({ token, children }) {
   return token ? children : <Navigate to="/" replace />;
 }
 
-function App() {
-  const [token, setToken] = useState(localStorage.getItem("token"));
-  const [userId, setUserId] = useState(localStorage.getItem("userId"));
-  const [userEmail, setUserEmail] = useState(localStorage.getItem("userEmail"));
-  const [zoos, setZoos] = useState([]);
-  const [animals, setAnimals] = useState([]);
-  const [refreshCounter, setRefreshCounter] = useState(0);
-
-  useEffect(() => {
-    fetch(`${API}/zoos`).then((r) => r.json()).then(setZoos);
-    fetch(`${API}/animals`).then((r) => r.json()).then(setAnimals);
-  }, []);
-
-  const handleSignedUp = (user, email) => {
-    setUserId(user.id);
-    setUserEmail(email);
-    localStorage.setItem("userId", user.id);
-    localStorage.setItem("userEmail", email);
-  };
-
-  const handleLoggedIn = (tok, uid, email) => {
-    setToken(tok);
-    setUserId(uid);
-    setUserEmail(email);
-    localStorage.setItem("token", tok);
-    localStorage.setItem("userId", uid);
-    localStorage.setItem("userEmail", email);
-  };
-
-  const refreshSeen = () => {
-    setRefreshCounter((c) => c + 1);
-  };
+function AppRoutes({
+  token,
+  userId,
+  userEmail,
+  zoos,
+  animals,
+  refreshCounter,
+  onSignedUp,
+  onLoggedIn,
+  refreshSeen,
+}) {
+  const location = useLocation();
+  const state = location.state;
+  const backgroundLocation = state && state.backgroundLocation;
 
   return (
-    <BrowserRouter>
+    <>
       <Header token={token} />
-      <Routes>
+      <Routes location={backgroundLocation || location}>
         <Route
           path="/"
           element={
@@ -131,11 +119,11 @@ function App() {
         />
         <Route
           path="/register"
-          element={<RegisterPage onSignedUp={handleSignedUp} />}
+          element={<RegisterPage onSignedUp={onSignedUp} />}
         />
         <Route
           path="/login"
-          element={<LoginPage email={userEmail} onLoggedIn={handleLoggedIn} />}
+          element={<LoginPage email={userEmail} onLoggedIn={onLoggedIn} />}
         />
         <Route
           path="/zoos"
@@ -203,6 +191,68 @@ function App() {
           }
         />
       </Routes>
+      {backgroundLocation && (
+        <Routes>
+          <Route
+            path="/sightings/new"
+            element={
+              <RequireAuth token={token}>
+                <NewSightingPage token={token} />
+              </RequireAuth>
+            }
+          />
+        </Routes>
+      )}
+    </>
+  );
+}
+
+function App() {
+  const [token, setToken] = useState(localStorage.getItem("token"));
+  const [userId, setUserId] = useState(localStorage.getItem("userId"));
+  const [userEmail, setUserEmail] = useState(localStorage.getItem("userEmail"));
+  const [zoos, setZoos] = useState([]);
+  const [animals, setAnimals] = useState([]);
+  const [refreshCounter, setRefreshCounter] = useState(0);
+
+  useEffect(() => {
+    fetch(`${API}/zoos`).then((r) => r.json()).then(setZoos);
+    fetch(`${API}/animals`).then((r) => r.json()).then(setAnimals);
+  }, []);
+
+  const handleSignedUp = (user, email) => {
+    setUserId(user.id);
+    setUserEmail(email);
+    localStorage.setItem("userId", user.id);
+    localStorage.setItem("userEmail", email);
+  };
+
+  const handleLoggedIn = (tok, uid, email) => {
+    setToken(tok);
+    setUserId(uid);
+    setUserEmail(email);
+    localStorage.setItem("token", tok);
+    localStorage.setItem("userId", uid);
+    localStorage.setItem("userEmail", email);
+  };
+
+  const refreshSeen = () => {
+    setRefreshCounter((c) => c + 1);
+  };
+
+  return (
+    <BrowserRouter>
+      <AppRoutes
+        token={token}
+        userId={userId}
+        userEmail={userEmail}
+        zoos={zoos}
+        animals={animals}
+        refreshCounter={refreshCounter}
+        onSignedUp={handleSignedUp}
+        onLoggedIn={handleLoggedIn}
+        refreshSeen={refreshSeen}
+      />
     </BrowserRouter>
   );
 }
