@@ -59,7 +59,7 @@ export default function Dashboard({ token, userId, zoos, animals, refresh, onUpd
           <li key={idx} className="list-group-item">
             {f.type === 'visit'
               ? `Visited ${zooName(f.item.zoo_id)} on ${f.item.visit_date}`
-              : `Saw ${animalName(f.item.animal_id)} at ${zooName(f.item.zoo_id)}`}
+              : `Saw ${animalName(f.item.animal_id)} at ${zooName(f.item.zoo_id)} on ${f.item.sighting_datetime.slice(0,10)}`}
           </li>
         ))}
       </ul>
