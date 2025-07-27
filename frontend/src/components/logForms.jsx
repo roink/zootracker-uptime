@@ -34,6 +34,10 @@ export function LogSighting({
   const [animalFocused, setAnimalFocused] = useState(false);
   const zooFetch = useRef(null);
   const animalFetch = useRef(null);
+  // Date input defaults to today
+  const [sightingDate, setSightingDate] = useState(
+    () => new Date().toISOString().split('T')[0]
+  );
 
 
   useEffect(() => {
@@ -137,7 +141,7 @@ export function LogSighting({
       zoo_id: zooId,
       animal_id: animalId,
       user_id: uid,
-      sighting_datetime: new Date().toISOString(),
+      sighting_datetime: new Date(sightingDate).toISOString(),
     };
     const resp = await fetch(`${API}/sightings`, {
       method: 'POST',
@@ -228,6 +232,15 @@ export function LogSighting({
             ))}
           </ul>
         )}
+      </div>
+      <div className="mb-2">
+        <input
+          className="form-control"
+          type="date"
+          value={sightingDate}
+          onChange={(e) => setSightingDate(e.target.value)}
+          required
+        />
       </div>
       <div className="text-end">
         {onCancel && (

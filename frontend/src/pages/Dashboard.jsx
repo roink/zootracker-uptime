@@ -17,17 +17,20 @@ export default function Dashboard({ token, userId, zoos, animals, refresh, onUpd
   useEffect(() => {
     const uid = userId || localStorage.getItem('userId');
     fetch(`${API}/visits`, { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => r.json())
-      .then(setVisits);
+      .then((r) => (r.ok ? r.json() : []))
+      .then(setVisits)
+      .catch(() => setVisits([]));
     if (!uid) return;
     fetch(`${API}/users/${uid}/animals`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then((r) => r.json())
-      .then(setSeenAnimals);
+      .then((r) => (r.ok ? r.json() : []))
+      .then(setSeenAnimals)
+      .catch(() => setSeenAnimals([]));
     fetch(`${API}/sightings`, { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => r.json())
-      .then(setSightings);
+      .then((r) => (r.ok ? r.json() : []))
+      .then(setSightings)
+      .catch(() => setSightings([]));
     fetch(`${API}/users/${uid}/achievements`, {
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -59,7 +62,7 @@ export default function Dashboard({ token, userId, zoos, animals, refresh, onUpd
           <li key={idx} className="list-group-item">
             {f.type === 'visit'
               ? `Visited ${zooName(f.item.zoo_id)} on ${f.item.visit_date}`
-              : `Saw ${animalName(f.item.animal_id)} at ${zooName(f.item.zoo_id)}`}
+              : `Saw ${animalName(f.item.animal_id)} at ${zooName(f.item.zoo_id)} on ${f.item.sighting_datetime.slice(0,10)}`}
           </li>
         ))}
       </ul>
