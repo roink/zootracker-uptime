@@ -11,6 +11,8 @@ export default function Header({ token }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState({ zoos: [], animals: [] });
   const [focused, setFocused] = useState(false);
+  // keep a ref for the blur timeout so we can cancel it if focus returns quickly
+  const blurRef = useRef(null);
   const navigate = useNavigate();
   const fetchRef = useRef(null);
 
@@ -110,8 +112,15 @@ export default function Header({ token }) {
               placeholder="Search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              onFocus={() => setFocused(true)}
-              onBlur={() => setTimeout(() => setFocused(false), 100)}
+              onFocus={() => {
+                // cancel pending blur when focusing again
+                if (blurRef.current) clearTimeout(blurRef.current);
+                setFocused(true);
+              }}
+              onBlur={() => {
+                // delay hiding suggestions to allow clicks on them
+                blurRef.current = setTimeout(() => setFocused(false), 100);
+              }}
             />
             {focused && query && (results.zoos.length || results.animals.length) ? (
               <SearchSuggestions results={results} onSelect={handleSelect} />
