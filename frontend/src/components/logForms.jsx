@@ -1,5 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { API } from '../api';
+
+// cache for search results by query so repeated typing does not hit the API
+const searchCache = {};
 
 // Reusable forms for logging sightings and zoo visits. These components are used
 // within the dashboard to submit data to the FastAPI backend.
@@ -31,6 +34,8 @@ export function LogSighting({
   const [animalSuggestions, setAnimalSuggestions] = useState([]);
   const [zooFocused, setZooFocused] = useState(false);
   const [animalFocused, setAnimalFocused] = useState(false);
+  const zooFetch = useRef(null);
+  const animalFetch = useRef(null);
 
 
   useEffect(() => {
@@ -45,33 +50,67 @@ export function LogSighting({
   useEffect(() => {
     if (!zooFocused || !zooInput.trim()) {
       setZooSuggestions([]);
+      if (zooFetch.current) zooFetch.current.abort();
       return;
     }
+    const q = zooInput.trim().toLowerCase();
+    const cached = searchCache[q];
+    if (cached) {
+      setZooSuggestions(cached.zoos);
+      return;
+    }
+    const controller = new AbortController();
+    zooFetch.current = controller;
     const t = setTimeout(() => {
-      fetch(
-        `${API}/search?q=${encodeURIComponent(zooInput.trim())}&limit=5`
-      )
+      fetch(`${API}/search?q=${encodeURIComponent(q)}&limit=5`, {
+        signal: controller.signal,
+      })
         .then((r) => r.json())
-        .then((res) => setZooSuggestions(res.zoos))
-        .catch(() => setZooSuggestions([]));
+        .then((res) => {
+          searchCache[q] = res;
+          if (!controller.signal.aborted) setZooSuggestions(res.zoos);
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setZooSuggestions([]);
+        });
     }, 500);
-    return () => clearTimeout(t);
+    return () => {
+      clearTimeout(t);
+      controller.abort();
+    };
   }, [zooInput, zooFocused]);
 
   useEffect(() => {
     if (!animalFocused || !animalInput.trim()) {
       setAnimalSuggestions([]);
+      if (animalFetch.current) animalFetch.current.abort();
       return;
     }
+    const q = animalInput.trim().toLowerCase();
+    const cached = searchCache[q];
+    if (cached) {
+      setAnimalSuggestions(cached.animals);
+      return;
+    }
+    const controller = new AbortController();
+    animalFetch.current = controller;
     const t = setTimeout(() => {
-      fetch(
-        `${API}/search?q=${encodeURIComponent(animalInput.trim())}&limit=5`
-      )
+      fetch(`${API}/search?q=${encodeURIComponent(q)}&limit=5`, {
+        signal: controller.signal,
+      })
         .then((r) => r.json())
-        .then((res) => setAnimalSuggestions(res.animals))
-        .catch(() => setAnimalSuggestions([]));
+        .then((res) => {
+          searchCache[q] = res;
+          if (!controller.signal.aborted) setAnimalSuggestions(res.animals);
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setAnimalSuggestions([]);
+        });
     }, 500);
-    return () => clearTimeout(t);
+    return () => {
+      clearTimeout(t);
+      controller.abort();
+    };
   }, [animalInput, animalFocused]);
 
   useEffect(() => {
@@ -142,7 +181,7 @@ export function LogSighting({
                 <button
                   type="button"
                   className="btn btn-link p-0"
-                  onClick={() => {
+                  onMouseDown={() => {
                     setZooId(z.id);
                     setZooInput(z.name);
                     setZooSuggestions([]);
@@ -178,7 +217,7 @@ export function LogSighting({
                 <button
                   type="button"
                   className="btn btn-link p-0"
-                  onClick={() => {
+                  onMouseDown={() => {
                     setAnimalId(a.id);
                     setAnimalInput(a.common_name);
                     setAnimalSuggestions([]);
