@@ -1,6 +1,17 @@
 # Agent Instructions
 
-This repository provides a FastAPI backend for tracking zoo visits and animal sightings. It uses a PostgreSQL database and includes a demo frontend served separately.
+This repository provides a FastAPI backend for tracking zoo visits and animal sightings and a small React frontend. The backend uses a PostgreSQL database. The frontend is located under `frontend/` and is built with Vite and React. Use Bootstrap classes for styling and keep components well commented with `//` style descriptions. Prefer small components and place reusable styles in CSS files under `src/styles` instead of inline styles.
+
+Project structure overview:
+
+- `app/` – FastAPI application code
+- `frontend/` – React/Vite web client
+  - `src/components/` – shared React components
+  - `src/pages/` – route pages
+  - `src/styles/` – custom CSS loaded by `main.jsx`
+- `tests/` – pytest suite for the backend
+- `docs/` – architecture and planning documents
+- `example_data/` and `schema.sql` – demo data and database schema
 
 ## Running tests
 
@@ -11,4 +22,14 @@ python -m pytest
 ```
 
 Always run the tests after making changes.
+
+## Environment setup
+
+Create a virtual environment and install dependencies before running tests or the app:
+
+```bash
+./setup_env.sh
+```
+
+This uses `requirements.txt` which must list all Python packages like `fastapi` needed to execute the backend and test suite.
 

@@ -1,17 +1,25 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 
+// Simple marketing page shown at the root of the site.
+
 export default function Landing() {
   const navigate = useNavigate();
   return (
-    <div style={{ textAlign: 'center', padding: '20px' }}>
+    <div className="text-center py-4">
       <h1>Track your zoo adventures</h1>
-      <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', marginTop: '20px' }}>
-        <img src="https://via.placeholder.com/150" alt="screenshot" />
-        <img src="https://via.placeholder.com/150" alt="screenshot" />
-        <img src="https://via.placeholder.com/150" alt="screenshot" />
+      <div className="row justify-content-center mt-3">
+        <div className="col-4 col-md-2">
+          <img className="img-fluid" src="https://via.placeholder.com/150" alt="screenshot" />
+        </div>
+        <div className="col-4 col-md-2">
+          <img className="img-fluid" src="https://via.placeholder.com/150" alt="screenshot" />
+        </div>
+        <div className="col-4 col-md-2">
+          <img className="img-fluid" src="https://via.placeholder.com/150" alt="screenshot" />
+        </div>
       </div>
-      <div style={{ display: 'flex', justifyContent: 'center', gap: '40px', marginTop: '20px' }}>
+      <div className="d-flex justify-content-center gap-4 mt-3">
         <div>
           <div style={{ fontSize: '40px' }}>📍</div>
           <p>Track Visits</p>
@@ -25,11 +33,13 @@ export default function Landing() {
           <p>Discover Animals</p>
         </div>
       </div>
-      <div style={{ marginTop: '30px' }}>
-        <button onClick={() => navigate('/register')} style={{ marginRight: '10px' }}>
+      <div className="mt-4">
+        <button className="btn btn-primary me-2" onClick={() => navigate('/register')}>
           Sign Up
         </button>
-        <button onClick={() => navigate('/login')}>Log In</button>
+        <button className="btn btn-secondary" onClick={() => navigate('/login')}>
+          Log In
+        </button>
       </div>
     </div>
   );
