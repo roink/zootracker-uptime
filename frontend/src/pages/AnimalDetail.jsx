@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { API } from '../api';
 
-export default function AnimalDetailPage({ token, userId }) {
+export default function AnimalDetailPage({ token, userId, refresh }) {
   const { id } = useParams();
   const navigate = useNavigate();
   const routerLocation = useLocation();
@@ -32,7 +32,7 @@ export default function AnimalDetailPage({ token, userId }) {
       .then((r) => (r.ok ? r.json() : []))
       .then(setSightings)
       .catch(() => setSightings([]));
-  }, [token]);
+  }, [token, refresh]);
 
   useEffect(() => {
     if (navigator.geolocation) {

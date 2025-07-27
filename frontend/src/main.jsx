@@ -137,7 +137,7 @@ function AppRoutes({
           path="/zoos/:id"
           element={
             <RequireAuth token={token}>
-              <ZooDetailPage token={token} userId={userId} />
+              <ZooDetailPage token={token} userId={userId} refresh={refreshCounter} />
             </RequireAuth>
           }
         />
@@ -153,7 +153,7 @@ function AppRoutes({
           path="/animals/:id"
           element={
             <RequireAuth token={token}>
-              <AnimalDetailPage token={token} userId={userId} />
+              <AnimalDetailPage token={token} userId={userId} refresh={refreshCounter} />
             </RequireAuth>
           }
         />
@@ -162,7 +162,7 @@ function AppRoutes({
           path="/sightings/new"
           element={
             <RequireAuth token={token}>
-              <NewSightingPage token={token} />
+              <NewSightingPage token={token} onLogged={refreshSeen} />
             </RequireAuth>
           }
         />
@@ -197,7 +197,7 @@ function AppRoutes({
             path="/sightings/new"
             element={
               <RequireAuth token={token}>
-                <NewSightingPage token={token} />
+                <NewSightingPage token={token} onLogged={refreshSeen} />
               </RequireAuth>
             }
           />

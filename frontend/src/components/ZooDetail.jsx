@@ -4,7 +4,7 @@ import { API } from '../api';
 
 // Detailed view for a single zoo with a list of resident animals.
 // Used by the ZooDetailPage component.
-export default function ZooDetail({ zoo, token, userId, onBack }) {
+export default function ZooDetail({ zoo, token, userId, onBack, refresh }) {
   const [animals, setAnimals] = useState([]);
   const [visits, setVisits] = useState([]);
   const [seenAnimals, setSeenAnimals] = useState([]);
@@ -37,7 +37,7 @@ export default function ZooDetail({ zoo, token, userId, onBack }) {
     loadVisits();
     loadSeen();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [zoo, token, userId]);
+  }, [zoo, token, userId, refresh]);
 
   const visited = visits.some((v) => v.zoo_id === zoo.id);
   const seenIds = new Set(seenAnimals.map((a) => a.id));

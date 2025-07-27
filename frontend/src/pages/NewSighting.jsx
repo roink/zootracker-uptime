@@ -5,7 +5,7 @@ import { API } from '../api';
 
 // Page that shows the sighting form as an overlay modal. Used when logging a
 // sighting from various parts of the app.
-export default function NewSightingPage({ token }) {
+export default function NewSightingPage({ token, onLogged }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [zoos, setZoos] = useState([]);
@@ -26,12 +26,13 @@ export default function NewSightingPage({ token }) {
 
   // Return to the previous page after saving
   const handleSaved = () => {
-    navigate(redirectTo);
+    onLogged && onLogged();
+    navigate(redirectTo, { replace: true });
   };
 
   // Close the modal without saving
   const handleCancel = () => {
-    navigate(redirectTo);
+    navigate(redirectTo, { replace: true });
   };
 
   return (

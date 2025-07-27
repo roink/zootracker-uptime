@@ -4,7 +4,7 @@ import ZooDetail from '../components/ZooDetail';
 import { API } from '../api';
 
 // Page that fetches a single zoo and renders the ZooDetail component
-export default function ZooDetailPage({ token, userId }) {
+export default function ZooDetailPage({ token, userId, refresh }) {
   const { id } = useParams();
   const navigate = useNavigate();
   const [zoo, setZoo] = useState(null);
@@ -23,6 +23,7 @@ export default function ZooDetailPage({ token, userId }) {
       token={token}
       userId={userId}
       onBack={() => navigate(-1)}
+      refresh={refresh}
     />
   );
 }
