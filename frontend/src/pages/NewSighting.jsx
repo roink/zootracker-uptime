@@ -27,12 +27,21 @@ export default function NewSightingPage({ token, onLogged }) {
   // Return to the previous page after saving
   const handleSaved = () => {
     onLogged && onLogged();
-    navigate(redirectTo, { replace: true });
+    if (location.state?.backgroundLocation) {
+      // Remove the modal from history and return to the previous page
+      navigate(-1);
+    } else {
+      navigate(redirectTo);
+    }
   };
 
   // Close the modal without saving
   const handleCancel = () => {
-    navigate(redirectTo, { replace: true });
+    if (location.state?.backgroundLocation) {
+      navigate(-1);
+    } else {
+      navigate(redirectTo);
+    }
   };
 
   return (
