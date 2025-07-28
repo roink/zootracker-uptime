@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { API } from '../api';
-import { useNavigate } from 'react-router-dom';
+
+import useAuthFetch from '../hooks/useAuthFetch';
 import searchCache from '../searchCache';
 
 // Reusable forms for logging sightings and zoo visits. These components are used
@@ -38,8 +39,8 @@ export function LogSighting({
   const [animalFocused, setAnimalFocused] = useState(false);
   const zooFetch = useRef(null);
   const animalFetch = useRef(null);
-  // Router navigation for handling auth failures
-  const navigate = useNavigate();
+  // Wrapper for fetch that redirects to login on 401
+  const authFetch = useAuthFetch();
   // Date input defaults to today
   const [sightingDate, setSightingDate] = useState(
     () => defaultDate || new Date().toISOString().split('T')[0]
@@ -167,7 +168,7 @@ export function LogSighting({
     }
     const url = sightingId ? `${API}/sightings/${sightingId}` : `${API}/sightings`;
     const method = sightingId ? 'PATCH' : 'POST';
-    const resp = await fetch(url, {
+    const resp = await authFetch(url, {
       method,
       headers: {
         'Content-Type': 'application/json',
@@ -177,9 +178,6 @@ export function LogSighting({
     });
     if (resp.ok) {
       onLogged && onLogged();
-    } else if (resp.status === 401) {
-      // Token expired or invalid - redirect to login
-      navigate('/login');
     } else {
       alert('Failed to save sighting');
     }
@@ -187,7 +185,7 @@ export function LogSighting({
 
   const handleDelete = async () => {
     if (!sightingId) return;
-    const resp = await fetch(`${API}/sightings/${sightingId}`, {
+    const resp = await authFetch(`${API}/sightings/${sightingId}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` }
     });
@@ -328,7 +326,7 @@ export function LogVisit({ token, userId, zoos, onLogged }) {
       return;
     }
     const visit = { zoo_id: zooId, visit_date: visitDate };
-    const resp = await fetch(`${API}/users/${uid}/visits`, {
+    const resp = await authFetch(`${API}/users/${uid}/visits`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

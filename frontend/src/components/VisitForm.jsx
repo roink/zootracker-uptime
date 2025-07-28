@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { API } from '../api';
+import useAuthFetch from '../hooks/useAuthFetch';
 
 export default function VisitForm({ token, zoos: propZoos = null, defaultZooId = '', onSaved, onCancel }) {
   const [zoos, setZoos] = useState(propZoos || []);
   const [zooId, setZooId] = useState(defaultZooId);
   const [visitDate, setVisitDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState('');
+  const authFetch = useAuthFetch();
 
   useEffect(() => {
     if (!propZoos) {
@@ -27,7 +29,7 @@ export default function VisitForm({ token, zoos: propZoos = null, defaultZooId =
   const submit = async (e) => {
     e.preventDefault();
     const visit = { zoo_id: zooId, visit_date: visitDate, notes: notes || null };
-    const resp = await fetch(`${API}/visits`, {
+    const resp = await authFetch(`${API}/visits`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

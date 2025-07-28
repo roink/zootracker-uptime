@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API } from '../api';
+import useAuthFetch from '../hooks/useAuthFetch';
 
 export default function AnimalsPage({ token, userId }) {
   const navigate = useNavigate();
@@ -8,6 +9,7 @@ export default function AnimalsPage({ token, userId }) {
   const [seenAnimals, setSeenAnimals] = useState([]);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('All');
+  const authFetch = useAuthFetch();
 
   // load animal list and fetch details for scientific name and category
   useEffect(() => {
@@ -31,7 +33,7 @@ export default function AnimalsPage({ token, userId }) {
   // load animals seen by the current user
   useEffect(() => {
     if (!token || !userId) return;
-    fetch(`${API}/users/${userId}/animals`, {
+    authFetch(`${API}/users/${userId}/animals`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => (r.ok ? r.json() : []))
