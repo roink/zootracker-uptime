@@ -114,3 +114,18 @@ def test_login_alias_route():
     assert resp.status_code == 200
     assert "access_token" in resp.json()
 
+
+def test_register_response_sanitized():
+    """Ensure password fields are not returned in registration responses."""
+    token, user_id, resp = register_and_login(return_register_resp=True)
+
+    data = resp.json()
+
+    # Sensitive fields should not be included
+    assert "password" not in data
+    assert "password_hash" not in data
+    assert "password_salt" not in data
+
+    # Only expected fields are present
+    assert set(data.keys()) == {"id", "name", "email"}
+
