@@ -280,3 +280,31 @@ def test_get_sighting_owner_only(data):
     )
     assert resp.status_code == 403
 
+
+def test_sightings_are_user_specific(data):
+    token1, user1 = register_and_login()
+    token2, _ = register_and_login()
+    zoo_id = data["zoo"].id
+    animal_id = data["animal"].id
+    sighting = {
+        "zoo_id": str(zoo_id),
+        "animal_id": str(animal_id),
+        "user_id": str(user1),
+        "sighting_datetime": datetime.utcnow().isoformat(),
+    }
+    resp = client.post(
+        "/sightings",
+        json=sighting,
+        headers={"Authorization": f"Bearer {token1}"},
+    )
+    assert resp.status_code == 200
+
+    resp = client.get("/sightings", headers={"Authorization": f"Bearer {token2}"})
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+def test_get_sightings_requires_auth():
+    resp = client.get("/sightings")
+    assert resp.status_code == 401
+
