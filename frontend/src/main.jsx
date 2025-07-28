@@ -25,6 +25,10 @@ import EditSightingPage from "./pages/EditSighting";
 import Header from "./components/Header";
 import SearchPage from "./pages/Search";
 import ZooDetailPage from "./pages/ZooDetail";
+import ImpressPage from "./pages/Impress";
+import DataProtectionPage from "./pages/DataProtection";
+import ContactPage from "./pages/Contact";
+import Footer from "./components/Footer";
 import "./styles/app.css";
 
 
@@ -84,9 +88,10 @@ function AppRoutes({
   const backgroundLocation = state && state.backgroundLocation;
 
   return (
-    <>
+    <div className="d-flex flex-column page-wrapper">
       <Header token={token} onLogout={onLoggedOut} />
-      <Routes location={backgroundLocation || location}>
+      <main className="flex-grow-1 pb-5">
+        <Routes location={backgroundLocation || location}>
         <Route
           path="/"
           element={
@@ -200,6 +205,9 @@ function AppRoutes({
             </RequireAuth>
           }
         />
+        <Route path="/impress" element={<ImpressPage />} />
+        <Route path="/data-protection" element={<DataProtectionPage />} />
+        <Route path="/contact" element={<ContactPage />} />
       </Routes>
       {backgroundLocation && (
         <Routes>
@@ -221,7 +229,9 @@ function AppRoutes({
           />
         </Routes>
       )}
-    </>
+      </main>
+      <Footer />
+    </div>
   );
 }
 

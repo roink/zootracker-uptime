@@ -626,3 +626,10 @@ def list_seen_animals(
         .all()
     )
     return animals
+
+
+@app.post("/contact", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_json)])
+def send_contact(message: schemas.ContactMessage, request: Request) -> Response:
+    """Receive a contact message and log it for review."""
+    logger.info("Contact from %s: %s", message.email, message.message)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

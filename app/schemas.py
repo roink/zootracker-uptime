@@ -4,7 +4,7 @@ from datetime import date, datetime
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, ConfigDict, Field
+from pydantic import BaseModel, EmailStr, ConfigDict, Field, constr
 
 
 class UserCreate(BaseModel):
@@ -146,3 +146,12 @@ class SearchResults(BaseModel):
     animals: list[AnimalRead] = []
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")
+
+
+class ContactMessage(BaseModel):
+    """Input for a contact form submission."""
+
+    email: EmailStr
+    message: constr(min_length=1, max_length=2000)
+
+    model_config = ConfigDict(extra="forbid")

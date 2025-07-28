@@ -43,3 +43,28 @@
   background: #fff;
   border: 1px solid #ccc;
 }
+
+
+.footer-link {
+  /* Footer navigation link style */
+  color: #fff;
+  text-decoration: none;
+  margin: 0 10px;
+}
+
+.footer-link:hover {
+  color: #e2e2e2;
+}
+
+body {
+  /* Remove default page margins so the footer is fully visible */
+  margin: 0;
+}
+
+/* Layout wrapper that keeps pages full height
+   while leaving space below the footer */
+.page-wrapper {
+  min-height: 100vh;
+  box-sizing: border-box;
+  padding-bottom: 0;
+}
