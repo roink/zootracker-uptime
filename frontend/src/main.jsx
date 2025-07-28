@@ -86,7 +86,7 @@ function AppRoutes({
   const backgroundLocation = state && state.backgroundLocation;
 
   return (
-    <div className="d-flex flex-column min-vh-100">
+    <div className="d-flex flex-column page-wrapper">
       <Header token={token} />
       <main className="flex-grow-1 pb-5">
         <Routes location={backgroundLocation || location}>
