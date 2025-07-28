@@ -88,7 +88,7 @@ function AppRoutes({
   return (
     <div className="d-flex flex-column min-vh-100">
       <Header token={token} />
-      <main className="flex-grow-1">
+      <main className="flex-grow-1 pb-5">
         <Routes location={backgroundLocation || location}>
         <Route
           path="/"
