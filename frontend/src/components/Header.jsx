@@ -7,7 +7,7 @@ import SearchSuggestions from './SearchSuggestions';
 // Navigation header shown on all pages. Includes a simple search
 // form and links that depend on authentication state.
 
-export default function Header({ token }) {
+export default function Header({ token, onLogout }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState({ zoos: [], animals: [] });
   const [focused, setFocused] = useState(false);
@@ -70,6 +70,12 @@ export default function Header({ token }) {
     }
   };
 
+  // Clear auth info and return to the landing page when logging out
+  const handleLogout = () => {
+    if (onLogout) onLogout();
+    navigate('/');
+  };
+
   return (
     <nav className="navbar navbar-expand-lg navbar-dark bg-success mb-3">
       <div className="container-fluid">
@@ -91,9 +97,20 @@ export default function Header({ token }) {
               <Link className="nav-link" to="/animals">Animals</Link>
             </li>
             {token ? (
-              <li className="nav-item">
-                <Link className="nav-link" to="/home">Dashboard</Link>
-              </li>
+              <>
+                <li className="nav-item">
+                  <Link className="nav-link" to="/home">Dashboard</Link>
+                </li>
+                <li className="nav-item">
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="btn btn-link nav-link"
+                  >
+                    Log out
+                  </button>
+                </li>
+              </>
             ) : (
               <>
                 <li className="nav-item">

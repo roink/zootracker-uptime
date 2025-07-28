@@ -76,6 +76,7 @@ function AppRoutes({
   refreshCounter,
   onSignedUp,
   onLoggedIn,
+  onLoggedOut,
   refreshSeen,
 }) {
   const location = useLocation();
@@ -84,7 +85,7 @@ function AppRoutes({
 
   return (
     <>
-      <Header token={token} />
+      <Header token={token} onLogout={onLoggedOut} />
       <Routes location={backgroundLocation || location}>
         <Route
           path="/"
@@ -253,6 +254,15 @@ function App() {
     localStorage.setItem("userEmail", email);
   };
 
+  const handleLoggedOut = () => {
+    setToken(null);
+    setUserId(null);
+    setUserEmail(null);
+    localStorage.removeItem("token");
+    localStorage.removeItem("userId");
+    localStorage.removeItem("userEmail");
+  };
+
   const refreshSeen = () => {
     setRefreshCounter((c) => c + 1);
   };
@@ -268,6 +278,7 @@ function App() {
         refreshCounter={refreshCounter}
         onSignedUp={handleSignedUp}
         onLoggedIn={handleLoggedIn}
+        onLoggedOut={handleLoggedOut}
         refreshSeen={refreshSeen}
       />
     </BrowserRouter>
