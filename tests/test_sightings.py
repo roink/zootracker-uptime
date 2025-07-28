@@ -209,16 +209,18 @@ def test_patch_sighting_success(data):
     assert resp.status_code == 200
     sighting_id = resp.json()["id"]
 
+    # update to the secondary zoo and add a photo
+    new_zoo = data["far_zoo"].id
     photo = "http://example.com/photo.jpg"
     resp = client.patch(
         f"/sightings/{sighting_id}",
-        json={"notes": "great", "photo_url": photo},
+        json={"zoo_id": str(new_zoo), "photo_url": photo},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 200
     body = resp.json()
-    assert body["notes"] == "great"
     assert body["photo_url"] == photo
+    assert body["zoo_id"] == str(new_zoo)
 
 def test_patch_sighting_forbidden(data):
     token1, user1 = register_and_login()
@@ -243,6 +245,38 @@ def test_patch_sighting_forbidden(data):
         f"/sightings/{sighting_id}",
         json={"notes": "oops"},
         headers={"Authorization": f"Bearer {token2}"},
+    )
+    assert resp.status_code == 403
+
+
+def test_get_sighting_owner_only(data):
+    token1, user1 = register_and_login()
+    token2, _ = register_and_login()
+    zoo_id = data["zoo"].id
+    animal_id = data["animal"].id
+    sighting = {
+        "zoo_id": str(zoo_id),
+        "animal_id": str(animal_id),
+        "user_id": str(user1),
+        "sighting_datetime": datetime.utcnow().isoformat(),
+    }
+    resp = client.post(
+        "/sightings",
+        json=sighting,
+        headers={"Authorization": f"Bearer {token1}"},
+    )
+    assert resp.status_code == 200
+    sighting_id = resp.json()["id"]
+
+    # owner can fetch
+    resp = client.get(
+        f"/sightings/{sighting_id}", headers={"Authorization": f"Bearer {token1}"}
+    )
+    assert resp.status_code == 200
+
+    # other user forbidden
+    resp = client.get(
+        f"/sightings/{sighting_id}", headers={"Authorization": f"Bearer {token2}"}
     )
     assert resp.status_code == 403
 

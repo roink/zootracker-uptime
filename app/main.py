@@ -524,6 +524,23 @@ def create_sighting(
     return sighting
 
 
+@app.get("/sightings/{sighting_id}", response_model=schemas.AnimalSightingRead)
+def read_sighting(
+    sighting_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    """Retrieve a single sighting owned by the current user."""
+    sighting = db.get(models.AnimalSighting, sighting_id)
+    if sighting is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="Sighting not found")
+    if sighting.user_id != user.id and not getattr(user, "is_admin", False):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Not authorized to view this sighting")
+    return sighting
+
+
 @app.patch(
     "/sightings/{sighting_id}",
     response_model=schemas.AnimalSightingRead,
@@ -535,7 +552,7 @@ def update_sighting(
     db: Session = Depends(get_db),
     user: models.User = Depends(get_current_user),
 ):
-    """Update notes, datetime, or photo for a sighting."""
+    """Update fields of a sighting owned by the current user."""
     sighting = db.get(models.AnimalSighting, sighting_id)
     if sighting is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sighting not found")
@@ -543,6 +560,14 @@ def update_sighting(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to update this sighting")
 
     data = sighting_in.model_dump(exclude_unset=True)
+
+    if "zoo_id" in data and db.get(models.Zoo, data["zoo_id"]) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="Zoo not found")
+
+    if "animal_id" in data and db.get(models.Animal, data["animal_id"]) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="Animal not found")
     for key, value in data.items():
         setattr(sighting, key, value)
 
