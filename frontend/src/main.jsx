@@ -68,7 +68,7 @@ function ProfilePage({ email }) {
 
 
 function RequireAuth({ token, children }) {
-  return token ? children : <Navigate to="/" replace />;
+  return token ? children : <Navigate to="/login" replace />;
 }
 
 function AppRoutes({
@@ -132,37 +132,15 @@ function AppRoutes({
           path="/login"
           element={<LoginPage email={userEmail} onLoggedIn={onLoggedIn} />}
         />
-        <Route
-          path="/zoos"
-          element={
-            <RequireAuth token={token}>
-              <ZoosPage token={token} />
-            </RequireAuth>
-          }
-        />
+        <Route path="/zoos" element={<ZoosPage token={token} />} />
         <Route
           path="/zoos/:id"
-          element={
-            <RequireAuth token={token}>
-              <ZooDetailPage token={token} userId={userId} refresh={refreshCounter} />
-            </RequireAuth>
-          }
+          element={<ZooDetailPage token={token} userId={userId} refresh={refreshCounter} />}
         />
-        <Route
-          path="/animals"
-          element={
-            <RequireAuth token={token}>
-              <AnimalsPage token={token} userId={userId} />
-            </RequireAuth>
-          }
-        />
+        <Route path="/animals" element={<AnimalsPage token={token} userId={userId} />} />
         <Route
           path="/animals/:id"
-          element={
-            <RequireAuth token={token}>
-              <AnimalDetailPage token={token} userId={userId} refresh={refreshCounter} />
-            </RequireAuth>
-          }
+          element={<AnimalDetailPage token={token} userId={userId} refresh={refreshCounter} />}
         />
         <Route path="/search" element={<SearchPage />} />
         <Route
