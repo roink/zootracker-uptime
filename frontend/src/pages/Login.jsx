@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { API } from '../api';
 
 // Login form that stores the returned token in localStorage.
 
 export default function LoginPage({ email, onLoggedIn }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [inputEmail, setInputEmail] = useState(email || '');
   const [password, setPassword] = useState('');
+  const successMessage = location.state?.message;
 
   // Submit credentials to the backend and store auth data. If the
   // request fails entirely (e.g. when the API URL is unreachable) an
@@ -42,6 +44,11 @@ export default function LoginPage({ email, onLoggedIn }) {
 
   return (
     <form onSubmit={submit} className="container auth-form">
+      {successMessage && (
+        <div className="alert alert-success" role="alert">
+          {successMessage}
+        </div>
+      )}
       <h2 className="mb-3">Login</h2>
       <div className="mb-3">
         <input

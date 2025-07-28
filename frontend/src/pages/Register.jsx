@@ -34,7 +34,9 @@ export default function RegisterPage({ onSignedUp }) {
     if (resp.ok) {
       const user = await resp.json();
       onSignedUp(user, email);
-      navigate('/');
+      navigate('/login', {
+        state: { message: 'Signed up successfully, please log in.' },
+      });
     } else {
       alert('Sign up failed');
     }
