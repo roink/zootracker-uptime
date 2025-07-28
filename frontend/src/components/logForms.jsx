@@ -176,6 +176,7 @@ export function LogSighting({
       },
       body: JSON.stringify(sighting)
     });
+    if (resp.status === 401) return;
     if (resp.ok) {
       onLogged && onLogged();
     } else {
@@ -189,6 +190,7 @@ export function LogSighting({
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` }
     });
+    if (resp.status === 401) return;
     if (resp.ok) {
       onDeleted && onDeleted();
     } else {
@@ -334,6 +336,7 @@ export function LogVisit({ token, userId, zoos, onLogged }) {
       },
       body: JSON.stringify(visit)
     });
+    if (resp.status === 401) return;
     if (resp.ok) {
       onLogged && onLogged();
       setVisitDate('');

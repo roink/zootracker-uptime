@@ -37,6 +37,7 @@ export default function VisitForm({ token, zoos: propZoos = null, defaultZooId =
       },
       body: JSON.stringify(visit),
     });
+    if (resp.status === 401) return;
     if (resp.ok) {
       const data = await resp.json();
       onSaved && onSaved(data);
