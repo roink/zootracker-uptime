@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 // Simple footer matching the header color and linking to legal pages.
 export default function Footer() {
   return (
-    <footer className="navbar navbar-dark bg-success mt-4">
+    <footer className="navbar navbar-dark bg-success mt-4 mt-auto">
       <div className="container-fluid justify-content-center">
         <Link className="nav-link footer-link" to="/impress">
           Impress

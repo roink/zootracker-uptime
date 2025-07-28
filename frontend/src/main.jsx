@@ -86,9 +86,10 @@ function AppRoutes({
   const backgroundLocation = state && state.backgroundLocation;
 
   return (
-    <>
+    <div className="d-flex flex-column min-vh-100">
       <Header token={token} />
-      <Routes location={backgroundLocation || location}>
+      <main className="flex-grow-1">
+        <Routes location={backgroundLocation || location}>
         <Route
           path="/"
           element={
@@ -210,8 +211,9 @@ function AppRoutes({
           />
         </Routes>
       )}
+      </main>
       <Footer />
-    </>
+    </div>
   );
 }
 
