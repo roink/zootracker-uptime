@@ -11,7 +11,8 @@ class UserCreate(BaseModel):
     """Schema for user registration."""
     name: str = Field(..., min_length=1, max_length=255)
     email: EmailStr = Field(..., min_length=1, max_length=255)
-    password: str = Field(..., min_length=1, max_length=255)
+    # Enforce stronger passwords by requiring at least 8 characters
+    password: str = Field(..., min_length=8, max_length=255)
 
     model_config = ConfigDict(extra="forbid")
 

@@ -85,6 +85,9 @@ def data():
 _counter = 0  # used to create unique email addresses
 
 
+TEST_PASSWORD = "supersecret"
+
+
 def register_and_login():
     """Create a new user and return an auth token and user id."""
     global _counter
@@ -92,13 +95,13 @@ def register_and_login():
     _counter += 1
     resp = client.post(
         "/users",
-        json={"name": "Alice", "email": email, "password": "secret"},
+        json={"name": "Alice", "email": email, "password": TEST_PASSWORD},
     )
     assert resp.status_code == 200
     user_id = resp.json()["id"]
     resp = client.post(
         "/token",
-        data={"username": email, "password": "secret"},
+        data={"username": email, "password": TEST_PASSWORD},
         headers={"content-type": "application/x-www-form-urlencoded"},
     )
     assert resp.status_code == 200

@@ -75,3 +75,9 @@ VITE_API_URL=http://192.168.1.29:8000 npm run dev -- --host
 Replace `192.168.1.29` with your computer's actual IP if it differs. Setting
 `VITE_API_URL` is only required when the backend runs on a different host or
 port.
+
+### Password Requirements
+
+When registering a new account the API enforces a minimum password length of
+eight characters. Submitting a shorter password will result in a 422 validation
+error.

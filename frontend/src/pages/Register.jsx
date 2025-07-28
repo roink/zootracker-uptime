@@ -10,10 +10,18 @@ export default function RegisterPage({ onSignedUp }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
+  // Store validation state for the password field
+  const [pwError, setPwError] = useState('');
 
   // Send the new user details to the backend and navigate home on success.
   const submit = async (e) => {
     e.preventDefault();
+    // Basic length check so short passwords show an inline error
+    if (password.length < 8) {
+      setPwError('Password must be at least 8 characters');
+      return;
+    }
+    setPwError('');
     if (password !== confirm) {
       alert('Passwords do not match');
       return;
@@ -53,12 +61,14 @@ export default function RegisterPage({ onSignedUp }) {
       </div>
       <div className="mb-3">
         <input
-          className="form-control"
+          className={`form-control${pwError ? ' is-invalid' : ''}`}
           type="password"
           placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
+        <div className="form-text">Minimum 8 characters.</div>
+        {pwError && <div className="invalid-feedback">{pwError}</div>}
       </div>
       <div className="mb-3">
         <input
