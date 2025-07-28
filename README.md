@@ -81,3 +81,19 @@ port.
 When registering a new account the API enforces a minimum password length of
 eight characters. Submitting a shorter password will result in a 422 validation
 error.
+
+## Production Security Notes
+
+The default connection string in `app/database.py` uses the credentials
+`postgres:postgres` and `app/main.py` falls back to the secret key `"secret"`.
+These are provided strictly for local development so the application works
+out of the box. **Change both values for any production deployment** by
+setting the `DATABASE_URL` and `SECRET_KEY` environment variables to strong
+unique values.
+
+When running the API on the public internet remember to:
+
+- Serve all traffic over **HTTPS** to protect credentials and tokens.
+- Regularly apply operating system and dependency updates.
+- Enable rate limiting (for example via a reverse proxy) to prevent abuse.
+
