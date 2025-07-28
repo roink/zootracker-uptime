@@ -99,6 +99,13 @@ export default function ZooDetail({ zoo, token, userId, onBack, refresh }) {
               key={a.id}
               style={{ cursor: 'pointer' }}
               onClick={() => navigate(`/animals/${a.id}`)}
+              tabIndex="0"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  navigate(`/animals/${a.id}`);
+                }
+              }}
             >
               <td>{a.common_name}</td>
               <td className="text-center">{seenIds.has(a.id) ? '✔️' : '—'}</td>

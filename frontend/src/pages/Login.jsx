@@ -35,7 +35,7 @@ export default function LoginPage({ email, onLoggedIn }) {
   };
 
   return (
-    <form onSubmit={submit} className="container" style={{ maxWidth: '400px' }}>
+    <form onSubmit={submit} className="container auth-form">
       <h2 className="mb-3">Login</h2>
       <div className="mb-3">
         <input
