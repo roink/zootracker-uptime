@@ -24,6 +24,10 @@ import NewSightingPage from "./pages/NewSighting";
 import Header from "./components/Header";
 import SearchPage from "./pages/Search";
 import ZooDetailPage from "./pages/ZooDetail";
+import ImpressPage from "./pages/Impress";
+import DataProtectionPage from "./pages/DataProtection";
+import ContactPage from "./pages/Contact";
+import Footer from "./components/Footer";
 import "./styles/app.css";
 
 
@@ -190,6 +194,9 @@ function AppRoutes({
             </RequireAuth>
           }
         />
+        <Route path="/impress" element={<ImpressPage />} />
+        <Route path="/data-protection" element={<DataProtectionPage />} />
+        <Route path="/contact" element={<ContactPage />} />
       </Routes>
       {backgroundLocation && (
         <Routes>
@@ -203,6 +210,7 @@ function AppRoutes({
           />
         </Routes>
       )}
+      <Footer />
     </>
   );
 }
