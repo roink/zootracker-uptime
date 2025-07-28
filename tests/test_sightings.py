@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, UTC
 from .conftest import client, register_and_login, SessionLocal
 from app import models
 
@@ -11,7 +11,7 @@ def test_post_sighting(data):
         "zoo_id": str(zoo_id),
         "animal_id": str(animal_id),
         "user_id": str(user_id),
-        "sighting_datetime": datetime.utcnow().isoformat(),
+        "sighting_datetime": datetime.now(UTC).isoformat(),
     }
     resp = client.post("/sightings", json=sighting, headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code == 200
@@ -25,7 +25,7 @@ def test_sighting_requires_auth(data):
         "zoo_id": str(zoo_id),
         "animal_id": str(animal_id),
         "user_id": str(uuid.uuid4()),
-        "sighting_datetime": datetime.utcnow().isoformat(),
+        "sighting_datetime": datetime.now(UTC).isoformat(),
     }
     resp = client.post("/sightings", json=sighting)
     assert resp.status_code == 401
@@ -38,7 +38,7 @@ def test_sighting_requires_json(data):
         "zoo_id": str(zoo_id),
         "animal_id": str(animal_id),
         "user_id": str(user_id),
-        "sighting_datetime": datetime.utcnow().isoformat(),
+        "sighting_datetime": datetime.now(UTC).isoformat(),
     }
     resp = client.post(
         "/sightings",
@@ -55,7 +55,7 @@ def test_sighting_accepts_charset(data):
         "zoo_id": str(zoo_id),
         "animal_id": str(animal_id),
         "user_id": str(user_id),
-        "sighting_datetime": datetime.utcnow().isoformat(),
+        "sighting_datetime": datetime.now(UTC).isoformat(),
     }
     resp = client.post(
         "/sightings",
@@ -72,7 +72,7 @@ def test_sighting_other_user_forbidden(data):
     sighting = {
         "zoo_id": str(zoo_id),
         "animal_id": str(animal_id),
-        "sighting_datetime": datetime.utcnow().isoformat(),
+        "sighting_datetime": datetime.now(UTC).isoformat(),
         "user_id": str(other_user_id),
     }
     resp = client.post("/sightings", json=sighting, headers={"Authorization": f"Bearer {token1}"})
@@ -86,7 +86,7 @@ def test_sighting_invalid_zoo(data):
         "zoo_id": str(invalid_zoo),
         "animal_id": str(animal_id),
         "user_id": str(user_id),
-        "sighting_datetime": datetime.utcnow().isoformat(),
+        "sighting_datetime": datetime.now(UTC).isoformat(),
     }
     resp = client.post("/sightings", json=sighting, headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code == 404
@@ -99,7 +99,7 @@ def test_sighting_invalid_animal(data):
         "zoo_id": str(zoo_id),
         "animal_id": str(invalid_animal),
         "user_id": str(user_id),
-        "sighting_datetime": datetime.utcnow().isoformat(),
+        "sighting_datetime": datetime.now(UTC).isoformat(),
     }
     resp = client.post("/sightings", json=sighting, headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code == 404
@@ -112,7 +112,7 @@ def test_sighting_extra_field_rejected(data):
         "zoo_id": str(zoo_id),
         "animal_id": str(animal_id),
         "user_id": str(user_id),
-        "sighting_datetime": datetime.utcnow().isoformat(),
+        "sighting_datetime": datetime.now(UTC).isoformat(),
         "unexpected": "boom",
     }
     resp = client.post(
@@ -130,7 +130,7 @@ def test_sighting_notes_too_long(data):
         "zoo_id": str(zoo_id),
         "animal_id": str(animal_id),
         "user_id": str(user_id),
-        "sighting_datetime": datetime.utcnow().isoformat(),
+        "sighting_datetime": datetime.now(UTC).isoformat(),
         "notes": "n" * 1001,
     }
     resp = client.post(
@@ -148,7 +148,7 @@ def test_delete_sighting_success(data):
         "zoo_id": str(zoo_id),
         "animal_id": str(animal_id),
         "user_id": str(user_id),
-        "sighting_datetime": datetime.utcnow().isoformat(),
+        "sighting_datetime": datetime.now(UTC).isoformat(),
     }
     resp = client.post(
         "/sightings",
@@ -176,7 +176,7 @@ def test_delete_sighting_unauthorized(data):
         "zoo_id": str(zoo_id),
         "animal_id": str(animal_id),
         "user_id": str(user1),
-        "sighting_datetime": datetime.utcnow().isoformat(),
+        "sighting_datetime": datetime.now(UTC).isoformat(),
     }
     resp = client.post(
         "/sightings",
@@ -199,7 +199,7 @@ def test_patch_sighting_success(data):
         "zoo_id": str(zoo_id),
         "animal_id": str(animal_id),
         "user_id": str(user_id),
-        "sighting_datetime": datetime.utcnow().isoformat(),
+        "sighting_datetime": datetime.now(UTC).isoformat(),
     }
     resp = client.post(
         "/sightings",
@@ -231,7 +231,7 @@ def test_patch_sighting_forbidden(data):
         "zoo_id": str(zoo_id),
         "animal_id": str(animal_id),
         "user_id": str(user1),
-        "sighting_datetime": datetime.utcnow().isoformat(),
+        "sighting_datetime": datetime.now(UTC).isoformat(),
     }
     resp = client.post(
         "/sightings",
@@ -258,7 +258,7 @@ def test_get_sighting_owner_only(data):
         "zoo_id": str(zoo_id),
         "animal_id": str(animal_id),
         "user_id": str(user1),
-        "sighting_datetime": datetime.utcnow().isoformat(),
+        "sighting_datetime": datetime.now(UTC).isoformat(),
     }
     resp = client.post(
         "/sightings",
@@ -290,7 +290,7 @@ def test_sightings_are_user_specific(data):
         "zoo_id": str(zoo_id),
         "animal_id": str(animal_id),
         "user_id": str(user1),
-        "sighting_datetime": datetime.utcnow().isoformat(),
+        "sighting_datetime": datetime.now(UTC).isoformat(),
     }
     resp = client.post(
         "/sightings",

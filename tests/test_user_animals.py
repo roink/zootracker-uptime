@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, UTC
 from .conftest import client, register_and_login, SessionLocal
 from app import models
 
@@ -11,7 +11,7 @@ def test_get_seen_animals_success(data):
         "zoo_id": str(zoo_id),
         "animal_id": str(animal_id),
         "user_id": str(user_id),
-        "sighting_datetime": datetime.utcnow().isoformat(),
+        "sighting_datetime": datetime.now(UTC).isoformat(),
     }
     resp = client.post(
         "/sightings",
