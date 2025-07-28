@@ -12,15 +12,20 @@ export default function EditSightingPage({ token, onUpdated }) {
   const [animals, setAnimals] = useState([]);
   const [sighting, setSighting] = useState(null);
 
+  const defaultZooId = location.state?.zooId || '';
+  const defaultAnimalId = location.state?.animalId || '';
+  const defaultZooName = location.state?.zooName || '';
+  const defaultAnimalName = location.state?.animalName || '';
+
   const redirectTo = location.state?.from || '/home';
 
   useEffect(() => {
-    fetch(`${API}/zoos`).then(r => r.json()).then(setZoos);
-    fetch(`${API}/animals`).then(r => r.json()).then(setAnimals);
+    fetch(`${API}/zoos`).then((r) => r.json()).then(setZoos);
+    fetch(`${API}/animals`).then((r) => r.json()).then(setAnimals);
     fetch(`${API}/sightings/${id}`, {
-      headers: { Authorization: `Bearer ${token}` }
+      headers: { Authorization: `Bearer ${token}` },
     })
-      .then(r => (r.ok ? r.json() : null))
+      .then((r) => (r.ok ? r.json() : null))
       .then(setSighting);
   }, [id, token]);
 
@@ -33,24 +38,26 @@ export default function EditSightingPage({ token, onUpdated }) {
     }
   };
 
-  if (!sighting) return null;
-
-  const zooName = zoos.find(z => z.id === sighting.zoo_id)?.name || '';
-  const animalName = animals.find(a => a.id === sighting.animal_id)?.common_name || '';
-
   return (
     <div className="modal-overlay">
       <div className="modal-box">
         <LogSighting
           token={token}
-          userId={sighting.user_id}
           zoos={zoos}
           animals={animals}
-          defaultZooId={sighting.zoo_id}
-          defaultAnimalId={sighting.animal_id}
-          defaultDate={sighting.sighting_datetime.slice(0,10)}
-          initialZooName={zooName}
-          initialAnimalName={animalName}
+          defaultZooId={sighting ? sighting.zoo_id : defaultZooId}
+          defaultAnimalId={sighting ? sighting.animal_id : defaultAnimalId}
+          defaultDate={sighting ? sighting.sighting_datetime.slice(0, 10) : undefined}
+          initialZooName={
+            sighting
+              ? zoos.find((z) => z.id === sighting.zoo_id)?.name || defaultZooName
+              : defaultZooName
+          }
+          initialAnimalName={
+            sighting
+              ? animals.find((a) => a.id === sighting.animal_id)?.common_name || defaultAnimalName
+              : defaultAnimalName
+          }
           sightingId={id}
           onLogged={handleDone}
           onDeleted={handleDone}

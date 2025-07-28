@@ -47,5 +47,6 @@ values immediately while it fetches the full lists for searching.
 The dashboard now shows an **Edit** button next to each sighting. Clicking it
 opens a modal overlay with the sighting pre-filled so users can update the zoo,
 animal or date. The form offers **Cancel**, **Apply changes** and **Delete**
-actions and is implemented using the existing `LogSighting` component.
+actions and is implemented using the existing `LogSighting` component. The
+overlay page is mounted at `/sightings/:id/edit`.
 

@@ -143,9 +143,12 @@ export function LogSighting({
     const sighting = {
       zoo_id: zooId,
       animal_id: animalId,
-      user_id: uid,
       sighting_datetime: new Date(sightingDate).toISOString(),
     };
+    if (!sightingId) {
+      // user_id is required only when creating a new sighting
+      sighting.user_id = uid;
+    }
     const url = sightingId ? `${API}/sightings/${sightingId}` : `${API}/sightings`;
     const method = sightingId ? 'PATCH' : 'POST';
     const resp = await fetch(url, {
