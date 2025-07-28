@@ -75,3 +75,18 @@ VITE_API_URL=http://192.168.1.29:8000 npm run dev -- --host
 Replace `192.168.1.29` with your computer's actual IP if it differs. Setting
 `VITE_API_URL` is only required when the backend runs on a different host or
 port.
+
+## Production Security Notes
+
+The default connection string in `app/database.py` uses the credentials
+`postgres:postgres` and `app/main.py` falls back to the secret key `"secret"`.
+These are provided strictly for local development so the application works
+out of the box. **Change both values for any production deployment** by
+setting the `DATABASE_URL` and `SECRET_KEY` environment variables to strong
+unique values.
+
+When running the API on the public internet remember to:
+
+- Serve all traffic over **HTTPS** to protect credentials and tokens.
+- Regularly apply operating system and dependency updates.
+- Enable rate limiting (for example via a reverse proxy) to prevent abuse.
