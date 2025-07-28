@@ -1,6 +1,6 @@
 import uuid
 from datetime import date, datetime
-from .conftest import client, register_and_login, SessionLocal
+from .conftest import client, register_and_login, SessionLocal, TEST_PASSWORD
 
 _counter = 0  # used to generate unique email addresses
 from app import models
@@ -25,7 +25,7 @@ def test_create_user_extra_field_rejected():
         json={
             "name": "Bob",
             "email": "bob@example.com",
-            "password": "secret",
+            "password": TEST_PASSWORD,
             "unexpected": "boom",
         },
     )
@@ -35,7 +35,7 @@ def test_create_user_name_too_long():
     long_name = "a" * 256
     resp = client.post(
         "/users",
-        json={"name": long_name, "email": "toolong@example.com", "password": "secret"},
+        json={"name": long_name, "email": "toolong@example.com", "password": TEST_PASSWORD},
     )
     assert resp.status_code == 422
 
@@ -45,7 +45,7 @@ def test_create_user_email_too_long():
     long_email = f"{local_part}@example.com"
     resp = client.post(
         "/users",
-        json={"name": "Alice", "email": long_email, "password": "secret"},
+        json={"name": "Alice", "email": long_email, "password": TEST_PASSWORD},
     )
     assert resp.status_code == 422
 
@@ -57,13 +57,21 @@ def test_create_user_password_too_long():
     )
     assert resp.status_code == 422
 
+def test_create_user_password_too_short():
+    """Passwords shorter than 8 characters should be rejected."""
+    resp = client.post(
+        "/users",
+        json={"name": "Alice", "email": "shortpw@example.com", "password": "short"},
+    )
+    assert resp.status_code == 422
+
 def test_create_user_requires_json():
     global _counter
     email = f"json{_counter}@example.com"
     _counter += 1
     resp = client.post(
         "/users",
-        json={"name": "Alice", "email": email, "password": "secret"},
+        json={"name": "Alice", "email": email, "password": TEST_PASSWORD},
         headers={"content-type": "text/plain"},
     )
     assert resp.status_code == 415
@@ -75,7 +83,7 @@ def test_create_user_accepts_charset():
     _counter += 1
     resp = client.post(
         "/users",
-        json={"name": "Alice", "email": email, "password": "secret"},
+        json={"name": "Alice", "email": email, "password": TEST_PASSWORD},
         headers={"content-type": "application/json; charset=utf-8"},
     )
     assert resp.status_code == 200
@@ -95,12 +103,12 @@ def test_login_alias_route():
     _counter += 1
     resp = client.post(
         "/users",
-        json={"name": "Alias", "email": email, "password": "secret"},
+        json={"name": "Alias", "email": email, "password": TEST_PASSWORD},
     )
     assert resp.status_code == 200
     resp = client.post(
         "/auth/login",
-        data={"username": email, "password": "secret"},
+        data={"username": email, "password": TEST_PASSWORD},
         headers={"content-type": "application/x-www-form-urlencoded"},
     )
     assert resp.status_code == 200

@@ -76,6 +76,12 @@ Replace `192.168.1.29` with your computer's actual IP if it differs. Setting
 `VITE_API_URL` is only required when the backend runs on a different host or
 port.
 
+### Password Requirements
+
+When registering a new account the API enforces a minimum password length of
+eight characters. Submitting a shorter password will result in a 422 validation
+error.
+
 ## Production Security Notes
 
 The default connection string in `app/database.py` uses the credentials
@@ -90,3 +96,4 @@ When running the API on the public internet remember to:
 - Serve all traffic over **HTTPS** to protect credentials and tokens.
 - Regularly apply operating system and dependency updates.
 - Enable rate limiting (for example via a reverse proxy) to prevent abuse.
+
