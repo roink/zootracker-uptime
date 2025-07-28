@@ -152,3 +152,9 @@ def test_token_response_excludes_password_fields():
     assert "password_hash" not in data
     assert "password_salt" not in data
 
+
+def test_no_user_listing_endpoint():
+    """Ensure there is no GET /users endpoint."""
+    resp = client.get("/users")
+    assert resp.status_code in {404, 405}
+
