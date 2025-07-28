@@ -12,9 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from jose import jwt, JWTError
-import hashlib
-import secrets
-import hmac
+from passlib.context import CryptContext
 
 from . import models, schemas
 from .database import SessionLocal
@@ -22,6 +20,9 @@ from .database import SessionLocal
 SECRET_KEY = os.getenv("SECRET_KEY", "secret")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
+# bcrypt password hashing context
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # configure application logging
 LOG_FILE = os.getenv("LOG_FILE", "app.log")
@@ -89,18 +90,20 @@ def get_db():
 
 
 def hash_password(password: str, salt: bytes | None = None) -> tuple[str, str]:
-    """Return a salt and hashed password for storage."""
-    if salt is None:
-        salt = secrets.token_bytes(16)
-    hashed = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 100000)
-    return salt.hex(), hashed.hex()
+    """Return a salt and hashed password for storage using bcrypt."""
+    hashed = pwd_context.hash(password)
+    # bcrypt embeds the salt in the hash; extract it for storage
+    try:
+        parts = hashed.split("$")
+        salt_str = parts[3]
+    except IndexError:
+        salt_str = ""
+    return salt_str, hashed
 
 
 def verify_password(plain_password: str, salt_hex: str, hashed_password: str) -> bool:
-    """Verify a password against the stored salt and hash."""
-    salt = bytes.fromhex(salt_hex)
-    new_hash = hashlib.pbkdf2_hmac("sha256", plain_password.encode(), salt, 100000)
-    return hmac.compare_digest(new_hash.hex(), hashed_password)
+    """Verify a password against the stored hash using bcrypt."""
+    return pwd_context.verify(plain_password, hashed_password)
 
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
