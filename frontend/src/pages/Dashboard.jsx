@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { LogVisit } from '../components/logForms';
 import { API } from '../api';
 
@@ -13,6 +13,7 @@ export default function Dashboard({ token, userId, zoos, animals, refresh, onUpd
   const [badges, setBadges] = useState([]);
   const [showVisitForm, setShowVisitForm] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     const uid = userId || localStorage.getItem('userId');
@@ -59,10 +60,34 @@ export default function Dashboard({ token, userId, zoos, animals, refresh, onUpd
       <h3>Activity Feed</h3>
       <ul className="list-group mb-3">
         {feedItems.map((f, idx) => (
-          <li key={idx} className="list-group-item">
-            {f.type === 'visit'
-              ? `Visited ${zooName(f.item.zoo_id)} on ${f.item.visit_date}`
-              : `Saw ${animalName(f.item.animal_id)} at ${zooName(f.item.zoo_id)} on ${f.item.sighting_datetime.slice(0,10)}`}
+          <li
+            key={idx}
+            className="list-group-item d-flex justify-content-between align-items-center"
+          >
+            <span>
+              {f.type === 'visit'
+                ? `Visited ${zooName(f.item.zoo_id)} on ${f.item.visit_date}`
+                : `Saw ${animalName(f.item.animal_id)} at ${zooName(f.item.zoo_id)} on ${f.item.sighting_datetime.slice(0, 10)}`}
+            </span>
+            {f.type === 'sighting' && (
+              <button
+                className="btn btn-sm btn-outline-secondary"
+                onClick={() =>
+                  navigate(`/sightings/${f.item.id}/edit`, {
+                    state: {
+                      backgroundLocation: location,
+                      from: '/home',
+                      zooId: f.item.zoo_id,
+                      zooName: zooName(f.item.zoo_id),
+                      animalId: f.item.animal_id,
+                      animalName: animalName(f.item.animal_id),
+                    },
+                  })
+                }
+              >
+                Edit
+              </button>
+            )}
           </li>
         ))}
       </ul>
@@ -77,7 +102,9 @@ export default function Dashboard({ token, userId, zoos, animals, refresh, onUpd
         <button
           className="btn btn-secondary me-2"
           onClick={() =>
-            navigate('/sightings/new', { state: { from: '/home' } })
+            navigate('/sightings/new', {
+              state: { from: '/home', backgroundLocation: location },
+            })
           }
         >
           Log Sighting

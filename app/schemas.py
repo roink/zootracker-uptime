@@ -117,6 +117,8 @@ class ZooVisitUpdate(BaseModel):
 class AnimalSightingUpdate(BaseModel):
     """Fields allowed when updating an animal sighting."""
 
+    zoo_id: Optional[UUID] = None
+    animal_id: Optional[UUID] = None
     sighting_datetime: Optional[datetime] = None
     notes: Optional[str] = Field(default=None, max_length=1000)
     photo_url: Optional[str] = Field(default=None, max_length=512)

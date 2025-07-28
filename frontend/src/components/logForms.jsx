@@ -15,11 +15,14 @@ export function LogSighting({
   zoos: propZoos = null,
   defaultAnimalId = '',
   defaultZooId = '',
+  defaultDate = null,
   initialAnimalName = '',
   initialZooName = '',
+  sightingId = null,
 
   onLogged,
   onCancel,
+  onDeleted,
 }) {
   const [animals, setAnimals] = useState(propAnimals || []);
   const [zoos, setZoos] = useState(propZoos || []);
@@ -36,8 +39,21 @@ export function LogSighting({
   const animalFetch = useRef(null);
   // Date input defaults to today
   const [sightingDate, setSightingDate] = useState(
-    () => new Date().toISOString().split('T')[0]
+    () => defaultDate || new Date().toISOString().split('T')[0]
   );
+
+  // Update state if defaults change (e.g., after fetching an existing sighting)
+  useEffect(() => {
+    if (defaultAnimalId) setAnimalId(defaultAnimalId);
+  }, [defaultAnimalId]);
+
+  useEffect(() => {
+    if (defaultZooId) setZooId(defaultZooId);
+  }, [defaultZooId]);
+
+  useEffect(() => {
+    if (defaultDate) setSightingDate(defaultDate);
+  }, [defaultDate]);
 
 
   useEffect(() => {
@@ -140,11 +156,16 @@ export function LogSighting({
     const sighting = {
       zoo_id: zooId,
       animal_id: animalId,
-      user_id: uid,
       sighting_datetime: new Date(sightingDate).toISOString(),
     };
-    const resp = await fetch(`${API}/sightings`, {
-      method: 'POST',
+    if (!sightingId) {
+      // user_id is required only when creating a new sighting
+      sighting.user_id = uid;
+    }
+    const url = sightingId ? `${API}/sightings/${sightingId}` : `${API}/sightings`;
+    const method = sightingId ? 'PATCH' : 'POST';
+    const resp = await fetch(url, {
+      method,
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`
@@ -154,13 +175,26 @@ export function LogSighting({
     if (resp.ok) {
       onLogged && onLogged();
     } else {
-      alert('Failed to log sighting');
+      alert('Failed to save sighting');
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!sightingId) return;
+    const resp = await fetch(`${API}/sightings/${sightingId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (resp.ok) {
+      onDeleted && onDeleted();
+    } else {
+      alert('Failed to delete sighting');
     }
   };
 
   return (
     <form onSubmit={submit} className="mb-3">
-      <h3>New Sighting</h3>
+      <h3>{sightingId ? 'Edit Sighting' : 'New Sighting'}</h3>
       <div className="mb-2 position-relative">
         {/* Searchable zoo field */}
         <input
@@ -252,8 +286,17 @@ export function LogSighting({
             Cancel
           </button>
         )}
+        {sightingId && (
+          <button
+            type="button"
+            className="btn btn-danger me-2"
+            onClick={handleDelete}
+          >
+            Delete
+          </button>
+        )}
         <button className="btn btn-primary" type="submit">
-          Add Sighting
+          {sightingId ? 'Apply changes' : 'Add Sighting'}
         </button>
       </div>
     </form>
