@@ -21,6 +21,7 @@ import AnimalsPage from "./pages/Animals";
 import AnimalDetailPage from "./pages/AnimalDetail";
 import NewVisitPage from "./pages/NewVisit";
 import NewSightingPage from "./pages/NewSighting";
+import EditSightingPage from "./pages/EditSighting";
 import Header from "./components/Header";
 import SearchPage from "./pages/Search";
 import ZooDetailPage from "./pages/ZooDetail";
@@ -167,6 +168,14 @@ function AppRoutes({
           }
         />
         <Route
+          path="/sightings/:id/edit"
+          element={
+            <RequireAuth token={token}>
+              <EditSightingPage token={token} onUpdated={refreshSeen} />
+            </RequireAuth>
+          }
+        />
+        <Route
           path="/visits/new"
           element={
             <RequireAuth token={token}>
@@ -198,6 +207,14 @@ function AppRoutes({
             element={
               <RequireAuth token={token}>
                 <NewSightingPage token={token} onLogged={refreshSeen} />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/sightings/:id/edit"
+            element={
+              <RequireAuth token={token}>
+                <EditSightingPage token={token} onUpdated={refreshSeen} />
               </RequireAuth>
             }
           />
