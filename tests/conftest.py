@@ -90,21 +90,28 @@ _counter = 0  # used to create unique email addresses
 TEST_PASSWORD = "supersecret"
 
 
-def register_and_login():
-    """Create a new user and return an auth token and user id."""
+def register_and_login(return_register_resp: bool = False):
+    """Create a new user and return an auth token and user id.
+
+    If ``return_register_resp`` is ``True``, also return the response from the
+    registration request so tests can inspect the payload returned by the API.
+    """
     global _counter
     email = f"alice{_counter}@example.com"
     _counter += 1
-    resp = client.post(
+    register_resp = client.post(
         "/users",
         json={"name": "Alice", "email": email, "password": TEST_PASSWORD},
     )
-    assert resp.status_code == 200
-    user_id = resp.json()["id"]
-    resp = client.post(
+    assert register_resp.status_code == 200
+    user_id = register_resp.json()["id"]
+    login_resp = client.post(
         "/token",
         data={"username": email, "password": TEST_PASSWORD},
         headers={"content-type": "application/x-www-form-urlencoded"},
     )
-    assert resp.status_code == 200
-    return resp.json()["access_token"], user_id
+    assert login_resp.status_code == 200
+    token = login_resp.json()["access_token"]
+    if return_register_resp:
+        return token, user_id, register_resp
+    return token, user_id
