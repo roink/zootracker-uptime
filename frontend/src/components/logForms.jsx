@@ -42,6 +42,19 @@ export function LogSighting({
     () => defaultDate || new Date().toISOString().split('T')[0]
   );
 
+  // Update state if defaults change (e.g., after fetching an existing sighting)
+  useEffect(() => {
+    if (defaultAnimalId) setAnimalId(defaultAnimalId);
+  }, [defaultAnimalId]);
+
+  useEffect(() => {
+    if (defaultZooId) setZooId(defaultZooId);
+  }, [defaultZooId]);
+
+  useEffect(() => {
+    if (defaultDate) setSightingDate(defaultDate);
+  }, [defaultDate]);
+
 
   useEffect(() => {
     if (!propAnimals) {
