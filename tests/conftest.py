@@ -7,6 +7,8 @@ from fastapi.testclient import TestClient
 
 # set up database url before importing app
 os.environ["DATABASE_URL"] = "sqlite:///./test.db"
+os.environ["AUTH_RATE_LIMIT"] = "1000"
+os.environ["GENERAL_RATE_LIMIT"] = "10000"
 
 # ensure a fresh database for every test run
 if os.path.exists("test.db"):
