@@ -87,6 +87,20 @@ def test_create_user_accepts_charset():
         headers={"content-type": "application/json; charset=utf-8"},
     )
     assert resp.status_code == 200
+    # response should only include id, name and email
+    assert set(resp.json().keys()) == {"id", "name", "email"}
+
+def test_create_user_response_fields():
+    """Successful user creation returns only id, name and email."""
+    global _counter
+    email = f"fields{_counter}@example.com"
+    _counter += 1
+    resp = client.post(
+        "/users",
+        json={"name": "Alice", "email": email, "password": TEST_PASSWORD},
+    )
+    assert resp.status_code == 200
+    assert set(resp.json().keys()) == {"id", "name", "email"}
 
 def test_login_empty_username_password():
     """Login with empty credentials should return 400."""
@@ -112,5 +126,29 @@ def test_login_alias_route():
         headers={"content-type": "application/x-www-form-urlencoded"},
     )
     assert resp.status_code == 200
-    assert "access_token" in resp.json()
+    data = resp.json()
+    assert "access_token" in data
+    # ensure password hashes are not returned
+    assert "password_hash" not in data
+    assert "password_salt" not in data
+
+def test_token_response_excludes_password_fields():
+    """Token endpoint should not leak password details."""
+    global _counter
+    email = f"token{_counter}@example.com"
+    _counter += 1
+    resp = client.post(
+        "/users",
+        json={"name": "Token", "email": email, "password": TEST_PASSWORD},
+    )
+    assert resp.status_code == 200
+    resp = client.post(
+        "/token",
+        data={"username": email, "password": TEST_PASSWORD},
+        headers={"content-type": "application/x-www-form-urlencoded"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "password_hash" not in data
+    assert "password_salt" not in data
 
