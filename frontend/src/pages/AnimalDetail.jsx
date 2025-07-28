@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { API } from '../api';
+import useAuthFetch from '../hooks/useAuthFetch';
 
 export default function AnimalDetailPage({ token, userId, refresh }) {
   const { id } = useParams();
   const navigate = useNavigate();
   const routerLocation = useLocation();
+  const authFetch = useAuthFetch();
   const [animal, setAnimal] = useState(null);
   const [sightings, setSightings] = useState([]);
   const [location, setLocation] = useState(null);
@@ -28,7 +30,7 @@ export default function AnimalDetailPage({ token, userId, refresh }) {
 
   useEffect(() => {
     if (!token) return;
-    fetch(`${API}/sightings`, { headers: { Authorization: `Bearer ${token}` } })
+    authFetch(`${API}/sightings`, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => (r.ok ? r.json() : []))
       .then(setSightings)
       .catch(() => setSightings([]));

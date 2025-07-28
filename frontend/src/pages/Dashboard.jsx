@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { LogVisit } from '../components/logForms';
 import { API } from '../api';
+import useAuthFetch from '../hooks/useAuthFetch';
 
 // User dashboard showing recent visits, sightings and badges. Includes
 // buttons to open forms for logging additional activity.
@@ -14,25 +15,26 @@ export default function Dashboard({ token, userId, zoos, animals, refresh, onUpd
   const [showVisitForm, setShowVisitForm] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const authFetch = useAuthFetch();
 
   useEffect(() => {
     const uid = userId || localStorage.getItem('userId');
-    fetch(`${API}/visits`, { headers: { Authorization: `Bearer ${token}` } })
+    authFetch(`${API}/visits`, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => (r.ok ? r.json() : []))
       .then(setVisits)
       .catch(() => setVisits([]));
     if (!uid) return;
-    fetch(`${API}/users/${uid}/animals`, {
+    authFetch(`${API}/users/${uid}/animals`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => (r.ok ? r.json() : []))
       .then(setSeenAnimals)
       .catch(() => setSeenAnimals([]));
-    fetch(`${API}/sightings`, { headers: { Authorization: `Bearer ${token}` } })
+    authFetch(`${API}/sightings`, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => (r.ok ? r.json() : []))
       .then(setSightings)
       .catch(() => setSightings([]));
-    fetch(`${API}/users/${uid}/achievements`, {
+    authFetch(`${API}/users/${uid}/achievements`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => (r.ok ? r.json() : []))

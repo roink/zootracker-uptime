@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { LogSighting } from '../components/logForms';
 import { API } from '../api';
+import useAuthFetch from '../hooks/useAuthFetch';
 
 // Overlay page to edit an existing sighting
 export default function EditSightingPage({ token, onUpdated }) {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const authFetch = useAuthFetch();
   const [zoos, setZoos] = useState([]);
   const [animals, setAnimals] = useState([]);
   const [sighting, setSighting] = useState(null);
@@ -22,7 +24,7 @@ export default function EditSightingPage({ token, onUpdated }) {
   useEffect(() => {
     fetch(`${API}/zoos`).then((r) => r.json()).then(setZoos);
     fetch(`${API}/animals`).then((r) => r.json()).then(setAnimals);
-    fetch(`${API}/sightings/${id}`, {
+    authFetch(`${API}/sightings/${id}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => (r.ok ? r.json() : null))

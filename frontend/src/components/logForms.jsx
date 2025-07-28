@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { API } from '../api';
+
+import useAuthFetch from '../hooks/useAuthFetch';
 import searchCache from '../searchCache';
 
 // Reusable forms for logging sightings and zoo visits. These components are used
@@ -37,6 +39,8 @@ export function LogSighting({
   const [animalFocused, setAnimalFocused] = useState(false);
   const zooFetch = useRef(null);
   const animalFetch = useRef(null);
+  // Wrapper for fetch that redirects to login on 401
+  const authFetch = useAuthFetch();
   // Date input defaults to today
   const [sightingDate, setSightingDate] = useState(
     () => defaultDate || new Date().toISOString().split('T')[0]
@@ -164,7 +168,7 @@ export function LogSighting({
     }
     const url = sightingId ? `${API}/sightings/${sightingId}` : `${API}/sightings`;
     const method = sightingId ? 'PATCH' : 'POST';
-    const resp = await fetch(url, {
+    const resp = await authFetch(url, {
       method,
       headers: {
         'Content-Type': 'application/json',
@@ -172,6 +176,7 @@ export function LogSighting({
       },
       body: JSON.stringify(sighting)
     });
+    if (resp.status === 401) return;
     if (resp.ok) {
       onLogged && onLogged();
     } else {
@@ -181,10 +186,11 @@ export function LogSighting({
 
   const handleDelete = async () => {
     if (!sightingId) return;
-    const resp = await fetch(`${API}/sightings/${sightingId}`, {
+    const resp = await authFetch(`${API}/sightings/${sightingId}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` }
     });
+    if (resp.status === 401) return;
     if (resp.ok) {
       onDeleted && onDeleted();
     } else {
@@ -322,7 +328,7 @@ export function LogVisit({ token, userId, zoos, onLogged }) {
       return;
     }
     const visit = { zoo_id: zooId, visit_date: visitDate };
-    const resp = await fetch(`${API}/users/${uid}/visits`, {
+    const resp = await authFetch(`${API}/users/${uid}/visits`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -330,6 +336,7 @@ export function LogVisit({ token, userId, zoos, onLogged }) {
       },
       body: JSON.stringify(visit)
     });
+    if (resp.status === 401) return;
     if (resp.ok) {
       onLogged && onLogged();
       setVisitDate('');

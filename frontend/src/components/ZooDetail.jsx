@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { API } from '../api';
+import useAuthFetch from '../hooks/useAuthFetch';
 
 // Detailed view for a single zoo with a list of resident animals.
 // Used by the ZooDetailPage component.
@@ -10,6 +11,7 @@ export default function ZooDetail({ zoo, token, userId, onBack, refresh }) {
   const [seenAnimals, setSeenAnimals] = useState([]);
   const navigate = useNavigate();
   const location = useLocation();
+  const authFetch = useAuthFetch();
 
   // Fetch animals in this zoo and user visit/sighting data
   const loadAnimals = () => {
@@ -17,14 +19,14 @@ export default function ZooDetail({ zoo, token, userId, onBack, refresh }) {
   };
   const loadVisits = () => {
     if (!token) return;
-    fetch(`${API}/visits`, { headers: { Authorization: `Bearer ${token}` } })
+    authFetch(`${API}/visits`, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => (r.ok ? r.json() : []))
       .then(setVisits)
       .catch(() => setVisits([]));
   };
   const loadSeen = () => {
     if (!token || !userId) return;
-    fetch(`${API}/users/${userId}/animals`, {
+    authFetch(`${API}/users/${userId}/animals`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => (r.ok ? r.json() : []))

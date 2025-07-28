@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API } from '../api';
+import useAuthFetch from '../hooks/useAuthFetch';
 
 // Listing page showing all zoos with filters for region and search query.
 
@@ -11,6 +12,7 @@ export default function ZoosPage({ token }) {
   const [query, setQuery] = useState('');
   const [region, setRegion] = useState('All');
   const [visitedOnly, setVisitedOnly] = useState(false);
+  const authFetch = useAuthFetch();
 
   useEffect(() => {
     fetch(`${API}/zoos`).then((r) => r.json()).then(setZoos);
@@ -18,7 +20,7 @@ export default function ZoosPage({ token }) {
 
   useEffect(() => {
     if (!token) return;
-    fetch(`${API}/visits`, { headers: { Authorization: `Bearer ${token}` } })
+    authFetch(`${API}/visits`, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => (r.ok ? r.json() : []))
       .then(setVisits)
       .catch(() => setVisits([]));
