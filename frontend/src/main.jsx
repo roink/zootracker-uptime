@@ -68,7 +68,7 @@ function ProfilePage({ email }) {
 
 
 function RequireAuth({ token, children }) {
-  return token ? children : <Navigate to="/" replace />;
+  return token ? children : <Navigate to="/login" replace />;
 }
 
 function AppRoutes({
