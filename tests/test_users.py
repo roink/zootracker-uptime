@@ -114,3 +114,9 @@ def test_login_alias_route():
     assert resp.status_code == 200
     assert "access_token" in resp.json()
 
+
+def test_no_user_listing_endpoint():
+    """Ensure there is no GET /users endpoint."""
+    resp = client.get("/users")
+    assert resp.status_code in {404, 405}
+
