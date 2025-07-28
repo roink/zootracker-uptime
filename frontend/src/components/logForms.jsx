@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { API } from '../api';
+import { useNavigate } from 'react-router-dom';
 import searchCache from '../searchCache';
 
 // Reusable forms for logging sightings and zoo visits. These components are used
@@ -37,6 +38,8 @@ export function LogSighting({
   const [animalFocused, setAnimalFocused] = useState(false);
   const zooFetch = useRef(null);
   const animalFetch = useRef(null);
+  // Router navigation for handling auth failures
+  const navigate = useNavigate();
   // Date input defaults to today
   const [sightingDate, setSightingDate] = useState(
     () => defaultDate || new Date().toISOString().split('T')[0]
@@ -174,6 +177,9 @@ export function LogSighting({
     });
     if (resp.ok) {
       onLogged && onLogged();
+    } else if (resp.status === 401) {
+      // Token expired or invalid - redirect to login
+      navigate('/login');
     } else {
       alert('Failed to save sighting');
     }
