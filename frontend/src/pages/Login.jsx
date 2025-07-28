@@ -9,33 +9,39 @@ export default function LoginPage({ email, onLoggedIn }) {
   const [inputEmail, setInputEmail] = useState(email || '');
   const [password, setPassword] = useState('');
 
-  // Submit credentials to the backend and store auth data.
+  // Submit credentials to the backend and store auth data. If the
+  // request fails entirely (e.g. when the API URL is unreachable) an
+  // error message is shown so the user knows something went wrong.
   const submit = async (e) => {
     e.preventDefault();
     const body = new URLSearchParams();
     body.append('username', inputEmail);
     body.append('password', password);
-    const resp = await fetch(`${API}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body,
-    });
-    if (resp.ok) {
-      const data = await resp.json();
-      localStorage.setItem('token', data.access_token);
-      localStorage.setItem('userId', data.user_id);
-      localStorage.setItem('userEmail', inputEmail);
-      if (onLoggedIn) {
-        onLoggedIn(data.access_token, data.user_id, inputEmail);
+    try {
+      const resp = await fetch(`${API}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body,
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        localStorage.setItem('token', data.access_token);
+        localStorage.setItem('userId', data.user_id);
+        localStorage.setItem('userEmail', inputEmail);
+        if (onLoggedIn) {
+          onLoggedIn(data.access_token, data.user_id, inputEmail);
+        }
+        navigate('/');
+      } else {
+        alert('Login failed');
       }
-      navigate('/');
-    } else {
-      alert('Login failed');
+    } catch (err) {
+      alert('Network error: ' + err.message);
     }
   };
 
   return (
-    <form onSubmit={submit} className="container" style={{ maxWidth: '400px' }}>
+    <form onSubmit={submit} className="container auth-form">
       <h2 className="mb-3">Login</h2>
       <div className="mb-3">
         <input

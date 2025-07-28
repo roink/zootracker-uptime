@@ -81,15 +81,11 @@ export default function AnimalsPage({ token, userId }) {
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
         {filtered.map((a) => (
-          <div
+          <button
             key={a.id}
+            type="button"
+            className="animal-card"
             onClick={() => navigate(`/animals/${a.id}`)}
-            style={{
-              border: '1px solid #ccc',
-              padding: '10px',
-              width: '150px',
-              cursor: 'pointer',
-            }}
           >
             <img
               src={a.default_image_url || 'https://via.placeholder.com/150'}
@@ -115,7 +111,7 @@ export default function AnimalsPage({ token, userId }) {
                 Seen
               </span>
             )}
-          </div>
+          </button>
         ))}
       </div>
     </div>

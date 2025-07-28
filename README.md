@@ -59,5 +59,19 @@ npm install
 npm run dev
 ```
 
-Vite will serve the application on <http://localhost:5173> with the correct CORS
-and MIME headers so it can communicate with the API on port `8000`.
+Vite will serve the application on <http://localhost:5173> by default with the
+correct CORS and MIME headers so it can communicate with the API on port
+`8000`.
+
+When using `--host` the frontend automatically sends requests to the same
+hostname on port `8000`. This means testing from a phone generally works out of
+the box as long as the backend port is reachable. You can still override the API
+location if needed:
+
+```bash
+VITE_API_URL=http://192.168.1.29:8000 npm run dev -- --host
+```
+
+Replace `192.168.1.29` with your computer's actual IP if it differs. Setting
+`VITE_API_URL` is only required when the backend runs on a different host or
+port.

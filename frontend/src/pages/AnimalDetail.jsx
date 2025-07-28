@@ -146,6 +146,13 @@ export default function AnimalDetailPage({ token, userId, refresh }) {
               key={z.id}
               style={{ borderTop: '1px solid #ccc', cursor: 'pointer' }}
               onClick={() => navigate(`/zoos/${z.id}`)}
+              tabIndex="0"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  navigate(`/zoos/${z.id}`);
+                }
+              }}
             >
               <td>{z.name}</td>
               {location && (

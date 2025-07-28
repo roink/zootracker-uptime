@@ -76,9 +76,10 @@ export default function ZoosPage({ token }) {
       </div>
       <div className="list-group">
         {filtered.map((z) => (
-          <div
+          <button
             key={z.id}
-            className="list-group-item list-group-item-action"
+            type="button"
+            className="list-group-item list-group-item-action text-start w-100"
             onClick={() => navigate(`/zoos/${z.id}`)}
           >
             <div className="d-flex justify-content-between">
@@ -90,7 +91,7 @@ export default function ZoosPage({ token }) {
                 <span className="badge bg-success align-self-center">Visited</span>
               )}
             </div>
-          </div>
+          </button>
         ))}
       </div>
     </div>

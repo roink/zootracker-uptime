@@ -33,7 +33,7 @@ export default function RegisterPage({ onSignedUp }) {
   };
 
   return (
-    <form onSubmit={submit} className="container" style={{ maxWidth: '400px' }}>
+    <form onSubmit={submit} className="container auth-form">
       <h2 className="mb-3">Sign Up</h2>
       <div className="mb-3">
         <input
