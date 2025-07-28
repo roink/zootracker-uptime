@@ -109,6 +109,7 @@ function AppRoutes({
             )
           }
         />
+        <Route path="/landing" element={<Landing />} />
         <Route
           path="/home"
           element={

@@ -111,7 +111,7 @@ export default function Header({ token, onLogout }) {
   return (
     <nav className="navbar navbar-expand-lg navbar-dark bg-success mb-3">
       <div className="container-fluid">
-        <Link className="navbar-brand" to="/">ZooTracker</Link>
+        <Link className="navbar-brand" to="/landing">ZooTracker</Link>
         <button
           className="navbar-toggler"
           type="button"
