@@ -450,50 +450,6 @@ def list_zoos_for_animal(
     return zoos
 
 
-@app.post(
-    "/visits",
-    response_model=schemas.ZooVisitRead,
-    dependencies=[Depends(require_json)],
-)
-def create_visit(
-    visit_in: schemas.ZooVisitCreate,
-    db: Session = Depends(get_db),
-    user: models.User = Depends(get_current_user),
-):
-    """Create a visit record for the authenticated user."""
-    if db.get(models.Zoo, visit_in.zoo_id) is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail="Zoo not found")
-    visit = models.ZooVisit(user_id=user.id, **visit_in.model_dump())
-    db.add(visit)
-    db.commit()
-    db.refresh(visit)
-    return visit
-
-
-# new endpoints to explicitly log a visit for a user
-@app.post(
-    "/users/{user_id}/visits",
-    response_model=schemas.ZooVisitRead,
-    dependencies=[Depends(require_json)],
-)
-def create_visit_for_user(
-    user_id: uuid.UUID,
-    visit_in: schemas.ZooVisitCreate,
-    db: Session = Depends(get_db),
-    user: models.User = Depends(get_current_user),
-):
-    """Create a visit for a specific user. Users may only log their own visits."""
-    if user_id != user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot log visit for another user")
-    if db.get(models.Zoo, visit_in.zoo_id) is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail="Zoo not found")
-    visit = models.ZooVisit(user_id=user.id, **visit_in.model_dump())
-    db.add(visit)
-    db.commit()
-    db.refresh(visit)
-    return visit
 
 
 @app.get("/visits", response_model=list[schemas.ZooVisitRead])
@@ -505,52 +461,6 @@ def list_visits(
     return db.query(models.ZooVisit).filter_by(user_id=user.id).all()
 
 
-@app.patch(
-    "/visits/{visit_id}",
-    response_model=schemas.ZooVisitRead,
-    dependencies=[Depends(require_json)],
-)
-def update_visit(
-    visit_id: uuid.UUID,
-    visit_in: schemas.ZooVisitUpdate,
-    db: Session = Depends(get_db),
-    user: models.User = Depends(get_current_user),
-):
-    """Update a visit's date or notes."""
-    visit = db.get(models.ZooVisit, visit_id)
-    if visit is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Visit not found")
-    if visit.user_id != user.id and not getattr(user, "is_admin", False):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to update this visit")
-
-    data = visit_in.model_dump(exclude_unset=True)
-    for key, value in data.items():
-        setattr(visit, key, value)
-
-    db.add(visit)
-    db.commit()
-    db.refresh(visit)
-    return visit
-
-@app.delete("/visits/{visit_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_visit(
-    visit_id: uuid.UUID,
-    db: Session = Depends(get_db),
-    user: models.User = Depends(get_current_user),
-):
-    """Delete a visit if owned by the user or the user is admin."""
-    visit = db.get(models.ZooVisit, visit_id)
-    if visit is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Visit not found")
-
-    admin_email = os.getenv("ADMIN_EMAIL")
-    is_admin = admin_email and user.email == admin_email
-    if visit.user_id != user.id and not is_admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to delete visit")
-
-    db.delete(visit)
-    db.commit()
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @app.post(
