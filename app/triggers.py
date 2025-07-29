@@ -7,6 +7,16 @@ def create_triggers(engine: Engine) -> None:
     if engine.dialect.name == "postgresql":
         with engine.begin() as conn:
             conn.execute(text("CREATE EXTENSION IF NOT EXISTS pgcrypto"))
+            conn.execute(
+                text(
+                    """
+                    CREATE OR REPLACE FUNCTION sighting_date(ts timestamptz)
+                    RETURNS date
+                    LANGUAGE SQL IMMUTABLE
+                    AS $$ SELECT (ts AT TIME ZONE 'UTC')::date $$;
+                    """
+                )
+            )
     if engine.dialect.name == "sqlite":
         with engine.begin() as conn:
             conn.exec_driver_sql(
@@ -62,7 +72,7 @@ def create_triggers(engine: Engine) -> None:
                 text(
                     """
                     CREATE INDEX IF NOT EXISTS ix_sightings_user_zoo_date
-                      ON animal_sightings (user_id, zoo_id, (sighting_datetime::date));
+                      ON animal_sightings (user_id, zoo_id, sighting_date(sighting_datetime));
                     """
                 )
             )
@@ -73,22 +83,22 @@ def create_triggers(engine: Engine) -> None:
             BEGIN
                 IF TG_OP = 'INSERT' THEN
                     INSERT INTO zoo_visits(user_id, zoo_id, visit_date)
-                    VALUES (NEW.user_id, NEW.zoo_id, NEW.sighting_datetime::date)
+                    VALUES (NEW.user_id, NEW.zoo_id, sighting_date(NEW.sighting_datetime))
                     ON CONFLICT (user_id, zoo_id, visit_date) DO NOTHING;
                     RETURN NEW;
                 ELSIF TG_OP = 'UPDATE' THEN
-                    IF (NEW.user_id, NEW.zoo_id, NEW.sighting_datetime::date) !=
-                       (OLD.user_id, OLD.zoo_id, OLD.sighting_datetime::date) THEN
+                    IF (NEW.user_id, NEW.zoo_id, sighting_date(NEW.sighting_datetime)) !=
+                       (OLD.user_id, OLD.zoo_id, sighting_date(OLD.sighting_datetime)) THEN
                         IF NOT EXISTS (
                             SELECT 1 FROM animal_sightings
                             WHERE user_id=OLD.user_id AND zoo_id=OLD.zoo_id
-                              AND DATE(sighting_datetime)=OLD.sighting_datetime::date
+                              AND sighting_date(sighting_datetime)=sighting_date(OLD.sighting_datetime)
                         ) THEN
                             DELETE FROM zoo_visits
-                            WHERE user_id=OLD.user_id AND zoo_id=OLD.zoo_id AND visit_date=OLD.sighting_datetime::date;
+                            WHERE user_id=OLD.user_id AND zoo_id=OLD.zoo_id AND visit_date=sighting_date(OLD.sighting_datetime);
                         END IF;
                         INSERT INTO zoo_visits(user_id, zoo_id, visit_date)
-                        VALUES (NEW.user_id, NEW.zoo_id, NEW.sighting_datetime::date)
+                        VALUES (NEW.user_id, NEW.zoo_id, sighting_date(NEW.sighting_datetime))
                         ON CONFLICT (user_id, zoo_id, visit_date) DO NOTHING;
                     END IF;
                     RETURN NEW;
@@ -96,10 +106,10 @@ def create_triggers(engine: Engine) -> None:
                     IF NOT EXISTS (
                         SELECT 1 FROM animal_sightings
                         WHERE user_id=OLD.user_id AND zoo_id=OLD.zoo_id
-                          AND DATE(sighting_datetime)=OLD.sighting_datetime::date
+                          AND sighting_date(sighting_datetime)=sighting_date(OLD.sighting_datetime)
                     ) THEN
                         DELETE FROM zoo_visits
-                        WHERE user_id=OLD.user_id AND zoo_id=OLD.zoo_id AND visit_date=OLD.sighting_datetime::date;
+                        WHERE user_id=OLD.user_id AND zoo_id=OLD.zoo_id AND visit_date=sighting_date(OLD.sighting_datetime);
                     END IF;
                     RETURN OLD;
                 END IF;
