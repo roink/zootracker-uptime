@@ -19,7 +19,6 @@ import Dashboard from "./pages/Dashboard";
 import ZoosPage from "./pages/Zoos";
 import AnimalsPage from "./pages/Animals";
 import AnimalDetailPage from "./pages/AnimalDetail";
-import NewVisitPage from "./pages/NewVisit";
 import NewSightingPage from "./pages/NewSighting";
 import EditSightingPage from "./pages/EditSighting";
 import Header from "./components/Header";
@@ -157,14 +156,6 @@ function AppRoutes({
           element={
             <RequireAuth token={token}>
               <EditSightingPage token={token} onUpdated={refreshSeen} />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/visits/new"
-          element={
-            <RequireAuth token={token}>
-              <NewVisitPage token={token} />
             </RequireAuth>
           }
         />

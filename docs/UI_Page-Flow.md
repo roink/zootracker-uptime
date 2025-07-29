@@ -61,12 +61,11 @@
 | Stats Bar             | *Zoos visited*, *Animals seen*, current *Badge* count   |
 | Activity Feed         | Latest visits & sightings from **you** (later: friends) |
 | Achievements Carousel | Recently earned badges                                  |
-| Quick Actions         | ➕ **Log Sighting**, ➕ **Log Visit** (same as FAB)       |
+| Quick Actions         | ➕ **Log Sighting**                                  |
 
 ### Buttons & Flow
 
 * **Log Sighting** → *New Sighting*
-* **Log Visit** → *New Visit*
 * Tap feed item (zoo card) → *Zoo Detail*
 * Tap feed item (animal chip) → *Animal Detail*
 
@@ -95,7 +94,6 @@
 
 ### Buttons & Flow
 
-* **Log a Visit** (primary) → *New Visit* (zoo pre‑selected)
 * **➕** beside animal row → *New Sighting* (zoo & animal pre‑filled)
 * Click animal row → *Animal Detail*
 

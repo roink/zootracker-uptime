@@ -16,6 +16,7 @@ if os.path.exists("test.db"):
 
 from app.database import Base, engine, SessionLocal
 from app import models
+from app.triggers import create_triggers
 from app.main import app, get_db
 
 
@@ -30,6 +31,7 @@ def override_get_db():
 app.dependency_overrides[get_db] = override_get_db
 
 Base.metadata.create_all(bind=engine)
+create_triggers(engine)
 
 client = TestClient(app)
 

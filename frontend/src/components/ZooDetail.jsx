@@ -74,16 +74,7 @@ export default function ZooDetail({ zoo, token, userId, onBack, refresh }) {
         </p>
       )}
       <div className="mt-2">Visited? {visited ? '☑️ Yes' : '✘ No'}</div>
-      <button
-        className="btn btn-primary btn-sm mt-2"
-        onClick={() =>
-          navigate('/visits/new', {
-            state: { zooId: zoo.id, from: `/zoos/${zoo.id}` },
-          })
-        }
-      >
-        Log a Visit
-      </button>
+      {/* visit logging removed - visits are created automatically from sightings */}
       <h4 className="mt-3">Animals</h4>
       <table className="table">
         <thead>

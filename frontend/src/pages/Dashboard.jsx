@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LogVisit } from '../components/logForms';
 import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
 
@@ -12,7 +11,6 @@ export default function Dashboard({ token, userId, zoos, animals, refresh, onUpd
   const [seenAnimals, setSeenAnimals] = useState([]);
   const [sightings, setSightings] = useState([]);
   const [badges, setBadges] = useState([]);
-  const [showVisitForm, setShowVisitForm] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const authFetch = useAuthFetch();
@@ -111,23 +109,7 @@ export default function Dashboard({ token, userId, zoos, animals, refresh, onUpd
         >
           Log Sighting
         </button>
-        <button className="btn btn-primary" onClick={() => setShowVisitForm((v) => !v)}>
-          Log Visit
-        </button>
       </div>
-      {showVisitForm && (
-        <div style={{ marginTop: '20px' }}>
-          <LogVisit
-            token={token}
-            userId={userId}
-            zoos={zoos}
-            onLogged={() => {
-              onUpdate && onUpdate();
-              setShowVisitForm(false);
-            }}
-          />
-        </div>
-      )}
     </div>
   );
 }
