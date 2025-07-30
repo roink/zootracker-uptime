@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { API } from '../api';
 
 import useAuthFetch from '../hooks/useAuthFetch';
-import searchCache from '../searchCache';
+import useSearchSuggestions from '../hooks/useSearchSuggestions';
 
 // Reusable forms for logging sightings and zoo visits. These components are used
 // within the dashboard to submit data to the FastAPI backend.
@@ -33,12 +33,13 @@ export function LogSighting({
   // Inputs start with provided names so the form can show defaults
   const [animalInput, setAnimalInput] = useState(initialAnimalName);
   const [zooInput, setZooInput] = useState(initialZooName);
-  const [zooSuggestions, setZooSuggestions] = useState([]);
-  const [animalSuggestions, setAnimalSuggestions] = useState([]);
   const [zooFocused, setZooFocused] = useState(false);
   const [animalFocused, setAnimalFocused] = useState(false);
-  const zooFetch = useRef(null);
-  const animalFetch = useRef(null);
+  const { zoos: zooSuggestions } = useSearchSuggestions(zooInput, zooFocused);
+  const { animals: animalSuggestions } = useSearchSuggestions(
+    animalInput,
+    animalFocused
+  );
   // Wrapper for fetch that redirects to login on 401
   const authFetch = useAuthFetch();
   // Date input defaults to today
@@ -69,71 +70,6 @@ export function LogSighting({
     }
   }, [propAnimals, propZoos]);
 
-  useEffect(() => {
-    if (!zooFocused || !zooInput.trim()) {
-      setZooSuggestions([]);
-      if (zooFetch.current) zooFetch.current.abort();
-      return;
-    }
-    const q = zooInput.trim().toLowerCase();
-    const cached = searchCache[q];
-    if (cached) {
-      setZooSuggestions(cached.zoos);
-      return;
-    }
-    const controller = new AbortController();
-    zooFetch.current = controller;
-    const t = setTimeout(() => {
-      fetch(`${API}/search?q=${encodeURIComponent(q)}&limit=5`, {
-        signal: controller.signal,
-      })
-        .then((r) => r.json())
-        .then((res) => {
-          searchCache[q] = res;
-          if (!controller.signal.aborted) setZooSuggestions(res.zoos);
-        })
-        .catch(() => {
-          if (!controller.signal.aborted) setZooSuggestions([]);
-        });
-    }, 500);
-    return () => {
-      clearTimeout(t);
-      controller.abort();
-    };
-  }, [zooInput, zooFocused]);
-
-  useEffect(() => {
-    if (!animalFocused || !animalInput.trim()) {
-      setAnimalSuggestions([]);
-      if (animalFetch.current) animalFetch.current.abort();
-      return;
-    }
-    const q = animalInput.trim().toLowerCase();
-    const cached = searchCache[q];
-    if (cached) {
-      setAnimalSuggestions(cached.animals);
-      return;
-    }
-    const controller = new AbortController();
-    animalFetch.current = controller;
-    const t = setTimeout(() => {
-      fetch(`${API}/search?q=${encodeURIComponent(q)}&limit=5`, {
-        signal: controller.signal,
-      })
-        .then((r) => r.json())
-        .then((res) => {
-          searchCache[q] = res;
-          if (!controller.signal.aborted) setAnimalSuggestions(res.animals);
-        })
-        .catch(() => {
-          if (!controller.signal.aborted) setAnimalSuggestions([]);
-        });
-    }, 500);
-    return () => {
-      clearTimeout(t);
-      controller.abort();
-    };
-  }, [animalInput, animalFocused]);
 
   useEffect(() => {
     const a = animals.find(a => a.id === (animalId || defaultAnimalId));
@@ -226,7 +162,6 @@ export function LogSighting({
                   onMouseDown={() => {
                     setZooId(z.id);
                     setZooInput(z.name);
-                    setZooSuggestions([]);
                     setZooFocused(false);
                   }}
                 >
@@ -262,7 +197,6 @@ export function LogSighting({
                   onMouseDown={() => {
                     setAnimalId(a.id);
                     setAnimalInput(a.common_name);
-                    setAnimalSuggestions([]);
                     setAnimalFocused(false);
                   }}
                 >
