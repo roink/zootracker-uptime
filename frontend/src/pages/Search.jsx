@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { API } from '../api';
 
+// Global search results page
+
 function useQuery() {
   return new URLSearchParams(useLocation().search);
 }
@@ -23,7 +25,7 @@ export default function SearchPage() {
   }, [query]);
 
   return (
-    <div style={{ padding: '20px' }}>
+    <div className="page-container">
       <h2>Search Results for "{query}"</h2>
       <h3>Zoos</h3>
       <ul>
