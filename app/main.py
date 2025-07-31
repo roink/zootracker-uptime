@@ -239,215 +239,14 @@ def read_root():
     return {"message": "Zoo Tracker API"}
 
 
-@app.post("/users", response_model=schemas.UserRead, dependencies=[Depends(require_json)])
-def create_user(
-    user_in: schemas.UserCreate,
-    db: Session = Depends(get_db),
-):
-    """Register a new user with a hashed password."""
-    if get_user(db, user_in.email):
-        raise HTTPException(status_code=400, detail="Email already registered")
-    salt, hashed = hash_password(user_in.password)
-    user = models.User(
-        name=user_in.name,
-        email=user_in.email,
-        password_salt=salt,
-        password_hash=hashed,
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    return user
 
 
-@app.post("/token", response_model=schemas.Token)
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    """Authenticate a user and return an access token."""
-    if not form_data.username or not form_data.password:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing username or password")
-    user = get_user(db, form_data.username)
-    if not user or not verify_password(form_data.password, user.password_salt, user.password_hash):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect username or password")
-    access_token = create_access_token({"sub": str(user.id)})
-    return {"access_token": access_token, "token_type": "bearer"}
 
 
-@app.post("/auth/login", response_model=schemas.Token)
-# alias used by the planned front-end
-def login_alias(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    """Alternate login endpoint used by the front-end."""
-    token_data = login(form_data, db)
-    user = get_user(db, form_data.username)
-    token_data["user_id"] = str(user.id)
-    return token_data
 
 
-@app.get("/zoos", response_model=list[schemas.ZooRead])
-def search_zoos(
-    q: str = "",
-    latitude: float | None = None,
-    longitude: float | None = None,
-    radius_km: float = 50.0,
-    db: Session = Depends(get_db),
-):
-    """Search for zoos by name and optional distance from a point."""
-    query = db.query(models.Zoo)
-    if q:
-        pattern = f"%{q}%"
-        query = query.filter(models.Zoo.name.ilike(pattern))
-
-    zoos = query.all()
-
-    if latitude is not None and longitude is not None:
-        def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-            """Return distance in kilometers between two lat/lon points."""
-            from math import radians, cos, sin, asin, sqrt
-
-            lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
-            dlat = lat2 - lat1
-            dlon = lon2 - lon1
-            a = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
-            c = 2 * asin(sqrt(a))
-            return 6371 * c
-
-        results = []
-        for zoo in zoos:
-            if zoo.latitude is None or zoo.longitude is None:
-                continue
-            dist = haversine(
-                float(latitude), float(longitude), float(zoo.latitude), float(zoo.longitude)
-            )
-            if dist <= radius_km:
-                results.append(zoo)
-        return results
-
-    return zoos
 
 
-@app.get("/zoos/{zoo_id}", response_model=schemas.ZooDetail)
-def get_zoo(zoo_id: uuid.UUID, db: Session = Depends(get_db)):
-    """Retrieve detailed information about a zoo."""
-    zoo = db.get(models.Zoo, zoo_id)
-    if zoo is None:
-        raise HTTPException(status_code=404, detail="Zoo not found")
-    return zoo
-
-
-@app.get("/animals", response_model=list[schemas.AnimalRead])
-def list_animals(q: str = "", db: Session = Depends(get_db)):
-    """List animals optionally filtered by a search query."""
-    query = db.query(models.Animal)
-    if q:
-        pattern = f"%{q}%"
-        query = query.filter(models.Animal.common_name.ilike(pattern))
-    return query.all()
-
-
-@app.get("/search", response_model=schemas.SearchResults)
-def combined_search(q: str = "", limit: int = 5, db: Session = Depends(get_db)):
-    """Return top zoos and animals matching the query."""
-    zoo_q = db.query(models.Zoo)
-    if q:
-        pattern = f"%{q}%"
-        zoo_q = zoo_q.filter(models.Zoo.name.ilike(pattern))
-    zoos = zoo_q.limit(limit).all()
-
-    animal_q = db.query(models.Animal)
-    if q:
-        pattern = f"%{q}%"
-        animal_q = animal_q.filter(models.Animal.common_name.ilike(pattern))
-    animals = animal_q.limit(limit).all()
-
-    return {"zoos": zoos, "animals": animals}
-
-
-# list animals available at a specific zoo
-@app.get("/zoos/{zoo_id}/animals", response_model=list[schemas.AnimalRead])
-def list_zoo_animals(zoo_id: uuid.UUID, db: Session = Depends(get_db)):
-    """Return animals that are associated with a specific zoo."""
-    return (
-        db.query(models.Animal)
-        .join(models.ZooAnimal, models.Animal.id == models.ZooAnimal.animal_id)
-        .filter(models.ZooAnimal.zoo_id == zoo_id)
-        .all()
-    )
-
-
-@app.get("/animals/{animal_id}", response_model=schemas.AnimalDetail)
-def get_animal_detail(animal_id: uuid.UUID, db: Session = Depends(get_db)):
-    """Retrieve a single animal and the zoos where it can be found."""
-    animal = db.get(models.Animal, animal_id)
-    if animal is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail="Animal not found")
-
-    zoos = (
-        db.query(models.Zoo)
-        .join(models.ZooAnimal, models.Zoo.id == models.ZooAnimal.zoo_id)
-        .filter(models.ZooAnimal.animal_id == animal_id)
-        .all()
-    )
-
-    return schemas.AnimalDetail(
-        id=animal.id,
-        common_name=animal.common_name,
-        scientific_name=animal.scientific_name,
-        category=animal.category.name if animal.category else None,
-        description=animal.description,
-        zoos=zoos,
-    )
-
-
-@app.get(
-    "/animals/{animal_id}/zoos",
-    response_model=list[schemas.ZooDetail],
-)
-def list_zoos_for_animal(
-    animal_id: uuid.UUID,
-    latitude: float | None = None,
-    longitude: float | None = None,
-    db: Session = Depends(get_db),
-):
-    """Return zoos that house the given animal ordered by distance if provided."""
-    animal = db.get(models.Animal, animal_id)
-    if animal is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Animal not found")
-
-    if latitude is not None and not -90 <= latitude <= 90:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid latitude")
-    if longitude is not None and not -180 <= longitude <= 180:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid longitude")
-
-    zoos = (
-        db.query(models.Zoo)
-        .join(models.ZooAnimal, models.Zoo.id == models.ZooAnimal.zoo_id)
-        .filter(models.ZooAnimal.animal_id == animal_id)
-        .all()
-    )
-
-    if latitude is not None and longitude is not None:
-        from math import radians, cos, sin, asin, sqrt
-
-        def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-            lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
-            dlat = lat2 - lat1
-            dlon = lon2 - lon1
-            a = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
-            c = 2 * asin(sqrt(a))
-            return 6371 * c
-
-        zoos.sort(
-            key=lambda z: haversine(
-                float(latitude),
-                float(longitude),
-                float(z.latitude) if z.latitude is not None else 0.0,
-                float(z.longitude) if z.longitude is not None else 0.0,
-            )
-            if z.latitude is not None and z.longitude is not None
-            else float("inf")
-        )
-
-    return zoos
 
 
 
@@ -579,25 +378,6 @@ def delete_sighting(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@app.get("/users/{user_id}/animals", response_model=list[schemas.AnimalRead])
-def list_seen_animals(
-    user_id: uuid.UUID,
-    db: Session = Depends(get_db),
-    user: models.User = Depends(get_current_user),
-):
-    """Return all unique animals seen by the specified user."""
-    if user_id != user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                            detail="Cannot view animals for another user")
-    animals = (
-        db.query(models.Animal)
-        .join(models.AnimalSighting,
-              models.Animal.id == models.AnimalSighting.animal_id)
-        .filter(models.AnimalSighting.user_id == user_id)
-        .distinct()
-        .all()
-    )
-    return animals
 
 
 @app.post("/contact", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_json)])
@@ -605,3 +385,11 @@ def send_contact(message: schemas.ContactMessage, request: Request) -> Response:
     """Receive a contact message and log it for review."""
     logger.info("Contact from %s: %s", message.email, message.message)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+from .api import auth_router, users_router, zoos_router, animals_router
+
+app.include_router(auth_router)
+app.include_router(users_router)
+app.include_router(zoos_router)
+app.include_router(animals_router)
