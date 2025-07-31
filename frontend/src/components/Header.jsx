@@ -1,21 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { API } from '../api';
-import searchCache from '../searchCache';
 import SearchSuggestions from './SearchSuggestions';
+import useSearchSuggestions from '../hooks/useSearchSuggestions';
 
 // Navigation header shown on all pages. Includes a simple search
 // form and links that depend on authentication state.
 
 export default function Header({ token, onLogout }) {
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState({ zoos: [], animals: [] });
   const [focused, setFocused] = useState(false);
   // keep a ref for the blur timeout so we can cancel it if focus returns quickly
   const blurRef = useRef(null);
   const navigate = useNavigate();
   const location = useLocation();
-  const fetchRef = useRef(null);
   const collapseRef = useRef(null);
   const toggleRef = useRef(null);
 
@@ -48,40 +45,8 @@ export default function Header({ token, onLogout }) {
     return () => document.removeEventListener('click', handle);
   }, []);
 
-  // Fetch suggestions after the user stops typing and use the shared cache
-  useEffect(() => {
-    if (!query.trim()) {
-      setResults({ zoos: [], animals: [] });
-      if (fetchRef.current) fetchRef.current.abort();
-      return;
-    }
-    const q = query.trim().toLowerCase();
-    const cached = searchCache[q];
-    if (cached) {
-      setResults(cached);
-      return;
-    }
-    const controller = new AbortController();
-    fetchRef.current = controller;
-    const timeout = setTimeout(() => {
-      fetch(`${API}/search?q=${encodeURIComponent(q)}&limit=5`, {
-        signal: controller.signal,
-      })
-        .then((r) => r.json())
-        .then((res) => {
-          searchCache[q] = res;
-          if (!controller.signal.aborted) setResults(res);
-        })
-        .catch(() => {
-          if (!controller.signal.aborted)
-            setResults({ zoos: [], animals: [] });
-        });
-    }, 500);
-    return () => {
-      clearTimeout(timeout);
-      controller.abort();
-    };
-  }, [query]);
+  // Fetch suggestions with a small delay and shared cache
+  const results = useSearchSuggestions(query, true);
 
   // Navigate to the search page with the entered query.
   const handleSubmit = (e) => {
@@ -93,7 +58,6 @@ export default function Header({ token, onLogout }) {
 
   const handleSelect = (type, id) => {
     setQuery('');
-    setResults({ zoos: [], animals: [] });
     setFocused(false);
     if (type === 'zoo') {
       navigate(`/zoos/${id}`);
