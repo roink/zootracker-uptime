@@ -53,8 +53,7 @@ export default function ZooDetail({ zoo, token, userId, onBack, refresh }) {
         <img
           src={zoo.image_url}
           alt={zoo.name}
-          className="img-fluid mb-2"
-          style={{ maxHeight: '200px', objectFit: 'cover' }}
+          className="img-fluid mb-2 cover-image"
         />
       )}
       <h3>{zoo.name}</h3>
@@ -69,7 +68,7 @@ export default function ZooDetail({ zoo, token, userId, onBack, refresh }) {
         ></iframe>
       )}
       {zoo.description && (
-        <p className="mt-2" style={{ whiteSpace: 'pre-wrap' }}>
+        <p className="mt-2 pre-wrap">
           {zoo.description}
         </p>
       )}
@@ -88,7 +87,7 @@ export default function ZooDetail({ zoo, token, userId, onBack, refresh }) {
           {animals.map((a) => (
             <tr
               key={a.id}
-              style={{ cursor: 'pointer' }}
+              className="pointer-row"
               onClick={() => navigate(`/animals/${a.id}`)}
               tabIndex="0"
               onKeyDown={(e) => {

@@ -3,6 +3,8 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
 
+// Detailed page showing an animal along with nearby zoos and user sightings
+
 export default function AnimalDetailPage({ token, userId, refresh }) {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -80,71 +82,54 @@ export default function AnimalDetailPage({ token, userId, refresh }) {
   const closestZoo = zoos[0];
 
   return (
-    <div style={{ padding: '20px' }}>
-      <button onClick={() => navigate(-1)} style={{ marginBottom: '10px' }}>
+    <div className="page-container">
+      <button onClick={() => navigate(-1)} className="spaced-bottom">
         Back
       </button>
       {animal.default_image_url && (
         <img
           src={animal.default_image_url}
           alt={animal.common_name}
-          style={{ width: '100%', maxHeight: '200px', objectFit: 'cover' }}
+          className="cover-image"
         />
       )}
       <h3>{animal.common_name}</h3>
       {animal.scientific_name && (
-        <div style={{ fontStyle: 'italic' }}>{animal.scientific_name}</div>
+        <div className="fst-italic">{animal.scientific_name}</div>
       )}
       {animal.category && (
-        <span
-          style={{
-            display: 'inline-block',
-            background: '#1976d2',
-            color: 'white',
-            padding: '2px 6px',
-            borderRadius: '4px',
-            fontSize: '12px',
-            marginTop: '4px',
-          }}
-        >
+        <span className="category-badge">
           {animal.category}
         </span>
       )}
-      <div style={{ marginTop: '10px' }}>
+      <div className="spaced-top">
         {seen ? `Seen ✔️ (first on ${firstSeen})` : 'Not seen 🚫'}
       </div>
       {gallery.length > 0 && (
-        <div
-          style={{
-            display: 'flex',
-            overflowX: 'auto',
-            gap: '10px',
-            marginTop: '10px',
-          }}
-        >
+        <div className="gallery">
           {gallery.map((g, idx) => (
             <img
               key={idx}
               src={g.photo_url}
               alt='sighting'
-              style={{ width: '150px', height: '100px', objectFit: 'cover' }}
+              className="gallery-img"
             />
           ))}
         </div>
       )}
-      <h4 style={{ marginTop: '20px' }}>Where to See</h4>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <h4 className="spaced-top-lg">Where to See</h4>
+      <table className="table-full">
         <thead>
           <tr>
             <th align='left'>Zoo</th>
-            {location && <th style={{ textAlign: 'right' }}>Distance (km)</th>}
+            {location && <th className="text-end">Distance (km)</th>}
           </tr>
         </thead>
         <tbody>
           {zoos.map((z) => (
             <tr
               key={z.id}
-              style={{ borderTop: '1px solid #ccc', cursor: 'pointer' }}
+              className="pointer-row"
               onClick={() => navigate(`/zoos/${z.id}`)}
               tabIndex="0"
               onKeyDown={(e) => {
@@ -156,7 +141,7 @@ export default function AnimalDetailPage({ token, userId, refresh }) {
             >
               <td>{z.name}</td>
               {location && (
-                <td style={{ textAlign: 'right' }}>
+                <td className="text-end">
                   {distanceKm(z)?.toFixed(1)}
                 </td>
               )}
@@ -179,7 +164,7 @@ export default function AnimalDetailPage({ token, userId, refresh }) {
             },
           })
         }
-        style={{ marginTop: '10px' }}
+        className="spaced-top"
       >
         Log Sighting
       </button>

@@ -21,15 +21,15 @@ export default function Landing() {
       </div>
       <div className="d-flex justify-content-center gap-4 mt-3">
         <div>
-          <div style={{ fontSize: '40px' }}>📍</div>
+          <div className="icon-large">📍</div>
           <p>Track Visits</p>
         </div>
         <div>
-          <div style={{ fontSize: '40px' }}>🎖️</div>
+          <div className="icon-large">🎖️</div>
           <p>Earn Badges</p>
         </div>
         <div>
-          <div style={{ fontSize: '40px' }}>🐾</div>
+          <div className="icon-large">🐾</div>
           <p>Discover Animals</p>
         </div>
       </div>

@@ -85,3 +85,95 @@ body {
   box-sizing: border-box;
   padding-bottom: 0;
 }
+.page-container {
+  padding: 20px;
+}
+
+.spaced-bottom {
+  margin-bottom: 10px;
+}
+
+.spaced-top {
+  margin-top: 10px;
+}
+
+.spaced-top-lg {
+  margin-top: 20px;
+}
+
+.cover-image {
+  width: 100%;
+  max-height: 200px;
+  object-fit: cover;
+}
+
+.card-img {
+  width: 100%;
+  height: 100px;
+  object-fit: cover;
+  margin-bottom: 5px;
+}
+
+.filter-button {
+  margin-right: 5px;
+  padding: 4px 8px;
+  border: 1px solid #ccc;
+  border-radius: 16px;
+  cursor: pointer;
+}
+
+.filter-button.active {
+  background: #1976d2;
+  color: white;
+}
+
+.category-badge {
+  display: inline-block;
+  background: #1976d2;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.seen-badge {
+  display: inline-block;
+  margin-top: 4px;
+  background: #4caf50;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.gallery {
+  display: flex;
+  overflow-x: auto;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.gallery-img {
+  width: 150px;
+  height: 100px;
+  object-fit: cover;
+}
+
+.table-full {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.pointer-row {
+  border-top: 1px solid #ccc;
+  cursor: pointer;
+}
+
+.icon-large {
+  font-size: 40px;
+}
+
+.pre-wrap {
+  white-space: pre-wrap;
+}
