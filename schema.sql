@@ -66,6 +66,8 @@ CREATE TABLE zoo_visits (
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- Index to accelerate /visits endpoint lookups by user
+CREATE INDEX IF NOT EXISTS idx_zoo_visits_user_id ON zoo_visits(user_id);
 
 -- 7. Animal Sightings
 CREATE TABLE animal_sightings (
@@ -79,6 +81,8 @@ CREATE TABLE animal_sightings (
   created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- Index to accelerate user-specific sighting queries
+CREATE INDEX IF NOT EXISTS idx_sightings_user_animal ON animal_sightings(user_id, animal_id);
 
 -- 8. Achievements / Badges
 CREATE TABLE achievements (
