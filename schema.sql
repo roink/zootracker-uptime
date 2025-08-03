@@ -53,6 +53,8 @@ CREATE TABLE zoo_animals (
   animal_id  UUID NOT NULL REFERENCES animals(id) ON DELETE CASCADE,
   PRIMARY KEY (zoo_id, animal_id)
 );
+-- Index to support list_zoos_for_animal queries
+CREATE INDEX IF NOT EXISTS idx_zoo_animals_animal_id ON zoo_animals(animal_id);
 
 -- 6. Zoo Visits
 CREATE TABLE zoo_visits (
