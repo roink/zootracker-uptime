@@ -19,8 +19,6 @@ import Dashboard from "./pages/Dashboard";
 import ZoosPage from "./pages/Zoos";
 import AnimalsPage from "./pages/Animals";
 import AnimalDetailPage from "./pages/AnimalDetail";
-import NewSightingPage from "./pages/NewSighting";
-import EditSightingPage from "./pages/EditSighting";
 import Header from "./components/Header";
 import SearchPage from "./pages/Search";
 import ZooDetailPage from "./pages/ZooDetail";
@@ -29,14 +27,6 @@ import DataProtectionPage from "./pages/DataProtection";
 import ContactPage from "./pages/Contact";
 import Footer from "./components/Footer";
 import "./styles/app.css";
-
-
-
-
-function AuthStatus({ token, email }) {
-  return <div>{token ? <p>Logged in as {email}</p> : <p>Not logged in</p>}</div>;
-}
-
 
 function DashboardPage({ token, userId, zoos, animals, refresh, onUpdate }) {
   return (
@@ -83,14 +73,11 @@ function AppRoutes({
   refreshSeen,
 }) {
   const location = useLocation();
-  const state = location.state;
-  const backgroundLocation = state && state.backgroundLocation;
-
   return (
     <div className="d-flex flex-column page-wrapper">
       <Header token={token} onLogout={onLoggedOut} />
       <main className="flex-grow-1 pb-5">
-        <Routes location={backgroundLocation || location}>
+        <Routes location={location}>
         <Route
           path="/"
           element={
@@ -135,30 +122,28 @@ function AppRoutes({
         <Route path="/zoos" element={<ZoosPage token={token} />} />
         <Route
           path="/zoos/:id"
-          element={<ZooDetailPage token={token} userId={userId} refresh={refreshCounter} />}
+          element={
+            <ZooDetailPage
+              token={token}
+              userId={userId}
+              refresh={refreshCounter}
+              onLogged={refreshSeen}
+            />
+          }
         />
         <Route path="/animals" element={<AnimalsPage token={token} userId={userId} />} />
         <Route
           path="/animals/:id"
-          element={<AnimalDetailPage token={token} userId={userId} refresh={refreshCounter} />}
+          element={
+            <AnimalDetailPage
+              token={token}
+              userId={userId}
+              refresh={refreshCounter}
+              onLogged={refreshSeen}
+            />
+          }
         />
         <Route path="/search" element={<SearchPage />} />
-        <Route
-          path="/sightings/new"
-          element={
-            <RequireAuth token={token}>
-              <NewSightingPage token={token} onLogged={refreshSeen} />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/sightings/:id/edit"
-          element={
-            <RequireAuth token={token}>
-              <EditSightingPage token={token} onUpdated={refreshSeen} />
-            </RequireAuth>
-          }
-        />
         <Route
           path="/badges"
           element={
@@ -179,26 +164,6 @@ function AppRoutes({
         <Route path="/data-protection" element={<DataProtectionPage />} />
         <Route path="/contact" element={<ContactPage />} />
       </Routes>
-      {backgroundLocation && (
-        <Routes>
-          <Route
-            path="/sightings/new"
-            element={
-              <RequireAuth token={token}>
-                <NewSightingPage token={token} onLogged={refreshSeen} />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="/sightings/:id/edit"
-            element={
-              <RequireAuth token={token}>
-                <EditSightingPage token={token} onUpdated={refreshSeen} />
-              </RequireAuth>
-            }
-          />
-        </Routes>
-      )}
       </main>
       <Footer />
     </div>

@@ -1,22 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
+import SightingModal from '../components/SightingModal';
 
 // Detailed page showing an animal along with nearby zoos and user sightings
 
-export default function AnimalDetailPage({ token, userId, refresh }) {
+export default function AnimalDetailPage({ token, userId, refresh, onLogged }) {
   const { id } = useParams();
   const navigate = useNavigate();
-  const routerLocation = useLocation();
   const authFetch = useAuthFetch();
   const [animal, setAnimal] = useState(null);
   const [sightings, setSightings] = useState([]);
   const [location, setLocation] = useState(null);
   const [zoos, setZoos] = useState([]);
+  const [modalData, setModalData] = useState(null);
 
   useEffect(() => {
-    fetch(`${API}/animals/${id}`).then((r) => r.json()).then(setAnimal);
+    fetch(`${API}/animals/${id}`)
+      .then((r) => r.json())
+      .then(setAnimal)
+      .catch(() => setAnimal(null));
   }, [id]);
 
   useEffect(() => {
@@ -27,16 +31,21 @@ export default function AnimalDetailPage({ token, userId, refresh }) {
     }
     fetch(`${API}/animals/${id}/zoos${params.length ? `?${params.join('&')}` : ''}`)
       .then((r) => r.json())
-      .then(setZoos);
+      .then(setZoos)
+      .catch(() => setZoos([]));
   }, [id, location]);
 
-  useEffect(() => {
+  const loadSightings = () => {
     if (!token) return;
     authFetch(`${API}/sightings`, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => (r.ok ? r.json() : []))
       .then(setSightings)
       .catch(() => setSightings([]));
-  }, [token, refresh]);
+  };
+
+  useEffect(() => {
+    loadSightings();
+  }, [token, refresh, authFetch]);
 
   useEffect(() => {
     if (navigator.geolocation) {
@@ -151,23 +160,32 @@ export default function AnimalDetailPage({ token, userId, refresh }) {
       </table>
       <button
         onClick={() =>
-          // Launch modal with the selected animal and closest zoo prefilled
-          navigate('/sightings/new', {
-            state: {
-              animalId: animal.id,
-              animalName: animal.common_name,
-              zooId: closestZoo ? closestZoo.id : undefined,
-              zooName: closestZoo ? closestZoo.name : undefined,
-              backgroundLocation: routerLocation,
-
-              from: `/animals/${animal.id}`,
-            },
+          setModalData({
+            animalId: animal.id,
+            animalName: animal.common_name,
+            zooId: closestZoo ? closestZoo.id : undefined,
+            zooName: closestZoo ? closestZoo.name : undefined,
           })
         }
         className="spaced-top"
       >
         Log Sighting
       </button>
+      {modalData && (
+        <SightingModal
+          token={token}
+          zoos={zoos}
+          defaultZooId={modalData.zooId}
+          defaultAnimalId={modalData.animalId}
+          defaultZooName={modalData.zooName}
+          defaultAnimalName={modalData.animalName}
+          onLogged={() => {
+            loadSightings();
+            onLogged && onLogged();
+          }}
+          onClose={() => setModalData(null)}
+        />
+      )}
     </div>
   );
 }

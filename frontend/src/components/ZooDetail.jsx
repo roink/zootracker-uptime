@@ -1,30 +1,38 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
+import SightingModal from './SightingModal';
 
 // Detailed view for a single zoo with a list of resident animals.
 // Used by the ZooDetailPage component.
-export default function ZooDetail({ zoo, token, userId, onBack, refresh }) {
+export default function ZooDetail({ zoo, token, userId, onBack, refresh, onLogged }) {
   const [animals, setAnimals] = useState([]);
   const [visits, setVisits] = useState([]);
   const [seenAnimals, setSeenAnimals] = useState([]);
+  const [modalData, setModalData] = useState(null);
   const navigate = useNavigate();
-  const location = useLocation();
   const authFetch = useAuthFetch();
 
-  // Fetch animals in this zoo and user visit/sighting data
-  const loadAnimals = () => {
-    fetch(`${API}/zoos/${zoo.id}/animals`).then((r) => r.json()).then(setAnimals);
-  };
-  const loadVisits = () => {
+  // Load animals in this zoo
+  useEffect(() => {
+    fetch(`${API}/zoos/${zoo.id}/animals`)
+      .then((r) => r.json())
+      .then(setAnimals)
+      .catch(() => setAnimals([]));
+  }, [zoo, refresh]);
+
+  // Load user's visit history
+  useEffect(() => {
     if (!token) return;
     authFetch(`${API}/visits`, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => (r.ok ? r.json() : []))
       .then(setVisits)
       .catch(() => setVisits([]));
-  };
-  const loadSeen = () => {
+  }, [token, authFetch, refresh]);
+
+  // Load animals the user has seen
+  useEffect(() => {
     if (!token || !userId) return;
     authFetch(`${API}/users/${userId}/animals`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -32,14 +40,7 @@ export default function ZooDetail({ zoo, token, userId, onBack, refresh }) {
       .then((r) => (r.ok ? r.json() : []))
       .then(setSeenAnimals)
       .catch(() => setSeenAnimals([]));
-  };
-
-  useEffect(() => {
-    loadAnimals();
-    loadVisits();
-    loadSeen();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [zoo, token, userId, refresh]);
+  }, [token, userId, authFetch, refresh]);
 
   const visited = visits.some((v) => v.zoo_id === zoo.id);
   const seenIds = new Set(seenAnimals.map((a) => a.id));
@@ -104,17 +105,11 @@ export default function ZooDetail({ zoo, token, userId, onBack, refresh }) {
                   className="btn btn-sm btn-outline-secondary"
                   onClick={(e) => {
                     e.stopPropagation();
-                    // Open the sighting form as a modal overlay with
-                    // the current zoo and animal pre-filled.
-                    navigate('/sightings/new', {
-                      state: {
-                        zooId: zoo.id,
-                        zooName: zoo.name,
-                        animalId: a.id,
-                        animalName: a.common_name,
-                        backgroundLocation: location,
-                        from: `/zoos/${zoo.id}`,
-                      },
+                    setModalData({
+                      zooId: zoo.id,
+                      zooName: zoo.name,
+                      animalId: a.id,
+                      animalName: a.common_name,
                     });
                   }}
                 >
@@ -125,6 +120,40 @@ export default function ZooDetail({ zoo, token, userId, onBack, refresh }) {
           ))}
         </tbody>
       </table>
-    </div>
-  );
-}
+      {modalData && (
+          <SightingModal
+            token={token}
+            animals={animals}
+            defaultZooId={modalData.zooId}
+            defaultAnimalId={modalData.animalId}
+            defaultZooName={modalData.zooName}
+            defaultAnimalName={modalData.animalName}
+            onLogged={() => {
+              onLogged && onLogged();
+              fetch(`${API}/zoos/${zoo.id}/animals`)
+                .then((r) => r.json())
+                .then(setAnimals)
+                .catch(() => setAnimals([]));
+              if (token) {
+                authFetch(`${API}/visits`, {
+                  headers: { Authorization: `Bearer ${token}` },
+                })
+                  .then((r) => (r.ok ? r.json() : []))
+                  .then(setVisits)
+                  .catch(() => setVisits([]));
+                if (userId) {
+                  authFetch(`${API}/users/${userId}/animals`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                  })
+                    .then((r) => (r.ok ? r.json() : []))
+                    .then(setSeenAnimals)
+                    .catch(() => setSeenAnimals([]));
+                }
+              }
+            }}
+            onClose={() => setModalData(null)}
+          />
+        )}
+      </div>
+    );
+  }

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
 import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
+import SightingModal from '../components/SightingModal';
 
 // User dashboard showing recent visits, sightings and badges. Includes
 // buttons to open forms for logging additional activity.
@@ -11,8 +11,7 @@ export default function Dashboard({ token, userId, zoos, animals, refresh, onUpd
   const [seenAnimals, setSeenAnimals] = useState([]);
   const [sightings, setSightings] = useState([]);
   const [badges, setBadges] = useState([]);
-  const navigate = useNavigate();
-  const location = useLocation();
+  const [modalData, setModalData] = useState(null);
   const authFetch = useAuthFetch();
 
   useEffect(() => {
@@ -38,7 +37,7 @@ export default function Dashboard({ token, userId, zoos, animals, refresh, onUpd
       .then((r) => (r.ok ? r.json() : []))
       .then(setBadges)
       .catch(() => setBadges([]));
-  }, [token, userId, refresh]);
+  }, [token, userId, refresh, authFetch]);
 
   // Combine visits and sightings into a single chronologically sorted feed.
   const feedItems = useMemo(() => {
@@ -73,15 +72,12 @@ export default function Dashboard({ token, userId, zoos, animals, refresh, onUpd
               <button
                 className="btn btn-sm btn-outline-secondary"
                 onClick={() =>
-                  navigate(`/sightings/${f.item.id}/edit`, {
-                    state: {
-                      backgroundLocation: location,
-                      from: '/home',
-                      zooId: f.item.zoo_id,
-                      zooName: zooName(f.item.zoo_id),
-                      animalId: f.item.animal_id,
-                      animalName: animalName(f.item.animal_id),
-                    },
+                  setModalData({
+                    sightingId: f.item.id,
+                    zooId: f.item.zoo_id,
+                    zooName: zooName(f.item.zoo_id),
+                    animalId: f.item.animal_id,
+                    animalName: animalName(f.item.animal_id),
                   })
                 }
               >
@@ -101,15 +97,30 @@ export default function Dashboard({ token, userId, zoos, animals, refresh, onUpd
       <div className="mt-2">
         <button
           className="btn btn-secondary me-2"
-          onClick={() =>
-            navigate('/sightings/new', {
-              state: { from: '/home', backgroundLocation: location },
-            })
-          }
+          onClick={() => setModalData({})}
         >
           Log Sighting
         </button>
       </div>
+      {modalData && (
+        <SightingModal
+          token={token}
+          zoos={zoos}
+          animals={animals}
+          sightingId={modalData.sightingId}
+          defaultZooId={modalData.zooId}
+          defaultAnimalId={modalData.animalId}
+          defaultZooName={modalData.zooName}
+          defaultAnimalName={modalData.animalName}
+          onLogged={() => {
+            onUpdate && onUpdate();
+          }}
+          onUpdated={() => {
+            onUpdate && onUpdate();
+          }}
+          onClose={() => setModalData(null)}
+        />
+      )}
     </div>
   );
 }
