@@ -4,13 +4,16 @@ import ZooDetail from '../components/ZooDetail';
 import { API } from '../api';
 
 // Page that fetches a single zoo and renders the ZooDetail component
-export default function ZooDetailPage({ token, userId, refresh }) {
+export default function ZooDetailPage({ token, userId, refresh, onLogged }) {
   const { id } = useParams();
   const navigate = useNavigate();
   const [zoo, setZoo] = useState(null);
 
   useEffect(() => {
-    fetch(`${API}/zoos/${id}`).then((r) => r.json()).then(setZoo);
+    fetch(`${API}/zoos/${id}`)
+      .then((r) => r.json())
+      .then(setZoo)
+      .catch(() => setZoo(null));
   }, [id]);
 
   if (!zoo) {
@@ -24,6 +27,7 @@ export default function ZooDetailPage({ token, userId, refresh }) {
       userId={userId}
       onBack={() => navigate(-1)}
       refresh={refresh}
+      onLogged={onLogged}
     />
   );
 }

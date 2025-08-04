@@ -12,7 +12,7 @@ export default function ZoosPage({ token }) {
   const [query, setQuery] = useState('');
   const [region, setRegion] = useState('All');
   const [visitedOnly, setVisitedOnly] = useState(false);
-  const authFetch = useAuthFetch();
+  const authFetch = useAuthFetch(token);
 
   useEffect(() => {
     fetch(`${API}/zoos`).then((r) => r.json()).then(setZoos);
@@ -20,11 +20,11 @@ export default function ZoosPage({ token }) {
 
   useEffect(() => {
     if (!token) return;
-    authFetch(`${API}/visits`, { headers: { Authorization: `Bearer ${token}` } })
+    authFetch(`${API}/visits`)
       .then((r) => (r.ok ? r.json() : []))
       .then(setVisits)
       .catch(() => setVisits([]));
-  }, [token]);
+  }, [token, authFetch]);
 
   const visitedIds = useMemo(() => visits.map((v) => v.zoo_id), [visits]);
 
