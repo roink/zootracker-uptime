@@ -1,6 +1,5 @@
 """FastAPI application providing the Zoo Tracker API."""
 
-from datetime import timedelta, datetime, UTC
 import os
 import uuid
 import logging
@@ -9,34 +8,14 @@ from fastapi import FastAPI, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from jose import jwt, JWTError
-from passlib.context import CryptContext
-import bcrypt
-import hashlib
-import secrets
-import hmac
-from collections import defaultdict, deque
-import time
-import threading
 
 from . import models, schemas
-from .database import SessionLocal
-
-SECRET_KEY = os.getenv("SECRET_KEY", "secret")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
-
-# Ensure backward compatibility with passlib expecting bcrypt.__about__
-if not hasattr(bcrypt, "__about__"):
-    class _About:
-        __version__ = getattr(bcrypt, "__version__", "")
-
-    bcrypt.__about__ = _About
-
-# bcrypt password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+from .database import get_db
+from .auth import get_current_user
+from .config import SECRET_KEY, ALGORITHM
+from .rate_limit import rate_limit
 
 # configure application logging
 LOG_FILE = os.getenv("LOG_FILE", "app.log")
@@ -58,38 +37,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-
-
-class RateLimiter:
-    """Simple in-memory rate limiter for requests."""
-
-    def __init__(self, limit: int, period: int) -> None:
-        self.limit = limit
-        self.period = period
-        self.history: dict[str, deque] = defaultdict(deque)
-        self.lock = threading.Lock()
-
-    def is_allowed(self, key: str) -> bool:
-        now = time.monotonic()
-        cutoff = now - self.period
-        with self.lock:
-            q = self.history[key]
-            while q and q[0] <= cutoff:
-                q.popleft()
-            if len(q) >= self.limit:
-                return False
-            q.append(now)
-        return True
-
-
-# rate limit settings can be overridden with environment variables
-AUTH_RATE_LIMIT = int(os.getenv("AUTH_RATE_LIMIT", "100"))
-GENERAL_RATE_LIMIT = int(os.getenv("GENERAL_RATE_LIMIT", "1000"))
-RATE_PERIOD = int(os.getenv("RATE_PERIOD", "60"))
-
-auth_limiter = RateLimiter(AUTH_RATE_LIMIT, RATE_PERIOD)
-general_limiter = RateLimiter(GENERAL_RATE_LIMIT, RATE_PERIOD)
+# register rate limiting middleware
+app.middleware("http")(rate_limit)
 
 
 def _get_user_id_from_request(request: Request) -> str:
@@ -119,93 +68,10 @@ async def log_requests(request: Request, call_next):
     return response
 
 
-@app.middleware("http")
-async def rate_limit(request: Request, call_next):
-    """Apply simple rate limiting per client IP."""
-    ip = request.client.host or "unknown"
-    path = request.url.path
-    limiter = auth_limiter if path in {"/token", "/auth/login"} else general_limiter
-    if not limiter.is_allowed(ip):
-        return JSONResponse(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            content={"detail": "Too Many Requests"},
-        )
-    return await call_next(request)
-
-
 def require_json(request: Request) -> None:
     """Ensure the request uses a JSON content-type."""
     if not request.headers.get("content-type", "").lower().startswith("application/json"):
         raise HTTPException(status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE)
-
-
-def get_db():
-    """Provide a database session for a single request."""
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-def hash_password(password: str, salt: bytes | None = None) -> tuple[str, str]:
-    """Return a salt and hashed password for storage using bcrypt."""
-    hashed = pwd_context.hash(password)
-    # bcrypt embeds the salt in the hash; extract it for storage
-    try:
-        parts = hashed.split("$")
-        salt_str = parts[3]
-    except IndexError:
-        salt_str = ""
-    return salt_str, hashed
-
-
-def verify_password(plain_password: str, salt_hex: str, hashed_password: str) -> bool:
-    """Verify a password against the stored hash using bcrypt."""
-    return pwd_context.verify(plain_password, hashed_password)
-
-
-def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
-    """Generate a signed JWT token for authentication."""
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.now(UTC) + expires_delta
-    else:
-        expire = datetime.now(UTC) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-
-
-def get_user(db: Session, email: str) -> models.User | None:
-    """Retrieve a user by email or return ``None`` if not found."""
-    return db.query(models.User).filter(models.User.email == email).first()
-
-
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> models.User:
-    """Return the authenticated user based on the provided JWT token."""
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: str | None = payload.get("sub")
-        if user_id is None:
-            raise credentials_exception
-    except JWTError:
-        raise credentials_exception
-
-    try:
-        uuid_val = uuid.UUID(user_id)
-    except ValueError:
-        raise credentials_exception
-
-    user = db.get(models.User, uuid_val)
-    if user is None:
-        raise credentials_exception
-    return user
-
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):

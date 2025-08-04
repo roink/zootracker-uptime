@@ -32,9 +32,7 @@ class User(Base):
     )
     name = Column(String(255), nullable=False)
     email = Column(String(255), nullable=False, unique=True)
-    # bcrypt salts embedded in the hash are around 53 characters so
-    # allow up to 64 characters for future-proofing
-    password_salt = Column(String(64), nullable=False)
+    # bcrypt hashes are ~60 characters
     password_hash = Column(String(64), nullable=False)
     created_at = Column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

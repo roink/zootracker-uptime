@@ -2,7 +2,8 @@
 
 import os
 from sqlalchemy import create_engine, event
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.orm import sessionmaker, declarative_base, Session
+from typing import Generator
 import uuid
 
 # Connection string for the PostgreSQL database.  A default is provided for
@@ -26,3 +27,12 @@ SessionLocal = sessionmaker(
 
 # Base class for all ORM models
 Base = declarative_base()
+
+
+def get_db() -> Generator[Session, None, None]:
+    """Provide a database session for a single request."""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()

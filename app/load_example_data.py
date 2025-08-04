@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from .database import SessionLocal
 from . import models
-from .main import hash_password
+from .auth import hash_password
 from .create_tables import create_tables
 
 
@@ -57,13 +57,12 @@ def load_zoos(db: Session, path: Path):
 def load_users(db: Session, path: Path):
     with open(path / "users.csv", newline="") as f:
         for row in csv.DictReader(f):
-            salt, hashed = hash_password(row["password"])
+            hashed = hash_password(row["password"])
             db.add(
                 models.User(
                     id=_uuid(row["id"]),
                     name=row["name"],
                     email=row["email"],
-                    password_salt=salt,
                     password_hash=hashed,
                 )
             )

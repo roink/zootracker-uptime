@@ -55,6 +55,12 @@ create_triggers(engine)
 client = TestClient(app)
 
 
+@pytest.fixture(scope="session")
+def openapi_schema():
+    """Build the OpenAPI schema once and cache it for all tests."""
+    return app.openapi()
+
+
 def seed_data():
     """Populate the test database with minimal reference data."""
     db = SessionLocal()
