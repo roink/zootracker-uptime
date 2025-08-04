@@ -15,10 +15,19 @@ Project structure overview:
 
 ## Running tests
 
-Use the provided Docker Compose environment for tests. Start the services and execute pytest in the app container:
+Run the backend test suite with SQLite so it works without a PostgreSQL server:
 
 ```bash
-python -m pytest
+pytest -q
+```
+
+Tests that require PostgreSQL are marked with `@pytest.mark.postgres` and are
+skipped unless the `--pg` option is provided. To run them locally start the
+database and execute:
+
+```bash
+docker compose up -d db
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres pytest --pg
 ```
 
 Always run the tests after making changes.

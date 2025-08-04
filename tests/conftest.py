@@ -5,13 +5,32 @@ import uuid
 import pytest
 from fastapi.testclient import TestClient
 
+
+def pytest_addoption(parser):
+    parser.addoption("--pg", action="store_true", help="run tests that require Postgres")
+
+
+def pytest_configure(config):
+    config.addinivalue_line("markers", "postgres: mark test that requires Postgres")
+
+
+def pytest_collection_modifyitems(config, items):
+    if config.getoption("--pg"):
+        return
+    skip_pg = pytest.mark.skip(reason="need --pg option to run")
+    for item in items:
+        if "postgres" in item.keywords:
+            item.add_marker(skip_pg)
+
+
 # set up database url before importing app
-os.environ["DATABASE_URL"] = "sqlite:///./test.db"
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./test.db")
+os.environ["DATABASE_URL"] = DATABASE_URL
 os.environ["AUTH_RATE_LIMIT"] = "1000"
 os.environ["GENERAL_RATE_LIMIT"] = "10000"
 
-# ensure a fresh database for every test run
-if os.path.exists("test.db"):
+# ensure a fresh database for every test run when using sqlite
+if DATABASE_URL.startswith("sqlite") and os.path.exists("test.db"):
     os.remove("test.db")
 
 from app.database import Base, engine, SessionLocal

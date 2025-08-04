@@ -48,6 +48,24 @@ session = SessionLocal()
 print(session.query(models.Zoo).all())
 ```
 
+### Running Tests
+
+The test suite uses SQLite by default so it can run without external services:
+
+```bash
+pytest
+```
+
+Tests that require PostgreSQL are marked with `@pytest.mark.postgres` and are
+skipped unless explicitly enabled. To run the full set locally, start the
+database and point `DATABASE_URL` at it before invoking pytest:
+
+```bash
+docker compose up -d db
+export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres
+pytest --pg
+```
+
 ### Running the Frontend
 
 The frontend uses [Vite](https://vitejs.dev/) during development. Install the
