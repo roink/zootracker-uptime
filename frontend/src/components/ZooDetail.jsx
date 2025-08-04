@@ -12,7 +12,7 @@ export default function ZooDetail({ zoo, token, userId, onBack, refresh, onLogge
   const [seenAnimals, setSeenAnimals] = useState([]);
   const [modalData, setModalData] = useState(null);
   const navigate = useNavigate();
-  const authFetch = useAuthFetch();
+  const authFetch = useAuthFetch(token);
 
   // Load animals in this zoo
   useEffect(() => {
@@ -105,6 +105,10 @@ export default function ZooDetail({ zoo, token, userId, onBack, refresh, onLogge
                   className="btn btn-sm btn-outline-secondary"
                   onClick={(e) => {
                     e.stopPropagation();
+                    if (!token) {
+                      navigate('/login');
+                      return;
+                    }
                     setModalData({
                       zooId: zoo.id,
                       zooName: zoo.name,

@@ -9,7 +9,7 @@ import SightingModal from '../components/SightingModal';
 export default function AnimalDetailPage({ token, userId, refresh, onLogged }) {
   const { id } = useParams();
   const navigate = useNavigate();
-  const authFetch = useAuthFetch();
+  const authFetch = useAuthFetch(token);
   const [animal, setAnimal] = useState(null);
   const [sightings, setSightings] = useState([]);
   const [location, setLocation] = useState(null);
@@ -159,14 +159,18 @@ export default function AnimalDetailPage({ token, userId, refresh, onLogged }) {
         </tbody>
       </table>
       <button
-        onClick={() =>
+        onClick={() => {
+          if (!token) {
+            navigate('/login');
+            return;
+          }
           setModalData({
             animalId: animal.id,
             animalName: animal.common_name,
             zooId: closestZoo ? closestZoo.id : undefined,
             zooName: closestZoo ? closestZoo.name : undefined,
-          })
-        }
+          });
+        }}
         className="spaced-top"
       >
         Log Sighting

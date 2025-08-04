@@ -11,7 +11,7 @@ export default function AnimalsPage({ token, userId }) {
   const [seenAnimals, setSeenAnimals] = useState([]);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('All');
-  const authFetch = useAuthFetch();
+  const authFetch = useAuthFetch(token);
 
   // load animal list and fetch details for scientific name and category
   useEffect(() => {
@@ -35,13 +35,11 @@ export default function AnimalsPage({ token, userId }) {
   // load animals seen by the current user
   useEffect(() => {
     if (!token || !userId) return;
-    authFetch(`${API}/users/${userId}/animals`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    authFetch(`${API}/users/${userId}/animals`)
       .then((r) => (r.ok ? r.json() : []))
       .then(setSeenAnimals)
       .catch(() => setSeenAnimals([]));
-  }, [token, userId]);
+  }, [token, userId, authFetch]);
 
   const seenIds = useMemo(() => new Set(seenAnimals.map((a) => a.id)), [seenAnimals]);
   const categories = useMemo(() => {

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
 import SightingModal from '../components/SightingModal';
+import { useNavigate } from 'react-router-dom';
 
 // User dashboard showing recent visits, sightings and badges. Includes
 // buttons to open forms for logging additional activity.
@@ -12,7 +13,8 @@ export default function Dashboard({ token, userId, zoos, animals, refresh, onUpd
   const [sightings, setSightings] = useState([]);
   const [badges, setBadges] = useState([]);
   const [modalData, setModalData] = useState(null);
-  const authFetch = useAuthFetch();
+  const navigate = useNavigate();
+  const authFetch = useAuthFetch(token);
 
   useEffect(() => {
     const uid = userId || localStorage.getItem('userId');
@@ -97,7 +99,13 @@ export default function Dashboard({ token, userId, zoos, animals, refresh, onUpd
       <div className="mt-2">
         <button
           className="btn btn-secondary me-2"
-          onClick={() => setModalData({})}
+          onClick={() => {
+            if (!token) {
+              navigate('/login');
+              return;
+            }
+            setModalData({});
+          }}
         >
           Log Sighting
         </button>

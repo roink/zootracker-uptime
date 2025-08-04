@@ -23,47 +23,55 @@ export default function SightingModal({
   const [zoos, setZoos] = useState(propZoos || []);
   const [animals, setAnimals] = useState(propAnimals || []);
   const [sighting, setSighting] = useState(null);
-  const authFetch = useAuthFetch();
+  const authFetch = useAuthFetch(token);
 
-  // Load lists only when not supplied and fetch existing sighting when editing
+  // Load zoo list when none were provided
   useEffect(() => {
-    const loadData = async () => {
-      // Fetch zoos when none were supplied or the array is empty
-      if (!propZoos || propZoos.length === 0) {
-        try {
-          const resp = await fetch(`${API}/zoos`);
-          if (resp.ok) setZoos(await resp.json());
-        } catch {
-          setZoos([]);
-        }
-      } else {
+    const loadZoos = async () => {
+      if (propZoos && propZoos.length > 0) {
         setZoos(propZoos);
+        return;
       }
-
-      // Fetch animals when none were supplied or the array is empty
-      if (!propAnimals || propAnimals.length === 0) {
-        try {
-          const resp = await fetch(`${API}/animals`);
-          if (resp.ok) setAnimals(await resp.json());
-        } catch {
-          setAnimals([]);
-        }
-      } else {
-        setAnimals(propAnimals);
-      }
-      if (sightingId) {
-        try {
-          const resp = await authFetch(`${API}/sightings/${sightingId}`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (resp.ok) setSighting(await resp.json());
-        } catch {
-          setSighting(null);
-        }
+      try {
+        const resp = await fetch(`${API}/zoos`);
+        if (resp.ok) setZoos(await resp.json());
+      } catch {
+        setZoos([]);
       }
     };
-    loadData();
-  }, [sightingId, token, authFetch, propZoos, propAnimals]);
+    loadZoos();
+  }, [propZoos]);
+
+  // Load animal list when none were provided
+  useEffect(() => {
+    const loadAnimals = async () => {
+      if (propAnimals && propAnimals.length > 0) {
+        setAnimals(propAnimals);
+        return;
+      }
+      try {
+        const resp = await fetch(`${API}/animals`);
+        if (resp.ok) setAnimals(await resp.json());
+      } catch {
+        setAnimals([]);
+      }
+    };
+    loadAnimals();
+  }, [propAnimals]);
+
+  // Fetch existing sighting when editing
+  useEffect(() => {
+    if (!sightingId) return;
+    const loadSighting = async () => {
+      try {
+        const resp = await authFetch(`${API}/sightings/${sightingId}`);
+        if (resp.ok) setSighting(await resp.json());
+      } catch {
+        setSighting(null);
+      }
+    };
+    loadSighting();
+  }, [sightingId, authFetch]);
 
   // Notify parent and close the modal after saving or deleting
   const handleDone = () => {

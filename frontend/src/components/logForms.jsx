@@ -41,7 +41,7 @@ export function LogSighting({
     animalFocused
   );
   // Wrapper for fetch that redirects to login on 401
-  const authFetch = useAuthFetch();
+  const authFetch = useAuthFetch(token);
   // Date input defaults to today
   const [sightingDate, setSightingDate] = useState(
     () => defaultDate || new Date().toISOString().split('T')[0]
