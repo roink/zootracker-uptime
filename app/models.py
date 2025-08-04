@@ -10,7 +10,6 @@ from sqlalchemy import (
     DECIMAL,
     UniqueConstraint,
     text,
-    Index,
 )
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
@@ -75,6 +74,8 @@ class Zoo(Base):
     address = Column(Text)
     latitude = Column(DECIMAL(9, 6))
     longitude = Column(DECIMAL(9, 6))
+    # Keep the default `spatial_index=True` so GeoAlchemy2 creates a GiST
+    # index automatically.
     location = Column(LocationType)
     description = Column(Text)
     image_url = Column(String(512))
@@ -91,10 +92,6 @@ class Zoo(Base):
     animals = relationship("ZooAnimal", back_populates="zoo")
     visits = relationship("ZooVisit", back_populates="zoo")
     sightings = relationship("AnimalSighting", back_populates="zoo")
-
-    __table_args__ = (
-        Index("idx_zoos_location", "location", postgresql_using="gist"),
-    )
 
     @validates("latitude", "longitude")
     def _sync_location(self, key, value):

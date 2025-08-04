@@ -28,8 +28,6 @@ CREATE TABLE zoos (
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Spatial index to accelerate distance searches
-CREATE INDEX IF NOT EXISTS idx_zoos_location ON zoos USING GIST (location);
 
 -- 3. Categories (e.g., Mammal, Bird, Reptile)
 CREATE TABLE categories (
