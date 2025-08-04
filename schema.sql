@@ -1,8 +1,8 @@
 -- Enable UUID generation (PostgreSQL pgcrypto extension)
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
--- Optional: enable PostGIS for geospatial queries
--- CREATE EXTENSION IF NOT EXISTS postgis;
+-- Enable PostGIS for geospatial queries
+CREATE EXTENSION IF NOT EXISTS postgis;
 
 -- 1. Users
 CREATE TABLE users (
@@ -21,11 +21,15 @@ CREATE TABLE zoos (
   address         TEXT,
   latitude        DECIMAL(9,6),
   longitude       DECIMAL(9,6),
+  location        GEOGRAPHY(POINT, 4326),
   description     TEXT,
   image_url       VARCHAR(512),
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Spatial index to accelerate distance searches
+CREATE INDEX IF NOT EXISTS idx_zoos_location ON zoos USING GIST (location);
 
 -- 3. Categories (e.g., Mammal, Bird, Reptile)
 CREATE TABLE categories (

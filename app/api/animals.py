@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 import uuid
 
 from .. import schemas, models
 from ..database import get_db
+from ..utils.geometry import distance_km, distance_expr
 
 router = APIRouter()
 
@@ -76,33 +78,62 @@ def list_zoos_for_animal(
     if longitude is not None and not -180 <= longitude <= 180:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid longitude")
 
-    zoos = (
+    query = (
         db.query(models.Zoo)
         .join(models.ZooAnimal, models.Zoo.id == models.ZooAnimal.zoo_id)
         .filter(models.ZooAnimal.animal_id == animal_id)
-        .all()
     )
 
     if latitude is not None and longitude is not None:
-        from math import radians, cos, sin, asin, sqrt
-
-        def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-            lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
-            dlat = lat2 - lat1
-            dlon = lon2 - lon1
-            a = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
-            c = 2 * asin(sqrt(a))
-            return 6371 * c
-
-        zoos.sort(
-            key=lambda z: haversine(
-                float(latitude),
-                float(longitude),
-                float(z.latitude) if z.latitude is not None else 0.0,
-                float(z.longitude) if z.longitude is not None else 0.0,
+        if db.bind.dialect.name == "postgresql":
+            user_point = func.ST_SetSRID(func.ST_MakePoint(longitude, latitude), 4326)
+            distance = distance_expr(user_point)
+            rows = (
+                query.filter(models.Zoo.location != None)
+                .with_entities(models.Zoo, distance.label("distance_m"))
+                .order_by(distance)
+                .all()
             )
-            if z.latitude is not None and z.longitude is not None
-            else float("inf")
-        )
+            return [
+                schemas.ZooDetail(
+                    id=z.id,
+                    name=z.name,
+                    address=z.address,
+                    latitude=float(z.latitude) if z.latitude is not None else None,
+                    longitude=float(z.longitude) if z.longitude is not None else None,
+                    description=z.description,
+                    distance_km=d / 1000 if d is not None else None,
+                )
+                for z, d in rows
+            ]
+        else:
+            zoos = query.all()
+            zoos_with_dist: list[schemas.ZooDetail] = []
+            for z in zoos:
+                if z.latitude is None or z.longitude is None:
+                    dist = None
+                else:
+                    dist = distance_km(
+                        float(latitude),
+                        float(longitude),
+                        float(z.latitude),
+                        float(z.longitude),
+                    )
+                zoos_with_dist.append(
+                    schemas.ZooDetail(
+                        id=z.id,
+                        name=z.name,
+                        address=z.address,
+                        latitude=float(z.latitude) if z.latitude is not None else None,
+                        longitude=float(z.longitude) if z.longitude is not None else None,
+                        description=z.description,
+                        distance_km=dist,
+                    )
+                )
+            zoos_with_dist.sort(
+                key=lambda z: z.distance_km if z.distance_km is not None else float("inf")
+            )
+            return zoos_with_dist
 
-    return zoos
+    zoos = query.all()
+    return [schemas.ZooDetail.from_orm(z) for z in zoos]

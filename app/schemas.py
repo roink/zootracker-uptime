@@ -52,6 +52,17 @@ class ZooDetail(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     description: Optional[str] = None
+    distance_km: Optional[float] = None
+
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
+
+
+class ZooSearchResult(BaseModel):
+    """Slim result item for zoo searches."""
+    id: UUID
+    name: str
+    address: Optional[str] = None
+    distance_km: Optional[float] = None
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 

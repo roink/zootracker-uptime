@@ -3,7 +3,7 @@
 services:
   # PostgreSQL database container
   db:
-    image: postgres:15
+    image: postgis/postgis:15-3.3
     restart: always
     environment:
       POSTGRES_USER: postgres

@@ -31,9 +31,12 @@ def test_search_zoos_with_radius(data):
     }
     resp = client.get("/zoos", params=params)
     assert resp.status_code == 200
-    ids = {z["id"] for z in resp.json()}
+    body = resp.json()
+    ids = {z["id"] for z in body}
     assert str(data["zoo"].id) in ids
     assert str(data["far_zoo"].id) not in ids
+    dists = [z["distance_km"] for z in body]
+    assert dists == sorted(dists)
 
 def test_search_zoos_name_only(data):
     """Name search should work without location parameters."""
@@ -59,6 +62,8 @@ def test_animal_zoos_sorted_by_distance(data):
     body = resp.json()
     assert len(body) == 2
     assert body[0]["id"] == str(data["zoo"].id)
+    dists = [z["distance_km"] for z in body]
+    assert dists == sorted(dists)
 
 def test_animal_zoos_invalid_params(data):
     """Invalid animal ids or coordinates should fail."""

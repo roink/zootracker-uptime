@@ -37,6 +37,7 @@ from app.database import Base, engine, SessionLocal
 from app import models
 from app.triggers import create_triggers
 from app.main import app, get_db
+from sqlalchemy import text
 
 
 def override_get_db():
@@ -49,6 +50,9 @@ def override_get_db():
 
 app.dependency_overrides[get_db] = override_get_db
 
+if engine.dialect.name == "postgresql":
+    with engine.begin() as conn:
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS postgis"))
 Base.metadata.create_all(bind=engine)
 create_triggers(engine)
 

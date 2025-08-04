@@ -71,24 +71,6 @@ export default function AnimalDetailPage({ token, userId, refresh, onLogged }) {
     : null;
   const gallery = userSightings.filter((s) => s.photo_url);
 
-  const toRad = (v) => (v * Math.PI) / 180;
-  const distanceKm = (z) => {
-    if (!location || z.latitude == null || z.longitude == null) return null;
-    const lat1 = location.lat;
-    const lon1 = location.lon;
-    const lat2 = parseFloat(z.latitude);
-    const lon2 = parseFloat(z.longitude);
-    const dLat = toRad(lat2 - lat1);
-    const dLon = toRad(lon2 - lon1);
-    const a =
-      Math.sin(dLat / 2) ** 2 +
-      Math.cos(toRad(lat1)) *
-        Math.cos(toRad(lat2)) *
-        Math.sin(dLon / 2) ** 2;
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return 6371 * c;
-  };
-
   const closestZoo = zoos[0];
 
   return (
@@ -160,7 +142,7 @@ export default function AnimalDetailPage({ token, userId, refresh, onLogged }) {
               <td>{z.name}</td>
               {location && (
                 <td className="text-end">
-                  {distanceKm(z)?.toFixed(1)}
+                  {z.distance_km != null ? z.distance_km.toFixed(1) : ''}
                 </td>
               )}
             </tr>
