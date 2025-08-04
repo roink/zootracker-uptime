@@ -52,7 +52,11 @@ app.dependency_overrides[get_db] = override_get_db
 
 if engine.dialect.name == "postgresql":
     with engine.begin() as conn:
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS pgcrypto"))
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS postgis"))
+
+# ensure a clean schema for every run to avoid duplicate indexes
+Base.metadata.drop_all(bind=engine)
 Base.metadata.create_all(bind=engine)
 create_triggers(engine)
 

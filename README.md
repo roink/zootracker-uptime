@@ -71,6 +71,10 @@ export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres
 pytest --pg
 ```
 
+Running against PostgreSQL will drop and recreate all tables to ensure a clean
+state. Point `DATABASE_URL` at a dedicated test database so important data is
+not lost.
+
 ### Running the Frontend
 
 The frontend uses [Vite](https://vitejs.dev/) during development. Install the
