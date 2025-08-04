@@ -13,7 +13,17 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, validates
+from .database import engine
+from sqlalchemy import Text
+
+if engine.dialect.name == "sqlite":
+    LocationType = Text
+    WKTElement = None
+else:
+    from geoalchemy2 import Geography, WKTElement
+
+    LocationType = Geography(geometry_type="POINT", srid=4326)
 from sqlalchemy.sql import func
 
 from .database import Base
@@ -64,6 +74,9 @@ class Zoo(Base):
     address = Column(Text)
     latitude = Column(DECIMAL(9, 6))
     longitude = Column(DECIMAL(9, 6))
+    # Keep the default `spatial_index=True` so GeoAlchemy2 creates a GiST
+    # index automatically.
+    location = Column(LocationType)
     description = Column(Text)
     image_url = Column(String(512))
     created_at = Column(
@@ -79,6 +92,26 @@ class Zoo(Base):
     animals = relationship("ZooAnimal", back_populates="zoo")
     visits = relationship("ZooVisit", back_populates="zoo")
     sightings = relationship("AnimalSighting", back_populates="zoo")
+
+    @validates("latitude", "longitude")
+    def _sync_location(self, key, value):
+        lat = value if key == "latitude" else self.latitude
+        lon = value if key == "longitude" else self.longitude
+        if (
+            engine.dialect.name == "postgresql"
+            and lat is not None
+            and lon is not None
+            and WKTElement is not None
+        ):
+            # direct dictionary assignment bypasses validation on "location"
+            self.__dict__["location"] = WKTElement(
+                f"POINT({float(lon)} {float(lat)})", srid=4326
+            )
+        return value
+
+    @validates("location")
+    def _no_user_location(self, key, value):
+        raise ValueError("location is managed automatically; set latitude and longitude instead")
 
 
 class Category(Base):

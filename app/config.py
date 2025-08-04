@@ -5,3 +5,6 @@ ALGORITHM = "HS256"
 # Allow token lifetime to be configured via environment variable
 # Defaults to 30 minutes when not provided
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+
+# Default search radius for zoo queries in kilometers
+RADIUS_KM_DEFAULT = float(os.getenv("RADIUS_KM_DEFAULT", "200"))

@@ -4,7 +4,9 @@ This repository contains planning materials and a basic backend scaffold for the
 
 ## Development
 
-A `docker-compose.yml` file is provided to run a Postgres database and the FastAPI backend. The backend is configured via the `DATABASE_URL` environment variable to connect to the database service.
+A `docker-compose.yml` file is provided to run a PostGIS-enabled PostgreSQL
+database and the FastAPI backend. The backend is configured via the
+`DATABASE_URL` environment variable to connect to the database service.
 
 ### Local Setup
 
@@ -20,7 +22,9 @@ The API will be available at `http://localhost:8000` and the database listens on
 
 ### Database Initialization
 
-Run the table creation script once before starting the API:
+Run the table creation script once before starting the API. This will also
+enable the required `postgis` extension and create a spatial index on the
+`zoos.location` column:
 
 ```bash
 python -m app.create_tables
@@ -29,7 +33,8 @@ python -m app.create_tables
 ### Loading Example Data
 
 CSV files with sample records for all tables are provided under `example_data/`.
-The loader will create any missing tables automatically, so you can simply run:
+The loader will create any missing tables automatically and populate the
+geography column for zoos, so you can simply run:
 
 ```bash
 python -m app.load_example_data
@@ -65,6 +70,10 @@ docker compose up -d db
 export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres
 pytest --pg
 ```
+
+Running against PostgreSQL will drop and recreate all tables to ensure a clean
+state. Point `DATABASE_URL` at a dedicated test database so important data is
+not lost.
 
 ### Running the Frontend
 
