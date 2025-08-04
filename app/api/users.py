@@ -3,7 +3,9 @@ from sqlalchemy.orm import Session
 import uuid
 
 from .. import schemas, models
-from ..main import get_db, require_json, hash_password, get_user, get_current_user
+from ..database import get_db
+from ..main import require_json
+from ..auth import hash_password, get_user, get_current_user
 
 router = APIRouter()
 
@@ -12,11 +14,10 @@ def create_user(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
     """Register a new user with a hashed password."""
     if get_user(db, user_in.email):
         raise HTTPException(status_code=400, detail="Email already registered")
-    salt, hashed = hash_password(user_in.password)
+    hashed = hash_password(user_in.password)
     user = models.User(
         name=user_in.name,
         email=user_in.email,
-        password_salt=salt,
         password_hash=hashed,
     )
     db.add(user)

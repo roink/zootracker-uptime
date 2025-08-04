@@ -9,8 +9,6 @@ CREATE TABLE users (
   id              UUID       PRIMARY KEY DEFAULT gen_random_uuid(),
   name            VARCHAR(255) NOT NULL,
   email           VARCHAR(255) NOT NULL UNIQUE,
-  -- Bcrypt salts are over 50 characters so allow ample space
-  password_salt   VARCHAR(64) NOT NULL,
   password_hash   VARCHAR(64) NOT NULL,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()

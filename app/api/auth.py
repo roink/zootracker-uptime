@@ -4,7 +4,8 @@ from sqlalchemy.orm import Session
 
 from .. import schemas
 from ..models import User
-from ..main import get_db, get_user, verify_password, create_access_token
+from ..database import get_db
+from ..auth import get_user, verify_password, create_access_token
 
 router = APIRouter()
 
@@ -14,7 +15,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     if not form_data.username or not form_data.password:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing username or password")
     user = get_user(db, form_data.username)
-    if not user or not verify_password(form_data.password, user.password_salt, user.password_hash):
+    if not user or not verify_password(form_data.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect username or password")
     access_token = create_access_token({"sub": str(user.id)})
     return {"access_token": access_token, "token_type": "bearer"}
