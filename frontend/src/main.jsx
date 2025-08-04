@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import ReactDOM from "react-dom/client";
+import { Helmet, HelmetProvider } from 'react-helmet-async';
 import {
   BrowserRouter,
   Routes,
@@ -230,4 +231,11 @@ function App() {
   );
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+const helmetContext = {};
+
+ReactDOM.createRoot(document.getElementById("root")).render(
+  <HelmetProvider context={helmetContext}>
+    <Helmet titleTemplate="%s - ZooTracker" defaultTitle="ZooTracker" />
+    <App />
+  </HelmetProvider>
+);

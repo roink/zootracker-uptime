@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import ZooDetail from '../components/ZooDetail';
 import { API } from '../api';
+import Seo from '../components/Seo';
 
 // Page that fetches a single zoo and renders the ZooDetail component
 export default function ZooDetailPage({ token, userId, refresh, onLogged }) {
@@ -21,13 +22,19 @@ export default function ZooDetailPage({ token, userId, refresh, onLogged }) {
   }
 
   return (
-    <ZooDetail
-      zoo={zoo}
-      token={token}
-      userId={userId}
-      onBack={() => navigate(-1)}
-      refresh={refresh}
-      onLogged={onLogged}
-    />
+    <>
+      <Seo
+        title={zoo.name}
+        description={`Learn about ${zoo.name} and track your visit.`}
+      />
+      <ZooDetail
+        zoo={zoo}
+        token={token}
+        userId={userId}
+        onBack={() => navigate(-1)}
+        refresh={refresh}
+        onLogged={onLogged}
+      />
+    </>
   );
 }

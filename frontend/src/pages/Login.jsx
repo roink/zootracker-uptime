@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { API } from '../api';
+import Seo from '../components/Seo';
 
 // Login form that stores the returned token in localStorage.
 
@@ -43,7 +44,12 @@ export default function LoginPage({ email, onLoggedIn }) {
   };
 
   return (
-    <form onSubmit={submit} className="container auth-form">
+    <>
+      <Seo
+        title="Log In"
+        description="Access your ZooTracker account to log visits and sightings."
+      />
+      <form onSubmit={submit} className="container auth-form">
       {successMessage && (
         <div className="alert alert-success" role="alert">
           {successMessage}
@@ -75,5 +81,6 @@ export default function LoginPage({ email, onLoggedIn }) {
         <Link to="/register">Sign Up</Link>
       </div>
     </form>
+    </>
   );
 }

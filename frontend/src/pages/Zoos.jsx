@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
+import Seo from '../components/Seo';
 
 // Listing page showing all zoos with filters for region and search query.
 
@@ -38,6 +39,10 @@ export default function ZoosPage({ token }) {
 
   return (
     <div className="container">
+      <Seo
+        title="Zoos"
+        description="Explore zoos around the world and log your visits."
+      />
       <div className="row mb-3">
         <div className="col-md-4 mb-2">
           <input

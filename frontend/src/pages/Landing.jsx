@@ -1,5 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import Seo from '../components/Seo';
 
 // Simple marketing page shown at the root of the site.
 
@@ -7,6 +8,10 @@ export default function Landing() {
   const navigate = useNavigate();
   return (
     <div className="text-center py-4">
+      <Seo
+        title="Track Your Zoo Adventures"
+        description="Log your zoo visits, discover animals and earn badges with ZooTracker."
+      />
       <h1>Track your zoo adventures</h1>
       <div className="row justify-content-center mt-3">
         <div className="col-4 col-md-2">
