@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
+import Seo from '../components/Seo';
 
 // Browse all animals with category filters and search
 
@@ -53,6 +54,10 @@ export default function AnimalsPage({ token, userId }) {
 
   return (
     <div className="page-container">
+      <Seo
+        title="Animals"
+        description="Browse animals and track the ones you've seen."
+      />
       <div className="spaced-bottom">
         <input
           placeholder="Search"

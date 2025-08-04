@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { API } from '../api';
+import Seo from '../components/Seo';
 
 // Global search results page
 
@@ -26,6 +27,10 @@ export default function SearchPage() {
 
   return (
     <div className="page-container">
+      <Seo
+        title="Search"
+        description="Find zoos and animals on ZooTracker."
+      />
       <h2>Search Results for "{query}"</h2>
       <h3>Zoos</h3>
       <ul>

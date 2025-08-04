@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { API } from '../api';
+import Seo from '../components/Seo';
 
 // Contact form where users can send a message and email address.
 export default function ContactPage() {
@@ -29,6 +30,7 @@ export default function ContactPage() {
 
   return (
     <div className="container py-4">
+      <Seo title="Contact" description="Get in touch with the ZooTracker team." />
       <h2>Contact</h2>
       <form onSubmit={handleSubmit} className="mt-3">
         <div className="mb-3">

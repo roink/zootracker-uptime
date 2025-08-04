@@ -3,6 +3,7 @@ import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
 import SightingModal from '../components/SightingModal';
 import { useNavigate } from 'react-router-dom';
+import Seo from '../components/Seo';
 
 // User dashboard showing recent visits, sightings and badges. Includes
 // buttons to open forms for logging additional activity.
@@ -53,6 +54,10 @@ export default function Dashboard({ token, userId, zoos, animals, refresh, onUpd
 
   return (
     <div className="container">
+      <Seo
+        title="Dashboard"
+        description="View your zoo visits, animal sightings and badges."
+      />
       <div className="row text-center mb-3">
         <div className="col">Zoos Visited: {new Set(visits.map((v) => v.zoo_id)).size}</div>
         <div className="col">Animals Seen: {seenAnimals.length}</div>

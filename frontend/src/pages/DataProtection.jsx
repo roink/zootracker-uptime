@@ -1,9 +1,14 @@
 import React from 'react';
+import Seo from '../components/Seo';
 
 // Detailed data protection information for the application.
 export default function DataProtectionPage() {
   return (
     <div className="container py-4">
+      <Seo
+        title="Data Protection"
+        description="Learn how ZooTracker stores and protects your data."
+      />
       <h2>Data Protection</h2>
       <p>
         We take the protection of your personal information seriously. This page

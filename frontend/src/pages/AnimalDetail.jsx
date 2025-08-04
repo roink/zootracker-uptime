@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
 import SightingModal from '../components/SightingModal';
+import Seo from '../components/Seo';
 
 // Detailed page showing an animal along with nearby zoos and user sightings
 
@@ -92,6 +93,14 @@ export default function AnimalDetailPage({ token, userId, refresh, onLogged }) {
 
   return (
     <div className="page-container">
+      <Seo
+        title={animal ? animal.common_name : 'Animal'}
+        description={
+          animal
+            ? `Discover where to see ${animal.common_name} and log your sightings.`
+            : 'Animal details on ZooTracker.'
+        }
+      />
       <button onClick={() => navigate(-1)} className="spaced-bottom">
         Back
       </button>

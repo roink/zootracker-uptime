@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { API } from '../api';
+import Seo from '../components/Seo';
 
 // Registration form for creating a new user account.
 
@@ -43,7 +44,12 @@ export default function RegisterPage({ onSignedUp }) {
   };
 
   return (
-    <form onSubmit={submit} className="container auth-form">
+    <>
+      <Seo
+        title="Sign Up"
+        description="Create your ZooTracker account to track zoo visits and animal sightings."
+      />
+      <form onSubmit={submit} className="container auth-form">
       <h2 className="mb-3">Sign Up</h2>
       <div className="mb-3">
         <input
@@ -86,5 +92,6 @@ export default function RegisterPage({ onSignedUp }) {
         <Link to="/login">Back to Log In</Link>
       </div>
     </form>
+    </>
   );
 }
