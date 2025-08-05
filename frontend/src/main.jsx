@@ -96,7 +96,7 @@ function AppRoutes({
             )
           }
         />
-        <Route path="/landing" element={<Landing />} />
+        <Route path="/landing" element={<Navigate to="/" replace />} />
         <Route
           path="/home"
           element={

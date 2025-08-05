@@ -83,9 +83,6 @@ export default function AnimalDetailPage({ token, userId, refresh, onLogged }) {
             : 'Animal details on ZooTracker.'
         }
       />
-      <button onClick={() => navigate(-1)} className="spaced-bottom">
-        Back
-      </button>
       {animal.default_image_url && (
         <img
           src={animal.default_image_url}
