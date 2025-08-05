@@ -1,0 +1,18 @@
+[Unit]
+Description=Zoo Tracker FastAPI Service
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/zoo_tracker
+EnvironmentFile=/opt/zoo_tracker/.env
+ExecStart=/opt/zoo_tracker/venv/bin/gunicorn \
+          -k uvicorn.workers.UvicornWorker \
+          -b 127.0.0.1:8000 app.main:app
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+
