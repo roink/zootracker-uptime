@@ -6,7 +6,7 @@ import SightingModal from './SightingModal';
 
 // Detailed view for a single zoo with a list of resident animals.
 // Used by the ZooDetailPage component.
-export default function ZooDetail({ zoo, token, userId, onBack, refresh, onLogged }) {
+export default function ZooDetail({ zoo, token, userId, refresh, onLogged }) {
   const [animals, setAnimals] = useState([]);
   const [visits, setVisits] = useState([]);
   const [seenAnimals, setSeenAnimals] = useState([]);
@@ -47,9 +47,6 @@ export default function ZooDetail({ zoo, token, userId, onBack, refresh, onLogge
 
   return (
     <div className="p-3">
-      <button className="btn btn-link mb-2" onClick={onBack}>
-        Back
-      </button>
       {zoo.image_url && (
         <img
           src={zoo.image_url}

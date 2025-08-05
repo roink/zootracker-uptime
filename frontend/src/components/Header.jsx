@@ -66,7 +66,7 @@ export default function Header({ token, onLogout }) {
     }
   };
 
-  // Clear auth info and return to the landing page when logging out
+  // Clear auth info and return to the home page when logging out
   const handleLogout = () => {
     if (onLogout) onLogout();
     navigate('/');
@@ -75,7 +75,7 @@ export default function Header({ token, onLogout }) {
   return (
     <nav className="navbar navbar-expand-lg navbar-dark bg-success mb-3">
       <div className="container-fluid">
-        <Link className="navbar-brand" to="/landing">ZooTracker</Link>
+        <Link className="navbar-brand" to="/">ZooTracker</Link>
         <button
           className="navbar-toggler"
           type="button"

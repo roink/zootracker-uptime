@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import ZooDetail from '../components/ZooDetail';
 import { API } from '../api';
 import Seo from '../components/Seo';
@@ -7,7 +7,6 @@ import Seo from '../components/Seo';
 // Page that fetches a single zoo and renders the ZooDetail component
 export default function ZooDetailPage({ token, userId, refresh, onLogged }) {
   const { id } = useParams();
-  const navigate = useNavigate();
   const [zoo, setZoo] = useState(null);
 
   useEffect(() => {
@@ -31,7 +30,6 @@ export default function ZooDetailPage({ token, userId, refresh, onLogged }) {
         zoo={zoo}
         token={token}
         userId={userId}
-        onBack={() => navigate(-1)}
         refresh={refresh}
         onLogged={onLogged}
       />
