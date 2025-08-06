@@ -14,17 +14,6 @@ services:
     ports:
       - "5432:5432"
 
-  # Application container running the FastAPI app
-  app:
-    build: .
-    volumes:
-      - .:/app
-    env_file:
-      - .env
-    depends_on:
-      - db
-    ports:
-      - "8000:8000"
 
 volumes:
   db_data:
