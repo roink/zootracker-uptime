@@ -10,10 +10,14 @@ export default function AnimalsPage({ token, userId }) {
   const navigate = useNavigate();
   const [animals, setAnimals] = useState([]);
   const [seenAnimals, setSeenAnimals] = useState([]);
-  const [query, setQuery] = useState('');
+  const [search, setSearch] = useState(''); // raw input value
+  const [query, setQuery] = useState(''); // debounced search query
   const [category, setCategory] = useState('All');
+  const [categories, setCategories] = useState(['All']);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const authFetch = useAuthFetch(token);
   const limit = 20; // number of animals per page
 
@@ -21,20 +25,41 @@ export default function AnimalsPage({ token, userId }) {
   const loadAnimals = (reset = false) => {
     const currentOffset = reset ? 0 : offset;
     if (reset) setHasMore(false); // hide button until the first page loads
-    fetch(`${API}/animals?limit=${limit}&offset=${currentOffset}&q=${encodeURIComponent(query)}`)
-      .then((r) => r.json())
+    setLoading(true);
+    setError('');
+    const catParam = category !== 'All' ? `&category=${encodeURIComponent(category)}` : '';
+    fetch(`${API}/animals?limit=${limit}&offset=${currentOffset}&q=${encodeURIComponent(query)}${catParam}`)
+      .then((r) => {
+        if (!r.ok) throw new Error('Failed to load');
+        return r.json();
+      })
       .then((data) => {
         setAnimals((prev) => (reset ? data : [...prev, ...data]));
         setOffset(currentOffset + data.length);
         setHasMore(data.length === limit);
-      });
+        setCategories((prev) => {
+          const set = new Set(prev);
+          data.forEach((a) => a.category && set.add(a.category));
+          return ['All', ...Array.from(set).filter((c) => c !== 'All')];
+        });
+      })
+      .catch(() => setError('Failed to load animals'))
+      .finally(() => setLoading(false));
   };
 
-  // Initial load and reset when the search query changes
+  // Debounce the search input to avoid fetching on every keystroke
+  useEffect(() => {
+    const id = setTimeout(() => {
+      setQuery(search);
+    }, 500);
+    return () => clearTimeout(id);
+  }, [search]);
+
+  // Initial load and reset when the debounced query or category changes
   useEffect(() => {
     loadAnimals(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query]);
+  }, [query, category]);
 
   // load animals seen by the current user
   useEffect(() => {
@@ -46,13 +71,6 @@ export default function AnimalsPage({ token, userId }) {
   }, [token, userId, authFetch]);
 
   const seenIds = useMemo(() => new Set(seenAnimals.map((a) => a.id)), [seenAnimals]);
-  const categories = useMemo(() => {
-    const set = new Set(animals.map((a) => a.category).filter(Boolean));
-    return ['All', ...Array.from(set)];
-  }, [animals]);
-
-  // Apply category filter to the loaded animals
-  const filtered = animals.filter((a) => (category === 'All' ? true : a.category === category));
 
   return (
     <div className="container">
@@ -65,9 +83,10 @@ export default function AnimalsPage({ token, userId }) {
           <input
             className="form-control"
             placeholder="Search"
-            value={query}
+            value={search}
             onChange={(e) => {
-              setQuery(e.target.value);
+              setSearch(e.target.value);
+              setAnimals([]); // clear old cards while new results load
               setOffset(0);
               setHasMore(false);
             }}
@@ -77,7 +96,12 @@ export default function AnimalsPage({ token, userId }) {
           {categories.map((cat) => (
             <button
               key={cat}
-              onClick={() => setCategory(cat)}
+              onClick={() => {
+                setCategory(cat);
+                setAnimals([]); // remove stale cards immediately
+                setOffset(0);
+                setHasMore(false);
+              }}
               className={`btn btn-sm me-2 ${category === cat ? 'btn-primary' : 'btn-outline-primary'}`}
             >
               {cat}
@@ -85,8 +109,13 @@ export default function AnimalsPage({ token, userId }) {
           ))}
         </div>
       </div>
+      {error && (
+        <div className="alert alert-danger" role="alert">
+          {error}
+        </div>
+      )}
       <div className="d-flex flex-wrap gap-2">
-        {filtered.map((a) => (
+        {animals.map((a) => (
           <button
             key={a.id}
             type="button"
@@ -116,8 +145,9 @@ export default function AnimalsPage({ token, userId }) {
             type="button"
             className="btn btn-secondary"
             onClick={() => loadAnimals(false)}
+            disabled={loading}
           >
-            Load more
+            {loading ? 'Loading...' : 'Load more'}
           </button>
         </div>
       )}

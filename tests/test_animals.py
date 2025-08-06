@@ -47,3 +47,9 @@ def test_list_animals_category_filter():
     body = resp.json()
     assert len(body) == 1
     assert body[0]["common_name"] == "Eagle"
+
+
+def test_list_animals_empty_page():
+    resp = client.get("/animals", params={"limit": 5, "offset": 10})
+    assert resp.status_code == 200
+    assert resp.json() == []

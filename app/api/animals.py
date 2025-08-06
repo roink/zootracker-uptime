@@ -30,14 +30,18 @@ def list_animals(
             detail="offset must be >= 0",
         )
 
-    query = db.query(models.Animal).options(joinedload(models.Animal.category))
+    query = (
+        db.query(models.Animal)
+        .join(models.Category, isouter=True)
+        .options(joinedload(models.Animal.category))
+    )
 
     if q:
         pattern = f"%{q}%"
         query = query.filter(models.Animal.common_name.ilike(pattern))
 
     if category:
-        query = query.join(models.Category).filter(models.Category.name == category)
+        query = query.filter(models.Category.name == category)
 
     animals = (
         query.order_by(models.Animal.common_name)
