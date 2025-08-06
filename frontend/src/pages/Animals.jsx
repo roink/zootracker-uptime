@@ -4,7 +4,7 @@ import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
 import Seo from '../components/Seo';
 
-// Browse all animals with category filters and search
+// Browse all animals with category filters, search and load-more pagination
 
 export default function AnimalsPage({ token, userId }) {
   const navigate = useNavigate();
@@ -12,26 +12,28 @@ export default function AnimalsPage({ token, userId }) {
   const [seenAnimals, setSeenAnimals] = useState([]);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('All');
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
   const authFetch = useAuthFetch(token);
+  const limit = 20; // number of animals per page
 
-  // load animal list and fetch details for scientific name and category
-  useEffect(() => {
-    fetch(`${API}/animals`)
+  // Fetch a page of animals from the API
+  const loadAnimals = (reset = false) => {
+    const currentOffset = reset ? 0 : offset;
+    fetch(`${API}/animals?limit=${limit}&offset=${currentOffset}&q=${encodeURIComponent(query)}`)
       .then((r) => r.json())
-      .then(async (list) => {
-        const detailed = await Promise.all(
-          list.map(async (a) => {
-            const resp = await fetch(`${API}/animals/${a.id}`);
-            if (resp.ok) {
-              const info = await resp.json();
-              return { ...a, ...info };
-            }
-            return a;
-          })
-        );
-        setAnimals(detailed);
+      .then((data) => {
+        setAnimals((prev) => (reset ? data : [...prev, ...data]));
+        setOffset(currentOffset + data.length);
+        setHasMore(data.length === limit);
       });
-  }, []);
+  };
+
+  // Initial load and reset when the search query changes
+  useEffect(() => {
+    loadAnimals(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query]);
 
   // load animals seen by the current user
   useEffect(() => {
@@ -48,33 +50,39 @@ export default function AnimalsPage({ token, userId }) {
     return ['All', ...Array.from(set)];
   }, [animals]);
 
-  const filtered = animals
-    .filter((a) => a.common_name.toLowerCase().includes(query.toLowerCase()))
-    .filter((a) => (category === 'All' ? true : a.category === category));
+  // Apply category filter to the loaded animals
+  const filtered = animals.filter((a) => (category === 'All' ? true : a.category === category));
 
   return (
-    <div className="page-container">
+    <div className="container">
       <Seo
         title="Animals"
         description="Browse animals and track the ones you've seen."
       />
-      <div className="spaced-bottom">
-        <input
-          placeholder="Search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-      </div>
-      <div className="spaced-bottom">
-        {categories.map((cat) => (
-          <button
-            key={cat}
-            onClick={() => setCategory(cat)}
-            className={`filter-button${category === cat ? ' active' : ''}`}
-          >
-            {cat}
-          </button>
-        ))}
+      <div className="row mb-3">
+        <div className="col-md-6 mb-2">
+          <input
+            className="form-control"
+            placeholder="Search"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setOffset(0);
+              setHasMore(true);
+            }}
+          />
+        </div>
+        <div className="col-md-6 mb-2">
+          {categories.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setCategory(cat)}
+              className={`btn btn-sm me-2 ${category === cat ? 'btn-primary' : 'btn-outline-primary'}`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
       </div>
       <div className="d-flex flex-wrap gap-2">
         {filtered.map((a) => (
@@ -101,6 +109,17 @@ export default function AnimalsPage({ token, userId }) {
           </button>
         ))}
       </div>
+      {hasMore && (
+        <div className="text-center my-3">
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => loadAnimals(false)}
+          >
+            Load more
+          </button>
+        </div>
+      )}
     </div>
   );
 }
