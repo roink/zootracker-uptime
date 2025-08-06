@@ -15,6 +15,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from jose import jwt, JWTError
+from contextlib import asynccontextmanager
 
 from . import models, schemas
 from .database import get_db
@@ -35,10 +36,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("zoo_tracker")
 
-app = FastAPI(title="Zoo Tracker API")
 
-
-@app.on_event("startup")
 def _check_env_vars() -> None:
     """Fail fast if required environment variables are missing."""
     required = ["SMTP_HOST", "CONTACT_EMAIL"]
@@ -46,6 +44,15 @@ def _check_env_vars() -> None:
     if missing:
         missing_str = ", ".join(missing)
         raise RuntimeError(f"Missing required environment variables: {missing_str}")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    _check_env_vars()
+    yield
+
+
+app = FastAPI(title="Zoo Tracker API", lifespan=lifespan)
 
 # allow all CORS origins/methods/headers for the API
 app.add_middleware(
@@ -277,17 +284,13 @@ def _send_contact_email(host, port, use_ssl, user, password, from_addr, to_addr,
     email_msg["Reply-To"] = reply_to
     email_msg.set_content(f"From: {name} <{reply_to}>\n\n{msg_text}")
     try:
-        if use_ssl:
-            with smtplib.SMTP_SSL(host, port) as server:
-                if user and password:
-                    server.login(user, password)
-                server.send_message(email_msg)
-        else:
-            with smtplib.SMTP(host, port) as server:
+        server_cls = smtplib.SMTP_SSL if use_ssl else smtplib.SMTP
+        with server_cls(host, port) as server:
+            if not use_ssl:
                 server.starttls()
-                if user and password:
-                    server.login(user, password)
-                server.send_message(email_msg)
+            if user and password:
+                server.login(user, password)
+            server.send_message(email_msg)
     except Exception:
         logger.exception("Failed to send contact email")
 
