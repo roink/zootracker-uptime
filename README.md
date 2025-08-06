@@ -14,37 +14,22 @@ database and the FastAPI backend. The backend is configured via the
 # create virtual environment and install dependencies
 ./setup_env.sh
 
-# run services
-docker compose up --build
+# copy default environment variables
+cp .env.example .env
+
+# rebuild and start services
+docker compose down --volumes
+docker compose build --no-cache && docker compose up -d
+
+# initialize database and load example data
+docker compose exec app python -m app.create_tables
+docker compose exec app python -m app.load_example_data
 ```
 
 The API will be available at `http://localhost:8000` and the database listens on `localhost:5432`.
-
-### Database Initialization
-
-Run the table creation script once before starting the API. This will also
-enable the required `postgis` extension and create a spatial index on the
-`zoos.location` column:
-
-```bash
-python -m app.create_tables
-```
-
-### Loading Example Data
-
-CSV files with sample records for all tables are provided under `example_data/`.
-The loader will create any missing tables automatically and populate the
-geography column for zoos, so you can simply run:
-
-```bash
-python -m app.load_example_data
-```
-
-This inserts around 10 zoos, 20 animals and users, as well as related
-records for visits, sightings and achievements. The data is useful for
-local testing and development.
-
-To verify the connection you can open a Python shell:
+These commands create the tables, enable the required `postgis` extension and
+insert sample records from `example_data/`. You can verify the connection with a
+quick Python shell:
 
 ```python
 from app.database import SessionLocal
@@ -55,25 +40,21 @@ print(session.query(models.Zoo).all())
 
 ### Running Tests
 
-The test suite uses SQLite by default so it can run without external services:
+To run the full test suite against PostgreSQL:
 
 ```bash
-pytest
-```
+# set up environment and services
+./setup_env.sh
+cp .env.example .env
+docker compose down --volumes
+docker compose build --no-cache && docker compose up -d
 
-Tests that require PostgreSQL are marked with `@pytest.mark.postgres` and are
-skipped unless explicitly enabled. To run the full set locally, start the
-database and point `DATABASE_URL` at it before invoking pytest:
-
-```bash
-docker compose up -d db
-export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres
+# execute tests
 pytest --pg
 ```
 
-Running against PostgreSQL will drop and recreate all tables to ensure a clean
-state. Point `DATABASE_URL` at a dedicated test database so important data is
-not lost.
+Running tests against PostgreSQL will drop and recreate all tables to ensure a
+clean state. You can still run a fast subset with SQLite using `pytest` alone.
 
 ### Running the Frontend
 
