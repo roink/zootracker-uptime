@@ -103,6 +103,23 @@ Replace `192.168.1.29` with your computer's actual IP if it differs. Setting
 `VITE_API_URL` is only required when the backend runs on a different host or
 port.
 
+### Animals API
+
+`GET /animals` now returns detailed animal information including scientific
+name, category and image URL. The endpoint accepts `limit` and `offset`
+parameters for pagination so clients can request results in smaller batches.
+Results are sorted by common name for stable paging and can be further
+filtered by `q` and an optional `category` name. `limit` must be between 1 and
+100 and `offset` cannot be negative:
+
+```http
+GET /animals?limit=20&offset=0
+```
+
+Providing a search query via `q` filters the results by common name. Each page
+contains at most `limit` records and an empty response indicates there are no
+more animals.
+
 ### Password Requirements
 
 When registering a new account the API enforces a minimum password length of

@@ -72,10 +72,12 @@ def openapi_schema():
 def seed_data():
     """Populate the test database with minimal reference data."""
     db = SessionLocal()
-    category = models.Category(name="Mammal")
-    db.add(category)
+    mammal = models.Category(name="Mammal")
+    bird = models.Category(name="Bird")
+    db.add_all([mammal, bird])
     db.commit()
-    db.refresh(category)
+    db.refresh(mammal)
+    db.refresh(bird)
 
     zoo = models.Zoo(
         name="Central Zoo",
@@ -99,17 +101,42 @@ def seed_data():
     db.commit()
     db.refresh(far_zoo)
 
-    animal = models.Animal(common_name="Lion", category_id=category.id)
-    db.add(animal)
+    animal = models.Animal(
+        common_name="Lion",
+        scientific_name="Panthera leo",
+        category_id=mammal.id,
+        default_image_url="http://example.com/lion.jpg",
+    )
+    tiger = models.Animal(
+        common_name="Tiger",
+        scientific_name="Panthera tigris",
+        category_id=mammal.id,
+        default_image_url="http://example.com/tiger.jpg",
+    )
+    eagle = models.Animal(
+        common_name="Eagle",
+        scientific_name="Aquila chrysaetos",
+        category_id=bird.id,
+        default_image_url="http://example.com/eagle.jpg",
+    )
+    db.add_all([animal, tiger, eagle])
     db.commit()
     db.refresh(animal)
+    db.refresh(tiger)
+    db.refresh(eagle)
 
     link = models.ZooAnimal(zoo_id=zoo.id, animal_id=animal.id)
     db.add(link)
     db.commit()
 
     db.close()
-    return {"zoo": zoo, "animal": animal, "far_zoo": far_zoo}
+    return {
+        "zoo": zoo,
+        "animal": animal,
+        "far_zoo": far_zoo,
+        "tiger": tiger,
+        "eagle": eagle,
+    }
 
 
 @pytest.fixture(scope="session")

@@ -75,6 +75,19 @@ class AnimalRead(BaseModel):
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 
 
+class AnimalListItem(BaseModel):
+    """Detailed fields returned by the animals list endpoint."""
+
+    id: UUID
+    common_name: str
+    scientific_name: Optional[str] = None
+    category: Optional[str] = None
+    description: Optional[str] = None
+    default_image_url: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
+
+
 class ZooVisitCreate(BaseModel):
     """Input data required to log a zoo visit."""
     zoo_id: UUID
@@ -146,6 +159,7 @@ class AnimalDetail(BaseModel):
     scientific_name: Optional[str] = None
     category: Optional[str] = None
     description: Optional[str] = None
+    default_image_url: Optional[str] = None
     zoos: list[ZooRead] = []
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")

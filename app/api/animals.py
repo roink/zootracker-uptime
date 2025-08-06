@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 import uuid
 
@@ -9,14 +9,54 @@ from ..utils.geometry import distance_km, distance_expr
 
 router = APIRouter()
 
-@router.get("/animals", response_model=list[schemas.AnimalRead])
-def list_animals(q: str = "", db: Session = Depends(get_db)):
-    """List animals optionally filtered by a search query."""
-    query = db.query(models.Animal)
+@router.get("/animals", response_model=list[schemas.AnimalListItem])
+def list_animals(
+    q: str = "",
+    limit: int = 50,
+    offset: int = 0,
+    category: str | None = None,
+    db: Session = Depends(get_db),
+):
+    """List animals filtered by search query, category and pagination."""
+
+    if limit < 1 or limit > 100:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="limit must be between 1 and 100",
+        )
+    if offset < 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="offset must be >= 0",
+        )
+
+    query = db.query(models.Animal).options(joinedload(models.Animal.category))
+
     if q:
         pattern = f"%{q}%"
         query = query.filter(models.Animal.common_name.ilike(pattern))
-    return query.all()
+
+    if category:
+        query = query.join(models.Category).filter(models.Category.name == category)
+
+    animals = (
+        query.order_by(models.Animal.common_name)
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+
+    return [
+        schemas.AnimalListItem(
+            id=a.id,
+            common_name=a.common_name,
+            scientific_name=a.scientific_name,
+            category=a.category.name if a.category else None,
+            description=a.description,
+            default_image_url=a.default_image_url,
+        )
+        for a in animals
+    ]
 
 @router.get("/search", response_model=schemas.SearchResults)
 def combined_search(q: str = "", limit: int = 5, db: Session = Depends(get_db)):
@@ -55,6 +95,7 @@ def get_animal_detail(animal_id: uuid.UUID, db: Session = Depends(get_db)):
         scientific_name=animal.scientific_name,
         category=animal.category.name if animal.category else None,
         description=animal.description,
+        default_image_url=animal.default_image_url,
         zoos=zoos,
     )
 
