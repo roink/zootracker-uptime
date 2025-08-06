@@ -5,25 +5,18 @@ This repository contains planning materials and a basic backend scaffold for the
 ## Development
 
 A `docker-compose.yml` file is provided to run a PostGIS-enabled PostgreSQL
-database and the FastAPI backend. The backend is configured via the
-`DATABASE_URL` environment variable to connect to the database service.
+database. Start the API separately with Uvicorn using the `DATABASE_URL`
+environment variable to connect.
 
 ### Local Setup
 
 ```bash
-# create virtual environment and install dependencies
 ./setup_env.sh
-
-# copy default environment variables
 cp .env.example .env
-
-# rebuild and start services
-docker compose down --volumes
-docker compose build --no-cache && docker compose up -d
-
-# initialize database and load example data
-docker compose exec app python -m app.create_tables
-docker compose exec app python -m app.load_example_data
+docker compose up -d db
+python -m app.create_tables
+python -m app.load_example_data
+uvicorn app.main:app --reload
 ```
 
 The API will be available at `http://localhost:8000` and the database listens on `localhost:5432`.
@@ -38,18 +31,13 @@ session = SessionLocal()
 print(session.query(models.Zoo).all())
 ```
 
+
 ### Running Tests
 
-To run the full test suite against PostgreSQL:
+Start the database and run the PostgreSQL tests:
 
 ```bash
-# set up environment and services
-./setup_env.sh
-cp .env.example .env
-docker compose down --volumes
-docker compose build --no-cache && docker compose up -d
-
-# execute tests
+docker compose up -d db
 pytest --pg
 ```
 
