@@ -24,8 +24,10 @@ def test_rate_limiter_hit_and_miss():
     limiter = RateLimiter(1, 60)
 
     async def run_checks():
-        assert await limiter.is_allowed("1.1.1.1")
-        assert not await limiter.is_allowed("1.1.1.1")
+        allowed, _, _ = await limiter.is_allowed("1.1.1.1")
+        assert allowed
+        allowed, _, _ = await limiter.is_allowed("1.1.1.1")
+        assert not allowed
 
     asyncio.run(run_checks())
 

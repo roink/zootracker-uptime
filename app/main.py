@@ -3,8 +3,13 @@
 import os
 import uuid
 import logging
+import smtplib
+from email.message import EmailMessage
 
-from fastapi import FastAPI, Depends, HTTPException, Request, status
+import bleach
+from dotenv import load_dotenv
+
+from fastapi import FastAPI, Depends, HTTPException, Request, status, BackgroundTasks
 from fastapi.responses import JSONResponse, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,7 +20,10 @@ from . import models, schemas
 from .database import get_db
 from .auth import get_current_user
 from .config import SECRET_KEY, ALGORITHM
-from .rate_limit import rate_limit
+from .rate_limit import rate_limit, enforce_contact_rate_limit
+
+# load environment variables from .env if present
+load_dotenv()
 
 # configure application logging
 LOG_FILE = os.getenv("LOG_FILE", "app.log")
@@ -28,6 +36,16 @@ logging.basicConfig(
 logger = logging.getLogger("zoo_tracker")
 
 app = FastAPI(title="Zoo Tracker API")
+
+
+@app.on_event("startup")
+def _check_env_vars() -> None:
+    """Fail fast if required environment variables are missing."""
+    required = ["SMTP_HOST", "CONTACT_EMAIL"]
+    missing = [var for var in required if not os.getenv(var)]
+    if missing:
+        missing_str = ", ".join(missing)
+        raise RuntimeError(f"Missing required environment variables: {missing_str}")
 
 # allow all CORS origins/methods/headers for the API
 app.add_middleware(
@@ -96,7 +114,11 @@ async def http_exception_handler_logged(request: Request, exc: HTTPException):
         user_id,
         exc.status_code,
     )
-    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+        headers=exc.headers,
+    )
 
 
 @app.get("/")
@@ -246,11 +268,80 @@ def delete_sighting(
 
 
 
-@app.post("/contact", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_json)])
-def send_contact(message: schemas.ContactMessage, request: Request) -> Response:
-    """Receive a contact message and log it for review."""
-    logger.info("Contact from %s: %s", message.email, message.message)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+def _send_contact_email(host, port, use_ssl, user, password, from_addr, to_addr, reply_to, name, msg_text):
+    """Send the contact email synchronously in a background task."""
+    email_msg = EmailMessage()
+    email_msg["Subject"] = f"Contact form – {name}"
+    email_msg["From"] = from_addr
+    email_msg["To"] = to_addr
+    email_msg["Reply-To"] = reply_to
+    email_msg.set_content(f"From: {name} <{reply_to}>\n\n{msg_text}")
+    try:
+        if use_ssl:
+            with smtplib.SMTP_SSL(host, port) as server:
+                if user and password:
+                    server.login(user, password)
+                server.send_message(email_msg)
+        else:
+            with smtplib.SMTP(host, port) as server:
+                server.starttls()
+                if user and password:
+                    server.login(user, password)
+                server.send_message(email_msg)
+    except Exception:
+        logger.exception("Failed to send contact email")
+
+
+@app.post(
+    "/contact",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_json), Depends(enforce_contact_rate_limit)],
+)
+def send_contact(message: schemas.ContactMessage, request: Request, background_tasks: BackgroundTasks) -> Response:
+    """Send a contact message via email and log the submission."""
+    name = bleach.clean(message.name, tags=[], strip=True)
+    msg_text = bleach.clean(message.message, tags=[], strip=True)
+    ip = (
+        request.headers.get("X-Forwarded-For", request.client.host or "unknown")
+        .split(",")[0]
+        .strip()
+    )
+    ua = request.headers.get("User-Agent", "unknown")
+    logger.info("Contact from %s <%s> ip=%s agent=%s: %s", name, message.email, ip, ua, msg_text)
+
+    host = os.getenv("SMTP_HOST")
+    port = int(os.getenv("SMTP_PORT", "587"))
+    use_ssl = os.getenv("SMTP_SSL", "").lower() in {"1", "true", "yes"}
+    user = os.getenv("SMTP_USER")
+    password = os.getenv("SMTP_PASSWORD")
+    from_addr = os.getenv("SMTP_FROM", "contact@zootracker.app")
+    to_addr = os.getenv("CONTACT_EMAIL", "contact@zootracker.app")
+    if not host or not to_addr:
+        logger.error("SMTP host or CONTACT_EMAIL missing")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Email service misconfigured",
+        )
+
+    background_tasks.add_task(
+        _send_contact_email,
+        host,
+        port,
+        use_ssl,
+        user,
+        password,
+        from_addr,
+        to_addr,
+        message.email,
+        name,
+        msg_text,
+    )
+
+    response = Response(status_code=status.HTTP_204_NO_CONTENT)
+    remaining = getattr(request.state, "rate_limit_remaining", None)
+    if remaining is not None:
+        response.headers["X-RateLimit-Remaining"] = str(remaining)
+    return response
 
 
 from .api import auth_router, users_router, zoos_router, animals_router
