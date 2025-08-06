@@ -30,6 +30,7 @@ os.environ["AUTH_RATE_LIMIT"] = "1000"
 os.environ["GENERAL_RATE_LIMIT"] = "10000"
 os.environ.setdefault("SMTP_HOST", "smtp.test")
 os.environ.setdefault("CONTACT_EMAIL", "contact@zootracker.app")
+os.environ.pop("SMTP_SSL", None)
 
 # ensure a fresh database for every test run when using sqlite
 if DATABASE_URL.startswith("sqlite") and os.path.exists("test.db"):
