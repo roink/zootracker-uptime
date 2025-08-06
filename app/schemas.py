@@ -176,7 +176,7 @@ class SearchResults(BaseModel):
 
 class ContactMessage(BaseModel):
     """Input for a contact form submission."""
-
+    name: constr(min_length=1, max_length=100, pattern=r"^[A-Za-z\s-]+$")
     email: EmailStr
     message: constr(min_length=1, max_length=2000)
 

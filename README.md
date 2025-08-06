@@ -103,6 +103,33 @@ Replace `192.168.1.29` with your computer's actual IP if it differs. Setting
 `VITE_API_URL` is only required when the backend runs on a different host or
 port.
 
+### Contact Form Email
+
+The `/contact` endpoint sends messages via SMTP using credentials from
+environment variables. Provide them in a `.env` file or your shell before
+starting the server:
+
+```
+SMTP_HOST=smtppro.zoho.com
+SMTP_PORT=465
+SMTP_SSL=true
+SMTP_USER=username
+SMTP_PASSWORD=password
+SMTP_FROM=contact@zootracker.app
+CONTACT_EMAIL=contact@zootracker.app
+CONTACT_RATE_LIMIT=5
+```
+
+Set `SMTP_SSL=true` when your provider requires an SSL connection (such as Zoho
+on port 465); otherwise the server will use STARTTLS.
+
+The visitor's address is included as the `Reply-To` header and the subject line
+uses their name (e.g. "Contact form – Alice"). `CONTACT_RATE_LIMIT` controls
+how many submissions are accepted per minute from a single IP. The server checks
+for `SMTP_HOST` and `CONTACT_EMAIL` at startup and will refuse to run if either
+is missing. Rate-limited responses include `X-RateLimit-Remaining` and
+`Retry-After` headers to aid debugging.
+
 ### Animals API
 
 `GET /animals` now returns detailed animal information including scientific
