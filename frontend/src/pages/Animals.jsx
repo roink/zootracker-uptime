@@ -13,13 +13,14 @@ export default function AnimalsPage({ token, userId }) {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('All');
   const [offset, setOffset] = useState(0);
-  const [hasMore, setHasMore] = useState(true);
+  const [hasMore, setHasMore] = useState(false);
   const authFetch = useAuthFetch(token);
   const limit = 20; // number of animals per page
 
   // Fetch a page of animals from the API
   const loadAnimals = (reset = false) => {
     const currentOffset = reset ? 0 : offset;
+    if (reset) setHasMore(false); // hide button until the first page loads
     fetch(`${API}/animals?limit=${limit}&offset=${currentOffset}&q=${encodeURIComponent(query)}`)
       .then((r) => r.json())
       .then((data) => {
@@ -68,7 +69,7 @@ export default function AnimalsPage({ token, userId }) {
             onChange={(e) => {
               setQuery(e.target.value);
               setOffset(0);
-              setHasMore(true);
+              setHasMore(false);
             }}
           />
         </div>
