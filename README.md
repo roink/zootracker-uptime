@@ -131,12 +131,11 @@ error.
 ### Importing data from a MySQL dump
 
 The utility ``app/import_mysql_data.py`` can populate the database from an
-existing MySQL dataset. Provide a SQLAlchemy connection string (for example
-``mysql+pymysql:///path/to/mysql.db``) either as a command line argument or via
-the ``MYSQL_URL`` environment variable:
+existing MySQL dataset. Pass the dump filename directly or set the ``MYSQL_URL``
+environment variable with a full SQLAlchemy connection string:
 
 ```bash
-python -m app.import_mysql_data mysql+pymysql:///path/to/mysql.db
+python -m app.import_mysql_data path/to/mysql.db
 ```
 
 The importer also works with SQLite databases which is helpful for local

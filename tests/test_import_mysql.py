@@ -1,15 +1,13 @@
-import uuid
 from pathlib import Path
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 from app import import_mysql_data
-from app.database import Base
 from app import models
 
 
-def _build_source_db(path: Path) -> str:
+def _build_source_db(path: Path) -> Path:
     engine = create_engine(f"sqlite:///{path}", future=True)
     with engine.begin() as conn:
         conn.execute(text(
@@ -97,18 +95,17 @@ def _build_source_db(path: Path) -> str:
         conn.execute(text(
             "INSERT INTO zoo_animal (zoo_id,animal_id) VALUES (1,2);"
         ))
-    return f"sqlite:///{path}"
+    return path
 
 
 def test_import_mysql(monkeypatch, tmp_path):
-    src_url = _build_source_db(tmp_path / "src.db")
+    src_path = _build_source_db(tmp_path / "src.db")
     target_url = f"sqlite:///{tmp_path}/target.db"
     target_engine = create_engine(target_url, future=True)
-    Base.metadata.create_all(target_engine)
     Session = sessionmaker(bind=target_engine)
     monkeypatch.setattr(import_mysql_data, "SessionLocal", Session)
 
-    import_mysql_data.main(src_url)
+    import_mysql_data.main(str(src_path))
 
     db = Session()
     try:

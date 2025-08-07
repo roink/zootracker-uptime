@@ -3,10 +3,10 @@ import os
 import uuid
 from typing import Dict
 
-from sqlalchemy import MetaData, Table, create_engine, select
+from sqlalchemy import MetaData, Table, create_engine, select, func, bindparam
 from sqlalchemy.orm import Session
 
-from .database import SessionLocal
+from .database import SessionLocal, Base
 from . import models
 
 
@@ -92,27 +92,39 @@ def _import_links(src: Session, dst: Session, link_table: Table, zoo_map: Dict[i
         if z_id and a_id:
             dst.add(models.ZooAnimal(zoo_id=z_id, animal_id=a_id))
     dst.commit()
-    # update counters
-    for z_id in zoo_map.values():
-        count = dst.query(models.ZooAnimal).filter_by(zoo_id=z_id).count()
-        dst.query(models.Zoo).filter_by(id=z_id).update({"animal_count": count})
-    for a_id in animal_map.values():
-        count = dst.query(models.ZooAnimal).filter_by(animal_id=a_id).count()
-        dst.query(models.Animal).filter_by(id=a_id).update({"zoo_count": count})
+    # recompute counters in bulk
+    zoo_counts = dst.execute(
+        select(models.ZooAnimal.zoo_id, func.count().label("cnt")).group_by(models.ZooAnimal.zoo_id)
+    ).all()
+    if zoo_counts:
+        dst.execute(
+            models.Zoo.__table__.update().where(models.Zoo.id == bindparam("z_id")),
+            [{"z_id": z_id, "animal_count": cnt} for z_id, cnt in zoo_counts],
+        )
+    animal_counts = dst.execute(
+        select(models.ZooAnimal.animal_id, func.count().label("cnt")).group_by(models.ZooAnimal.animal_id)
+    ).all()
+    if animal_counts:
+        dst.execute(
+            models.Animal.__table__.update().where(models.Animal.id == bindparam("a_id")),
+            [{"a_id": a_id, "zoo_count": cnt} for a_id, cnt in animal_counts],
+        )
     dst.commit()
 
 
-def main(source_url: str | None = None, batch_size: int = 100) -> None:
+def main(source: str | None = None, batch_size: int = 100) -> None:
     """Import data from a MySQL database into the application's database."""
-    if source_url is None:
-        source_url = os.getenv("MYSQL_URL")
-    if not source_url:
-        raise ValueError("A source database URL must be provided")
+    if source is None:
+        source = os.getenv("MYSQL_URL")
+    if not source:
+        raise ValueError("A source database filename must be provided")
 
+    source_url = source if "://" in source else f"sqlite:///{source}"
     src_engine = create_engine(source_url, future=True)
     src = Session(src_engine)
     dst = SessionLocal()
     try:
+        Base.metadata.create_all(bind=dst.get_bind())
         metadata = MetaData()
         animal_table = Table("animal", metadata, autoload_with=src_engine)
         zoo_table = Table("zoo", metadata, autoload_with=src_engine)
@@ -130,7 +142,7 @@ def main(source_url: str | None = None, batch_size: int = 100) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Import MySQL data")
-    parser.add_argument("source", nargs="?", default=None, help="MySQL database URL")
+    parser.add_argument("source", nargs="?", default=None, help="Path or URL to MySQL dump")
     parser.add_argument("--batch-size", type=int, default=100)
     args = parser.parse_args()
     main(args.source, args.batch_size)
