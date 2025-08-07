@@ -10,7 +10,7 @@ from .conftest import client
 
 def _dummy_smtp_factory(sent_messages):
     class DummySMTP:
-        def __init__(self, host, port):
+        def __init__(self, *args, **kwargs):
             pass
 
         def starttls(self):
@@ -39,6 +39,7 @@ def test_contact_sends_email_with_reply_to(monkeypatch):
     monkeypatch.setenv("SMTP_PASSWORD", "pass")
     monkeypatch.setenv("SMTP_FROM", "contact@zootracker.app")
     monkeypatch.setenv("CONTACT_EMAIL", "contact@zootracker.app")
+    monkeypatch.delenv("SMTP_SSL", raising=False)
     monkeypatch.setattr(smtplib, "SMTP", _dummy_smtp_factory(sent))
 
     resp = client.post(
@@ -58,6 +59,7 @@ def test_contact_strips_html(monkeypatch):
     monkeypatch.setenv("SMTP_PASSWORD", "pass")
     monkeypatch.setenv("SMTP_FROM", "contact@zootracker.app")
     monkeypatch.setenv("CONTACT_EMAIL", "contact@zootracker.app")
+    monkeypatch.delenv("SMTP_SSL", raising=False)
     monkeypatch.setattr(smtplib, "SMTP", _dummy_smtp_factory(sent))
 
     resp = client.post(
