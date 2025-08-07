@@ -1,6 +1,5 @@
 import uuid
-from datetime import date, datetime
-from .conftest import client, register_and_login, SessionLocal
+from .conftest import client, SessionLocal
 from app import models
 
 def test_get_animals_for_zoo(data):

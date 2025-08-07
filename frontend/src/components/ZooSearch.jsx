@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { API } from '../api';
 
 // Simple search component used by the legacy zoos page

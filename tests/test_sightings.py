@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, datetime, UTC
+from datetime import datetime, UTC
 from .conftest import client, register_and_login, SessionLocal
 from app import models
 

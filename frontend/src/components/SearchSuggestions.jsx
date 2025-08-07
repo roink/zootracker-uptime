@@ -1,4 +1,3 @@
-import React from 'react';
 
 // Dropdown list showing search suggestions below the header search field.
 // Buttons use `onPointerDown` so the selection fires before the input field

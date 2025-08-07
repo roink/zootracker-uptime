@@ -1,4 +1,3 @@
-import React from 'react';
 import Seo from '../components/Seo';
 
 // Impress page with basic legal information.

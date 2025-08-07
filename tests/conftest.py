@@ -1,6 +1,4 @@
 import os
-from datetime import date, datetime
-import uuid
 
 import pytest
 from fastapi.testclient import TestClient
