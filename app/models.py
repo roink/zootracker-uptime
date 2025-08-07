@@ -15,7 +15,6 @@ from sqlalchemy.dialects.postgresql import UUID
 import uuid
 from sqlalchemy.orm import relationship, validates
 from .database import engine
-from sqlalchemy import Text
 
 if engine.dialect.name == "sqlite":
     LocationType = Text

@@ -1,9 +1,6 @@
-import uuid
-from datetime import date, datetime
-from .conftest import client, register_and_login, SessionLocal, TEST_PASSWORD
+from .conftest import client, register_and_login, TEST_PASSWORD
 
 _counter = 0  # used to generate unique email addresses
-from app import models
 
 def test_create_user_and_authenticate():
     """Ensure that a new user can register and obtain a token."""

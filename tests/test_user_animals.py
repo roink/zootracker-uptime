@@ -1,7 +1,5 @@
-import uuid
-from datetime import date, datetime, UTC
-from .conftest import client, register_and_login, SessionLocal
-from app import models
+from datetime import datetime, UTC
+from .conftest import client, register_and_login
 
 def test_get_seen_animals_success(data):
     token, user_id = register_and_login()

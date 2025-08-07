@@ -1,4 +1,3 @@
-import React from 'react';
 import Seo from '../components/Seo';
 
 // Detailed data protection information for the application.
