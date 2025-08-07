@@ -128,6 +128,20 @@ When registering a new account the API enforces a minimum password length of
 eight characters. Submitting a shorter password will result in a 422 validation
 error.
 
+### Importing data from a MySQL dump
+
+The utility ``app/import_mysql_data.py`` can populate the database from an
+existing MySQL dataset. Provide a SQLAlchemy connection string (for example
+``mysql+pymysql:///path/to/mysql.db``) either as a command line argument or via
+the ``MYSQL_URL`` environment variable:
+
+```bash
+python -m app.import_mysql_data mysql+pymysql:///path/to/mysql.db
+```
+
+The importer also works with SQLite databases which is helpful for local
+testing.
+
 ## Production Security Notes
 
 The default connection string in `app/database.py` uses the credentials
