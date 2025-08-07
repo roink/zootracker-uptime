@@ -6,6 +6,8 @@ from collections import defaultdict, deque
 from fastapi import Request, status, HTTPException
 from fastapi.responses import JSONResponse
 
+from .utils.network import get_client_ip
+
 
 class RateLimiter:
     """Simple in-memory rate limiter for requests."""
@@ -46,11 +48,7 @@ contact_limiter = RateLimiter(CONTACT_RATE_LIMIT, RATE_PERIOD)
 
 async def rate_limit(request: Request, call_next):
     """Apply simple rate limiting per client IP, honoring proxy headers."""
-    ip = (
-        request.headers.get("X-Forwarded-For", request.client.host or "unknown")
-        .split(",")[0]
-        .strip()
-    )
+    ip = get_client_ip(request)
     path = request.url.path
     limiter = auth_limiter if path in {"/token", "/auth/login"} else general_limiter
     allowed, remaining, retry_after = await limiter.is_allowed(ip)
@@ -71,11 +69,7 @@ async def rate_limit(request: Request, call_next):
 
 async def enforce_contact_rate_limit(request: Request) -> None:
     """Limit contact form submissions per client IP."""
-    ip = (
-        request.headers.get("X-Forwarded-For", request.client.host or "unknown")
-        .split(",")[0]
-        .strip()
-    )
+    ip = get_client_ip(request)
     allowed, remaining, retry_after = await contact_limiter.is_allowed(ip)
     if not allowed:
         raise HTTPException(

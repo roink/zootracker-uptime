@@ -1,11 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import func
 import uuid
 
 from .. import schemas, models
 from ..database import get_db
-from ..utils.geometry import distance_km, distance_expr
+from ..utils.geometry import query_zoos_with_distance
 
 router = APIRouter()
 
@@ -129,56 +128,16 @@ def list_zoos_for_animal(
         .filter(models.ZooAnimal.animal_id == animal_id)
     )
 
-    if latitude is not None and longitude is not None:
-        if db.bind.dialect.name == "postgresql":
-            user_point = func.ST_SetSRID(func.ST_MakePoint(longitude, latitude), 4326)
-            distance = distance_expr(user_point)
-            rows = (
-                query.filter(models.Zoo.location != None)
-                .with_entities(models.Zoo, distance.label("distance_m"))
-                .order_by(distance)
-                .all()
-            )
-            return [
-                schemas.ZooDetail(
-                    id=z.id,
-                    name=z.name,
-                    address=z.address,
-                    latitude=float(z.latitude) if z.latitude is not None else None,
-                    longitude=float(z.longitude) if z.longitude is not None else None,
-                    description=z.description,
-                    distance_km=d / 1000 if d is not None else None,
-                )
-                for z, d in rows
-            ]
-        else:
-            zoos = query.all()
-            zoos_with_dist: list[schemas.ZooDetail] = []
-            for z in zoos:
-                if z.latitude is None or z.longitude is None:
-                    dist = None
-                else:
-                    dist = distance_km(
-                        float(latitude),
-                        float(longitude),
-                        float(z.latitude),
-                        float(z.longitude),
-                    )
-                zoos_with_dist.append(
-                    schemas.ZooDetail(
-                        id=z.id,
-                        name=z.name,
-                        address=z.address,
-                        latitude=float(z.latitude) if z.latitude is not None else None,
-                        longitude=float(z.longitude) if z.longitude is not None else None,
-                        description=z.description,
-                        distance_km=dist,
-                    )
-                )
-            zoos_with_dist.sort(
-                key=lambda z: z.distance_km if z.distance_km is not None else float("inf")
-            )
-            return zoos_with_dist
-
-    zoos = query.all()
-    return [schemas.ZooDetail.from_orm(z) for z in zoos]
+    results = query_zoos_with_distance(query, latitude, longitude)
+    return [
+        schemas.ZooDetail(
+            id=z.id,
+            name=z.name,
+            address=z.address,
+            latitude=float(z.latitude) if z.latitude is not None else None,
+            longitude=float(z.longitude) if z.longitude is not None else None,
+            description=z.description,
+            distance_km=dist,
+        )
+        for z, dist in results
+    ]

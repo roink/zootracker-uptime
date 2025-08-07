@@ -72,6 +72,12 @@ Replace `192.168.1.29` with your computer's actual IP if it differs. Setting
 `VITE_API_URL` is only required when the backend runs on a different host or
 port.
 
+### Authentication
+
+The `/token` and `/auth/login` endpoints now include the authenticated
+user's `user_id` in the JSON response along with the access token, allowing
+clients to identify the user without an additional lookup.
+
 ### Contact Form Email
 
 The `/contact` endpoint sends messages via SMTP using credentials from

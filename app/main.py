@@ -23,6 +23,7 @@ from .database import get_db
 from .auth import get_current_user
 from .config import SECRET_KEY, ALGORITHM
 from .rate_limit import rate_limit, enforce_contact_rate_limit
+from .utils.network import get_client_ip
 
 # load environment variables from .env if present
 load_dotenv()
@@ -305,11 +306,7 @@ def send_contact(message: schemas.ContactMessage, request: Request, background_t
     """Send a contact message via email and log the submission."""
     name = bleach.clean(message.name, tags=[], strip=True)
     msg_text = bleach.clean(message.message, tags=[], strip=True)
-    ip = (
-        request.headers.get("X-Forwarded-For", request.client.host or "unknown")
-        .split(",")[0]
-        .strip()
-    )
+    ip = get_client_ip(request)
     ua = request.headers.get("User-Agent", "unknown")
     logger.info("Contact from %s <%s> ip=%s agent=%s: %s", name, message.email, ip, ua, msg_text)
 
