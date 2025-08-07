@@ -5,6 +5,7 @@ import sys
 import uuid
 from datetime import datetime, date
 from pathlib import Path
+from functools import partial
 
 from sqlalchemy.orm import Session
 
@@ -18,123 +19,136 @@ def _uuid(val: str) -> uuid.UUID:
     return uuid.UUID(val)
 
 
-def load_categories(db: Session, path: Path):
-    with open(path / "categories.csv", newline="") as f:
+def load_csv(
+    db: Session,
+    path: Path,
+    file_name: str,
+    model_cls,
+    field_map: dict,
+    preprocess=None,
+):
+    """Generic CSV loader that maps fields and inserts model instances."""
+    with open(path / file_name, newline="") as f:
+        objs = []
         for row in csv.DictReader(f):
-            db.add(models.Category(id=_uuid(row["id"]), name=row["name"]))
+            data = {}
+            for model_field, spec in field_map.items():
+                if isinstance(spec, tuple):
+                    csv_field, conv = spec
+                else:
+                    csv_field, conv = model_field, spec
+                value = row[csv_field]
+                data[model_field] = conv(value) if conv else value
+            if preprocess:
+                data = preprocess(data)
+            objs.append(model_cls(**data))
+        db.add_all(objs)
     db.commit()
 
 
-def load_animals(db: Session, path: Path):
-    with open(path / "animals.csv", newline="") as f:
-        for row in csv.DictReader(f):
-            db.add(
-                models.Animal(
-                    id=_uuid(row["id"]),
-                    common_name=row["common_name"],
-                    category_id=_uuid(row["category_id"]),
-                )
-            )
-    db.commit()
+load_categories = partial(
+    load_csv,
+    file_name="categories.csv",
+    model_cls=models.Category,
+    field_map={"id": ("id", _uuid), "name": ("name", None)},
+)
 
+load_animals = partial(
+    load_csv,
+    file_name="animals.csv",
+    model_cls=models.Animal,
+    field_map={
+        "id": ("id", _uuid),
+        "common_name": ("common_name", None),
+        "category_id": ("category_id", _uuid),
+    },
+)
 
-def load_zoos(db: Session, path: Path):
-    with open(path / "zoos.csv", newline="") as f:
-        for row in csv.DictReader(f):
-            db.add(
-                models.Zoo(
-                    id=_uuid(row["id"]),
-                    name=row["name"],
-                    address=row["address"],
-                    latitude=float(row["latitude"]),
-                    longitude=float(row["longitude"]),
-                    description=row["description"],
-                )
-            )
-    db.commit()
+load_zoos = partial(
+    load_csv,
+    file_name="zoos.csv",
+    model_cls=models.Zoo,
+    field_map={
+        "id": ("id", _uuid),
+        "name": ("name", None),
+        "address": ("address", None),
+        "latitude": ("latitude", float),
+        "longitude": ("longitude", float),
+        "description": ("description", None),
+    },
+)
 
+load_users = partial(
+    load_csv,
+    file_name="users.csv",
+    model_cls=models.User,
+    field_map={
+        "id": ("id", _uuid),
+        "name": ("name", None),
+        "email": ("email", None),
+        "password_hash": ("password", hash_password),
+    },
+)
 
-def load_users(db: Session, path: Path):
-    with open(path / "users.csv", newline="") as f:
-        for row in csv.DictReader(f):
-            hashed = hash_password(row["password"])
-            db.add(
-                models.User(
-                    id=_uuid(row["id"]),
-                    name=row["name"],
-                    email=row["email"],
-                    password_hash=hashed,
-                )
-            )
-    db.commit()
+load_achievements = partial(
+    load_csv,
+    file_name="achievements.csv",
+    model_cls=models.Achievement,
+    field_map={
+        "id": ("id", _uuid),
+        "name": ("name", None),
+        "description": ("description", None),
+    },
+)
 
+load_user_achievements = partial(
+    load_csv,
+    file_name="user_achievements.csv",
+    model_cls=models.UserAchievement,
+    field_map={
+        "id": ("id", _uuid),
+        "user_id": ("user_id", _uuid),
+        "achievement_id": ("achievement_id", _uuid),
+    },
+)
 
-def load_achievements(db: Session, path: Path):
-    with open(path / "achievements.csv", newline="") as f:
-        for row in csv.DictReader(f):
-            db.add(
-                models.Achievement(
-                    id=_uuid(row["id"]),
-                    name=row["name"],
-                    description=row.get("description"),
-                )
-            )
-    db.commit()
+load_zoo_animals = partial(
+    load_csv,
+    file_name="zoo_animals.csv",
+    model_cls=models.ZooAnimal,
+    field_map={
+        "zoo_id": ("zoo_id", _uuid),
+        "animal_id": ("animal_id", _uuid),
+    },
+)
 
+load_zoo_visits = partial(
+    load_csv,
+    file_name="zoo_visits.csv",
+    model_cls=models.ZooVisit,
+    field_map={
+        "id": ("id", _uuid),
+        "user_id": ("user_id", _uuid),
+        "zoo_id": ("zoo_id", _uuid),
+        "visit_date": ("visit_date", lambda v: date.fromisoformat(v)),
+    },
+)
 
-def load_user_achievements(db: Session, path: Path):
-    with open(path / "user_achievements.csv", newline="") as f:
-        for row in csv.DictReader(f):
-            db.add(
-                models.UserAchievement(
-                    id=_uuid(row["id"]),
-                    user_id=_uuid(row["user_id"]),
-                    achievement_id=_uuid(row["achievement_id"]),
-                )
-            )
-    db.commit()
-
-
-def load_zoo_animals(db: Session, path: Path):
-    with open(path / "zoo_animals.csv", newline="") as f:
-        for row in csv.DictReader(f):
-            db.add(
-                models.ZooAnimal(
-                    zoo_id=_uuid(row["zoo_id"]),
-                    animal_id=_uuid(row["animal_id"]),
-                )
-            )
-    db.commit()
-
-
-def load_zoo_visits(db: Session, path: Path):
-    with open(path / "zoo_visits.csv", newline="") as f:
-        for row in csv.DictReader(f):
-            db.add(
-                models.ZooVisit(
-                    id=_uuid(row["id"]),
-                    user_id=_uuid(row["user_id"]),
-                    zoo_id=_uuid(row["zoo_id"]),
-                    visit_date=date.fromisoformat(row["visit_date"]),
-                )
-            )
-    db.commit()
-
-
-def load_animal_sightings(db: Session, path: Path):
-    with open(path / "animal_sightings.csv", newline="") as f:
-        for row in csv.DictReader(f):
-            db.add(
-                models.AnimalSighting(
-                    id=_uuid(row["id"]),
-                    user_id=_uuid(row["user_id"]),
-                    zoo_id=_uuid(row["zoo_id"]),
-                    animal_id=_uuid(row["animal_id"]),
-                    sighting_datetime=datetime.fromisoformat(row["sighting_datetime"]),
-                )
-            )
-    db.commit()
-
+load_animal_sightings = partial(
+    load_csv,
+    file_name="animal_sightings.csv",
+    model_cls=models.AnimalSighting,
+    field_map={
+        "id": ("id", _uuid),
+        "user_id": ("user_id", _uuid),
+        "zoo_id": ("zoo_id", _uuid),
+        "animal_id": ("animal_id", _uuid),
+        "sighting_datetime": (
+            "sighting_datetime",
+            lambda v: datetime.fromisoformat(v),
+        ),
+    },
+)
 
 LOAD_ORDER = [
     load_categories,
@@ -154,8 +168,8 @@ def main(data_path: str = "example_data"):
     create_tables()
     db = SessionLocal()
     try:
-        for func in LOAD_ORDER:
-            func(db, path)
+        for loader in LOAD_ORDER:
+            loader(db, path)
     finally:
         db.close()
 

@@ -125,6 +125,7 @@ def test_login_alias_route():
     assert resp.status_code == 200
     data = resp.json()
     assert "access_token" in data
+    assert "user_id" in data
     # ensure password hashes are not returned
     assert "password_hash" not in data
     assert "password_salt" not in data
@@ -146,6 +147,7 @@ def test_token_response_excludes_password_fields():
     )
     assert resp.status_code == 200
     data = resp.json()
+    assert "user_id" in data
     assert "password_hash" not in data
     assert "password_salt" not in data
 
