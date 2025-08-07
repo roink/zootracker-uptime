@@ -22,8 +22,17 @@ CREATE TABLE zoos (
   latitude        DECIMAL(9,6),
   longitude       DECIMAL(9,6),
   location        GEOGRAPHY(POINT, 4326),
+  country         TEXT,
+  city            TEXT,
+  continent       TEXT,
+  official_website TEXT,
+  wikipedia_de    TEXT,
+  wikipedia_en    TEXT,
+  description_de  TEXT,
+  description_en  TEXT,
   description     TEXT,
   image_url       VARCHAR(512),
+  animal_count    INTEGER NOT NULL DEFAULT 0 CHECK (animal_count >= 0),
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -42,6 +51,16 @@ CREATE TABLE animals (
   scientific_name    VARCHAR(255),
   category_id        UUID       NOT NULL REFERENCES categories(id),
   description        TEXT,
+  description_de     TEXT,
+  description_en     TEXT,
+  conservation_state TEXT,
+  name_fallback      TEXT,
+  name_en            TEXT,
+  name_de            TEXT,
+  klasse             INTEGER,
+  ordnung            INTEGER,
+  familie            INTEGER,
+  zoo_count          INTEGER NOT NULL DEFAULT 0 CHECK (zoo_count >= 0),
   default_image_url  VARCHAR(512),
   created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at         TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -53,7 +72,8 @@ CREATE TABLE zoo_animals (
   animal_id  UUID NOT NULL REFERENCES animals(id) ON DELETE CASCADE,
   PRIMARY KEY (zoo_id, animal_id)
 );
--- Index to support list_zoos_for_animal queries
+-- Indexes to support join-table lookups
+CREATE INDEX IF NOT EXISTS idx_zoo_animals_zoo_id ON zoo_animals(zoo_id);
 CREATE INDEX IF NOT EXISTS idx_zoo_animals_animal_id ON zoo_animals(animal_id);
 
 -- 6. Zoo Visits
