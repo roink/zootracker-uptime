@@ -1,5 +1,4 @@
 import argparse
-import os
 import uuid
 from typing import Dict
 
@@ -112,14 +111,9 @@ def _import_links(src: Session, dst: Session, link_table: Table, zoo_map: Dict[i
     dst.commit()
 
 
-def main(source: str | None = None, batch_size: int = 100) -> None:
-    """Import data from a MySQL database into the application's database."""
-    if source is None:
-        source = os.getenv("MYSQL_URL")
-    if not source:
-        raise ValueError("A source database filename must be provided")
-
-    source_url = source if "://" in source else f"sqlite:///{source}"
+def main(source: str) -> None:
+    """Import data from a SQLite database file into the application's database."""
+    source_url = f"sqlite:///{source}"
     src_engine = create_engine(source_url, future=True)
     src = Session(src_engine)
     dst = SessionLocal()
@@ -141,8 +135,7 @@ def main(source: str | None = None, batch_size: int = 100) -> None:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Import MySQL data")
-    parser.add_argument("source", nargs="?", default=None, help="Path or URL to MySQL dump")
-    parser.add_argument("--batch-size", type=int, default=100)
+    parser = argparse.ArgumentParser(description="Import data from a SQLite dump")
+    parser.add_argument("source", help="Path to source SQLite database")
     args = parser.parse_args()
-    main(args.source, args.batch_size)
+    main(args.source)

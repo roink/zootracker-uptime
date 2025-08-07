@@ -3,7 +3,7 @@ from pathlib import Path
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
-from app import import_mysql_data
+from app import import_sqlite_data
 from app import models
 
 
@@ -98,14 +98,14 @@ def _build_source_db(path: Path) -> Path:
     return path
 
 
-def test_import_mysql(monkeypatch, tmp_path):
+def test_import_sqlite(monkeypatch, tmp_path):
     src_path = _build_source_db(tmp_path / "src.db")
     target_url = f"sqlite:///{tmp_path}/target.db"
     target_engine = create_engine(target_url, future=True)
     Session = sessionmaker(bind=target_engine)
-    monkeypatch.setattr(import_mysql_data, "SessionLocal", Session)
+    monkeypatch.setattr(import_sqlite_data, "SessionLocal", Session)
 
-    import_mysql_data.main(str(src_path))
+    import_sqlite_data.main(str(src_path))
 
     db = Session()
     try:
