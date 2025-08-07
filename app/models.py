@@ -8,7 +8,10 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     DECIMAL,
+    Integer,
     UniqueConstraint,
+    CheckConstraint,
+    Computed,
     text,
 )
 from sqlalchemy.dialects.postgresql import UUID
@@ -62,6 +65,7 @@ class Zoo(Base):
     """A zoo location that can be visited."""
 
     __tablename__ = "zoos"
+    __table_args__ = (CheckConstraint("animal_count >= 0"),)
 
     id = Column(
         UUID(as_uuid=True),
@@ -76,8 +80,29 @@ class Zoo(Base):
     # Keep the default `spatial_index=True` so GeoAlchemy2 creates a GiST
     # index automatically.
     location = Column(LocationType)
+    country = Column(Text)
+    city = Column(Text)
+    continent = Column(Text)
+    official_website = Column(Text)
+    wikipedia_de = Column(Text)
+    wikipedia_en = Column(Text)
+    description_de = Column(Text)
+    description_en = Column(Text)
     description = Column(Text)
     image_url = Column(String(512))
+    if engine.dialect.name == "postgresql":
+        animal_count = Column(
+            Integer,
+            Computed(
+                "(SELECT COUNT(*) FROM zoo_animals za WHERE za.zoo_id = id)",
+                persisted=True,
+            ),
+            nullable=False,
+        )
+    else:
+        animal_count = Column(
+            Integer, nullable=False, default=0, server_default="0"
+        )
     created_at = Column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -133,6 +158,7 @@ class Animal(Base):
     """An animal that can belong to a category and appear in zoos."""
 
     __tablename__ = "animals"
+    __table_args__ = (CheckConstraint("zoo_count >= 0"),)
 
     id = Column(
         UUID(as_uuid=True),
@@ -146,6 +172,28 @@ class Animal(Base):
         UUID(as_uuid=True), ForeignKey("categories.id"), nullable=False
     )
     description = Column(Text)
+    description_de = Column(Text)
+    description_en = Column(Text)
+    conservation_state = Column(Text)
+    name_fallback = Column(Text)
+    name_en = Column(Text)
+    name_de = Column(Text)
+    klasse = Column(Integer)
+    ordnung = Column(Integer)
+    familie = Column(Integer)
+    if engine.dialect.name == "postgresql":
+        zoo_count = Column(
+            Integer,
+            Computed(
+                "(SELECT COUNT(*) FROM zoo_animals za WHERE za.animal_id = id)",
+                persisted=True,
+            ),
+            nullable=False,
+        )
+    else:
+        zoo_count = Column(
+            Integer, nullable=False, default=0, server_default="0"
+        )
     default_image_url = Column(String(512))
     created_at = Column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

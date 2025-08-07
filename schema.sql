@@ -22,8 +22,19 @@ CREATE TABLE zoos (
   latitude        DECIMAL(9,6),
   longitude       DECIMAL(9,6),
   location        GEOGRAPHY(POINT, 4326),
+  country         TEXT,
+  city            TEXT,
+  continent       TEXT,
+  official_website TEXT,
+  wikipedia_de    TEXT,
+  wikipedia_en    TEXT,
+  description_de  TEXT,
+  description_en  TEXT,
   description     TEXT,
   image_url       VARCHAR(512),
+  animal_count    INTEGER GENERATED ALWAYS AS (
+    (SELECT COUNT(*) FROM zoo_animals za WHERE za.zoo_id = id)
+  ) STORED CHECK (animal_count >= 0),
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -42,6 +53,18 @@ CREATE TABLE animals (
   scientific_name    VARCHAR(255),
   category_id        UUID       NOT NULL REFERENCES categories(id),
   description        TEXT,
+  description_de     TEXT,
+  description_en     TEXT,
+  conservation_state TEXT,
+  name_fallback      TEXT,
+  name_en            TEXT,
+  name_de            TEXT,
+  klasse             INTEGER,
+  ordnung            INTEGER,
+  familie            INTEGER,
+  zoo_count          INTEGER GENERATED ALWAYS AS (
+    (SELECT COUNT(*) FROM zoo_animals za WHERE za.animal_id = id)
+  ) STORED CHECK (zoo_count >= 0),
   default_image_url  VARCHAR(512),
   created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at         TIMESTAMPTZ NOT NULL DEFAULT now()
