@@ -83,9 +83,11 @@ def _build_source_db(path: Path) -> Path:
         conn.execute(text(
             "INSERT INTO animal (klasse, ordnung, familie, art, latin_name, english_label, german_label) VALUES (2,1,1,'Eagle','Aquila chrysaetos','Eagle','Adler');"
         ))
-        conn.execute(text(
-            "INSERT INTO zoo (continent,country,city,name,label_en,label_de) VALUES ('Europe','Germany','Berlin','Berlin Zoo','Berlin Zoo','Berliner Zoo');"
-        ))
+        conn.execute(
+            text(
+                "INSERT INTO zoo (continent,country,city,name,default_label,label_en,label_de) VALUES ('Europe','Germany','Berlin','Berlin Zoo','Zoo Berlin','Berlin Zoo','Berliner Zoo');"
+            )
+        )
         conn.execute(text(
             "INSERT INTO zoo_openAI_descriptions (zoo_id,latitude,longitude,official_website,description_en,description_de) VALUES (1,52.5,13.4,'http://example.org','Nice zoo','Schöner Zoo');"
         ))
@@ -115,8 +117,16 @@ def test_import_sqlite(monkeypatch, tmp_path):
         assert [c.name for c in categories] == ["Klasse 1", "Klasse 2"]
         zoo = db.query(models.Zoo).first()
         assert zoo.animal_count == 2
+        assert zoo.name == "Berlin Zoo"
+        assert zoo.label_en == "Berlin Zoo"
+        assert zoo.label_de == "Berliner Zoo"
+        assert zoo.default_label == "Zoo Berlin"
         lion = db.query(models.Animal).filter_by(scientific_name="Panthera leo").one()
         assert lion.common_name == "Lion"
+        assert lion.art == "Lion"
+        assert lion.english_label == "Lion"
+        assert lion.german_label == "Löwe"
+        assert lion.latin_name == "Panthera leo"
         assert lion.zoo_count == 1
     finally:
         db.close()

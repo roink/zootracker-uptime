@@ -39,6 +39,10 @@ def _import_animals(src: Session, dst: Session, animal_table: Table, cat_map: Di
             scientific_name=row.get("latin_name"),
             name_en=row.get("english_label"),
             name_de=row.get("german_label"),
+            art=row.get("art"),
+            english_label=row.get("english_label"),
+            german_label=row.get("german_label"),
+            latin_name=row.get("latin_name"),
             klasse=row.get("klasse"),
             ordnung=row.get("ordnung"),
             familie=row.get("familie"),
@@ -61,10 +65,13 @@ def _import_zoos(src: Session, dst: Session, zoo_table: Table, desc_table: Table
     rows = src.execute(select(zoo_table)).mappings()
     for row in rows:
         desc = descs.get(row["zoo_id"], {})
-        name = row.get("label_en") or row.get("label_de") or row.get("name")
+        name = row.get("name") or row.get("label_en") or row.get("label_de")
         zoo = models.Zoo(
             id=uuid.uuid4(),
             name=name,
+            default_label=row.get("default_label"),
+            label_en=row.get("label_en"),
+            label_de=row.get("label_de"),
             country=row.get("country"),
             city=row.get("city"),
             continent=row.get("continent"),
