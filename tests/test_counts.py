@@ -1,9 +1,7 @@
-import pytest
 from app.database import SessionLocal
 from app import models
 
 
-@pytest.mark.postgres
 def test_zoo_animal_counts_update(data):
     """Zoo and animal counters should update when links change."""
     db = SessionLocal()

@@ -3,7 +3,7 @@ from sqlalchemy.engine import Engine
 
 
 def create_triggers(engine: Engine) -> None:
-    """Create database triggers to keep zoo visits in sync with sightings."""
+    """Create database triggers to sync visits and maintain count columns."""
     if engine.dialect.name == "postgresql":
         with engine.begin() as conn:
             conn.execute(text("CREATE EXTENSION IF NOT EXISTS pgcrypto"))
@@ -24,6 +24,12 @@ def create_triggers(engine: Engine) -> None:
                 CREATE INDEX IF NOT EXISTS ix_sightings_user_zoo_date
                   ON animal_sightings (user_id, zoo_id, date(sighting_datetime));
                 """
+            )
+            conn.exec_driver_sql(
+                "CREATE INDEX IF NOT EXISTS idx_zoo_animals_zoo_id ON zoo_animals(zoo_id);"
+            )
+            conn.exec_driver_sql(
+                "CREATE INDEX IF NOT EXISTS idx_zoo_animals_animal_id ON zoo_animals(animal_id);"
             )
         stmts = [
             """
@@ -62,6 +68,40 @@ def create_triggers(engine: Engine) -> None:
                   );
             END;
             """,
+            """
+            CREATE TRIGGER IF NOT EXISTS zoo_animals_insert
+            AFTER INSERT ON zoo_animals
+            BEGIN
+                UPDATE animals SET zoo_count = (SELECT COUNT(*) FROM zoo_animals WHERE animal_id = NEW.animal_id)
+                WHERE id = NEW.animal_id;
+                UPDATE zoos SET animal_count = (SELECT COUNT(*) FROM zoo_animals WHERE zoo_id = NEW.zoo_id)
+                WHERE id = NEW.zoo_id;
+            END;
+            """,
+            """
+            CREATE TRIGGER IF NOT EXISTS zoo_animals_delete
+            AFTER DELETE ON zoo_animals
+            BEGIN
+                UPDATE animals SET zoo_count = (SELECT COUNT(*) FROM zoo_animals WHERE animal_id = OLD.animal_id)
+                WHERE id = OLD.animal_id;
+                UPDATE zoos SET animal_count = (SELECT COUNT(*) FROM zoo_animals WHERE zoo_id = OLD.zoo_id)
+                WHERE id = OLD.zoo_id;
+            END;
+            """,
+            """
+            CREATE TRIGGER IF NOT EXISTS zoo_animals_update
+            AFTER UPDATE ON zoo_animals
+            BEGIN
+                UPDATE animals SET zoo_count = (SELECT COUNT(*) FROM zoo_animals WHERE animal_id = OLD.animal_id)
+                WHERE id = OLD.animal_id;
+                UPDATE animals SET zoo_count = (SELECT COUNT(*) FROM zoo_animals WHERE animal_id = NEW.animal_id)
+                WHERE id = NEW.animal_id;
+                UPDATE zoos SET animal_count = (SELECT COUNT(*) FROM zoo_animals WHERE zoo_id = OLD.zoo_id)
+                WHERE id = OLD.zoo_id;
+                UPDATE zoos SET animal_count = (SELECT COUNT(*) FROM zoo_animals WHERE zoo_id = NEW.zoo_id)
+                WHERE id = NEW.zoo_id;
+            END;
+            """,
         ]
         with engine.begin() as conn:
             for stmt in stmts:
@@ -74,6 +114,16 @@ def create_triggers(engine: Engine) -> None:
                     CREATE INDEX IF NOT EXISTS ix_sightings_user_zoo_date
                       ON animal_sightings (user_id, zoo_id, sighting_date(sighting_datetime));
                     """
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS idx_zoo_animals_zoo_id ON zoo_animals(zoo_id);"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS idx_zoo_animals_animal_id ON zoo_animals(animal_id);"
                 )
             )
         stmts = [
@@ -124,6 +174,42 @@ def create_triggers(engine: Engine) -> None:
             CREATE TRIGGER sync_zoo_visits_trigger
             AFTER INSERT OR UPDATE OR DELETE ON animal_sightings
             FOR EACH ROW EXECUTE FUNCTION sync_zoo_visits();
+            """,
+            """
+            CREATE OR REPLACE FUNCTION update_zoo_animal_counts()
+            RETURNS TRIGGER AS $$
+            BEGIN
+                IF TG_OP = 'INSERT' THEN
+                    UPDATE animals SET zoo_count = (SELECT COUNT(*) FROM zoo_animals WHERE animal_id = NEW.animal_id)
+                    WHERE id = NEW.animal_id;
+                    UPDATE zoos SET animal_count = (SELECT COUNT(*) FROM zoo_animals WHERE zoo_id = NEW.zoo_id)
+                    WHERE id = NEW.zoo_id;
+                    RETURN NEW;
+                ELSIF TG_OP = 'DELETE' THEN
+                    UPDATE animals SET zoo_count = (SELECT COUNT(*) FROM zoo_animals WHERE animal_id = OLD.animal_id)
+                    WHERE id = OLD.animal_id;
+                    UPDATE zoos SET animal_count = (SELECT COUNT(*) FROM zoo_animals WHERE zoo_id = OLD.zoo_id)
+                    WHERE id = OLD.zoo_id;
+                    RETURN OLD;
+                ELSE
+                    IF NEW.animal_id <> OLD.animal_id THEN
+                        UPDATE animals SET zoo_count = (SELECT COUNT(*) FROM zoo_animals WHERE animal_id = OLD.animal_id) WHERE id = OLD.animal_id;
+                        UPDATE animals SET zoo_count = (SELECT COUNT(*) FROM zoo_animals WHERE animal_id = NEW.animal_id) WHERE id = NEW.animal_id;
+                    END IF;
+                    IF NEW.zoo_id <> OLD.zoo_id THEN
+                        UPDATE zoos SET animal_count = (SELECT COUNT(*) FROM zoo_animals WHERE zoo_id = OLD.zoo_id) WHERE id = OLD.zoo_id;
+                        UPDATE zoos SET animal_count = (SELECT COUNT(*) FROM zoo_animals WHERE zoo_id = NEW.zoo_id) WHERE id = NEW.zoo_id;
+                    END IF;
+                    RETURN NEW;
+                END IF;
+            END;
+            $$ LANGUAGE plpgsql;
+            """,
+            "DROP TRIGGER IF EXISTS zoo_animals_count_trigger ON zoo_animals;",
+            """
+            CREATE TRIGGER zoo_animals_count_trigger
+            AFTER INSERT OR UPDATE OR DELETE ON zoo_animals
+            FOR EACH ROW EXECUTE FUNCTION update_zoo_animal_counts();
             """,
         ]
         with engine.begin() as conn:

@@ -11,7 +11,6 @@ from sqlalchemy import (
     Integer,
     UniqueConstraint,
     CheckConstraint,
-    Computed,
     text,
 )
 from sqlalchemy.dialects.postgresql import UUID
@@ -90,19 +89,7 @@ class Zoo(Base):
     description_en = Column(Text)
     description = Column(Text)
     image_url = Column(String(512))
-    if engine.dialect.name == "postgresql":
-        animal_count = Column(
-            Integer,
-            Computed(
-                "(SELECT COUNT(*) FROM zoo_animals za WHERE za.zoo_id = id)",
-                persisted=True,
-            ),
-            nullable=False,
-        )
-    else:
-        animal_count = Column(
-            Integer, nullable=False, default=0, server_default="0"
-        )
+    animal_count = Column(Integer, nullable=False, default=0, server_default="0")
     created_at = Column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -181,19 +168,7 @@ class Animal(Base):
     klasse = Column(Integer)
     ordnung = Column(Integer)
     familie = Column(Integer)
-    if engine.dialect.name == "postgresql":
-        zoo_count = Column(
-            Integer,
-            Computed(
-                "(SELECT COUNT(*) FROM zoo_animals za WHERE za.animal_id = id)",
-                persisted=True,
-            ),
-            nullable=False,
-        )
-    else:
-        zoo_count = Column(
-            Integer, nullable=False, default=0, server_default="0"
-        )
+    zoo_count = Column(Integer, nullable=False, default=0, server_default="0")
     default_image_url = Column(String(512))
     created_at = Column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

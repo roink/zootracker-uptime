@@ -32,9 +32,7 @@ CREATE TABLE zoos (
   description_en  TEXT,
   description     TEXT,
   image_url       VARCHAR(512),
-  animal_count    INTEGER GENERATED ALWAYS AS (
-    (SELECT COUNT(*) FROM zoo_animals za WHERE za.zoo_id = id)
-  ) STORED CHECK (animal_count >= 0),
+  animal_count    INTEGER NOT NULL DEFAULT 0 CHECK (animal_count >= 0),
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -62,9 +60,7 @@ CREATE TABLE animals (
   klasse             INTEGER,
   ordnung            INTEGER,
   familie            INTEGER,
-  zoo_count          INTEGER GENERATED ALWAYS AS (
-    (SELECT COUNT(*) FROM zoo_animals za WHERE za.animal_id = id)
-  ) STORED CHECK (zoo_count >= 0),
+  zoo_count          INTEGER NOT NULL DEFAULT 0 CHECK (zoo_count >= 0),
   default_image_url  VARCHAR(512),
   created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at         TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -76,7 +72,8 @@ CREATE TABLE zoo_animals (
   animal_id  UUID NOT NULL REFERENCES animals(id) ON DELETE CASCADE,
   PRIMARY KEY (zoo_id, animal_id)
 );
--- Index to support list_zoos_for_animal queries
+-- Indexes to support join-table lookups
+CREATE INDEX IF NOT EXISTS idx_zoo_animals_zoo_id ON zoo_animals(zoo_id);
 CREATE INDEX IF NOT EXISTS idx_zoo_animals_animal_id ON zoo_animals(animal_id);
 
 -- 6. Zoo Visits
