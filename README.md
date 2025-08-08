@@ -128,6 +128,15 @@ When registering a new account the API enforces a minimum password length of
 eight characters. Submitting a shorter password will result in a 422 validation
 error.
 
+### Importing data from a SQLite dump
+
+The utility ``app/import_sqlite_data.py`` can populate the database from an
+existing SQLite dataset. Pass the dump filename directly:
+
+```bash
+python -m app.import_sqlite_data path/to/data.db
+```
+
 ## Production Security Notes
 
 The default connection string in `app/database.py` uses the credentials
