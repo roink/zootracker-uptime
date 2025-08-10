@@ -18,22 +18,30 @@ export default function AnimalDetailPage({ token, userId, refresh, onLogged }) {
   const [modalData, setModalData] = useState(null);
 
   useEffect(() => {
-    fetch(`${API}/animals/${id}`)
-      .then((r) => r.json())
-      .then(setAnimal)
-      .catch(() => setAnimal(null));
-  }, [id]);
-
-  useEffect(() => {
     const params = [];
     if (location) {
       params.push(`latitude=${location.lat}`);
       params.push(`longitude=${location.lon}`);
     }
-    fetch(`${API}/animals/${id}/zoos${params.length ? `?${params.join('&')}` : ''}`)
-      .then((r) => r.json())
-      .then(setZoos)
-      .catch(() => setZoos([]));
+    const controller = new AbortController();
+    // fetch animal details and associated zoos (with distance when available)
+    fetch(
+      `${API}/animals/${id}${params.length ? `?${params.join('&')}` : ''}`,
+      { signal: controller.signal }
+    )
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((data) => {
+        setAnimal(data);
+        setZoos(data.zoos || []);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setAnimal(null);
+          setZoos([]);
+        }
+      });
+
+    return () => controller.abort();
   }, [id, location]);
 
   const loadSightings = () => {
@@ -53,7 +61,8 @@ export default function AnimalDetailPage({ token, userId, refresh, onLogged }) {
       navigator.geolocation.getCurrentPosition(
         (pos) =>
           setLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
-        () => {}
+        () => setLocation(null),
+        { enableHighAccuracy: false, timeout: 3000, maximumAge: 600000 }
       );
     }
   }, []);

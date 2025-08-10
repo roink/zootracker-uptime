@@ -1,10 +1,23 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, load_only
 import uuid
 
 from .. import schemas, models
 from ..database import get_db
 from ..utils.geometry import query_zoos_with_distance
+from ._validation import validate_coords
+
+
+def to_zoodetail(z: models.Zoo, dist: float | None) -> schemas.ZooDetail:
+    return schemas.ZooDetail(
+        id=z.id,
+        name=z.name,
+        address=z.address,
+        latitude=float(z.latitude) if z.latitude is not None else None,
+        longitude=float(z.longitude) if z.longitude is not None else None,
+        description=z.description,
+        distance_km=dist,
+    )
 
 router = APIRouter()
 
@@ -79,18 +92,43 @@ def combined_search(q: str = "", limit: int = 5, db: Session = Depends(get_db)):
     return {"zoos": zoos, "animals": animals}
 
 @router.get("/animals/{animal_id}", response_model=schemas.AnimalDetail)
-def get_animal_detail(animal_id: uuid.UUID, db: Session = Depends(get_db)):
-    """Retrieve a single animal and the zoos where it can be found."""
+def get_animal_detail(
+    animal_id: uuid.UUID,
+    latitude: float | None = None,
+    longitude: float | None = None,
+    db: Session = Depends(get_db),
+):
+    """Retrieve a single animal and the zoos where it can be found.
+
+    When ``latitude`` and ``longitude`` are supplied the zoos are ordered by
+    distance and include a ``distance_km`` field so the frontend only needs a
+    single request.
+    """
     animal = db.get(models.Animal, animal_id)
     if animal is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Animal not found")
 
-    zoos = (
+    validate_coords(latitude, longitude)
+
+    query = (
         db.query(models.Zoo)
+        .options(
+            load_only(
+                models.Zoo.id,
+                models.Zoo.name,
+                models.Zoo.address,
+                models.Zoo.latitude,
+                models.Zoo.longitude,
+                models.Zoo.description,
+            )
+        )
         .join(models.ZooAnimal, models.Zoo.id == models.ZooAnimal.zoo_id)
         .filter(models.ZooAnimal.animal_id == animal_id)
-        .all()
     )
+
+    results = query_zoos_with_distance(query, latitude, longitude, include_no_coords=True)
+
+    zoos = [to_zoodetail(z, dist) for z, dist in results]
 
     return schemas.AnimalDetail(
         id=animal.id,
@@ -117,27 +155,23 @@ def list_zoos_for_animal(
     if animal is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Animal not found")
 
-    if latitude is not None and not -90 <= latitude <= 90:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid latitude")
-    if longitude is not None and not -180 <= longitude <= 180:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid longitude")
+    validate_coords(latitude, longitude)
 
     query = (
         db.query(models.Zoo)
+        .options(
+            load_only(
+                models.Zoo.id,
+                models.Zoo.name,
+                models.Zoo.address,
+                models.Zoo.latitude,
+                models.Zoo.longitude,
+                models.Zoo.description,
+            )
+        )
         .join(models.ZooAnimal, models.Zoo.id == models.ZooAnimal.zoo_id)
         .filter(models.ZooAnimal.animal_id == animal_id)
     )
 
-    results = query_zoos_with_distance(query, latitude, longitude)
-    return [
-        schemas.ZooDetail(
-            id=z.id,
-            name=z.name,
-            address=z.address,
-            latitude=float(z.latitude) if z.latitude is not None else None,
-            longitude=float(z.longitude) if z.longitude is not None else None,
-            description=z.description,
-            distance_km=dist,
-        )
-        for z, dist in results
-    ]
+    results = query_zoos_with_distance(query, latitude, longitude, include_no_coords=True)
+    return [to_zoodetail(z, dist) for z, dist in results]

@@ -11,6 +11,7 @@ from sqlalchemy import (
     Integer,
     UniqueConstraint,
     CheckConstraint,
+    Index,
     text,
 )
 from sqlalchemy.dialects.postgresql import UUID
@@ -64,7 +65,10 @@ class Zoo(Base):
     """A zoo location that can be visited."""
 
     __tablename__ = "zoos"
-    __table_args__ = (CheckConstraint("animal_count >= 0"),)
+    __table_args__ = (
+        CheckConstraint("animal_count >= 0"),
+        Index("idx_zoos_location_gist", "location", postgresql_using="gist"),
+    )
 
     id = Column(
         UUID(as_uuid=True),
@@ -196,6 +200,10 @@ class ZooAnimal(Base):
     """Association table linking animals to zoos."""
 
     __tablename__ = "zoo_animals"
+    __table_args__ = (
+        Index("idx_zooanimal_zoo_id", "zoo_id"),
+        Index("idx_zooanimal_animal_id", "animal_id"),
+    )
 
     zoo_id = Column(
         UUID(as_uuid=True),

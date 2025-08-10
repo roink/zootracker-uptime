@@ -1,4 +1,7 @@
 import uuid
+
+import pytest
+
 from .conftest import client
 
 def test_get_animal_detail_success(data):
@@ -7,6 +10,37 @@ def test_get_animal_detail_success(data):
     body = resp.json()
     assert body["id"] == str(data["animal"].id)
     assert body["zoos"][0]["id"] == str(data["zoo"].id)
+    # distance should be included but undefined without coordinates
+    assert body["zoos"][0]["distance_km"] is None
+
+
+def test_get_animal_detail_with_distance(data):
+    params = {"latitude": data["zoo"].latitude, "longitude": data["zoo"].longitude}
+    resp = client.get(f"/animals/{data['animal'].id}", params=params)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body["zoos"]) == 1
+    assert body["zoos"][0]["id"] == str(data["zoo"].id)
+    assert body["zoos"][0]["distance_km"] == 0
+
+
+def test_get_animal_detail_invalid_params(data):
+    bad = client.get(f"/animals/{data['animal'].id}", params={"latitude": 200, "longitude": 0})
+    assert bad.status_code == 400
+
+
+def test_get_animal_detail_lon_invalid(data):
+    resp = client.get(
+        f"/animals/{data['animal'].id}", params={"latitude": 0, "longitude": 200}
+    )
+    assert resp.status_code == 400
+
+
+def test_get_animal_detail_coords_must_be_pair(data):
+    resp = client.get(f"/animals/{data['animal'].id}", params={"latitude": 0})
+    assert resp.status_code == 400
+    resp = client.get(f"/animals/{data['animal'].id}", params={"longitude": 0})
+    assert resp.status_code == 400
 
 def test_get_animal_detail_not_found():
     resp = client.get(f"/animals/{uuid.uuid4()}")
@@ -32,7 +66,13 @@ def test_list_animals_returns_details_and_pagination(data):
 
 def test_list_animals_invalid_pagination():
     assert client.get("/animals", params={"limit": 0}).status_code == 400
+
+
+def test_list_animals_invalid_pagination_upper_bound():
     assert client.get("/animals", params={"limit": 101}).status_code == 400
+
+
+def test_list_animals_invalid_offset():
     assert client.get("/animals", params={"offset": -1}).status_code == 400
 
 
@@ -53,3 +93,12 @@ def test_list_animals_empty_page():
     resp = client.get("/animals", params={"limit": 5, "offset": 10})
     assert resp.status_code == 200
     assert resp.json() == []
+
+
+@pytest.mark.postgres
+def test_get_animal_detail_with_distance_postgres(data):
+    params = {"latitude": data["zoo"].latitude, "longitude": data["zoo"].longitude}
+    resp = client.get(f"/animals/{data['animal'].id}", params=params)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["zoos"][0]["distance_km"] == 0

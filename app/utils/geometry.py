@@ -3,8 +3,9 @@
 from math import radians, cos, sin, asin, sqrt
 from typing import Optional
 
-from sqlalchemy import func, or_
+from sqlalchemy import cast, func, or_
 from sqlalchemy.orm import Query
+from geoalchemy2 import Geography, Geometry
 
 from .. import models
 
@@ -19,11 +20,6 @@ def distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     a = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
     c = 2 * asin(sqrt(a))
     return EARTH_RADIUS_KM * c
-
-
-def distance_expr(point):
-    """SQL expression computing meters from a zoo to ``point``."""
-    return func.ST_Distance(models.Zoo.location, point)
 
 
 def query_zoos_with_distance(
@@ -44,36 +40,37 @@ def query_zoos_with_distance(
 
     if latitude is not None and longitude is not None:
         if query.session.bind.dialect.name == "postgresql":
+            # keep user point as geometry and cast zoo location when needed
             user_point = func.ST_SetSRID(func.ST_MakePoint(longitude, latitude), 4326)
-            distance = distance_expr(user_point)
+            geom_loc = cast(models.Zoo.location, Geometry("POINT", 4326))
             q = query
             if not include_no_coords:
                 q = q.filter(models.Zoo.location != None)
             if radius_km is not None:
+                user_point_geo = cast(user_point, Geography)
                 if include_no_coords:
                     q = q.filter(
                         or_(
                             models.Zoo.location == None,
                             func.ST_DWithin(
-                                models.Zoo.location, user_point, radius_km * 1000
+                                models.Zoo.location, user_point_geo, radius_km * 1000
                             ),
                         )
                     )
                 else:
                     q = q.filter(
                         func.ST_DWithin(
-                            models.Zoo.location, user_point, radius_km * 1000
+                            models.Zoo.location, user_point_geo, radius_km * 1000
                         )
                     )
+            order_expr = geom_loc.op("<->")(user_point)
+            precise_m = func.ST_DistanceSphere(geom_loc, user_point)
             rows = (
-                q.with_entities(models.Zoo, distance.label("distance_m"))
-                .order_by(distance.nulls_last())
+                q.with_entities(models.Zoo, precise_m.label("distance_m"))
+                .order_by(order_expr.nulls_last(), models.Zoo.name)
                 .all()
             )
-            return [
-                (z, d / 1000 if d is not None else None)
-                for z, d in rows
-            ]
+            return [(z, d / 1000 if d is not None else None) for z, d in rows]
         else:
             zoos = query.all()
             results: list[tuple[models.Zoo, Optional[float]]] = []
@@ -91,9 +88,12 @@ def query_zoos_with_distance(
                 if radius_km is None or dist <= radius_km:
                     results.append((z, dist))
             results.sort(
-                key=lambda item: item[1] if item[1] is not None else float("inf")
+                key=lambda item: (
+                    item[1] if item[1] is not None else float("inf"),
+                    item[0].name,
+                )
             )
             return results
 
-    # no coordinates supplied – return zoos without distance
-    return [(z, None) for z in query.all()]
+    # no coordinates supplied – return zoos without distance ordered by name
+    return [(z, None) for z in query.order_by(models.Zoo.name).all()]

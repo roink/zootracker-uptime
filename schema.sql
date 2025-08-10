@@ -39,6 +39,7 @@ CREATE TABLE zoos (
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE INDEX IF NOT EXISTS idx_zoos_location_gist ON zoos USING GIST (location);
 
 
 -- 3. Categories (e.g., Mammal, Bird, Reptile)
@@ -80,8 +81,8 @@ CREATE TABLE zoo_animals (
   PRIMARY KEY (zoo_id, animal_id)
 );
 -- Indexes to support join-table lookups
-CREATE INDEX IF NOT EXISTS idx_zoo_animals_zoo_id ON zoo_animals(zoo_id);
-CREATE INDEX IF NOT EXISTS idx_zoo_animals_animal_id ON zoo_animals(animal_id);
+CREATE INDEX IF NOT EXISTS idx_zooanimal_zoo_id ON zoo_animals(zoo_id);
+CREATE INDEX IF NOT EXISTS idx_zooanimal_animal_id ON zoo_animals(animal_id);
 
 -- 6. Zoo Visits
 CREATE TABLE zoo_visits (
