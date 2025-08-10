@@ -30,17 +30,18 @@ export default function DataProtectionPage() {
         All data is stored in a database hosted on a Hetzner server located in
         Germany. We do not share your information with third parties.
       </p>
-      <h4 className="mt-3">Google Maps</h4>
+      <h4 className="mt-3">Map Tiles</h4>
       <p>
-        Some pages embed an interactive map provided by Google Maps to display
-        zoo locations. When viewing these maps your browser connects directly to
-        Google’s servers and your IP address may be transmitted to Google. We do
-        not store this connection data.
+        Some pages embed an interactive map using the MapLibre library and tiles
+        served from <code>tiles.openfreemap.org</code> (OpenStreetMap data). When a
+        map loads, your browser requests map tiles directly from that server; this
+        request includes your IP address and typical browser headers. We do not
+        receive or store this connection data.
       </p>
       <p>
-        By using this site you consent to the processing of data by Google
-        according to their own privacy policy. If you do not wish Google to
-        receive this information you can disable map loading in your browser.
+        You can prevent map requests by disabling map loading in your browser or
+        using content blocking. Our application functionality remains available
+        without maps.
       </p>
     </div>
   );

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
 import SightingModal from './SightingModal';
+import LazyMap from './LazyMap';
 
 // Detailed view for a single zoo with a list of resident animals.
 // Used by the ZooDetailPage component.
@@ -56,14 +57,10 @@ export default function ZooDetail({ zoo, token, userId, refresh, onLogged }) {
       )}
       <h3>{zoo.name}</h3>
       {zoo.address && <div className="text-muted">📍 {zoo.address}</div>}
-      {zoo.latitude && zoo.longitude && (
-        <iframe
-          title="map"
-          width="100%"
-          height="200"
-          className="border-0 mt-1"
-          src={`https://maps.google.com/maps?q=${zoo.latitude},${zoo.longitude}&z=14&output=embed`}
-        ></iframe>
+      {Number.isFinite(zoo.latitude) && Number.isFinite(zoo.longitude) && (
+        <div className="mt-1">
+          <LazyMap latitude={zoo.latitude} longitude={zoo.longitude} />
+        </div>
       )}
       {zoo.description && (
         <p className="mt-2 pre-wrap">
