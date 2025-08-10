@@ -107,6 +107,18 @@ body {
   object-fit: cover;
 }
 
+/* Container for embedded MapLibre maps */
+.map-container {
+  width: 100%;
+  height: 200px;
+  border: 0;
+}
+@media (min-width: 768px) {
+  .map-container {
+    height: 280px;
+  }
+}
+
 .card-img {
   width: 100%;
   height: 100px;

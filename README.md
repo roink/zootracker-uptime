@@ -72,6 +72,14 @@ Replace `192.168.1.29` with your computer's actual IP if it differs. Setting
 `VITE_API_URL` is only required when the backend runs on a different host or
 port.
 
+Customize the map appearance by providing a tile style URL:
+
+```
+VITE_MAP_STYLE_URL=https://tiles.openfreemap.org/styles/liberty
+```
+
+If unset the frontend falls back to the OpenFreeMap "liberty" tiles.
+
 ### Authentication
 
 The `/token` and `/auth/login` endpoints now include the authenticated

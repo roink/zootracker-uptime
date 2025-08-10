@@ -28,6 +28,8 @@ import DataProtectionPage from "./pages/DataProtection";
 import ContactPage from "./pages/Contact";
 import Footer from "./components/Footer";
 import "./styles/app.css";
+// MapLibre default styles for the OpenFreeMap tiles
+import "maplibre-gl/dist/maplibre-gl.css";
 
 function DashboardPage({ token, userId, zoos, animals, refresh, onUpdate }) {
   return (
