@@ -5,7 +5,7 @@ from typing import Optional
 
 from sqlalchemy import cast, func, or_
 from sqlalchemy.orm import Query
-from geoalchemy2 import Geography
+from geoalchemy2 import Geography, Geometry
 
 from .. import models
 
@@ -40,31 +40,31 @@ def query_zoos_with_distance(
 
     if latitude is not None and longitude is not None:
         if query.session.bind.dialect.name == "postgresql":
-            user_point = cast(
-                func.ST_SetSRID(func.ST_MakePoint(longitude, latitude), 4326),
-                Geography,
-            )
+            # keep user point as geometry and cast zoo location when needed
+            user_point = func.ST_SetSRID(func.ST_MakePoint(longitude, latitude), 4326)
+            geom_loc = cast(models.Zoo.location, Geometry("POINT", 4326))
             q = query
             if not include_no_coords:
                 q = q.filter(models.Zoo.location != None)
             if radius_km is not None:
+                user_point_geo = cast(user_point, Geography)
                 if include_no_coords:
                     q = q.filter(
                         or_(
                             models.Zoo.location == None,
                             func.ST_DWithin(
-                                models.Zoo.location, user_point, radius_km * 1000
+                                models.Zoo.location, user_point_geo, radius_km * 1000
                             ),
                         )
                     )
                 else:
                     q = q.filter(
                         func.ST_DWithin(
-                            models.Zoo.location, user_point, radius_km * 1000
+                            models.Zoo.location, user_point_geo, radius_km * 1000
                         )
                     )
-            order_expr = models.Zoo.location.op("<->")(user_point)
-            precise_m = func.ST_DistanceSphere(models.Zoo.location, user_point)
+            order_expr = geom_loc.op("<->")(user_point)
+            precise_m = func.ST_DistanceSphere(geom_loc, user_point)
             rows = (
                 q.with_entities(models.Zoo, precise_m.label("distance_m"))
                 .order_by(order_expr.nulls_last(), models.Zoo.name)
