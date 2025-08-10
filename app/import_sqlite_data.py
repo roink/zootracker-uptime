@@ -58,13 +58,11 @@ def _import_animals(src: Session, dst: Session, animal_table: Table, cat_map: Di
     return id_map
 
 
-def _import_zoos(src: Session, dst: Session, zoo_table: Table, desc_table: Table) -> Dict[int, uuid.UUID]:
-    """Insert zoos and return id mapping."""
-    descs = {row["zoo_id"]: row for row in src.execute(select(desc_table)).mappings()}
+def _import_zoos(src: Session, dst: Session, zoo_table: Table) -> Dict[int, uuid.UUID]:
+    """Insert zoos from merged `zoo` table and return id mapping."""
     mapping: Dict[int, uuid.UUID] = {}
     rows = src.execute(select(zoo_table)).mappings()
     for row in rows:
-        desc = descs.get(row["zoo_id"], {})
         name = row.get("name") or row.get("label_en") or row.get("label_de")
         zoo = models.Zoo(
             id=uuid.uuid4(),
@@ -75,14 +73,17 @@ def _import_zoos(src: Session, dst: Session, zoo_table: Table, desc_table: Table
             country=row.get("country"),
             city=row.get("city"),
             continent=row.get("continent"),
-            official_website=desc.get("official_website"),
-            wikipedia_en=desc.get("wikipedia_en") or row.get("wikipedia_en"),
-            wikipedia_de=desc.get("wikipedia_de") or row.get("wikipedia_de"),
-            description_en=desc.get("description_en"),
-            description_de=desc.get("description_de"),
-            latitude=desc.get("latitude"),
-            longitude=desc.get("longitude"),
+            official_website=row.get("official_website"),
+            wikipedia_en=row.get("wikipedia_en"),
+            wikipedia_de=row.get("wikipedia_de"),
+            description_en=row.get("description_en"),
+            description_de=row.get("description_de"),
+            latitude=row.get("latitude"),
+            longitude=row.get("longitude"),
         )
+        # Optional: set wikidata_id if our ORM model and source table have it
+        if hasattr(models.Zoo, "wikidata_id") and "wikidata_id" in zoo_table.c:
+            setattr(zoo, "wikidata_id", row.get("wikidata_id"))
         dst.add(zoo)
         dst.flush()
         mapping[row["zoo_id"]] = zoo.id
@@ -129,12 +130,11 @@ def main(source: str) -> None:
         metadata = MetaData()
         animal_table = Table("animal", metadata, autoload_with=src_engine)
         zoo_table = Table("zoo", metadata, autoload_with=src_engine)
-        desc_table = Table("zoo_openAI_descriptions", metadata, autoload_with=src_engine)
         link_table = Table("zoo_animal", metadata, autoload_with=src_engine)
 
         cat_map = _stage_categories(src, dst, animal_table)
         animal_map = _import_animals(src, dst, animal_table, cat_map)
-        zoo_map = _import_zoos(src, dst, zoo_table, desc_table)
+        zoo_map = _import_zoos(src, dst, zoo_table)
         _import_links(src, dst, link_table, zoo_map, animal_map)
     finally:
         src.close()

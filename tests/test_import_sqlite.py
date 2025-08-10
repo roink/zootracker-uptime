@@ -48,23 +48,14 @@ def _build_source_db(path: Path) -> Path:
                 label_en TEXT,
                 label_de TEXT,
                 wikidata_id TEXT,
-                UNIQUE(continent, country, city, name)
-            );
-            """
-        ))
-        conn.execute(text(
-            """
-            CREATE TABLE zoo_openAI_descriptions (
-                zoo_id INTEGER PRIMARY KEY,
                 latitude REAL,
                 longitude REAL,
                 official_website TEXT,
                 wikipedia_en TEXT,
                 wikipedia_de TEXT,
-                wikidata_id TEXT,
                 description_en TEXT,
                 description_de TEXT,
-                FOREIGN KEY(zoo_id) REFERENCES zoo(zoo_id)
+                UNIQUE(continent, country, city, name)
             );
             """
         ))
@@ -85,12 +76,9 @@ def _build_source_db(path: Path) -> Path:
         ))
         conn.execute(
             text(
-                "INSERT INTO zoo (continent,country,city,name,default_label,label_en,label_de) VALUES ('Europe','Germany','Berlin','Berlin Zoo','Zoo Berlin','Berlin Zoo','Berliner Zoo');"
+                "INSERT INTO zoo (continent,country,city,name,default_label,label_en,label_de,latitude,longitude,official_website,description_en,description_de) VALUES ('Europe','Germany','Berlin','Berlin Zoo','Zoo Berlin','Berlin Zoo','Berliner Zoo',52.5,13.4,'http://example.org','Nice zoo','Schöner Zoo');"
             )
         )
-        conn.execute(text(
-            "INSERT INTO zoo_openAI_descriptions (zoo_id,latitude,longitude,official_website,description_en,description_de) VALUES (1,52.5,13.4,'http://example.org','Nice zoo','Schöner Zoo');"
-        ))
         conn.execute(text(
             "INSERT INTO zoo_animal (zoo_id,animal_id) VALUES (1,1);"
         ))
