@@ -111,10 +111,7 @@ export default function Header({ token, onLogout }) {
             ) : (
               <>
                 <li className="nav-item">
-                  <Link className="nav-link" to="/login">Log In</Link>
-                </li>
-                <li className="nav-item">
-                  <Link className="nav-link" to="/register">Sign Up</Link>
+                  <Link className="nav-link" to="/login">Log In / Sign Up</Link>
                 </li>
               </>
             )}

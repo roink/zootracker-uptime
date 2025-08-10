@@ -14,7 +14,6 @@ import {
 // anymore, so we explicitly point to the backend running on port 8000.
 import { API } from "./api";
 import Landing from "./pages/Landing";
-import RegisterPage from "./pages/Register";
 import LoginPage from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import ZoosPage from "./pages/Zoos";
@@ -113,12 +112,14 @@ function AppRoutes({
           }
         />
         <Route
-          path="/register"
-          element={<RegisterPage onSignedUp={onSignedUp} />}
-        />
-        <Route
           path="/login"
-          element={<LoginPage email={userEmail} onLoggedIn={onLoggedIn} />}
+          element={
+            <LoginPage
+              email={userEmail}
+              onLoggedIn={onLoggedIn}
+              onSignedUp={onSignedUp}
+            />
+          }
         />
         <Route path="/zoos" element={<ZoosPage token={token} />} />
         <Route

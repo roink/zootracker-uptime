@@ -38,7 +38,10 @@ export default function Landing() {
         </div>
       </div>
       <div className="mt-4">
-        <button className="btn btn-primary me-2" onClick={() => navigate('/register')}>
+        <button
+          className="btn btn-primary me-2"
+          onClick={() => navigate('/login#signup')}
+        >
           Sign Up
         </button>
         <button className="btn btn-secondary" onClick={() => navigate('/login')}>
