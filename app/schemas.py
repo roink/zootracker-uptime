@@ -160,7 +160,8 @@ class AnimalDetail(BaseModel):
     category: Optional[str] = None
     description: Optional[str] = None
     default_image_url: Optional[str] = None
-    zoos: list[ZooRead] = []
+    # include full zoo details with distance information
+    zoos: list[ZooDetail] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 
@@ -168,8 +169,8 @@ class AnimalDetail(BaseModel):
 class SearchResults(BaseModel):
     """Combined search result lists for zoos and animals."""
 
-    zoos: list[ZooRead] = []
-    animals: list[AnimalRead] = []
+    zoos: list[ZooRead] = Field(default_factory=list)
+    animals: list[AnimalRead] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 

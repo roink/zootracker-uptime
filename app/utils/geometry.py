@@ -67,7 +67,7 @@ def query_zoos_with_distance(
                     )
             rows = (
                 q.with_entities(models.Zoo, distance.label("distance_m"))
-                .order_by(distance.nulls_last())
+                .order_by(distance.nulls_last(), models.Zoo.name)
                 .all()
             )
             return [
@@ -91,9 +91,12 @@ def query_zoos_with_distance(
                 if radius_km is None or dist <= radius_km:
                     results.append((z, dist))
             results.sort(
-                key=lambda item: item[1] if item[1] is not None else float("inf")
+                key=lambda item: (
+                    item[1] if item[1] is not None else float("inf"),
+                    item[0].name,
+                )
             )
             return results
 
-    # no coordinates supplied – return zoos without distance
-    return [(z, None) for z in query.all()]
+    # no coordinates supplied – return zoos without distance ordered by name
+    return [(z, None) for z in query.order_by(models.Zoo.name).all()]
