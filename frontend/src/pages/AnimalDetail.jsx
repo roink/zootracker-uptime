@@ -61,7 +61,8 @@ export default function AnimalDetailPage({ token, userId, refresh, onLogged }) {
       navigator.geolocation.getCurrentPosition(
         (pos) =>
           setLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
-        () => setLocation(null)
+        () => setLocation(null),
+        { enableHighAccuracy: false, timeout: 3000, maximumAge: 600000 }
       );
     }
   }, []);

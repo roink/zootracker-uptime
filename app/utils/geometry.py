@@ -21,11 +21,6 @@ def distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return EARTH_RADIUS_KM * c
 
 
-def distance_expr(point):
-    """SQL expression computing meters from a zoo to ``point``."""
-    return func.ST_Distance(models.Zoo.location, point)
-
-
 def query_zoos_with_distance(
     query: Query,
     latitude: Optional[float],
@@ -45,7 +40,6 @@ def query_zoos_with_distance(
     if latitude is not None and longitude is not None:
         if query.session.bind.dialect.name == "postgresql":
             user_point = func.ST_SetSRID(func.ST_MakePoint(longitude, latitude), 4326)
-            distance = distance_expr(user_point)
             q = query
             if not include_no_coords:
                 q = q.filter(models.Zoo.location != None)
@@ -65,15 +59,14 @@ def query_zoos_with_distance(
                             models.Zoo.location, user_point, radius_km * 1000
                         )
                     )
+            order_expr = models.Zoo.location.op("<->")(user_point)
+            precise_m = func.ST_DistanceSphere(models.Zoo.location, user_point)
             rows = (
-                q.with_entities(models.Zoo, distance.label("distance_m"))
-                .order_by(distance.nulls_last(), models.Zoo.name)
+                q.with_entities(models.Zoo, precise_m.label("distance_m"))
+                .order_by(order_expr.nulls_last(), models.Zoo.name)
                 .all()
             )
-            return [
-                (z, d / 1000 if d is not None else None)
-                for z, d in rows
-            ]
+            return [(z, d / 1000 if d is not None else None) for z, d in rows]
         else:
             zoos = query.all()
             results: list[tuple[models.Zoo, Optional[float]]] = []
