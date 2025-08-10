@@ -3,8 +3,9 @@
 from math import radians, cos, sin, asin, sqrt
 from typing import Optional
 
-from sqlalchemy import func, or_
+from sqlalchemy import cast, func, or_
 from sqlalchemy.orm import Query
+from geoalchemy2 import Geography
 
 from .. import models
 
@@ -39,7 +40,10 @@ def query_zoos_with_distance(
 
     if latitude is not None and longitude is not None:
         if query.session.bind.dialect.name == "postgresql":
-            user_point = func.ST_SetSRID(func.ST_MakePoint(longitude, latitude), 4326)
+            user_point = cast(
+                func.ST_SetSRID(func.ST_MakePoint(longitude, latitude), 4326),
+                Geography,
+            )
             q = query
             if not include_no_coords:
                 q = q.filter(models.Zoo.location != None)

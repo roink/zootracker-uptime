@@ -1,4 +1,7 @@
 import uuid
+
+import pytest
+
 from .conftest import client
 
 def test_get_animal_detail_success(data):
@@ -90,3 +93,12 @@ def test_list_animals_empty_page():
     resp = client.get("/animals", params={"limit": 5, "offset": 10})
     assert resp.status_code == 200
     assert resp.json() == []
+
+
+@pytest.mark.postgres
+def test_get_animal_detail_with_distance_postgres(data):
+    params = {"latitude": data["zoo"].latitude, "longitude": data["zoo"].longitude}
+    resp = client.get(f"/animals/{data['animal'].id}", params=params)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["zoos"][0]["distance_km"] == 0
