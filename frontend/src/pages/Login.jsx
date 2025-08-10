@@ -127,7 +127,7 @@ export default function LoginPage({ email, onLoggedIn, onSignedUp }) {
         description="Access your ZooTracker account or create a new one to log visits and sightings."
       />
       {/* Log in section */}
-      <form id="top" onSubmit={handleLogin} className="container auth-form">
+      <form onSubmit={handleLogin} className="container auth-form">
         {successMessage && (
           <div className="alert alert-success" role="alert">
             {successMessage}
@@ -159,15 +159,6 @@ export default function LoginPage({ email, onLoggedIn, onSignedUp }) {
         <button className="btn btn-primary w-100" type="submit" disabled={loggingIn}>
           {loggingIn ? 'Logging in…' : 'Login'}
         </button>
-        <div className="mt-3">
-          <button
-            type="button"
-            className="btn btn-link p-0 align-baseline"
-            onClick={(e) => e.preventDefault()}
-          >
-            Forgot Password?
-          </button>
-        </div>
       </form>
 
       {/* Sign up section */}
@@ -226,9 +217,6 @@ export default function LoginPage({ email, onLoggedIn, onSignedUp }) {
         >
           {signingUp ? 'Signing up…' : 'Create Account'}
         </button>
-        <div className="mt-3">
-          <a href="#top">Back to Log In</a>
-        </div>
       </form>
     </>
   );
