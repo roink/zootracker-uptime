@@ -4,7 +4,7 @@ import PropTypes from 'prop-types';
 // Reusable map centered on given coordinates using MapLibre and OpenFreeMap tiles.
 const STYLE_URL =
   import.meta.env.VITE_MAP_STYLE_URL ||
-  'https://tiles.openfreemap.org/styles/liberty/style.json';
+  'https://tiles.openfreemap.org/styles/liberty';
 
 export default function MapView({ latitude, longitude, zoom = 14 }) {
   const containerRef = useRef(null);

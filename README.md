@@ -75,7 +75,7 @@ port.
 Customize the map appearance by providing a tile style URL:
 
 ```
-VITE_MAP_STYLE_URL=https://tiles.openfreemap.org/styles/liberty/style.json
+VITE_MAP_STYLE_URL=https://tiles.openfreemap.org/styles/liberty
 ```
 
 If unset the frontend falls back to the OpenFreeMap "liberty" tiles.
