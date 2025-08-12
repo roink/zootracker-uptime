@@ -47,6 +47,54 @@ def test_get_animal_detail_not_found():
     assert resp.status_code == 404
 
 
+def test_cf_headers_used(data):
+    headers = {
+        "cf-iplatitude": str(data["zoo"].latitude),
+        "cf-iplongitude": str(data["zoo"].longitude),
+    }
+    resp = client.get(f"/animals/{data['animal'].id}", headers=headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["zoos"][0]["distance_km"] == 0
+
+
+def test_invalid_cf_headers_ignored(data):
+    headers = {"cf-iplatitude": "not-a-number", "cf-iplongitude": "20"}
+    resp = client.get(f"/animals/{data['animal'].id}", headers=headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["zoos"][0]["distance_km"] is None
+
+
+def test_explicit_coords_override_cf_headers(data):
+    headers = {"cf-iplatitude": "0", "cf-iplongitude": "0"}
+    params = {
+        "latitude": data["zoo"].latitude,
+        "longitude": data["zoo"].longitude,
+    }
+    resp = client.get(
+        f"/animals/{data['animal'].id}", headers=headers, params=params
+    )
+    assert resp.status_code == 200
+    assert resp.json()["zoos"][0]["distance_km"] == 0
+
+
+def test_only_one_cf_header_is_ignored(data):
+    headers = {"cf-iplatitude": str(data["zoo"].latitude)}
+    resp = client.get(f"/animals/{data['animal'].id}", headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()["zoos"][0]["distance_km"] is None
+
+
+def test_out_of_range_cf_headers_ignored(data):
+    headers = {"cf-iplatitude": "91", "cf-iplongitude": "0"}
+    resp = client.get(f"/animals/{data['animal'].id}", headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()["zoos"][0]["distance_km"] is None
+
+
+
+
 def test_list_animals_returns_details_and_pagination(data):
     resp = client.get("/animals", params={"limit": 2, "offset": 0})
     assert resp.status_code == 200
