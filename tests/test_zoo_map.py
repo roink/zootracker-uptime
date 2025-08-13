@@ -2,7 +2,6 @@ import os
 import sys
 from unittest.mock import patch, Mock
 
-import pytest
 from bs4 import BeautifulSoup
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
