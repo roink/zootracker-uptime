@@ -262,12 +262,7 @@ def get_or_create_zoo(conn, location: ZooLocation) -> int:
     cur.execute("SELECT 1 FROM zoo WHERE zoo_id=?", (location.zoo_id,))
     exists = cur.fetchone() is not None
 
-    if exists:
-        cur.execute(
-            "UPDATE zoo SET latitude=?, longitude=? WHERE zoo_id=?",
-            (location.latitude, location.longitude, location.zoo_id),
-        )
-    else:
+    if not exists:
         try:
             info = parse_zoo_popup(fetch_zoo_popup_soup(location.zoo_id))
         except Exception:
