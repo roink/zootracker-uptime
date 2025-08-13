@@ -2,7 +2,7 @@
 import html
 import time
 import re
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, urlunparse, parse_qs
 import sqlite3
 import json
 import csv
@@ -75,12 +75,51 @@ def fetch_localized_name(url: str, locale: str) -> Optional[str]:
         return None
 
 
+_ZTL_RE = re.compile(r"^https?://(?:www\.)?zootier-lexikon\.org/", re.I)
+
+
+def _normalize_ztl(url: str) -> Optional[str]:
+    url = url.strip()
+    if not url:
+        return None
+    p = urlparse(url)
+    if not p.scheme or not p.netloc:
+        return None
+    return urlunparse(
+        (p.scheme, p.netloc.lower(), p.path.rstrip('/'), p.params, p.query, p.fragment)
+    )
+
+
+def extract_ztl_link(soup: BeautifulSoup) -> Optional[str]:
+    """Extract a zootier-lexikon link from the provided soup if present."""
+    a = soup.find("a", href=_ZTL_RE)
+    if a and a.has_attr("href"):
+        return _normalize_ztl(a["href"])
+
+    label = soup.find(
+        string=re.compile(
+            r"(Zus(?:\u00e4|ä)tzliche\s+Artinfos|Additional\s+species\s+info)",
+            re.I,
+        )
+    )
+    if label:
+        holder = label.find_parent(["td", "div"])
+        if holder:
+            a = holder.find("a", href=True)
+            if a and _ZTL_RE.search(a["href"]):
+                return _normalize_ztl(a["href"])
+
+    return None
+
+
 def parse_species(species_url: str, animal_id: int):
     print(f"[>] Fetching species page: {species_url}")
     r = SESSION.get(species_url)
     r.raise_for_status()
     time.sleep(SLEEP_SECONDS)
     soup = BeautifulSoup(r.text, "html.parser")
+
+    ztl_link = extract_ztl_link(soup)
 
     # German page name (like async version), stripped of any parenthesized suffix
     page_td = soup.find('td', class_='pageName')
@@ -113,9 +152,9 @@ def parse_species(species_url: str, animal_id: int):
     zoos = parse_zoo_map(map_soup)
 
     print(
-        f"    → Latin: {latin}, Zoos found: {len(zoos)}, Page DE: {name_de}, Page EN: {name_en}, Desc: {len(desc)} fields",
+        f"    → Latin: {latin}, Zoos found: {len(zoos)}, Page DE: {name_de}, Page EN: {name_en}, Desc: {len(desc)} fields, ZTL: {ztl_link}",
     )
-    return latin, zoos, name_de, name_en, desc
+    return latin, zoos, name_de, name_en, desc, ztl_link
 
 @dataclass(frozen=True)
 class ZooLocation:
@@ -234,7 +273,8 @@ def ensure_db_schema(conn):
             latin_name  TEXT,
             zootierliste_description TEXT,
             name_de     TEXT,
-            name_en     TEXT
+            name_en     TEXT,
+            zootierlexikon_link TEXT
         )
         """
     )
@@ -277,17 +317,19 @@ def ensure_db_schema(conn):
         c.execute("ALTER TABLE animal ADD COLUMN name_de TEXT")
     if "name_en" not in cols:
         c.execute("ALTER TABLE animal ADD COLUMN name_en TEXT")
+    if "zootierlexikon_link" not in cols:
+        c.execute("ALTER TABLE animal ADD COLUMN zootierlexikon_link TEXT")
 
     conn.commit()
 
-def update_animal_enrichment(conn, art, name_de, name_en, desc_dict):
-    """Store page names and description JSON on the animal row."""
+def update_animal_enrichment(conn, art, name_de, name_en, desc_dict, ztl_link):
+    """Store page names, description JSON, and ZTL link on the animal row."""
     desc_json = json.dumps(desc_dict or {}, ensure_ascii=False)
     c = conn.cursor()
     with_retry(
         c.execute,
-        "UPDATE animal SET zootierliste_description = ?, name_de = ?, name_en = ? WHERE art = ?",
-        (desc_json, name_de, name_en, art),
+        "UPDATE animal SET zootierliste_description = ?, name_de = ?, name_en = ?, zootierlexikon_link = COALESCE(?, zootierlexikon_link) WHERE art = ?",
+        (desc_json, name_de, name_en, ztl_link, art),
     )
 
 def get_or_create_animal(conn, klasse, ordnung, familie, art, latin_name):
@@ -403,7 +445,7 @@ def main(klasses: list[int]):
                         continue
 
                     try:
-                        latin, zoos, name_de, name_en, desc = parse_species(sp_url, int(art))
+                        latin, zoos, name_de, name_en, desc, ztl_link = parse_species(sp_url, int(art))
                         if latin is None:
                             print(f"    ! Skipping species art={art} ({sp_url}) – missing Latin name.")
                             continue
@@ -412,7 +454,7 @@ def main(klasses: list[int]):
                             art_key = get_or_create_animal(
                                 conn, klasse, ordnung, familie, art, latin
                             )
-                            update_animal_enrichment(conn, art_key, name_de, name_en, desc)
+                            update_animal_enrichment(conn, art_key, name_de, name_en, desc, ztl_link)
 
                         for z in zoos:
                             try:
