@@ -7,10 +7,13 @@ import re
 from urllib.parse import urlparse, parse_qs
 import sqlite3
 import json
+import csv
+from dataclasses import dataclass
 
 BASE_URL      = "https://www.zootierliste.de/index.php"
 DB_FILE       = "zootierliste.db"
 SLEEP_SECONDS = 1
+MAP_ZOOS_URL  = "https://www.zootierliste.de/map_zoos.php"
 
 
 
@@ -97,6 +100,42 @@ def parse_species(species_url):
                 })
     print(f"    → Latin: {latin}, Zoos found: {len(zoos)}, Page: {page_name}, Desc: {len(desc)} fields")
     return latin, zoos, page_name, desc
+
+
+@dataclass(frozen=True)
+class ZooLocation:
+    zoo_id: int
+    latitude: float
+    longitude: float
+
+
+def fetch_zoo_map_soup(animal_id: int) -> BeautifulSoup:
+    """Fetch zoo map data for a given animal ID and return the BeautifulSoup."""
+    params = {"art": str(animal_id), "tab": "tab_zootier"}
+    r = requests.get(MAP_ZOOS_URL, params=params, timeout=(5, 20))
+    r.raise_for_status()
+    time.sleep(SLEEP_SECONDS)
+    return BeautifulSoup(r.text, "html.parser")
+
+
+def parse_zoo_map(soup: BeautifulSoup) -> list[ZooLocation]:
+    """Return list of ZooLocation instances from map soup."""
+    results: list[ZooLocation] = []
+    text = soup.get_text().lstrip("\ufeff")
+    reader = csv.reader(text.splitlines(), delimiter="\t")
+    next(reader, None)  # Skip header
+    for row in reader:
+        if not row or len(row) < 2:
+            continue
+        latlon, zoo_id = row[0], row[1]
+        try:
+            lat_str, lon_str = latlon.split(",", 1)
+            lat = float(lat_str)
+            lon = float(lon_str)
+            results.append(ZooLocation(int(zoo_id), lat, lon))
+        except ValueError:
+            continue
+    return results
 
 
 def ensure_db_schema(conn):
