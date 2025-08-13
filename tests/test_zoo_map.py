@@ -10,6 +10,10 @@ from zootier_scraper_sqlite import (
     fetch_zoo_map_soup,
     parse_zoo_map,
     ZooLocation,
+    fetch_zoo_popup_soup,
+    parse_zoo_popup,
+    ZooInfo,
+    fetch_zoo_details,
 )
 
 SAMPLE_RESPONSE = (
@@ -26,7 +30,7 @@ def test_fetch_zoo_map_soup(real_request):
     else:
         mock_resp = Mock(status_code=200, text=SAMPLE_RESPONSE)
         with (
-            patch('zootier_scraper_sqlite.requests.get', return_value=mock_resp) as mock_get,
+            patch('zootier_scraper_sqlite.SESSION.get', return_value=mock_resp) as mock_get,
             patch('zootier_scraper_sqlite.time.sleep')
         ):
             soup = fetch_zoo_map_soup(1060101)
@@ -71,3 +75,86 @@ def test_parse_zoo_map_blank_lines_and_malformed_skipped():
 def test_parse_zoo_map_header_only():
     soup = BeautifulSoup("point\ttitle\tdescription\ticon\n", 'html.parser')
     assert parse_zoo_map(soup) == []
+
+
+SAMPLE_ZOO_INFO = (
+    '<div class="datum">Lyon (Zoo)</div>'
+    '<div class="inhalt">Land: Frankreich<br>Website: '
+    '<a target="_blank" href="http://fr.zoo-infos.org/zoos-de/9998.html">'
+    'http://fr.zoo-infos.org/zoos-de/9998.html</a><br></div>'
+)
+
+SAMPLE_NO_WEBSITE = (
+    '<div class="datum">Vienna Zoo</div>'
+    '<div class="inhalt">Land: Österreich<br></div>'
+)
+
+SAMPLE_NBSP = (
+    '<div class="datum">  Lyon&nbsp; ( Zoo ) </div>'
+    '<div class="inhalt">Land:&nbsp;Frankreich</a><br></div>'
+)
+
+
+def test_fetch_zoo_popup_soup_makes_request():
+    mock_resp = Mock(status_code=200, text=SAMPLE_ZOO_INFO)
+    with (
+        patch('zootier_scraper_sqlite.SESSION.get', return_value=mock_resp) as mock_get,
+        patch('zootier_scraper_sqlite.time.sleep')
+    ):
+        soup = fetch_zoo_popup_soup(10000829)
+        mock_get.assert_called_once_with(
+            "https://www.zootierliste.de/map_zoos.php",
+            params={"showzoo": "10000829", "popup": "true"},
+            headers={"X-Requested-With": "XMLHttpRequest"},
+            timeout=(5, 20),
+        )
+    assert soup.find("div", class_="datum") is not None
+
+
+def test_parse_zoo_popup_basic():
+    soup = BeautifulSoup(SAMPLE_ZOO_INFO, 'html.parser')
+    info = parse_zoo_popup(soup)
+    assert info == ZooInfo(
+        country="Frankreich",
+        website="http://fr.zoo-infos.org/zoos-de/9998.html",
+        city="Lyon",
+        name="Zoo",
+    )
+
+
+def test_parse_zoo_popup_missing_website():
+    soup = BeautifulSoup(SAMPLE_NO_WEBSITE, 'html.parser')
+    info = parse_zoo_popup(soup)
+    assert info.country == "Österreich"
+    assert info.website is None
+    assert info.city == "Vienna Zoo"
+    assert info.name is None
+
+
+def test_parse_zoo_popup_nbsp_and_spacing():
+    soup = BeautifulSoup(SAMPLE_NBSP, 'html.parser')
+    info = parse_zoo_popup(soup)
+    assert info.country == "Frankreich"
+    assert info.city == "Lyon"
+    assert info.name == "Zoo"
+
+
+def test_parse_zoo_popup_city_only():
+    html = '<div class="datum">Zoo Berlin</div><div class="inhalt">Land: Deutschland<br></div>'
+    soup = BeautifulSoup(html, 'html.parser')
+    info = parse_zoo_popup(soup)
+    assert info.country == "Deutschland"
+    assert info.city == "Zoo Berlin"
+    assert info.name is None
+
+
+def test_fetch_zoo_details_wrapper():
+    soup = BeautifulSoup(SAMPLE_ZOO_INFO, 'html.parser')
+    with patch('zootier_scraper_sqlite.fetch_zoo_popup_soup', return_value=soup):
+        info = fetch_zoo_details(10000829)
+    assert info == {
+        "country": "Frankreich",
+        "website": "http://fr.zoo-infos.org/zoos-de/9998.html",
+        "city": "Lyon",
+        "name": "Zoo",
+    }
