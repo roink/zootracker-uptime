@@ -1,10 +1,13 @@
+import os
 import sqlite3
-from unittest.mock import patch
+import sys
 from bs4 import BeautifulSoup
 
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from zootier_scraper_sqlite import (
     ensure_db_schema,
     get_or_create_zoo,
+    parse_zoo_popup,
     ZooLocation,
 )
 
@@ -21,17 +24,16 @@ SAMPLE_ZOO_INFO_NO_WEBSITE = (
 )
 
 
-def test_get_or_create_zoo_fetches_only_once_and_updates_coords():
+def test_get_or_create_zoo_insert_and_updates_coords():
     conn = sqlite3.connect(":memory:")
     ensure_db_schema(conn)
     soup = BeautifulSoup(SAMPLE_ZOO_INFO, "html.parser")
+    info = parse_zoo_popup(soup)
 
-    with patch("zootier_scraper_sqlite.fetch_zoo_popup_soup", return_value=soup) as mock_fetch:
-        with conn:
-            zoo_id = get_or_create_zoo(conn, ZooLocation(123, 1.23, 4.56))
-        with conn:
-            zoo_id2 = get_or_create_zoo(conn, ZooLocation(123, 7.89, 0.12))
-        assert mock_fetch.call_count == 1
+    with conn:
+        zoo_id = get_or_create_zoo(conn, ZooLocation(123, 1.23, 4.56), info)
+    with conn:
+        zoo_id2 = get_or_create_zoo(conn, ZooLocation(123, 7.89, 0.12))
 
     assert zoo_id == zoo_id2 == 123
     cur = conn.cursor()
@@ -44,17 +46,16 @@ def test_get_or_create_zoo_fetches_only_once_and_updates_coords():
     conn.close()
 
 
-def test_get_or_create_zoo_does_not_refetch_existing():
+def test_get_or_create_zoo_handles_existing_without_refetch():
     conn = sqlite3.connect(":memory:")
     ensure_db_schema(conn)
 
     soup_no = BeautifulSoup(SAMPLE_ZOO_INFO_NO_WEBSITE, "html.parser")
-    with patch("zootier_scraper_sqlite.fetch_zoo_popup_soup", return_value=soup_no) as mock_fetch:
-        with conn:
-            get_or_create_zoo(conn, ZooLocation(321, 1.0, 2.0))
-        with conn:
-            get_or_create_zoo(conn, ZooLocation(321, 3.0, 4.0))
-        assert mock_fetch.call_count == 1
+    info = parse_zoo_popup(soup_no)
+    with conn:
+        get_or_create_zoo(conn, ZooLocation(321, 1.0, 2.0), info)
+    with conn:
+        get_or_create_zoo(conn, ZooLocation(321, 3.0, 4.0))
 
     cur = conn.cursor()
     cur.execute("SELECT website, latitude, longitude FROM zoo WHERE zoo_id=321")

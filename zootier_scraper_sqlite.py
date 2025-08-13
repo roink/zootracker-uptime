@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 import html
-import os
 import time
 import re
 from urllib.parse import urlparse, parse_qs
 import sqlite3
 import json
 import csv
+import argparse
 from dataclasses import dataclass
 from typing import Optional
 
@@ -210,6 +210,17 @@ def parse_zoo_map(soup: BeautifulSoup) -> list[ZooLocation]:
     return results
 
 
+def with_retry(fn, *args, retries: int = 5, base: float = 0.05, **kwargs):
+    """Retry SQLite operations briefly if the database is locked."""
+    for i in range(retries):
+        try:
+            return fn(*args, **kwargs)
+        except sqlite3.OperationalError as e:
+            if "database is locked" not in str(e).lower() or i == retries - 1:
+                raise
+            time.sleep(base * (2 ** i))
+
+
 def ensure_db_schema(conn):
     c = conn.cursor()
     c.execute("PRAGMA foreign_keys = ON;")
@@ -273,75 +284,89 @@ def update_animal_enrichment(conn, art, name_de, name_en, desc_dict):
     """Store page names and description JSON on the animal row."""
     desc_json = json.dumps(desc_dict or {}, ensure_ascii=False)
     c = conn.cursor()
-    c.execute(
+    with_retry(
+        c.execute,
         "UPDATE animal SET zootierliste_description = ?, name_de = ?, name_en = ? WHERE art = ?",
         (desc_json, name_de, name_en, art),
     )
 
 def get_or_create_animal(conn, klasse, ordnung, familie, art, latin_name):
     c = conn.cursor()
-    c.execute(
-        "INSERT OR IGNORE INTO animal (art, klasse, ordnung, familie, latin_name) VALUES (?, ?, ?, ?, ?)",
-        (art, klasse, ordnung, familie, latin_name)
+    with_retry(
+        c.execute,
+        """
+        INSERT INTO animal (art, klasse, ordnung, familie, latin_name)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(art) DO UPDATE SET
+            klasse = excluded.klasse,
+            ordnung = excluded.ordnung,
+            familie = excluded.familie,
+            latin_name = COALESCE(excluded.latin_name, animal.latin_name)
+        """,
+        (art, klasse, ordnung, familie, latin_name),
     )
     return art
 
 
-def get_or_create_zoo(conn, location: ZooLocation) -> int:
+def get_or_create_zoo(conn, location: ZooLocation, info: ZooInfo | None = None) -> int:
     """Insert a new zoo or refresh coordinates if it already exists."""
     assert isinstance(location.zoo_id, int)
     assert isinstance(location.latitude, float)
     assert isinstance(location.longitude, float)
 
     cur = conn.cursor()
-    cur.execute("SELECT 1 FROM zoo WHERE zoo_id=?", (location.zoo_id,))
-    exists = cur.fetchone() is not None
-
-    if not exists:
-        try:
-            info = parse_zoo_popup(fetch_zoo_popup_soup(location.zoo_id))
-        except Exception:
-            info = ZooInfo(country=None, website=None, city=None, name=None)
-
-        cur.execute(
-            """
-            INSERT INTO zoo (zoo_id, continent, country, city, name, latitude, longitude, website)
-            VALUES (?, NULL, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                location.zoo_id,
-                info.country,
-                info.city,
-                info.name,
-                location.latitude,
-                location.longitude,
-                info.website,
-            ),
-        )
-    else:
-        cur.execute(
-            "UPDATE zoo SET latitude = ?, longitude = ? WHERE zoo_id = ?",
-            (location.latitude, location.longitude, location.zoo_id),
-        )
+    with_retry(
+        cur.execute,
+        """
+        INSERT INTO zoo (zoo_id, continent, country, city, name, latitude, longitude, website)
+        VALUES (?, NULL, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(zoo_id) DO UPDATE SET
+            latitude  = excluded.latitude,
+            longitude = excluded.longitude,
+            country   = COALESCE(zoo.country,  excluded.country),
+            city      = COALESCE(zoo.city,     excluded.city),
+            name      = COALESCE(zoo.name,     excluded.name),
+            website   = COALESCE(zoo.website,  excluded.website)
+        """,
+        (
+            location.zoo_id,
+            info.country if info else None,
+            info.city if info else None,
+            info.name if info else None,
+            location.latitude,
+            location.longitude,
+            info.website if info else None,
+        ),
+    )
 
     return location.zoo_id
 
 
 def create_zoo_animal(conn, zoo_id, art):
     c = conn.cursor()
-    c.execute(
-        "INSERT OR IGNORE INTO zoo_animal (zoo_id, art) VALUES (?, ?)",
-        (zoo_id, art)
+    with_retry(
+        c.execute,
+        """
+        INSERT INTO zoo_animal (zoo_id, art) VALUES (?, ?)
+        ON CONFLICT(zoo_id, art) DO NOTHING
+        """,
+        (zoo_id, art),
     )
 
 
 
-def main():
-    conn = sqlite3.connect(DB_FILE)
+
+def main(klasses: list[int]):
+    conn = sqlite3.connect(DB_FILE, timeout=30)
+    conn.execute("PRAGMA journal_mode=WAL;")
+    conn.execute("PRAGMA busy_timeout = 30000;")
+    conn.execute("PRAGMA synchronous = NORMAL;")
+    conn.execute("PRAGMA foreign_keys = ON;")
+    # conn.execute("PRAGMA wal_autocheckpoint = 1000;")  # optional tuning
     ensure_db_schema(conn)
     cursor = conn.cursor()
 
-    for klasse in [1]:
+    for klasse in klasses:
         print(f"\n=== CLASS {klasse} ===")
         orders = get_links(
             {"klasse": klasse},
@@ -382,19 +407,36 @@ def main():
                         if latin is None:
                             print(f"    ! Skipping species art={art} ({sp_url}) – missing Latin name.")
                             continue
+
                         with conn:
                             art_key = get_or_create_animal(
                                 conn, klasse, ordnung, familie, art, latin
                             )
                             update_animal_enrichment(conn, art_key, name_de, name_en, desc)
-                            for z in zoos:
-                                zoo_id = get_or_create_zoo(conn, z)
-                                create_zoo_animal(conn, zoo_id, art_key)
+
+                        for z in zoos:
+                            try:
+                                info = parse_zoo_popup(fetch_zoo_popup_soup(z.zoo_id))
+                            except Exception:
+                                info = ZooInfo(country=None, website=None, city=None, name=None)
+                            with conn:
+                                get_or_create_zoo(conn, z, info)
+                                create_zoo_animal(conn, z.zoo_id, art_key)
                     except Exception as e:
                         print(f"[!] Error processing species art={art}: {e}")
 
     conn.close()
 
+
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Scrape zoo data")
+    parser.add_argument(
+        "--klasse",
+        "-k",
+        type=int,
+        nargs="+",
+        default=[1],
+        help="Klasse numbers to process",
+    )
+    main(parser.parse_args().klasse)
 
