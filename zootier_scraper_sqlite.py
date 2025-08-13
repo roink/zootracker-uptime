@@ -53,6 +53,28 @@ def get_links(params, pattern, description):
     return found
 
 
+def build_locale_url(url: str, locale: str) -> str:
+    p = urlparse(url)
+    path = p.path
+    if not path.startswith(f"/{locale}/"):
+        path = f"/{locale}{path}"
+    return p._replace(path=path).geturl()
+
+
+def fetch_localized_name(url: str, locale: str) -> Optional[str]:
+    try:
+        r = SESSION.get(build_locale_url(url, locale))
+        r.raise_for_status()
+        time.sleep(SLEEP_SECONDS)
+        soup = BeautifulSoup(r.text, "html.parser")
+        td = soup.find("td", class_="pageName")
+        raw = td.get_text(" ", strip=True) if td else ""
+        name = re.sub(r"\s*\(.*?\)", "", raw).strip()
+        return name or None
+    except Exception:
+        return None
+
+
 def parse_species(species_url: str, animal_id: int):
     print(f"[>] Fetching species page: {species_url}")
     r = SESSION.get(species_url)
@@ -60,10 +82,13 @@ def parse_species(species_url: str, animal_id: int):
     time.sleep(SLEEP_SECONDS)
     soup = BeautifulSoup(r.text, "html.parser")
 
-    # Page name (like async version), stripped of any parenthesized suffix
+    # German page name (like async version), stripped of any parenthesized suffix
     page_td = soup.find('td', class_='pageName')
-    raw_name = page_td.get_text(" ", strip=True) if page_td else ''
-    page_name = re.sub(r"\s*\(.*?\)", "", raw_name).strip()
+    raw_name = page_td.get_text(" ", strip=True) if page_td else ""
+    name_de = re.sub(r"\s*\(.*?\)", "", raw_name).strip() or None
+
+    # English page name – fetch the English version of the page
+    name_en = fetch_localized_name(species_url, "en")
 
     # Description table (like async version)
     desc_table = soup.find('table', attrs={'style': re.compile(r"max-width:500px")})
@@ -88,10 +113,9 @@ def parse_species(species_url: str, animal_id: int):
     zoos = parse_zoo_map(map_soup)
 
     print(
-        f"    → Latin: {latin}, Zoos found: {len(zoos)}, Page: {page_name}, Desc: {len(desc)} fields"
+        f"    → Latin: {latin}, Zoos found: {len(zoos)}, Page DE: {name_de}, Page EN: {name_en}, Desc: {len(desc)} fields",
     )
-    return latin, zoos, page_name, desc
-
+    return latin, zoos, name_de, name_en, desc
 
 @dataclass(frozen=True)
 class ZooLocation:
@@ -198,7 +222,8 @@ def ensure_db_schema(conn):
             familie     INTEGER,
             latin_name  TEXT,
             zootierliste_description TEXT,
-            zootierliste_name        TEXT
+            name_de     TEXT,
+            name_en     TEXT
         )
         """
     )
@@ -232,15 +257,25 @@ def ensure_db_schema(conn):
         CREATE INDEX IF NOT EXISTS zoo_name_idx ON zoo(country, city, name);
         """
     )
+    # Perform simple migrations for renamed/added columns
+    cols = [row[1] for row in c.execute("PRAGMA table_info(animal)")]
+    if "zootierliste_name" in cols and "name_de" not in cols:
+        c.execute("ALTER TABLE animal RENAME COLUMN zootierliste_name TO name_de")
+        cols = [row[1] for row in c.execute("PRAGMA table_info(animal)")]
+    if "name_de" not in cols:
+        c.execute("ALTER TABLE animal ADD COLUMN name_de TEXT")
+    if "name_en" not in cols:
+        c.execute("ALTER TABLE animal ADD COLUMN name_en TEXT")
+
     conn.commit()
 
-def update_animal_enrichment(conn, art, page_name, desc_dict):
-    """Store page name and description JSON on the animal row."""
+def update_animal_enrichment(conn, art, name_de, name_en, desc_dict):
+    """Store page names and description JSON on the animal row."""
     desc_json = json.dumps(desc_dict or {}, ensure_ascii=False)
     c = conn.cursor()
     c.execute(
-        "UPDATE animal SET zootierliste_description = ?, zootierliste_name = ? WHERE art = ?",
-        (desc_json, page_name, art)
+        "UPDATE animal SET zootierliste_description = ?, name_de = ?, name_en = ? WHERE art = ?",
+        (desc_json, name_de, name_en, art),
     )
 
 def get_or_create_animal(conn, klasse, ordnung, familie, art, latin_name):
@@ -282,6 +317,11 @@ def get_or_create_zoo(conn, location: ZooLocation) -> int:
                 location.longitude,
                 info.website,
             ),
+        )
+    else:
+        cur.execute(
+            "UPDATE zoo SET latitude = ?, longitude = ? WHERE zoo_id = ?",
+            (location.latitude, location.longitude, location.zoo_id),
         )
 
     return location.zoo_id
@@ -338,7 +378,7 @@ def main():
                         continue
 
                     try:
-                        latin, zoos, page_name, desc = parse_species(sp_url, int(art))
+                        latin, zoos, name_de, name_en, desc = parse_species(sp_url, int(art))
                         if latin is None:
                             print(f"    ! Skipping species art={art} ({sp_url}) – missing Latin name.")
                             continue
@@ -346,7 +386,7 @@ def main():
                             art_key = get_or_create_animal(
                                 conn, klasse, ordnung, familie, art, latin
                             )
-                            update_animal_enrichment(conn, art_key, page_name, desc)
+                            update_animal_enrichment(conn, art_key, name_de, name_en, desc)
                             for z in zoos:
                                 zoo_id = get_or_create_zoo(conn, z)
                                 create_zoo_animal(conn, zoo_id, art_key)
