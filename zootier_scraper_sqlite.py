@@ -253,40 +253,42 @@ def get_or_create_animal(conn, klasse, ordnung, familie, art, latin_name):
 
 
 def get_or_create_zoo(conn, location: ZooLocation) -> int:
-    """Insert or update a zoo using a single UPSERT."""
+    """Insert a new zoo or refresh coordinates if it already exists."""
     assert isinstance(location.zoo_id, int)
     assert isinstance(location.latitude, float)
     assert isinstance(location.longitude, float)
 
-    try:
-        info = parse_zoo_popup(fetch_zoo_popup_soup(location.zoo_id))
-    except Exception:
-        info = ZooInfo(country=None, website=None, city=None, name=None)
+    cur = conn.cursor()
+    cur.execute("SELECT 1 FROM zoo WHERE zoo_id=?", (location.zoo_id,))
+    exists = cur.fetchone() is not None
 
-    conn.execute(
-        (
+    if exists:
+        cur.execute(
+            "UPDATE zoo SET latitude=?, longitude=? WHERE zoo_id=?",
+            (location.latitude, location.longitude, location.zoo_id),
+        )
+    else:
+        try:
+            info = parse_zoo_popup(fetch_zoo_popup_soup(location.zoo_id))
+        except Exception:
+            info = ZooInfo(country=None, website=None, city=None, name=None)
+
+        cur.execute(
             """
             INSERT INTO zoo (zoo_id, continent, country, city, name, latitude, longitude, website)
             VALUES (?, NULL, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(zoo_id) DO UPDATE SET
-                latitude  = excluded.latitude,
-                longitude = excluded.longitude,
-                country   = COALESCE(zoo.country,  excluded.country),
-                city      = COALESCE(zoo.city,     excluded.city),
-                name      = COALESCE(zoo.name,     excluded.name),
-                website   = COALESCE(zoo.website,  excluded.website)
-            """
-        ),
-        (
-            location.zoo_id,
-            info.country,
-            info.city,
-            info.name,
-            location.latitude,
-            location.longitude,
-            info.website,
-        ),
-    )
+            """,
+            (
+                location.zoo_id,
+                info.country,
+                info.city,
+                info.name,
+                location.latitude,
+                location.longitude,
+                info.website,
+            ),
+        )
+
     return location.zoo_id
 
 
