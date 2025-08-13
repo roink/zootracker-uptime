@@ -53,13 +53,13 @@ def get_links(params, pattern, description):
     return found
 
 
-def parse_species(species_url):
+def parse_species(species_url: str, animal_id: int):
     print(f"[>] Fetching species page: {species_url}")
     r = SESSION.get(species_url)
     r.raise_for_status()
     time.sleep(SLEEP_SECONDS)
     soup = BeautifulSoup(r.text, "html.parser")
-    
+
     # Page name (like async version), stripped of any parenthesized suffix
     page_td = soup.find('td', class_='pageName')
     raw_name = page_td.get_text(" ", strip=True) if page_td else ''
@@ -83,42 +83,13 @@ def parse_species(species_url):
             latin = i.text.strip()
             break
 
-    # Zoos with continent, country, city & zoo name
-    zoos = []
-    for tab in soup.find_all("table", id="tab"):
-        cont_td = tab.find("td", {"align": "center", "id": "tagline"})
-        if not cont_td or not (cont_a := cont_td.find("a")):
-            continue
-        continent = cont_a.text.strip()
+    # Fetch zoo locations via map endpoint
+    map_soup = fetch_zoo_map_soup(animal_id)
+    zoos = parse_zoo_map(map_soup)
 
-        for row in tab.find_all("tr", class_=re.compile(r"^kontinent_\d+$")):
-            country_a = row.find("a", onclick=re.compile(r"toggleTagVisibility"))
-            if not country_a:
-                continue
-            country = re.sub(r"\s*\([^)]*\):?", "", country_a.text.strip())
-
-            div = row.find("div", id=re.compile(r"_zoos$"))
-            if not div:
-                continue
-
-            for zoo_a in div.find_all("a", onclick=re.compile(r"overlib")):
-                raw = zoo_a.text.strip()
-                m = re.match(r"^\s*([^(]+?)\s*\((.*)\)\s*$", raw)
-                if m:
-                    city = m.group(1).strip()
-                    name = m.group(2).strip()
-                    name = re.sub(r"\s*\(ehemals[^)]*\)", "", name).strip()
-                else:
-                    city = ''
-                    name = raw
-
-                zoos.append({
-                    "continent": continent,
-                    "country": country,
-                    "city": city,
-                    "name": name
-                })
-    print(f"    → Latin: {latin}, Zoos found: {len(zoos)}, Page: {page_name}, Desc: {len(desc)} fields")
+    print(
+        f"    → Latin: {latin}, Zoos found: {len(zoos)}, Page: {page_name}, Desc: {len(desc)} fields"
+    )
     return latin, zoos, page_name, desc
 
 
@@ -234,12 +205,14 @@ def ensure_db_schema(conn):
     c.execute(
         """
         CREATE TABLE IF NOT EXISTS zoo (
-            zoo_id      INTEGER PRIMARY KEY AUTOINCREMENT,
+            zoo_id      INTEGER PRIMARY KEY,
             continent   TEXT,
             country     TEXT,
             city        TEXT,
             name        TEXT,
-            UNIQUE(continent, country, city, name)
+            latitude    REAL,
+            longitude   REAL,
+            website     TEXT
         )
         """
     )
@@ -269,7 +242,6 @@ def update_animal_enrichment(conn, art, page_name, desc_dict):
         "UPDATE animal SET zootierliste_description = ?, zootierliste_name = ? WHERE art = ?",
         (desc_json, page_name, art)
     )
-    conn.commit()
 
 def get_or_create_animal(conn, klasse, ordnung, familie, art, latin_name):
     c = conn.cursor()
@@ -277,22 +249,47 @@ def get_or_create_animal(conn, klasse, ordnung, familie, art, latin_name):
         "INSERT OR IGNORE INTO animal (art, klasse, ordnung, familie, latin_name) VALUES (?, ?, ?, ?, ?)",
         (art, klasse, ordnung, familie, latin_name)
     )
-    conn.commit()
     return art
 
 
-def get_or_create_zoo(conn, continent, country, city, name):
-    c = conn.cursor()
-    c.execute(
-        "INSERT OR IGNORE INTO zoo (continent, country, city, name) VALUES (?, ?, ?, ?)",
-        (continent, country, city, name)
-    )
-    conn.commit()
-    c.execute(
-        "SELECT zoo_id FROM zoo WHERE continent=? AND country=? AND city=? AND name=?",
-        (continent, country, city, name)
-    )
-    return c.fetchone()[0]
+def get_or_create_zoo(conn, location: ZooLocation) -> int:
+    """Insert a new zoo or refresh coordinates if it already exists."""
+    assert isinstance(location.zoo_id, int)
+    assert isinstance(location.latitude, float)
+    assert isinstance(location.longitude, float)
+
+    cur = conn.cursor()
+    cur.execute("SELECT 1 FROM zoo WHERE zoo_id=?", (location.zoo_id,))
+    exists = cur.fetchone() is not None
+
+    if exists:
+        cur.execute(
+            "UPDATE zoo SET latitude=?, longitude=? WHERE zoo_id=?",
+            (location.latitude, location.longitude, location.zoo_id),
+        )
+    else:
+        try:
+            info = parse_zoo_popup(fetch_zoo_popup_soup(location.zoo_id))
+        except Exception:
+            info = ZooInfo(country=None, website=None, city=None, name=None)
+
+        cur.execute(
+            """
+            INSERT INTO zoo (zoo_id, continent, country, city, name, latitude, longitude, website)
+            VALUES (?, NULL, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                location.zoo_id,
+                info.country,
+                info.city,
+                info.name,
+                location.latitude,
+                location.longitude,
+                info.website,
+            ),
+        )
+
+    return location.zoo_id
 
 
 def create_zoo_animal(conn, zoo_id, art):
@@ -301,7 +298,6 @@ def create_zoo_animal(conn, zoo_id, art):
         "INSERT OR IGNORE INTO zoo_animal (zoo_id, art) VALUES (?, ?)",
         (zoo_id, art)
     )
-    conn.commit()
 
 
 
@@ -347,24 +343,18 @@ def main():
                         continue
 
                     try:
-                        latin, zoos, page_name, desc = parse_species(sp_url)
+                        latin, zoos, page_name, desc = parse_species(sp_url, int(art))
                         if latin is None:
                             print(f"    ! Skipping species art={art} ({sp_url}) – missing Latin name.")
                             continue
-                        art_key = get_or_create_animal(
-                            conn, klasse, ordnung, familie, art, latin
-                        )
-                        # store enrichment (page name + description) for the animal
-                        update_animal_enrichment(conn, art_key, page_name, desc)
-                        for z in zoos:
-                            zoo_id = get_or_create_zoo(
-                                conn,
-                                z["continent"],
-                                z["country"],
-                                z["city"],
-                                z["name"]
+                        with conn:
+                            art_key = get_or_create_animal(
+                                conn, klasse, ordnung, familie, art, latin
                             )
-                            create_zoo_animal(conn, zoo_id, art_key)
+                            update_animal_enrichment(conn, art_key, page_name, desc)
+                            for z in zoos:
+                                zoo_id = get_or_create_zoo(conn, z)
+                                create_zoo_animal(conn, zoo_id, art_key)
                     except Exception as e:
                         print(f"[!] Error processing species art={art}: {e}")
 
