@@ -350,34 +350,36 @@ def get_or_create_animal(conn, klasse, ordnung, familie, art, latin_name):
     return art
 
 
-def get_or_create_zoo(conn, location: ZooLocation, info: ZooInfo | None = None) -> int:
-    """Insert a new zoo or refresh coordinates if it already exists."""
+def get_or_create_zoo(conn, location: ZooLocation) -> int:
+    """Insert a new zoo only if it does not already exist."""
     assert isinstance(location.zoo_id, int)
     assert isinstance(location.latitude, float)
     assert isinstance(location.longitude, float)
 
     cur = conn.cursor()
+    with_retry(cur.execute, "SELECT 1 FROM zoo WHERE zoo_id = ?", (location.zoo_id,))
+    if cur.fetchone():
+        return location.zoo_id
+
+    try:
+        info = parse_zoo_popup(fetch_zoo_popup_soup(location.zoo_id))
+    except Exception:
+        info = ZooInfo(country=None, website=None, city=None, name=None)
+
     with_retry(
         cur.execute,
         """
-        INSERT INTO zoo (zoo_id, continent, country, city, name, latitude, longitude, website)
+        INSERT OR IGNORE INTO zoo (zoo_id, continent, country, city, name, latitude, longitude, website)
         VALUES (?, NULL, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(zoo_id) DO UPDATE SET
-            latitude  = excluded.latitude,
-            longitude = excluded.longitude,
-            country   = COALESCE(zoo.country,  excluded.country),
-            city      = COALESCE(zoo.city,     excluded.city),
-            name      = COALESCE(zoo.name,     excluded.name),
-            website   = COALESCE(zoo.website,  excluded.website)
         """,
         (
             location.zoo_id,
-            info.country if info else None,
-            info.city if info else None,
-            info.name if info else None,
+            info.country,
+            info.city,
+            info.name,
             location.latitude,
             location.longitude,
-            info.website if info else None,
+            info.website,
         ),
     )
 
@@ -457,12 +459,8 @@ def main(klasses: list[int]):
                             update_animal_enrichment(conn, art_key, name_de, name_en, desc, ztl_link)
 
                         for z in zoos:
-                            try:
-                                info = parse_zoo_popup(fetch_zoo_popup_soup(z.zoo_id))
-                            except Exception:
-                                info = ZooInfo(country=None, website=None, city=None, name=None)
                             with conn:
-                                get_or_create_zoo(conn, z, info)
+                                get_or_create_zoo(conn, z)
                                 create_zoo_animal(conn, z.zoo_id, art_key)
                     except Exception as e:
                         print(f"[!] Error processing species art={art}: {e}")
