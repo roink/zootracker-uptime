@@ -36,7 +36,9 @@ export default function SearchPage() {
       <ul>
         {zoos.map((z) => (
           <li key={z.id}>
-            <button onClick={() => navigate(`/zoos/${z.id}`)}>{z.name}</button>
+            <button onClick={() => navigate(`/zoos/${z.id}`)}>
+              {z.city ? `${z.city}: ${z.name}` : z.name}
+            </button>
           </li>
         ))}
       </ul>

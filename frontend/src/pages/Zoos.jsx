@@ -13,10 +13,31 @@ export default function ZoosPage({ token }) {
   const [query, setQuery] = useState('');
   const [region, setRegion] = useState('All');
   const [visitedOnly, setVisitedOnly] = useState(false);
+  const [location, setLocation] = useState(null); // user location
   const authFetch = useAuthFetch(token);
 
+  // Fetch zoos sorted by distance when location is available
   useEffect(() => {
-    fetch(`${API}/zoos`).then((r) => r.json()).then(setZoos);
+    const params = [];
+    if (location) {
+      params.push(`latitude=${location.lat}`);
+      params.push(`longitude=${location.lon}`);
+    }
+    fetch(`${API}/zoos${params.length ? `?${params.join('&')}` : ''}`)
+      .then((r) => r.json())
+      .then(setZoos);
+  }, [location]);
+
+  // Determine the current location of the user
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) =>
+          setLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+        () => setLocation(null),
+        { enableHighAccuracy: false, timeout: 3000, maximumAge: 600000 }
+      );
+    }
   }, []);
 
   useEffect(() => {
@@ -89,12 +110,23 @@ export default function ZoosPage({ token }) {
           >
             <div className="d-flex justify-content-between">
               <div>
-                <div className="fw-bold">{z.name}</div>
-                <div className="text-muted">📍 {z.address}</div>
+                <div className="fw-bold">
+                  {z.city ? `${z.city}: ${z.name}` : z.name}
+                </div>
+                <div className="text-muted">
+                  📍 {z.address}
+                </div>
               </div>
-              {visitedIds.includes(z.id) && (
-                <span className="badge bg-success align-self-center">Visited</span>
-              )}
+              <div className="text-end">
+                {z.distance_km != null && (
+                  <div className="small text-muted">
+                    {z.distance_km.toFixed(1)} km
+                  </div>
+                )}
+                {visitedIds.includes(z.id) && (
+                  <span className="badge bg-success mt-1">Visited</span>
+                )}
+              </div>
             </div>
           </button>
         ))}

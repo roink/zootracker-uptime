@@ -15,3 +15,11 @@ def test_search_limit(data):
     body = resp.json()
     assert len(body['zoos']) == 1
     assert len(body['animals']) == 1
+
+
+def test_search_includes_city(data):
+    """Zoo items should include their city to display \"City: Name\"."""
+    resp = client.get('/search', params={'q': 'Central'})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert any(z.get('city') == data['zoo'].city for z in body['zoos'])

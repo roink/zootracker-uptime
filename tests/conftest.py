@@ -86,6 +86,7 @@ def seed_data():
         latitude=10.0,
         longitude=20.0,
         description="A fun place",
+        city="Metropolis",
     )
     db.add(zoo)
     db.commit()
@@ -97,6 +98,7 @@ def seed_data():
         latitude=50.0,
         longitude=60.0,
         description="Too far away",
+        city="Remoteville",
     )
     db.add(far_zoo)
     db.commit()

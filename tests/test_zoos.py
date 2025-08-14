@@ -16,6 +16,7 @@ def test_get_zoo_details(data):
     assert body["id"] == str(data["zoo"].id)
     assert body["address"] == "123 Zoo St"
     assert body["description"] == "A fun place"
+    assert body["city"] == "Metropolis"
 
 def test_get_zoo_invalid_id():
     resp = client.get(f"/zoos/{uuid.uuid4()}")
@@ -36,6 +37,7 @@ def test_search_zoos_with_radius(data):
     assert str(data["far_zoo"].id) not in ids
     dists = [z["distance_km"] for z in body]
     assert dists == sorted(dists)
+    assert any(z["city"] == "Metropolis" for z in body)
 
 def test_search_zoos_name_only(data):
     """Name search should work without location parameters."""
@@ -61,6 +63,7 @@ def test_animal_zoos_sorted_by_distance(data):
     body = resp.json()
     assert len(body) == 2
     assert body[0]["id"] == str(data["zoo"].id)
+    assert body[0]["city"] == "Metropolis"
     dists = [z["distance_km"] for z in body]
     assert dists == sorted(dists)
 

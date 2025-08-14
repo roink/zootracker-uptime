@@ -29,6 +29,7 @@ def search_zoos(
             id=z.id,
             name=z.name,
             address=z.address,
+            city=z.city,
             distance_km=dist,
         )
         for z, dist in results

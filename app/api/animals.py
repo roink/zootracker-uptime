@@ -13,6 +13,7 @@ def to_zoodetail(z: models.Zoo, dist: float | None) -> schemas.ZooDetail:
         id=z.id,
         name=z.name,
         address=z.address,
+        city=z.city,
         latitude=float(z.latitude) if z.latitude is not None else None,
         longitude=float(z.longitude) if z.longitude is not None else None,
         description=z.description,
@@ -77,7 +78,9 @@ def list_animals(
 @router.get("/search", response_model=schemas.SearchResults)
 def combined_search(q: str = "", limit: int = 5, db: Session = Depends(get_db)):
     """Return top zoos and animals matching the query."""
-    zoo_q = db.query(models.Zoo)
+    zoo_q = db.query(models.Zoo).options(
+        load_only(models.Zoo.id, models.Zoo.name, models.Zoo.city)
+    )
     if q:
         pattern = f"%{q}%"
         zoo_q = zoo_q.filter(models.Zoo.name.ilike(pattern))
@@ -117,6 +120,7 @@ def get_animal_detail(
                 models.Zoo.id,
                 models.Zoo.name,
                 models.Zoo.address,
+                models.Zoo.city,
                 models.Zoo.latitude,
                 models.Zoo.longitude,
                 models.Zoo.description,
@@ -164,6 +168,7 @@ def list_zoos_for_animal(
                 models.Zoo.id,
                 models.Zoo.name,
                 models.Zoo.address,
+                models.Zoo.city,
                 models.Zoo.latitude,
                 models.Zoo.longitude,
                 models.Zoo.description,
