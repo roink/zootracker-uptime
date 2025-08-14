@@ -3,8 +3,8 @@ import logging
 import uuid
 from typing import Dict, Tuple
 
-from sqlalchemy import MetaData, Table, create_engine, select, func, bindparam
-from sqlalchemy.dialects.sqlite import insert
+from sqlalchemy import MetaData, Table, create_engine, select, func, bindparam, insert
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from .database import SessionLocal, Base
@@ -137,7 +137,11 @@ def _import_links(
     animal_map: Dict[str, uuid.UUID],
 ) -> None:
     rows = src.execute(select(link_table)).mappings()
-    stmt = insert(models.ZooAnimal.__table__).prefix_with("OR IGNORE")
+    # use dialect-appropriate "ignore duplicates" syntax
+    if dst.get_bind().dialect.name == "postgresql":
+        stmt = pg_insert(models.ZooAnimal.__table__).on_conflict_do_nothing()
+    else:
+        stmt = insert(models.ZooAnimal.__table__).prefix_with("OR IGNORE")
     batch: list[dict] = []
     batch_size = 1000
     processed = 0
