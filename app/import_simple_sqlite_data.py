@@ -137,16 +137,41 @@ def _import_links(
     animal_map: Dict[str, uuid.UUID],
 ) -> None:
     rows = src.execute(select(link_table)).mappings()
-    values = []
+    stmt = insert(models.ZooAnimal.__table__).prefix_with("OR IGNORE")
+    batch: list[dict] = []
+    batch_size = 1000
+    processed = 0
     for row in rows:
         z_id = zoo_map.get(row["zoo_id"])
         a_id = animal_map.get(row["art"])
         if z_id and a_id:
-            values.append({"zoo_id": z_id, "animal_id": a_id})
-    if values:
-        stmt = insert(models.ZooAnimal.__table__).values(values)
-        stmt = stmt.prefix_with("OR IGNORE")
-        dst.execute(stmt)
+            batch.append({"zoo_id": z_id, "animal_id": a_id})
+            if len(batch) >= batch_size:
+                try:
+                    dst.execute(stmt, batch)
+                except Exception as exc:  # pragma: no cover - defensive
+                    err = getattr(exc, "orig", exc)
+                    logger.error(
+                        "Failed inserting link batch %d-%d: %s",
+                        processed,
+                        processed + len(batch),
+                        err,
+                    )
+                    raise
+                processed += len(batch)
+                batch.clear()
+    if batch:
+        try:
+            dst.execute(stmt, batch)
+        except Exception as exc:  # pragma: no cover - defensive
+            err = getattr(exc, "orig", exc)
+            logger.error(
+                "Failed inserting link batch %d-%d: %s",
+                processed,
+                processed + len(batch),
+                err,
+            )
+            raise
     zoo_counts = dst.execute(
         select(models.ZooAnimal.zoo_id, func.count().label("cnt")).group_by(models.ZooAnimal.zoo_id)
     ).all()
