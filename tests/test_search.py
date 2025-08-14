@@ -17,6 +17,13 @@ def test_search_limit(data):
     assert len(body['animals']) == 1
 
 
+def test_combined_search_by_city(data):
+    resp = client.get('/search', params={'q': data['zoo'].city})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert any(z['id'] == str(data['zoo'].id) for z in body['zoos'])
+
+
 def test_search_includes_city(data):
     """Zoo items should include their city to display \"City: Name\"."""
     resp = client.get('/search', params={'q': 'Central'})

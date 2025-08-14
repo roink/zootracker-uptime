@@ -31,7 +31,7 @@ export default function ZooSearch({ onSelectZoo }) {
         {zoos.map((z) => (
           <li key={z.id} className="list-group-item">
             <button className="btn btn-link" onClick={() => onSelectZoo(z)}>
-              {z.name}
+              {z.city ? `${z.city}: ${z.name}` : z.name}
             </button>
           </li>
         ))}

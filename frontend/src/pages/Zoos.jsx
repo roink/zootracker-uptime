@@ -52,7 +52,10 @@ export default function ZoosPage({ token }) {
 
   // Apply search, visited-only filter and region filter in sequence.
   const filtered = zoos
-    .filter((z) => z.name.toLowerCase().includes(query.toLowerCase()))
+    .filter((z) =>
+      z.name.toLowerCase().includes(query.toLowerCase()) ||
+      (z.city || '').toLowerCase().includes(query.toLowerCase())
+    )
     .filter((z) => (visitedOnly ? visitedIds.includes(z.id) : true))
     .filter((z) =>
       region === 'All' ? true : (z.address || '').toLowerCase().includes(region.toLowerCase())

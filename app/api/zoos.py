@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 import uuid
 
@@ -21,7 +22,9 @@ def search_zoos(
     query = db.query(models.Zoo)
     if q:
         pattern = f"%{q}%"
-        query = query.filter(models.Zoo.name.ilike(pattern))
+        query = query.filter(
+            or_(models.Zoo.name.ilike(pattern), models.Zoo.city.ilike(pattern))
+        )
 
     results = query_zoos_with_distance(query, latitude, longitude, radius_km)
     return [

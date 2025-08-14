@@ -12,6 +12,7 @@ def create_tables() -> None:
         with engine.begin() as conn:
             conn.execute(text("CREATE EXTENSION IF NOT EXISTS pgcrypto"))
             conn.execute(text("CREATE EXTENSION IF NOT EXISTS postgis"))
+            conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
     Base.metadata.create_all(bind=engine)
     create_triggers(engine)
     with engine.begin() as conn:
@@ -29,6 +30,16 @@ def create_tables() -> None:
             conn.execute(
                 text(
                     "CREATE INDEX IF NOT EXISTS idx_zoos_location_gist ON zoos USING GIST (location)"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS idx_zoos_name_trgm ON zoos USING GIN (name gin_trgm_ops)"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS idx_zoos_city_trgm ON zoos USING GIN (city gin_trgm_ops)"
                 )
             )
 
