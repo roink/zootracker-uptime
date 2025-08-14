@@ -42,6 +42,7 @@ class Suspicious:
 
     record: ZooRecord
     reasons: List[str]
+    severity: float = 0.0  # IQR outlier severity in number of IQRs beyond the bound
 
 
 def fetch_rows(conn: sqlite3.Connection) -> List[ZooRecord]:
@@ -53,14 +54,14 @@ def fetch_rows(conn: sqlite3.Connection) -> List[ZooRecord]:
     return rows
 
 
-def _compute_bounds(values: Sequence[float]) -> Optional[tuple[float, float]]:
+def _compute_bounds(values: Sequence[float]) -> Optional[tuple[float, float, float]]:
     if len(values) < 4:
         return None
     q1, _, q3 = quantiles(values, n=4, method="inclusive")
     iqr = q3 - q1
     lower = q1 - 1.5 * iqr
     upper = q3 + 1.5 * iqr
-    return lower, upper
+    return lower, upper, iqr
 
 
 def find_suspicious(rows: Iterable[ZooRecord]) -> Dict[int, Suspicious]:
@@ -86,19 +87,34 @@ def find_suspicious(rows: Iterable[ZooRecord]) -> Dict[int, Suspicious]:
         lon_bounds = _compute_bounds([e.longitude for e in entries])
         for e in entries:
             reasons = []
+            severity_val = 0.0
             if lat_bounds:
-                lo, hi = lat_bounds
+                lo, hi, iqr = lat_bounds
                 if not (lo <= e.latitude <= hi):
                     reasons.append("latitude iqr")
+                    if iqr > 0:
+                        if e.latitude < lo:
+                            severity_val = max(severity_val, (lo - e.latitude) / iqr)
+                        elif e.latitude > hi:
+                            severity_val = max(severity_val, (e.latitude - hi) / iqr)
+  
             if lon_bounds:
-                lo, hi = lon_bounds
+                lo, hi, iqr = lon_bounds
                 if not (lo <= e.longitude <= hi):
                     reasons.append("longitude iqr")
+                    if iqr > 0:
+                        if e.longitude < lo:
+                            severity_val = max(severity_val, (lo - e.longitude) / iqr)
+                        elif e.longitude > hi:
+                            severity_val = max(severity_val, (e.longitude - hi) / iqr)
+                      
             if reasons:
                 if e.zoo_id in flagged:
                     flagged[e.zoo_id].reasons.extend(reasons)
+                    flagged[e.zoo_id].severity = max(flagged[e.zoo_id].severity, severity_val)                    
                 else:
                     flagged[e.zoo_id] = Suspicious(e, reasons)
+                    flagged[e.zoo_id] = Suspicious(e, reasons, severity_val)                    
 
     return flagged
 
@@ -111,11 +127,14 @@ def main(db_path: str) -> None:
         conn.close()
 
     flagged = find_suspicious(rows)
-    for s in flagged.values():
+    # Sort by IQR severity (descending). Non-IQR issues have severity 0 and come last.
+    for s in sorted(
+        flagged.values(), key=lambda x: (-x.severity, x.record.zoo_id)
+    ):
         r = s.record
         reason = ", ".join(sorted(set(s.reasons)))
         print(
-            f"{r.zoo_id}\t{r.country}\t{r.name}\t{r.latitude}\t{r.longitude}\t{reason}"
+            f"{r.zoo_id}\t{r.country}\t{r.name}\t{r.latitude}\t{r.longitude}\t{reason}\t{s.severity:.3f}"
         )
 
 
