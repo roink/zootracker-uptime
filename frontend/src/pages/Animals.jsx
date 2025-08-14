@@ -141,11 +141,12 @@ export default function AnimalsPage({ token, userId }) {
             className="animal-card"
             onClick={() => navigate(`/animals/${a.id}`)}
           >
-            <img
-              src={a.default_image_url || 'https://via.placeholder.com/150'}
-              alt={a.common_name || a.scientific_name}
-              className="card-img"
-            />
+            {a.default_image_url && (
+              <img
+                src={a.default_image_url}
+                className="card-img"
+              />
+            )}
             {/* Always show the common name in bold */}
             <div className="fw-bold">
               {a.common_name}
