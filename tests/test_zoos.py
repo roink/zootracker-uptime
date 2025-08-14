@@ -46,6 +46,13 @@ def test_search_zoos_name_only(data):
     names = [z["name"] for z in resp.json()]
     assert "Central Zoo" in names
 
+
+def test_search_zoos_by_city(data):
+    resp = client.get("/zoos", params={"q": data["zoo"].city})
+    assert resp.status_code == 200
+    names = [z["name"] for z in resp.json()]
+    assert "Central Zoo" in names
+
 def test_animal_zoos_sorted_by_distance(data):
     """Zoos for an animal should be ordered by proximity when location is given."""
     # link far_zoo to the animal for this test

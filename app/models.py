@@ -68,6 +68,18 @@ class Zoo(Base):
     __table_args__ = (
         CheckConstraint("animal_count >= 0"),
         Index("idx_zoos_location_gist", "location", postgresql_using="gist"),
+        Index(
+            "idx_zoos_name_trgm",
+            "name",
+            postgresql_using="gin",
+            postgresql_ops={"name": "gin_trgm_ops"},
+        ),
+        Index(
+            "idx_zoos_city_trgm",
+            "city",
+            postgresql_using="gin",
+            postgresql_ops={"city": "gin_trgm_ops"},
+        ),
     )
 
     id = Column(

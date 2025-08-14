@@ -14,7 +14,7 @@ export default function SearchSuggestions({ results, onSelect }) {
             className="btn btn-link p-0"
             onPointerDown={() => handleDown('zoo', z.id)}
           >
-            {z.name}
+            {z.city ? `${z.city}: ${z.name}` : z.name}
           </button>
         </li>
       ))}

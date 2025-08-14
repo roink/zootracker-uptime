@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload, load_only
 import uuid
 
@@ -83,7 +84,9 @@ def combined_search(q: str = "", limit: int = 5, db: Session = Depends(get_db)):
     )
     if q:
         pattern = f"%{q}%"
-        zoo_q = zoo_q.filter(models.Zoo.name.ilike(pattern))
+        zoo_q = zoo_q.filter(
+            or_(models.Zoo.name.ilike(pattern), models.Zoo.city.ilike(pattern))
+        )
     zoos = zoo_q.limit(limit).all()
 
     animal_q = db.query(models.Animal)
