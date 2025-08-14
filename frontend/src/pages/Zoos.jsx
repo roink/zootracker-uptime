@@ -13,7 +13,11 @@ export default function ZoosPage({ token }) {
   const [query, setQuery] = useState('');
   const [region, setRegion] = useState('All');
   const [visitedOnly, setVisitedOnly] = useState(false);
-  const [location, setLocation] = useState(null); // user location
+  // Persist user location so zoos remain sorted by distance across navigation
+  const [location, setLocation] = useState(() => {
+    const stored = sessionStorage.getItem('userLocation');
+    return stored ? JSON.parse(stored) : null;
+  });
   const authFetch = useAuthFetch(token);
 
   // Fetch zoos sorted by distance when location is available
@@ -28,13 +32,19 @@ export default function ZoosPage({ token }) {
       .then(setZoos);
   }, [location]);
 
-  // Determine the current location of the user
+  // Determine the current location of the user and cache it
   useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        (pos) =>
-          setLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
-        () => setLocation(null),
+        (pos) => {
+          const loc = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+          setLocation(loc);
+          sessionStorage.setItem('userLocation', JSON.stringify(loc));
+        },
+        () => {
+          setLocation(null);
+          sessionStorage.removeItem('userLocation');
+        },
         { enableHighAccuracy: false, timeout: 3000, maximumAge: 600000 }
       );
     }

@@ -74,6 +74,8 @@ CREATE TABLE animals (
   updated_at         TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE INDEX IF NOT EXISTS idx_animals_zoo_count ON animals (zoo_count DESC);
+
 -- 5. Zoo ↔ Animal join table
 CREATE TABLE zoo_animals (
   zoo_id     UUID NOT NULL REFERENCES zoos(id) ON DELETE CASCADE,

@@ -74,6 +74,8 @@ class AnimalRead(BaseModel):
     """Minimal representation of an animal."""
     id: UUID
     common_name: str
+    scientific_name: Optional[str] = None
+    zoo_count: int = 0
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 

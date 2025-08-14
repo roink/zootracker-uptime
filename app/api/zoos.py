@@ -50,5 +50,6 @@ def list_zoo_animals(zoo_id: uuid.UUID, db: Session = Depends(get_db)):
         db.query(models.Animal)
         .join(models.ZooAnimal, models.Animal.id == models.ZooAnimal.animal_id)
         .filter(models.ZooAnimal.zoo_id == zoo_id)
+        .order_by(models.Animal.zoo_count.desc())
         .all()
     )

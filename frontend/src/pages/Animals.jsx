@@ -143,10 +143,13 @@ export default function AnimalsPage({ token, userId }) {
           >
             <img
               src={a.default_image_url || 'https://via.placeholder.com/150'}
-              alt={a.scientific_name || a.common_name}
+              alt={a.common_name || a.scientific_name}
               className="card-img"
             />
-            <div className="fw-bold">{a.common_name}</div>
+            {/* Always show the common name in bold */}
+            <div className="fw-bold">
+              {a.common_name}
+            </div>
             {a.scientific_name && (
               <div className="fst-italic small">{a.scientific_name}</div>
             )}
