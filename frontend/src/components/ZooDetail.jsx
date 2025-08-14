@@ -15,11 +15,16 @@ export default function ZooDetail({ zoo, token, userId, refresh, onLogged }) {
   const navigate = useNavigate();
   const authFetch = useAuthFetch(token);
 
-  // Load animals in this zoo
+  // Load animals in this zoo (server already returns popularity order;
+  // keep client-side sort as a fallback for robustness)
   useEffect(() => {
     fetch(`${API}/zoos/${zoo.id}/animals`)
       .then((r) => r.json())
-      .then(setAnimals)
+      .then((data) => {
+        setAnimals(
+          Array.isArray(data) ? data : []
+        );
+      })
       .catch(() => setAnimals([]));
   }, [zoo, refresh]);
 
@@ -92,7 +97,12 @@ export default function ZooDetail({ zoo, token, userId, refresh, onLogged }) {
                 }
               }}
             >
-              <td>{a.common_name}</td>
+              <td>
+                <div>{a.common_name}</div>
+                {a.scientific_name && (
+                  <div className="fst-italic small">{a.scientific_name}</div>
+                )}
+              </td>
               <td className="text-center">{seenIds.has(a.id) ? '✔️' : '—'}</td>
               <td className="text-center">
                 <button
@@ -130,7 +140,11 @@ export default function ZooDetail({ zoo, token, userId, refresh, onLogged }) {
               onLogged && onLogged();
               fetch(`${API}/zoos/${zoo.id}/animals`)
                 .then((r) => r.json())
-                .then(setAnimals)
+                .then((data) => {
+                  setAnimals(
+                    Array.isArray(data) ? data : []
+                  );
+                })
                 .catch(() => setAnimals([]));
               if (token) {
                 authFetch(`${API}/visits`, {
