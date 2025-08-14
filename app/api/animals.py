@@ -5,7 +5,7 @@ import uuid
 from .. import schemas, models
 from ..database import get_db
 from ..utils.geometry import query_zoos_with_distance
-from ._validation import validate_coords
+from .deps import resolve_coords
 
 
 def to_zoodetail(z: models.Zoo, dist: float | None) -> schemas.ZooDetail:
@@ -94,8 +94,7 @@ def combined_search(q: str = "", limit: int = 5, db: Session = Depends(get_db)):
 @router.get("/animals/{animal_id}", response_model=schemas.AnimalDetail)
 def get_animal_detail(
     animal_id: uuid.UUID,
-    latitude: float | None = None,
-    longitude: float | None = None,
+    coords: tuple[float | None, float | None] = Depends(resolve_coords),
     db: Session = Depends(get_db),
 ):
     """Retrieve a single animal and the zoos where it can be found.
@@ -108,7 +107,7 @@ def get_animal_detail(
     if animal is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Animal not found")
 
-    validate_coords(latitude, longitude)
+    latitude, longitude = coords
 
     query = (
         db.query(models.Zoo)
@@ -146,8 +145,7 @@ def get_animal_detail(
 )
 def list_zoos_for_animal(
     animal_id: uuid.UUID,
-    latitude: float | None = None,
-    longitude: float | None = None,
+    coords: tuple[float | None, float | None] = Depends(resolve_coords),
     db: Session = Depends(get_db),
 ):
     """Return zoos that house the given animal ordered by distance if provided."""
@@ -155,7 +153,7 @@ def list_zoos_for_animal(
     if animal is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Animal not found")
 
-    validate_coords(latitude, longitude)
+    latitude, longitude = coords
 
     query = (
         db.query(models.Zoo)

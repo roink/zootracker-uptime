@@ -77,3 +77,27 @@ def test_animal_zoos_invalid_params(data):
     resp = client.get(f"/animals/{data['animal'].id}/zoos", params=params)
     assert resp.status_code == 400
 
+
+def test_animal_zoos_cf_headers_used(data):
+    headers = {
+        "cf-iplatitude": str(data["zoo"].latitude),
+        "cf-iplongitude": str(data["zoo"].longitude),
+    }
+    resp = client.get(f"/animals/{data['animal'].id}/zoos", headers=headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body[0]["distance_km"] == 0
+
+
+def test_animal_zoos_explicit_coords_override_cf_headers(data):
+    headers = {"cf-iplatitude": "0", "cf-iplongitude": "0"}
+    params = {
+        "latitude": data["zoo"].latitude,
+        "longitude": data["zoo"].longitude,
+    }
+    resp = client.get(
+        f"/animals/{data['animal'].id}/zoos", headers=headers, params=params
+    )
+    assert resp.status_code == 200
+    assert resp.json()[0]["distance_km"] == 0
+
