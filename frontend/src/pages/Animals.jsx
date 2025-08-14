@@ -21,6 +21,25 @@ export default function AnimalsPage({ token, userId }) {
   const authFetch = useAuthFetch(token);
   const limit = 20; // number of animals per page
 
+  // Map backend category names to German class labels
+  // Explicit "Klasse N" keys are provided per client request while English
+  // names serve as fallbacks when the backend uses them
+  const classLabels = {
+    'Klasse 1': 'S\u00e4ugetiere',
+    'Klasse 2': 'V\u00f6gel',
+    'Klasse 3': 'Reptilien',
+    'Klasse 4': 'Amphibien',
+    'Klasse 5': 'Fische',
+    'Klasse 6': 'Haustiere',
+    All: 'Alle',
+    Mammal: 'S\u00e4ugetiere',
+    Bird: 'V\u00f6gel',
+    Reptile: 'Reptilien',
+    Amphibian: 'Amphibien',
+    Fish: 'Fische',
+    Domestic: 'Haustiere',
+  };
+
   // Fetch a page of animals from the API
   const loadAnimals = (reset = false) => {
     const currentOffset = reset ? 0 : offset;
@@ -104,7 +123,7 @@ export default function AnimalsPage({ token, userId }) {
               }}
               className={`btn btn-sm me-2 ${category === cat ? 'btn-primary' : 'btn-outline-primary'}`}
             >
-              {cat}
+              {classLabels[cat] || cat}
             </button>
           ))}
         </div>
@@ -124,7 +143,7 @@ export default function AnimalsPage({ token, userId }) {
           >
             <img
               src={a.default_image_url || 'https://via.placeholder.com/150'}
-              alt={a.common_name}
+              alt={a.scientific_name || a.common_name}
               className="card-img"
             />
             <div className="fw-bold">{a.common_name}</div>

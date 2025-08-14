@@ -145,7 +145,7 @@ export default function AnimalDetailPage({ token, userId, refresh, onLogged }) {
                 }
               }}
             >
-              <td>{z.name}</td>
+              <td>{z.city ? `${z.city}: ${z.name}` : z.name}</td>
               {location && (
                 <td className="text-end">
                   {z.distance_km != null ? z.distance_km.toFixed(1) : ''}
@@ -165,7 +165,11 @@ export default function AnimalDetailPage({ token, userId, refresh, onLogged }) {
             animalId: animal.id,
             animalName: animal.common_name,
             zooId: closestZoo ? closestZoo.id : undefined,
-            zooName: closestZoo ? closestZoo.name : undefined,
+            zooName: closestZoo
+              ? closestZoo.city
+                ? `${closestZoo.city}: ${closestZoo.name}`
+                : closestZoo.name
+              : undefined,
           });
         }}
         className="spaced-top"

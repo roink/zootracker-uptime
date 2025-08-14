@@ -12,6 +12,7 @@ def test_get_animal_detail_success(data):
     assert body["zoos"][0]["id"] == str(data["zoo"].id)
     # distance should be included but undefined without coordinates
     assert body["zoos"][0]["distance_km"] is None
+    assert body["zoos"][0]["city"] == "Metropolis"
 
 
 def test_get_animal_detail_with_distance(data):
@@ -22,6 +23,7 @@ def test_get_animal_detail_with_distance(data):
     assert len(body["zoos"]) == 1
     assert body["zoos"][0]["id"] == str(data["zoo"].id)
     assert body["zoos"][0]["distance_km"] == 0
+    assert body["zoos"][0]["city"] == "Metropolis"
 
 
 def test_get_animal_detail_invalid_params(data):

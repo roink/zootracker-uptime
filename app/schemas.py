@@ -40,6 +40,7 @@ class ZooRead(BaseModel):
     id: UUID
     name: str
     address: Optional[str] = None
+    city: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 
@@ -49,6 +50,7 @@ class ZooDetail(BaseModel):
     id: UUID
     name: str
     address: Optional[str] = None
+    city: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     description: Optional[str] = None
@@ -62,6 +64,7 @@ class ZooSearchResult(BaseModel):
     id: UUID
     name: str
     address: Optional[str] = None
+    city: Optional[str] = None
     distance_km: Optional[float] = None
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")
