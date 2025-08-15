@@ -45,13 +45,13 @@ def query_zoos_with_distance(
             geom_loc = cast(models.Zoo.location, Geometry("POINT", 4326))
             q = query
             if not include_no_coords:
-                q = q.filter(models.Zoo.location != None)
+                q = q.filter(models.Zoo.location.is_not(None))
             if radius_km is not None:
                 user_point_geo = cast(user_point, Geography)
                 if include_no_coords:
                     q = q.filter(
                         or_(
-                            models.Zoo.location == None,
+                            models.Zoo.location.is_(None),
                             func.ST_DWithin(
                                 models.Zoo.location, user_point_geo, radius_km * 1000
                             ),

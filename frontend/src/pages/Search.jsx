@@ -31,7 +31,7 @@ export default function SearchPage() {
         title="Search"
         description="Find zoos and animals on ZooTracker."
       />
-      <h2>Search Results for "{query}"</h2>
+      <h2>Search Results for &quot;{query}&quot;</h2>
       <h3>Zoos</h3>
       <ul>
         {zoos.map((z) => (

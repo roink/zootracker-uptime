@@ -13,7 +13,7 @@ export default function ZooSearch({ onSelectZoo }) {
   };
 
   // perform an initial search so the list isn't empty
-  useEffect(search, []);
+  useEffect(search, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div>

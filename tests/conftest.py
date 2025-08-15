@@ -2,6 +2,7 @@ import os
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import text
 
 
 def pytest_addoption(parser):
@@ -34,11 +35,10 @@ os.environ.pop("SMTP_SSL", None)
 if DATABASE_URL.startswith("sqlite") and os.path.exists("test.db"):
     os.remove("test.db")
 
-from app.database import Base, engine, SessionLocal
-from app import models
-from app.triggers import create_triggers
-from app.main import app, get_db
-from sqlalchemy import text
+from app.database import Base, engine, SessionLocal  # noqa: E402
+from app import models  # noqa: E402
+from app.triggers import create_triggers  # noqa: E402
+from app.main import app, get_db  # noqa: E402
 
 
 def override_get_db():
