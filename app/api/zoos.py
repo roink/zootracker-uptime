@@ -7,14 +7,14 @@ from .. import schemas, models
 from ..database import get_db
 from ..config import RADIUS_KM_DEFAULT
 from ..utils.geometry import query_zoos_with_distance
+from .deps import resolve_coords
 
 router = APIRouter()
 
 @router.get("/zoos", response_model=list[schemas.ZooSearchResult])
 def search_zoos(
     q: str = "",
-    latitude: float | None = None,
-    longitude: float | None = None,
+    coords: tuple[float | None, float | None] = Depends(resolve_coords),
     radius_km: float = RADIUS_KM_DEFAULT,
     db: Session = Depends(get_db),
 ):
@@ -25,7 +25,7 @@ def search_zoos(
         query = query.filter(
             or_(models.Zoo.name.ilike(pattern), models.Zoo.city.ilike(pattern))
         )
-
+    latitude, longitude = coords
     results = query_zoos_with_distance(query, latitude, longitude, radius_km)
     return [
         schemas.ZooSearchResult(
