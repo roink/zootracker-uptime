@@ -40,7 +40,7 @@ export default function MapView({ latitude, longitude, zoom = 14 }) {
       cancelled = true;
       mapRef.current?.remove();
     };
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Update center and marker when coordinates change
   useEffect(() => {

@@ -42,6 +42,20 @@ Create a virtual environment and install dependencies before running tests or th
 
 This uses `requirements.txt` which must list all Python packages like `fastapi` needed to execute the backend and test suite.
 
+### Notes
+
+The `venv` directory in this repository is already set up with all required packages installed.
+Activate it with:
+
+```bash
+source venv/bin/activate
+```
+
+### Linting
+
+- Python: `ruff .`
+- Frontend: `npm --prefix frontend ci && npm --prefix frontend run lint`
+
 
 ## Frontend overlays
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
@@ -7,7 +7,7 @@ import Seo from '../components/Seo';
 
 // Detailed page showing an animal along with nearby zoos and user sightings
 
-export default function AnimalDetailPage({ token, userId, refresh, onLogged }) {
+export default function AnimalDetailPage({ token, refresh, onLogged }) {
   const { id } = useParams();
   const navigate = useNavigate();
   const authFetch = useAuthFetch(token);
@@ -44,17 +44,17 @@ export default function AnimalDetailPage({ token, userId, refresh, onLogged }) {
     return () => controller.abort();
   }, [id, location]);
 
-  const loadSightings = () => {
+  const loadSightings = useCallback(() => {
     if (!token) return;
     authFetch(`${API}/sightings`, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => (r.ok ? r.json() : []))
       .then(setSightings)
       .catch(() => setSightings([]));
-  };
+  }, [token, authFetch]);
 
   useEffect(() => {
     loadSightings();
-  }, [token, refresh, authFetch]);
+  }, [loadSightings, refresh]);
 
   useEffect(() => {
     if (navigator.geolocation) {

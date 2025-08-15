@@ -144,6 +144,7 @@ export default function AnimalsPage({ token, userId }) {
             {a.default_image_url && (
               <img
                 src={a.default_image_url}
+                alt={a.common_name}
                 className="card-img"
               />
             )}
