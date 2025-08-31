@@ -274,7 +274,13 @@ def ensure_db_schema(conn):
             zootierliste_description TEXT,
             name_de     TEXT,
             name_en     TEXT,
-            zootierlexikon_link TEXT
+            zootierlexikon_link TEXT,
+            normalized_latin_name TEXT,
+            alternative_latin_names TEXT,
+            qualifier TEXT,
+            qualifier_target TEXT,
+            locality TEXT,
+            trade_code TEXT
         )
         """
     )
@@ -319,6 +325,18 @@ def ensure_db_schema(conn):
         c.execute("ALTER TABLE animal ADD COLUMN name_en TEXT")
     if "zootierlexikon_link" not in cols:
         c.execute("ALTER TABLE animal ADD COLUMN zootierlexikon_link TEXT")
+    if "normalized_latin_name" not in cols:
+        c.execute("ALTER TABLE animal ADD COLUMN normalized_latin_name TEXT")
+    if "alternative_latin_names" not in cols:
+        c.execute("ALTER TABLE animal ADD COLUMN alternative_latin_names TEXT")
+    if "qualifier" not in cols:
+        c.execute("ALTER TABLE animal ADD COLUMN qualifier TEXT")
+    if "qualifier_target" not in cols:
+        c.execute("ALTER TABLE animal ADD COLUMN qualifier_target TEXT")
+    if "locality" not in cols:
+        c.execute("ALTER TABLE animal ADD COLUMN locality TEXT")
+    if "trade_code" not in cols:
+        c.execute("ALTER TABLE animal ADD COLUMN trade_code TEXT")
 
     conn.commit()
 
