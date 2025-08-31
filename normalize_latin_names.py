@@ -17,13 +17,19 @@ from typing import Optional
 from zootier_scraper_sqlite import DB_FILE, ensure_db_schema
 from latin_name_parser import parse_latin_name
 
-def update_animals(conn: sqlite3.Connection) -> None:
-    """Populate normalized name columns for all rows in ``animal``."""
 
-    cur = conn.cursor()
-    for art, latin in cur.execute("SELECT art, latin_name FROM animal"):
+def update_animals(conn: sqlite3.Connection) -> int:
+    """Populate normalized name columns for all rows in ``animal``.
+
+    Returns the number of updated rows.
+    """
+
+    read_cur = conn.cursor()
+    rows = read_cur.execute("SELECT art, latin_name FROM animal").fetchall()
+    write_cur = conn.cursor()
+    for art, latin in rows:
         parsed = parse_latin_name(latin)
-        cur.execute(
+        write_cur.execute(
             """
             UPDATE animal SET
                 normalized_latin_name = ?,
@@ -45,13 +51,15 @@ def update_animals(conn: sqlite3.Connection) -> None:
             ),
         )
     conn.commit()
+    return len(rows)
 
 def main(db_path: Optional[str] = None) -> None:
     db_path = db_path or DB_FILE
     conn = sqlite3.connect(db_path)
     ensure_db_schema(conn)
-    update_animals(conn)
+    count = update_animals(conn)
     conn.close()
+    print(f"Updated {count} rows")
 
 if __name__ == "__main__":  # pragma: no cover - manual invocation
     parser = argparse.ArgumentParser(

@@ -118,3 +118,27 @@ def test_trade_code_and_locality_2():
     parsed = parse_latin_name("Panaque cf. armbrusteri(L 27 Rio Tocantins)")
     assert parsed.trade_code == "L27"
     assert parsed.locality == "Rio Tocantins"
+
+
+def test_update_animals_multiple_rows(tmp_path):
+    db = tmp_path / "db.sqlite"
+    conn = sqlite3.connect(db)
+    ensure_db_schema(conn)
+    c = conn.cursor()
+    c.executemany(
+        "INSERT INTO animal (art, klasse, ordnung, familie, latin_name) VALUES (?,?,?,?,?)",
+        [
+            ("1", 1, 1, 1, "Hyphessobrycon cf. pulchripinnis"),
+            ("2", 1, 1, 1, "Chitala aff. lopis"),
+        ],
+    )
+    updated = update_animals(conn)
+    rows = c.execute(
+        "SELECT art, normalized_latin_name FROM animal ORDER BY art",
+    ).fetchall()
+    assert updated == 2
+    assert rows == [
+        ("1", "Hyphessobrycon pulchripinnis"),
+        ("2", "Chitala lopis"),
+    ]
+    conn.close()
