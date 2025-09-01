@@ -39,8 +39,11 @@ async def test_find_qid_uses_sparql_first():
         "name_de": None,
     }
     async with httpx.AsyncClient(transport=transport) as client:
-        qid = await find_qid(client, animal)
+        qid, method, score, candidates = await find_qid(client, animal)
     assert qid == "Q1"
+    assert method == "p225_exact_primary"
+    assert score == 95
+    assert candidates == []
     assert all(url.host == "query.wikidata.org" for url in requests)
 
 
@@ -77,8 +80,11 @@ async def test_find_qid_falls_back_to_api():
         "name_de": None,
     }
     async with httpx.AsyncClient(transport=transport) as client:
-        qid = await find_qid(client, animal)
+        qid, method, score, candidates = await find_qid(client, animal)
     assert qid == "Q1"
+    assert method == "api_p225_validated_en"
+    assert score == 85
+    assert candidates == []
     assert any(url.path == "/w/api.php" for url in calls)
 
 
@@ -102,7 +108,7 @@ async def test_process_animals_updates_db(tmp_path):
         if request.url.host == "query.wikidata.org":
             params = httpx.QueryParams(request.content.decode())
             q = params.get("query", "")
-            if "Pavo cristatus" in q:
+            if "Pavo cristatus" in q and "P105" not in q:
                 return httpx.Response(
                     200,
                     json={
@@ -118,8 +124,38 @@ async def test_process_animals_updates_db(tmp_path):
                         }
                     },
                 )
+            if "wd:Q1 wdt:P105" in q:
+                return httpx.Response(
+                    200,
+                    json={
+                        "results": {
+                            "bindings": [
+                                {
+                                    "rank": {
+                                        "type": "uri",
+                                        "value": "http://www.wikidata.org/entity/Q7432",
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                )
+            if "wd:Q2" in q and "P225" in q:
+                return httpx.Response(
+                    200,
+                    json={
+                        "results": {
+                            "bindings": [
+                                {"tn": {"type": "literal", "value": "Other"}}
+                            ]
+                        }
+                    },
+                )
             return httpx.Response(200, json={"results": {"bindings": []}})
         if request.url.path == "/w/api.php":
+            params = httpx.QueryParams(request.url.query)
+            if params.get("search") == "Unknown":
+                return httpx.Response(200, json={"search": [{"id": "Q2"}]})
             return httpx.Response(200, json={"search": []})
         return httpx.Response(500)
 
@@ -129,9 +165,13 @@ async def test_process_animals_updates_db(tmp_path):
 
     conn = sqlite3.connect(db_path)
     rows = conn.execute(
-        "SELECT art, wikidata_qid, wikidata_match_status FROM animal"
+        "SELECT art, wikidata_qid, wikidata_match_status, wikidata_match_method, wikidata_match_score FROM animal"
+    ).fetchall()
+    cand_rows = conn.execute(
+        "SELECT art, candidate_qid, method FROM animal_wikidata_candidates"
     ).fetchall()
     conn.close()
-    data = {art: (qid, status) for art, qid, status in rows}
-    assert data["1"] == ("Q1", "auto")
-    assert data["2"] == (None, "none")
+    data = {art: (qid, status, method, score) for art, qid, status, method, score in rows}
+    assert data["1"] == ("Q1", "auto", "p225_exact_primary", 95.0)
+    assert data["2"] == (None, "none", None, None)
+    assert cand_rows == [("2", "Q2", "api_search")]

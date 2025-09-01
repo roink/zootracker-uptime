@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import random
 import sqlite3
 from typing import Optional, Sequence
 
@@ -22,6 +23,37 @@ SPARQL_URL = "https://query.wikidata.org/sparql"
 API_URL = "https://www.wikidata.org/w/api.php"
 USER_AGENT = "ZooTracker/1.0 (contact: contact@zootracker.app)"
 MAX_API_RETRIES = 5
+MAX_ATTEMPTS = 5
+_SEM = asyncio.Semaphore(2)
+
+
+async def _sparql(client: httpx.AsyncClient, query: str) -> dict:
+    for attempt in range(MAX_ATTEMPTS):
+        try:
+            await asyncio.sleep(random.uniform(0.05, 0.15))
+            async with _SEM:
+                r = await client.post(
+                    SPARQL_URL,
+                    data={"query": query, "format": "json"},
+                    headers={
+                        "User-Agent": USER_AGENT,
+                        "Accept": "application/sparql-results+json",
+                        "Content-Type": "application/x-www-form-urlencoded",
+                    },
+                    timeout=90.0,
+                )
+            if r.status_code in (429, 502, 503, 504):
+                ra = r.headers.get("Retry-After")
+                delay = float(ra) if ra and ra.isdigit() else (2**attempt) + random.random()
+                await asyncio.sleep(delay)
+                continue
+            r.raise_for_status()
+            return r.json()
+        except Exception:
+            if attempt == MAX_ATTEMPTS - 1:
+                raise
+            await asyncio.sleep((2**attempt) + random.random())
+    return {}
 
 
 def _escape(name: str) -> str:
@@ -37,13 +69,8 @@ SELECT ?item WHERE {{
         wdt:P225 '{_escape(name)}'.
 }} LIMIT 1
 """
-    r = await client.post(
-        SPARQL_URL,
-        data={"query": query, "format": "json"},
-        headers={"User-Agent": USER_AGENT, "Accept": "application/sparql-results+json"},
-    )
-    r.raise_for_status()
-    bindings = r.json().get("results", {}).get("bindings", [])
+    data = await _sparql(client, query)
+    bindings = data.get("results", {}).get("bindings", [])
     if not bindings:
         return None
     return bindings[0]["item"]["value"].rsplit("/", 1)[-1]
@@ -82,22 +109,49 @@ SELECT ?tn WHERE {{
          wdt:P225 ?tn.
 }} LIMIT 1
 """
-    r = await client.post(
-        SPARQL_URL,
-        data={"query": query, "format": "json"},
-        headers={"User-Agent": USER_AGENT, "Accept": "application/sparql-results+json"},
-    )
-    if r.status_code != 200:
-        return False
-    bindings = r.json().get("results", {}).get("bindings", [])
+    data = await _sparql(client, query)
+    bindings = data.get("results", {}).get("bindings", [])
     if not bindings:
         return False
     tn = bindings[0]["tn"]["value"].lower()
     return any(tn == ln.lower() for ln in latin_names)
 
 
-async def find_qid(client: httpx.AsyncClient, animal: dict) -> Optional[str]:
-    """Return the best matching QID for ``animal`` or ``None``."""
+def _expected_rank_token_count(name: str) -> int:
+    return len((name or "").split())
+
+
+async def _rank_ok(client: httpx.AsyncClient, qid: str, expected_tokens: int) -> bool:
+    query = f"SELECT ?rank WHERE {{ wd:{qid} wdt:P105 ?rank }}"
+    data = await _sparql(client, query)
+    bindings = data.get("results", {}).get("bindings", [])
+    if not bindings:
+        return True
+    rank = bindings[0]["rank"]["value"].rsplit("/", 1)[-1]
+    if expected_tokens == 2:
+        return rank in ("Q7432", "Q68947")
+    if expected_tokens == 3:
+        return rank == "Q68947"
+    return True
+
+
+def _save(conn, art, qid, status, method=None, score=None):
+    conn.execute(
+        "UPDATE animal SET wikidata_qid=?, wikidata_match_status=?, wikidata_match_method=?, wikidata_match_score=? WHERE art=?",
+        (qid, status, method, score, art),
+    )
+
+
+def _store_candidates(conn, art, candidates, method, debug=None):
+    for q in candidates[:5]:
+        conn.execute(
+            "INSERT OR REPLACE INTO animal_wikidata_candidates (art, candidate_qid, score, method, debug) VALUES (?,?,?,?,?)",
+            (art, q, None, method, json.dumps(debug or {})),
+        )
+
+
+async def find_qid(client: httpx.AsyncClient, animal: dict) -> tuple[Optional[str], Optional[str], Optional[int], list[str]]:
+    """Return (qid, method, score, rejected_candidates)."""
     latin_names: list[str] = []
     if animal.get("normalized_latin_name"):
         latin_names.append(animal["normalized_latin_name"])
@@ -108,21 +162,28 @@ async def find_qid(client: httpx.AsyncClient, animal: dict) -> Optional[str]:
     except json.JSONDecodeError:
         pass
 
-    for name in latin_names:
+    rejected: list[str] = []
+    for idx, name in enumerate(latin_names):
         qid = await _sparql_taxon(client, name)
         if qid:
-            return qid
-        for candidate in await _search_wikidata_api(client, name):
+            method = "p225_exact_primary" if idx == 0 else "p225_exact_alt"
+            score = 95 if idx == 0 else 90
+            return qid, method, score, []
+        api_candidates = await _search_wikidata_api(client, name)
+        rejected.extend(api_candidates)
+        for candidate in api_candidates:
             if await _validate_qid(client, latin_names, candidate):
-                return candidate
+                return candidate, "api_p225_validated_en", 85, []
 
     for field, lang in (("name_en", "en"), ("name_de", "de")):
         if not animal.get(field):
             continue
-        for candidate in await _search_wikidata_api(client, animal[field], language=lang):
+        api_candidates = await _search_wikidata_api(client, animal[field], language=lang)
+        rejected.extend(api_candidates)
+        for candidate in api_candidates:
             if await _validate_qid(client, latin_names, candidate):
-                return candidate
-    return None
+                return candidate, f"api_p225_validated_{lang}", 85, []
+    return None, None, None, rejected
 
 
 async def process_animals(
@@ -147,7 +208,7 @@ ORDER BY zoo_count DESC
     )
     rows = cur.fetchall()
     assigned: set[str] = set()
-    http_client = client or httpx.AsyncClient(timeout=30)
+    http_client = client or httpx.AsyncClient(timeout=90)
     if client is None:
         await http_client.__aenter__()
     try:
@@ -160,26 +221,23 @@ ORDER BY zoo_count DESC
                 "name_de": name_de,
             }
             try:
-                qid = await find_qid(http_client, animal)
+                qid, method, score, candidates = await find_qid(http_client, animal)
             except Exception:
-                qid = None
+                qid = method = score = None
+                candidates = []
             if qid and qid not in assigned:
-                conn.execute(
-                    "UPDATE animal SET wikidata_qid=?, wikidata_match_status='auto' WHERE art=?",
-                    (qid, art),
-                )
-                assigned.add(qid)
+                expected = _expected_rank_token_count(latin)
+                status = "auto" if await _rank_ok(http_client, qid, expected) else "review"
+                _save(conn, art, qid, status, method, score)
+                if status == "auto":
+                    assigned.add(qid)
             elif qid:
                 print(f"collision for {art}: {qid}")
-                conn.execute(
-                    "UPDATE animal SET wikidata_match_status='collision' WHERE art=?",
-                    (art,),
-                )
+                _save(conn, art, None, "collision")
             else:
-                conn.execute(
-                    "UPDATE animal SET wikidata_match_status='none' WHERE art=?",
-                    (art,),
-                )
+                _save(conn, art, None, "none")
+                if candidates:
+                    _store_candidates(conn, art, candidates, "api_search")
             conn.commit()
     finally:
         if client is None:
