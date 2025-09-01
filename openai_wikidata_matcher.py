@@ -319,6 +319,7 @@ def process_animals(
         FROM animal
         WHERE klasse < 6
           AND wikidata_qid IS NULL
+	  AND zoo_count > 0
         ORDER BY zoo_count DESC
         """
     )
