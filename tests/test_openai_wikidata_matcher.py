@@ -29,7 +29,7 @@ class DummyClient:
         return self
 
 
-def test_process_animals_inserts_unique_qids(tmp_path, capsys):
+def test_process_animals_resolves_collision(tmp_path, capsys):
     db_path = tmp_path / "t.db"
     conn = sqlite3.connect(db_path)
     ensure_db_schema(conn)
@@ -49,7 +49,16 @@ def test_process_animals_inserts_unique_qids(tmp_path, capsys):
     def stub_lookup(client, latin, name_de, name_en):
         return next(outputs)
 
-    matcher.process_animals(db_path=str(db_path), client=object(), lookup=stub_lookup)
+    def stub_resolve(client, existing, new, collided_qid):
+        assert collided_qid == "Q1"
+        return ("Q1", "Q2")
+
+    matcher.process_animals(
+        db_path=str(db_path), client=object(), lookup=stub_lookup, resolve=stub_resolve
+    )
+    out = capsys.readouterr().out
+    assert "resolver returned: existing=Q1, new=Q2" in out
+    assert "resolver made no changes" not in out
 
     conn = sqlite3.connect(db_path)
     rows = conn.execute(
@@ -57,9 +66,101 @@ def test_process_animals_inserts_unique_qids(tmp_path, capsys):
     ).fetchall()
     conn.close()
 
-    assert rows == [("1", "Q1", "llm", "gpt-5-mini"), ("2", None, None, None)]
-    captured = capsys.readouterr().out
-    assert "collision for 2: Q1" in captured
+    assert rows == [("1", "Q1", "llm", "gpt-5-mini"), ("2", "Q2", "llm", "gpt-5-mini")]
+
+
+def test_collision_updates_existing_row(tmp_path, capsys):
+    db_path = tmp_path / "t.db"
+    conn = sqlite3.connect(db_path)
+    ensure_db_schema(conn)
+    conn.executescript(
+        """
+        ALTER TABLE animal ADD COLUMN wikidata_id TEXT;
+        ALTER TABLE animal ADD COLUMN taxon_rank TEXT;
+        ALTER TABLE animal ADD COLUMN parent_taxon TEXT;
+        ALTER TABLE animal ADD COLUMN wikipedia_en TEXT;
+        ALTER TABLE animal ADD COLUMN wikipedia_de TEXT;
+        ALTER TABLE animal ADD COLUMN iucn_conservation_status TEXT;
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO animal (
+            art, klasse, latin_name, name_de, name_en, wikidata_qid,
+            wikidata_match_status, wikidata_match_method, wikidata_match_score,
+            wikidata_review_json, wikidata_id, taxon_rank, parent_taxon,
+            wikipedia_en, wikipedia_de, iucn_conservation_status
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        """,
+        (
+            "1",
+            1,
+            "Panthera leo",
+            "Löwe",
+            "Lion",
+            "Q1",
+            "manual",
+            "sparql",
+            99.0,
+            "{}",
+            "ID1",
+            "rank",
+            "parent",
+            "enwiki",
+            "dewiki",
+            "status",
+        ),
+    )
+    conn.execute(
+        "INSERT INTO animal (art, klasse, latin_name, name_de, name_en) VALUES (?,?,?,?,?)",
+        ("2", 1, "Panthera tigris", "Tiger", "Tiger"),
+    )
+    conn.commit()
+    conn.close()
+
+    def stub_lookup(client, latin, name_de, name_en):
+        return "Q1"
+
+    def stub_resolve(client, existing, new, collided_qid):
+        assert collided_qid == "Q1"
+        return ("Q3", "Q2")
+
+    matcher.process_animals(
+        db_path=str(db_path), client=object(), lookup=stub_lookup, resolve=stub_resolve
+    )
+    out = capsys.readouterr().out
+    assert "resolver returned: existing=Q3, new=Q2" in out
+    assert "resolver made no changes" not in out
+
+    conn = sqlite3.connect(db_path)
+    rows = conn.execute(
+        """
+        SELECT art, wikidata_qid, wikidata_match_status, wikidata_match_method,
+               wikidata_match_score, wikidata_review_json, wikidata_id,
+               taxon_rank, parent_taxon, wikipedia_en, wikipedia_de,
+               iucn_conservation_status
+          FROM animal ORDER BY art
+        """
+    ).fetchall()
+    conn.close()
+
+    assert rows == [
+        (
+            "1",
+            "Q3",
+            "LLM",
+            "gpt-5-mini",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        ),
+        ("2", "Q2", "llm", "gpt-5-mini", None, None, None, None, None, None, None, None),
+    ]
 
 
 def test_lookup_qid_request_and_validation():
