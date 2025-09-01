@@ -13,11 +13,10 @@ class DummyResponses:
         self._outputs = outputs
         self.calls: list[dict] = []
 
-    def create(self, **kwargs):  # pragma: no cover - executed via lookup_qid
+    def parse(self, **kwargs):  # pragma: no cover - executed via lookup_qid
         self.calls.append(kwargs)
         qid = self._outputs.pop(0)
-        content = SimpleNamespace(json={"wikidata_qid": qid})
-        return SimpleNamespace(output=[SimpleNamespace(content=[content])])
+        return SimpleNamespace(output_parsed=SimpleNamespace(wikidata_qid=qid))
 
 
 class DummyClient:
@@ -74,7 +73,7 @@ def test_lookup_qid_request_and_validation():
     assert call["model"] == "gpt-5-mini"
     assert call["tools"] == [{"type": "web_search"}]
     assert call["service_tier"] == "flex"
-    assert call["response_format"]["type"] == "json_schema"
+    assert call["text_format"] is matcher.WikidataLookup
     assert any(m["role"] == "user" and "Panthera leo" in m["content"] for m in call["input"])
 
 

@@ -14,7 +14,6 @@ optional OpenAI client instance for easier testing.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 import re
 import sqlite3
@@ -22,47 +21,19 @@ import time
 from typing import Any, Callable, Optional
 
 from dotenv import load_dotenv
+from pydantic import BaseModel
 from zootier_scraper_sqlite import DB_FILE, ensure_db_schema
 
 load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env", override=False)
 
 
-@dataclass
-class _ResponseContent:
-    """Minimal structure of the content field in the Responses API output."""
+class WikidataLookup(BaseModel):
+    """Structured output parsed from the model response."""
 
-    json: dict[str, Any]
-
-
-@dataclass
-class _ResponseOutput:
-    content: list[_ResponseContent]
-
-
-@dataclass
-class _Response:
-    output: list[_ResponseOutput]
+    wikidata_qid: str | None = None
 
 
 _QID_RE = re.compile(r"^Q\d+$")
-
-
-def _extract_qid(resp: _Response) -> Optional[str]:
-    """Extract the ``wikidata_qid`` value from a Responses API payload."""
-
-    try:
-        data = resp.output[0].content[0].json
-    except (AttributeError, IndexError, KeyError):
-        return None
-    qid = data.get("wikidata_qid")
-    if qid is None:
-        return None
-    qid_str = str(qid).strip()
-    if qid_str.lower() in {"", "none", "null", "unknown"}:
-        return None
-    if not _QID_RE.match(qid_str):
-        return None
-    return qid_str
 
 
 def lookup_qid(client: Any, latin: str, name_de: Optional[str], name_en: Optional[str]) -> Optional[str]:
@@ -71,7 +42,7 @@ def lookup_qid(client: Any, latin: str, name_de: Optional[str], name_en: Optiona
     Parameters
     ----------
     client:
-        An object exposing ``responses.create`` compatible with the OpenAI
+        An object exposing ``responses.parse`` compatible with the OpenAI
         Python SDK.
     latin, name_de, name_en:
         Taxon names used to query the model.
@@ -85,21 +56,6 @@ def lookup_qid(client: Any, latin: str, name_de: Optional[str], name_en: Optiona
         f"German name: {name_de or 'unknown'}\n"
         f"English name: {name_en or 'unknown'}"
     )
-    schema = {
-        "type": "json_schema",
-        "json_schema": {
-            "name": "wikidata_lookup",
-            "strict": True,
-            "schema": {
-                "type": "object",
-                "properties": {
-                    "wikidata_qid": {"type": ["string", "null"]}
-                },
-                "required": ["wikidata_qid"],
-                "additionalProperties": False,
-            },
-        },
-    }
     client_opt = (
         client.with_options(timeout=900.0)
         if hasattr(client, "with_options")
@@ -107,7 +63,7 @@ def lookup_qid(client: Any, latin: str, name_de: Optional[str], name_en: Optiona
     )
     for attempt in range(3):
         try:
-            resp = client_opt.responses.create(
+            resp = client_opt.responses.parse(
                 model="gpt-5-mini",
                 input=[
                     {
@@ -122,9 +78,14 @@ def lookup_qid(client: Any, latin: str, name_de: Optional[str], name_en: Optiona
                 ],
                 tools=[{"type": "web_search"}],
                 service_tier="flex",
-                response_format=schema,
+                text_format=WikidataLookup,
             )
-            return _extract_qid(resp)
+            qid = (resp.output_parsed.wikidata_qid or "").strip()
+            if qid.lower() in {"", "none", "null", "unknown"}:
+                return None
+            if not _QID_RE.match(qid):
+                return None
+            return qid
         except Exception as exc:  # pragma: no cover - network faults
             status = getattr(exc, "status_code", None)
             if status in {408, 429} and attempt < 2:
