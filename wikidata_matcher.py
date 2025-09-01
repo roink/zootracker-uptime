@@ -24,7 +24,7 @@ API_URL = "https://www.wikidata.org/w/api.php"
 USER_AGENT = "ZooTracker/1.0 (contact: contact@zootracker.app)"
 MAX_API_RETRIES = 5
 MAX_ATTEMPTS = 5
-_SEM = asyncio.Semaphore(2)
+_SEM = asyncio.Semaphore(5)
 
 
 async def _sparql(client: httpx.AsyncClient, query: str) -> dict:

@@ -16,7 +16,7 @@ from urllib3.util.retry import Retry
 from bs4 import BeautifulSoup
 
 BASE_URL      = "https://www.zootierliste.de/index.php"
-DB_FILE       = "zootierliste.db"
+DB_FILE       = "zootierliste-neu.db"
 SLEEP_SECONDS = 1
 MAP_ZOOS_URL  = "https://www.zootierliste.de/map_zoos.php"
 
