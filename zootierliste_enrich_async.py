@@ -35,11 +35,12 @@ from typing import Any, Mapping
 
 import aiosqlite
 import httpx
+from zootier_scraper_sqlite import DB_FILE
 
 # ────────────────────────────────────────────────────────
 # Config
 # ────────────────────────────────────────────────────────
-DB_PATH = "zootierliste.db"
+DB_PATH = DB_FILE
 
 SPARQL_ENDPOINT = "https://query.wikidata.org/sparql"
 
@@ -210,16 +211,16 @@ async def process_row(
 
     async with sem:
         (
-            animal_id,
+            art,
             latin_name,
-            wikidata_id,
+            wikidata_qid,
             taxon_rank,
             parent_taxon,
             wikipedia_en,
             wikipedia_de,
             iucn_conservation_status,
         ) = row
-        qid = wikidata_id
+        qid = wikidata_qid
 
         # ------------------------------------------------------------
         # 2)  Decide what needs to be fetched
@@ -273,8 +274,8 @@ async def process_row(
         if update:
             placeholders = ", ".join(f"{k}=:{k}" for k in update)
             await db.execute(
-                f"UPDATE animal SET {placeholders} WHERE animal_id=:aid",
-                {**update, "aid": animal_id},
+                f"UPDATE animal SET {placeholders} WHERE art=:art",
+                {**update, "art": art},
             )
             await db.commit()
 
@@ -287,7 +288,6 @@ async def process_row(
 # ────────────────────────────────────────────────────────
 async def ensure_columns(db: aiosqlite.Connection) -> None:
     for col in (
-        "wikidata_id TEXT",
         "taxon_rank TEXT",
         "parent_taxon TEXT",
         "wikipedia_en TEXT",
@@ -314,9 +314,9 @@ async def main(args: argparse.Namespace) -> None:
         await ensure_columns(db)
 
         col_idx = {
-            "animal_id": 0,
+            "art": 0,
             "latin_name": 1,
-            "wikidata_id": 2,
+            "wikidata_qid": 2,
             "taxon_rank": 3,
             "parent_taxon": 4,
             "wikipedia_en": 5,
@@ -327,40 +327,40 @@ async def main(args: argparse.Namespace) -> None:
         if args.all:
             query = """
             SELECT
-              animal_id,
-              latin_name,
-              wikidata_id,
-              taxon_rank,
-              parent_taxon,
-              wikipedia_en,
-              wikipedia_de,
-              iucn_conservation_status
-            FROM animal
-            WHERE wikidata_id IS NOT NULL AND wikidata_id != ''
-            ORDER BY zoo_count DESC
-            """
+                art,
+                latin_name,
+                wikidata_qid,
+                taxon_rank,
+                parent_taxon,
+                wikipedia_en,
+                wikipedia_de,
+                iucn_conservation_status
+              FROM animal
+              WHERE wikidata_qid IS NOT NULL AND wikidata_qid != ''
+              ORDER BY zoo_count DESC
+              """
         else:
             query = """
             SELECT
-              animal_id,
-              latin_name,
-              wikidata_id,
-              taxon_rank,
-              parent_taxon,
-              wikipedia_en,
-              wikipedia_de,
-              iucn_conservation_status
-            FROM animal
-            WHERE wikidata_id IS NOT NULL AND wikidata_id != ''
-              AND (
-                wikipedia_en IS NULL OR wikipedia_en = '' OR
-                wikipedia_de IS NULL OR wikipedia_de = '' OR
-                taxon_rank IS NULL OR taxon_rank = '' OR
-                parent_taxon IS NULL OR parent_taxon = '' OR
-                iucn_conservation_status IS NULL OR iucn_conservation_status = ''
-              )
-            ORDER BY zoo_count DESC
-            """
+                art,
+                latin_name,
+                wikidata_qid,
+                taxon_rank,
+                parent_taxon,
+                wikipedia_en,
+                wikipedia_de,
+                iucn_conservation_status
+              FROM animal
+              WHERE wikidata_qid IS NOT NULL AND wikidata_qid != ''
+                AND (
+                  wikipedia_en IS NULL OR wikipedia_en = '' OR
+                  wikipedia_de IS NULL OR wikipedia_de = '' OR
+                  taxon_rank IS NULL OR taxon_rank = '' OR
+                  parent_taxon IS NULL OR parent_taxon = '' OR
+                  iucn_conservation_status IS NULL OR iucn_conservation_status = ''
+                )
+              ORDER BY zoo_count DESC
+              """
 
         async with db.execute(query) as cur:
             rows = await cur.fetchall()
@@ -381,8 +381,8 @@ def parse_args() -> argparse.Namespace:
         "--all",
         action="store_true",
         help=(
-            "Fetch for all rows that have a wikidata_id (default: only rows with a "
-            "wikidata_id AND any of wikipedia_en, wikipedia_de, taxon_rank, "
+            "Fetch for all rows that have a wikidata_qid (default: only rows with a "
+            "wikidata_qid AND any of wikipedia_en, wikipedia_de, taxon_rank, "
             "parent_taxon, iucn_conservation_status missing)"
         ),
     )
