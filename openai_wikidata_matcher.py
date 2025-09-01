@@ -14,11 +14,15 @@ optional OpenAI client instance for easier testing.
 """
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 import re
 import sqlite3
 import time
 from typing import Any, Callable, Optional, Tuple
+
+import httpx
+from zootierliste_enrich_async import fetch_details, fetch_wikipedia, HEADERS
 
 try:  # pragma: no cover - fallback for environments without python-dotenv
     from dotenv import load_dotenv
@@ -78,6 +82,60 @@ _RESET_COLS = [
 ]
 
 
+def _ensure_enrichment_columns(conn: sqlite3.Connection) -> None:
+    """Add enrichment columns if they do not yet exist."""
+
+    cur = conn.cursor()
+    for col in (
+        "taxon_rank TEXT",
+        "parent_taxon TEXT",
+        "wikipedia_en TEXT",
+        "wikipedia_de TEXT",
+        "iucn_conservation_status TEXT",
+    ):
+        try:
+            cur.execute(f"ALTER TABLE animal ADD COLUMN {col}")
+        except sqlite3.OperationalError:
+            pass
+    conn.commit()
+
+
+async def _fetch_all_async(qid: str) -> dict[str, str]:
+    async with httpx.AsyncClient(http2=True, headers=HEADERS, timeout=30) as client:
+        results = await asyncio.gather(
+            fetch_wikipedia(client, qid, "en"),
+            fetch_wikipedia(client, qid, "de"),
+            fetch_details(client, qid),
+        )
+    merged: dict[str, str] = {}
+    for res in results:
+        merged.update(res)
+    return merged
+
+
+def fetch_wikidata_enrichment(qid: str) -> dict[str, str]:
+    """Fetch Wikipedia links and basic taxonomic data for *qid*."""
+
+    try:
+        return asyncio.run(_fetch_all_async(qid))
+    except RuntimeError:  # event loop already running
+        loop = asyncio.get_event_loop()
+        return loop.run_until_complete(_fetch_all_async(qid))
+
+
+def update_enrichment(
+    cur: sqlite3.Cursor, art: str, qid: str, fetch: Callable[[str], dict[str, str]] = fetch_wikidata_enrichment
+) -> None:
+    """Fetch metadata for *qid* and store it for *art*."""
+
+    data = fetch(qid)
+    update = {k: v for k, v in data.items() if v and not (k == "parent_taxon" and v == "")}
+    if not update:
+        return
+    set_bits = ", ".join(f"{k}=?" for k in update)
+    cur.execute(f"UPDATE animal SET {set_bits} WHERE art=?", (*update.values(), art))
+
+
 def _apply_qid_update(
     cur: sqlite3.Cursor,
     art: str,
@@ -86,7 +144,7 @@ def _apply_qid_update(
     status: str,
     reset_fields: bool,
     clear_cols: tuple[str, ...],
-) -> None:
+    ) -> None:
     """Update a row with a new QID and optionally reset metadata."""
 
     set_bits = ["wikidata_qid=?", "wikidata_match_status=?", "wikidata_match_method=?"]
@@ -253,6 +311,7 @@ def process_animals(
 
     conn = sqlite3.connect(db_path)
     ensure_db_schema(conn)
+    _ensure_enrichment_columns(conn)
     cur = conn.cursor()
     cur.execute(
         """
@@ -288,6 +347,7 @@ def process_animals(
                 reset_fields=False,
                 clear_cols=clear_cols,
             )
+            update_enrichment(cur, art, qid)
             existing_qids.add(qid)
             conn.commit()
             print(f" -> assigned QID {qid}")
@@ -315,6 +375,7 @@ def process_animals(
                         reset_fields=True,
                         clear_cols=clear_cols,
                     )
+                    update_enrichment(cur, old_art, existing_qid)
                     existing_qids.discard(qid)
                     existing_qids.add(existing_qid)
                     print(
@@ -329,6 +390,7 @@ def process_animals(
                         reset_fields=False,
                         clear_cols=clear_cols,
                     )
+                    update_enrichment(cur, art, new_qid)
                     existing_qids.add(new_qid)
                     print(f"    assigned {new_qid} to {art}")
                 conn.commit()

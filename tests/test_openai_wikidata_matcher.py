@@ -45,6 +45,7 @@ def test_process_animals_resolves_collision(tmp_path, capsys):
     conn.close()
 
     outputs = iter(["Q1", "Q1"])
+    calls: list[str] = []
 
     def stub_lookup(client, latin, name_de, name_en):
         return next(outputs)
@@ -53,20 +54,47 @@ def test_process_animals_resolves_collision(tmp_path, capsys):
         assert collided_qid == "Q1"
         return ("Q1", "Q2")
 
-    matcher.process_animals(
-        db_path=str(db_path), client=object(), lookup=stub_lookup, resolve=stub_resolve
-    )
-    out = capsys.readouterr().out
-    assert "resolver returned: existing=Q1, new=Q2" in out
-    assert "resolver made no changes" not in out
+    def stub_fetch(qid: str) -> dict[str, str]:
+        calls.append(qid)
+        return {
+            "wikipedia_en": f"en{qid}",
+            "wikipedia_de": f"de{qid}",
+            "taxon_rank": f"rank{qid}",
+            "parent_taxon": f"parent{qid}",
+            "iucn_conservation_status": f"status{qid}",
+        }
 
-    conn = sqlite3.connect(db_path)
-    rows = conn.execute(
-        "SELECT art, wikidata_qid, wikidata_match_status, wikidata_match_method FROM animal ORDER BY art",
-    ).fetchall()
-    conn.close()
+    original_update = matcher.update_enrichment
 
-    assert rows == [("1", "Q1", "llm", "gpt-5-mini"), ("2", "Q2", "llm", "gpt-5-mini")]
+    def stub_update(cur, art, qid):
+        original_update(cur, art, qid, fetch=stub_fetch)
+
+    matcher.update_enrichment = stub_update  # type: ignore
+    try:
+        matcher.process_animals(
+            db_path=str(db_path), client=object(), lookup=stub_lookup, resolve=stub_resolve
+        )
+        out = capsys.readouterr().out
+        assert "resolver returned: existing=Q1, new=Q2" in out
+        assert "resolver made no changes" not in out
+        assert calls == ["Q1", "Q2"]
+
+        conn = sqlite3.connect(db_path)
+        rows = conn.execute(
+            """
+            SELECT art, wikidata_qid, wikipedia_en, wikipedia_de, taxon_rank,
+                   parent_taxon, iucn_conservation_status
+              FROM animal ORDER BY art
+            """,
+        ).fetchall()
+        conn.close()
+
+        assert rows == [
+            ("1", "Q1", "enQ1", "deQ1", "rankQ1", "parentQ1", "statusQ1"),
+            ("2", "Q2", "enQ2", "deQ2", "rankQ2", "parentQ2", "statusQ2"),
+        ]
+    finally:
+        matcher.update_enrichment = original_update
 
 
 def test_collision_updates_existing_row(tmp_path, capsys):
@@ -125,42 +153,45 @@ def test_collision_updates_existing_row(tmp_path, capsys):
         assert collided_qid == "Q1"
         return ("Q3", "Q2")
 
-    matcher.process_animals(
-        db_path=str(db_path), client=object(), lookup=stub_lookup, resolve=stub_resolve
-    )
-    out = capsys.readouterr().out
-    assert "resolver returned: existing=Q3, new=Q2" in out
-    assert "resolver made no changes" not in out
+    def stub_fetch(qid: str) -> dict[str, str]:
+        return {
+            "wikipedia_en": f"en{qid}",
+            "wikipedia_de": f"de{qid}",
+            "taxon_rank": f"rank{qid}",
+            "parent_taxon": f"parent{qid}",
+            "iucn_conservation_status": f"status{qid}",
+        }
 
-    conn = sqlite3.connect(db_path)
-    rows = conn.execute(
-        """
-        SELECT art, wikidata_qid, wikidata_match_status, wikidata_match_method,
-               wikidata_match_score, wikidata_review_json, wikidata_id,
-               taxon_rank, parent_taxon, wikipedia_en, wikipedia_de,
-               iucn_conservation_status
-          FROM animal ORDER BY art
-        """
-    ).fetchall()
-    conn.close()
+    original_update = matcher.update_enrichment
 
-    assert rows == [
-        (
-            "1",
-            "Q3",
-            "LLM",
-            "gpt-5-mini",
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-        ),
-        ("2", "Q2", "llm", "gpt-5-mini", None, None, None, None, None, None, None, None),
-    ]
+    def stub_update(cur, art, qid):
+        original_update(cur, art, qid, fetch=stub_fetch)
+
+    matcher.update_enrichment = stub_update  # type: ignore
+    try:
+        matcher.process_animals(
+            db_path=str(db_path), client=object(), lookup=stub_lookup, resolve=stub_resolve
+        )
+        out = capsys.readouterr().out
+        assert "resolver returned: existing=Q3, new=Q2" in out
+        assert "resolver made no changes" not in out
+
+        conn = sqlite3.connect(db_path)
+        rows = conn.execute(
+            """
+            SELECT art, wikidata_qid, wikipedia_en, wikipedia_de, taxon_rank,
+                   parent_taxon, iucn_conservation_status
+              FROM animal ORDER BY art
+            """,
+        ).fetchall()
+        conn.close()
+
+        assert rows == [
+            ("1", "Q3", "enQ3", "deQ3", "rankQ3", "parentQ3", "statusQ3"),
+            ("2", "Q2", "enQ2", "deQ2", "rankQ2", "parentQ2", "statusQ2"),
+        ]
+    finally:
+        matcher.update_enrichment = original_update
 
 
 def test_lookup_qid_request_and_validation():
