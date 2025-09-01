@@ -280,7 +280,8 @@ def ensure_db_schema(conn):
             qualifier TEXT,
             qualifier_target TEXT,
             locality TEXT,
-            trade_code TEXT
+            trade_code TEXT,
+            zoo_count  INTEGER NOT NULL DEFAULT 0
         )
         """
     )
@@ -294,7 +295,8 @@ def ensure_db_schema(conn):
             name        TEXT,
             latitude    REAL,
             longitude   REAL,
-            website     TEXT
+            website     TEXT,
+            species_count INTEGER NOT NULL DEFAULT 0
         )
         """
     )
@@ -307,6 +309,11 @@ def ensure_db_schema(conn):
             FOREIGN KEY(zoo_id) REFERENCES zoo(zoo_id),
             FOREIGN KEY(art) REFERENCES animal(art)
         )
+        """
+    )
+    c.execute(
+        """
+        CREATE INDEX IF NOT EXISTS zoo_animal_art_idx ON zoo_animal(art);
         """
     )
     c.execute(
@@ -337,6 +344,12 @@ def ensure_db_schema(conn):
         c.execute("ALTER TABLE animal ADD COLUMN locality TEXT")
     if "trade_code" not in cols:
         c.execute("ALTER TABLE animal ADD COLUMN trade_code TEXT")
+    if "zoo_count" not in cols:
+        c.execute("ALTER TABLE animal ADD COLUMN zoo_count INTEGER DEFAULT 0")
+
+    cols_zoo = [row[1] for row in c.execute("PRAGMA table_info(zoo)")]
+    if "species_count" not in cols_zoo:
+        c.execute("ALTER TABLE zoo ADD COLUMN species_count INTEGER DEFAULT 0")
 
     conn.commit()
 
@@ -415,6 +428,33 @@ def create_zoo_animal(conn, zoo_id, art):
         (zoo_id, art),
     )
 
+
+
+def update_counts(conn):
+    """Populate zoo_count on animal and species_count on zoo."""
+    cur = conn.cursor()
+    with_retry(
+        cur.execute,
+        """
+        UPDATE animal
+        SET zoo_count = (
+            SELECT COUNT(DISTINCT zoo_id)
+            FROM zoo_animal za
+            WHERE za.art = animal.art
+        )
+        """,
+    )
+    with_retry(
+        cur.execute,
+        """
+        UPDATE zoo
+        SET species_count = (
+            SELECT COUNT(DISTINCT art)
+            FROM zoo_animal za
+            WHERE za.zoo_id = zoo.zoo_id
+        )
+        """,
+    )
 
 
 
