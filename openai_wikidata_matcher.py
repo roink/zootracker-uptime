@@ -18,10 +18,35 @@ from pathlib import Path
 import re
 import sqlite3
 import time
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, Tuple
 
-from dotenv import load_dotenv
-from pydantic import BaseModel
+try:  # pragma: no cover - fallback for environments without python-dotenv
+    from dotenv import load_dotenv
+except Exception:  # pragma: no cover - library missing
+    import os
+
+    def load_dotenv(*args, **kwargs):  # type: ignore
+        dotenv_path = kwargs.get("dotenv_path") if kwargs else None
+        override = kwargs.get("override", False)
+        if not dotenv_path:
+            return False
+        try:
+            with open(dotenv_path, "r") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    key, _, value = line.partition("=")
+                    if key and (override or key not in os.environ):
+                        os.environ[key] = value
+            return True
+        except OSError:
+            return False
+try:  # pragma: no cover - allow running without pydantic
+    from pydantic import BaseModel
+except Exception:  # pragma: no cover - library missing
+    class BaseModel:  # type: ignore
+        pass
 from zootier_scraper_sqlite import DB_FILE, ensure_db_schema
 
 load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env", override=False)
@@ -33,7 +58,45 @@ class WikidataLookup(BaseModel):
     wikidata_qid: str | None = None
 
 
+class CollisionLookup(BaseModel):
+    """Structured output for resolving a QID collision."""
+
+    existing_qid: str | None = None
+    new_qid: str | None = None
+
+
 _QID_RE = re.compile(r"^Q\d+$")
+_RESET_COLS = [
+    "wikidata_match_score",
+    "wikidata_review_json",
+    "wikidata_id",
+    "taxon_rank",
+    "parent_taxon",
+    "wikipedia_en",
+    "wikipedia_de",
+    "iucn_conservation_status",
+]
+
+
+def _apply_qid_update(
+    cur: sqlite3.Cursor,
+    art: str,
+    qid: Optional[str],
+    *,
+    status: str,
+    reset_fields: bool,
+    clear_cols: tuple[str, ...],
+) -> None:
+    """Update a row with a new QID and optionally reset metadata."""
+
+    set_bits = ["wikidata_qid=?", "wikidata_match_status=?", "wikidata_match_method=?"]
+    params: list[object] = [qid, status, "gpt-5-mini"]
+    if reset_fields:
+        set_bits += [f"{c}=NULL" for c in clear_cols]
+    cur.execute(
+        f"UPDATE animal SET {', '.join(set_bits)} WHERE art=?",
+        (*params, art),
+    )
 
 
 def lookup_qid(client: Any, latin: str, name_de: Optional[str], name_en: Optional[str]) -> Optional[str]:
@@ -95,10 +158,81 @@ def lookup_qid(client: Any, latin: str, name_de: Optional[str], name_en: Optiona
     return None
 
 
+def resolve_collision(
+    client: Any,
+    existing: Tuple[str, str, Optional[str], Optional[str]],
+    new: Tuple[str, str, Optional[str], Optional[str]],
+    collided_qid: str,
+) -> Tuple[Optional[str], Optional[str]]:
+    """Ask the model for QIDs for two colliding entries."""
+
+    _e_art, e_latin, e_de, e_en = existing
+    _n_art, n_latin, n_de, n_en = new
+    prompt = (
+        "Two different animal entries yielded the same Wikidata QID. "
+        "Resolve the collision by returning a QID for each entry separately. "
+        "If no suitable taxon exists for an entry, return null.\n"
+        f"Previously returned (collided) QID: {collided_qid}\n"
+        f"Entry A – Latin: {e_latin}\nGerman: {e_de or 'unknown'}\nEnglish: {e_en or 'unknown'}\n"
+        f"Entry B – Latin: {n_latin}\nGerman: {n_de or 'unknown'}\nEnglish: {n_en or 'unknown'}"
+    )
+    client_opt = (
+        client.with_options(timeout=900.0)
+        if hasattr(client, "with_options")
+        else client
+    )
+    for attempt in range(3):
+        try:
+            resp = client_opt.responses.parse(
+                model="gpt-5-mini",
+                input=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "You disambiguate animal taxa and provide distinct Wikidata QIDs. "
+                            "Return null if unsure."
+                        ),
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                tools=[{"type": "web_search"}],
+                service_tier="flex",
+                text_format=CollisionLookup,
+            )
+            existing_qid = (resp.output_parsed.existing_qid or "").strip()
+            new_qid = (resp.output_parsed.new_qid or "").strip()
+            if existing_qid.lower() in {"", "none", "null", "unknown"}:
+                existing_qid = None
+            if new_qid.lower() in {"", "none", "null", "unknown"}:
+                new_qid = None
+            if existing_qid and not _QID_RE.match(existing_qid):
+                existing_qid = None
+            if new_qid and not _QID_RE.match(new_qid):
+                new_qid = None
+            return existing_qid, new_qid
+        except Exception as exc:  # pragma: no cover - network faults
+            status = getattr(exc, "status_code", None)
+            if status in {408, 429} and attempt < 2:
+                time.sleep(2**attempt)
+                continue
+            raise
+    return None, None
+
+
 def process_animals(
     db_path: str = DB_FILE,
     client: Any | None = None,
     lookup: Callable[[Any, str, Optional[str], Optional[str]], Optional[str]] | None = None,
+    resolve: Callable[
+        [
+            Any,
+            Tuple[str, str, Optional[str], Optional[str]],
+            Tuple[str, str, Optional[str], Optional[str]],
+            str,
+        ],
+        Tuple[Optional[str], Optional[str]],
+    ]
+    | None = None,
 ) -> None:
     """Process all animals and update their ``wikidata_qid`` values."""
 
@@ -109,6 +243,8 @@ def process_animals(
 
     if lookup is None:
         lookup = lookup_qid
+    if resolve is None:
+        resolve = resolve_collision
 
     conn = sqlite3.connect(db_path)
     ensure_db_schema(conn)
@@ -131,18 +267,66 @@ def process_animals(
         )
         if qid
     }
+    cols = {row[1] for row in cur.execute("PRAGMA table_info(animal)")}
+    clear_cols = tuple(c for c in _RESET_COLS if c in cols)
 
+    print(f"{len(rows)} animals to process")
     for art, latin, name_de, name_en in rows:
+        print(f"Processing {art} ({latin})")
         qid = lookup(client, latin, name_de, name_en)
         if qid and qid not in existing_qids:
-            cur.execute(
-                "UPDATE animal SET wikidata_qid=?, wikidata_match_status=?, wikidata_match_method=? WHERE art=?",
-                (qid, "llm", "gpt-5-mini", art),
+            _apply_qid_update(
+                cur,
+                art,
+                qid,
+                status="llm",
+                reset_fields=False,
+                clear_cols=clear_cols,
             )
             existing_qids.add(qid)
             conn.commit()
+            print(f" -> assigned QID {qid}")
         elif qid:
-            print(f"collision for {art}: {qid}")
+            print(f" -> collision on QID {qid}")
+            cur.execute(
+                "SELECT art, latin_name, name_de, name_en FROM animal WHERE wikidata_qid=?",
+                (qid,),
+            )
+            existing = cur.fetchone()
+            if existing:
+                new_info = (art, latin, name_de, name_en)
+                existing_qid, new_qid = resolve(client, existing, new_info, qid)
+                old_art = existing[0]
+                if existing_qid and existing_qid != qid:
+                    _apply_qid_update(
+                        cur,
+                        old_art,
+                        existing_qid,
+                        status="LLM",
+                        reset_fields=True,
+                        clear_cols=clear_cols,
+                    )
+                    existing_qids.discard(qid)
+                    existing_qids.add(existing_qid)
+                    print(
+                        f"    updated {old_art} to {existing_qid} (was {qid})"
+                    )
+                if new_qid and new_qid not in existing_qids:
+                    _apply_qid_update(
+                        cur,
+                        art,
+                        new_qid,
+                        status="llm",
+                        reset_fields=False,
+                        clear_cols=clear_cols,
+                    )
+                    existing_qids.add(new_qid)
+                    print(f"    assigned {new_qid} to {art}")
+                conn.commit()
+            else:
+                print(f"    no existing row found for collision {qid}")
+        else:
+            print(" -> no QID found")
 
     conn.close()
 
