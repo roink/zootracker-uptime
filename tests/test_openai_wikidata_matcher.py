@@ -29,7 +29,7 @@ class DummyClient:
         return self
 
 
-def test_process_animals_resolves_collision(tmp_path):
+def test_process_animals_resolves_collision(tmp_path, capsys):
     db_path = tmp_path / "t.db"
     conn = sqlite3.connect(db_path)
     ensure_db_schema(conn)
@@ -56,6 +56,9 @@ def test_process_animals_resolves_collision(tmp_path):
     matcher.process_animals(
         db_path=str(db_path), client=object(), lookup=stub_lookup, resolve=stub_resolve
     )
+    out = capsys.readouterr().out
+    assert "resolver returned: existing=Q1, new=Q2" in out
+    assert "resolver made no changes" not in out
 
     conn = sqlite3.connect(db_path)
     rows = conn.execute(
@@ -66,7 +69,7 @@ def test_process_animals_resolves_collision(tmp_path):
     assert rows == [("1", "Q1", "llm", "gpt-5-mini"), ("2", "Q2", "llm", "gpt-5-mini")]
 
 
-def test_collision_updates_existing_row(tmp_path):
+def test_collision_updates_existing_row(tmp_path, capsys):
     db_path = tmp_path / "t.db"
     conn = sqlite3.connect(db_path)
     ensure_db_schema(conn)
@@ -125,6 +128,9 @@ def test_collision_updates_existing_row(tmp_path):
     matcher.process_animals(
         db_path=str(db_path), client=object(), lookup=stub_lookup, resolve=stub_resolve
     )
+    out = capsys.readouterr().out
+    assert "resolver returned: existing=Q3, new=Q2" in out
+    assert "resolver made no changes" not in out
 
     conn = sqlite3.connect(db_path)
     rows = conn.execute(

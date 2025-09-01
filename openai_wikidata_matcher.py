@@ -170,8 +170,13 @@ def resolve_collision(
     _n_art, n_latin, n_de, n_en = new
     prompt = (
         "Two different animal entries yielded the same Wikidata QID. "
-        "Resolve the collision by returning a QID for each entry separately. "
-        "If no suitable taxon exists for an entry, return null.\n"
+        "Return exactly one Wikidata QID for EACH entry so they do NOT share the same QID. "
+        "Rules:\n"
+        "• If an entry is a subspecies (Latin has three terms like Genus species subspecies), "
+        "  prefer a subspecies QID; if none exists, return null for that entry.\n"
+        "• If an entry says 'sensu lato' (species complex), map it to the species-level item if appropriate, "
+        "  but then the other entry MUST be a different QID or null.\n"
+        "• Never return the same QID for both. If only one valid item exists, one entry must be null.\n"
         f"Previously returned (collided) QID: {collided_qid}\n"
         f"Entry A – Latin: {e_latin}\nGerman: {e_de or 'unknown'}\nEnglish: {e_en or 'unknown'}\n"
         f"Entry B – Latin: {n_latin}\nGerman: {n_de or 'unknown'}\nEnglish: {n_en or 'unknown'}"
@@ -295,7 +300,11 @@ def process_animals(
             existing = cur.fetchone()
             if existing:
                 new_info = (art, latin, name_de, name_en)
+                pre_existing_qids = set(existing_qids)
                 existing_qid, new_qid = resolve(client, existing, new_info, qid)
+                print(
+                    f"    resolver returned: existing={existing_qid}, new={new_qid}"
+                )
                 old_art = existing[0]
                 if existing_qid and existing_qid != qid:
                     _apply_qid_update(
@@ -323,6 +332,12 @@ def process_animals(
                     existing_qids.add(new_qid)
                     print(f"    assigned {new_qid} to {art}")
                 conn.commit()
+                if (not existing_qid or existing_qid == qid) and (
+                    not new_qid or new_qid in pre_existing_qids
+                ):
+                    print(
+                        "    resolver made no changes (kept existing; new was null/duplicate)"
+                    )
             else:
                 print(f"    no existing row found for collision {qid}")
         else:
