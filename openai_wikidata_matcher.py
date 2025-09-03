@@ -19,7 +19,7 @@ from pathlib import Path
 import re
 import sqlite3
 import time
-from typing import Any, Callable, Optional, Tuple
+from typing import Any, AsyncIterator, Callable, Optional, Tuple
 
 import httpx
 from zootierliste_enrich_async import fetch_details, fetch_wikipedia, HEADERS
@@ -286,7 +286,36 @@ def resolve_collision(
     return None, None
 
 
-def process_animals(
+async def _lookup_rows(
+    rows: list[tuple[str, str, Optional[str], Optional[str]]],
+    client: Any,
+    lookup: Callable[[Any, str, Optional[str], Optional[str]], Optional[str]],
+    concurrency: int = 30,
+) -> AsyncIterator[tuple[tuple[str, str, Optional[str], Optional[str]], Optional[str]]]:
+    """Yield lookup results for *rows* as they become available.
+
+    A semaphore limits the number of concurrent lookups. The *lookup*
+    function itself is executed in a thread so a synchronous
+    implementation can still benefit from concurrency.
+    """
+
+    sem = asyncio.Semaphore(concurrency)
+
+    async def run(
+        row: tuple[str, str, Optional[str], Optional[str]]
+    ) -> tuple[tuple[str, str, Optional[str], Optional[str]], Optional[str]]:
+        art, latin, name_de, name_en = row
+        print(f"Processing {art} ({latin})")
+        async with sem:
+            qid = await asyncio.to_thread(lookup, client, latin, name_de, name_en)
+        return row, qid
+
+    tasks = [asyncio.create_task(run(row)) for row in rows]
+    for task in asyncio.as_completed(tasks):
+        yield await task
+
+
+async def _process_animals_async(
     db_path: str = DB_FILE,
     client: Any | None = None,
     lookup: Callable[[Any, str, Optional[str], Optional[str]], Optional[str]] | None = None,
@@ -323,7 +352,6 @@ def process_animals(
         FROM animal
         WHERE klasse < 6
           AND wikidata_qid IS NULL
-	  AND zoo_count > 0
         ORDER BY zoo_count DESC
         """
     )
@@ -340,9 +368,10 @@ def process_animals(
     clear_cols = tuple(c for c in _RESET_COLS if c in cols)
 
     print(f"{len(rows)} animals to process")
-    for art, latin, name_de, name_en in rows:
-        print(f"Processing {art} ({latin})")
-        qid = lookup(client, latin, name_de, name_en)
+
+    async for (art, latin, name_de, name_en), qid in _lookup_rows(
+        rows, client, lookup
+    ):
         if qid and qid not in existing_qids:
             _apply_qid_update(
                 cur,
@@ -366,7 +395,9 @@ def process_animals(
             if existing:
                 new_info = (art, latin, name_de, name_en)
                 pre_existing_qids = set(existing_qids)
-                existing_qid, new_qid = resolve(client, existing, new_info, qid)
+                existing_qid, new_qid = await asyncio.to_thread(
+                    resolve, client, existing, new_info, qid
+                )
                 print(
                     f"    resolver returned: existing={existing_qid}, new={new_qid}"
                 )
@@ -411,6 +442,48 @@ def process_animals(
             print(" -> no QID found")
 
     conn.close()
+
+
+def process_animals(
+    db_path: str = DB_FILE,
+    client: Any | None = None,
+    lookup: Callable[[Any, str, Optional[str], Optional[str]], Optional[str]] | None = None,
+    resolve: Callable[
+        [
+            Any,
+            Tuple[str, str, Optional[str], Optional[str]],
+            Tuple[str, str, Optional[str], Optional[str]],
+            str,
+        ],
+        Tuple[Optional[str], Optional[str]],
+    ]
+    | None = None,
+) -> None:
+    """Synchronous wrapper for :func:`_process_animals_async`.
+
+    This allows the function to be called from non-async code while the
+    heavy network lookups are executed concurrently.
+    """
+
+    try:
+        asyncio.run(
+            _process_animals_async(
+                db_path=db_path,
+                client=client,
+                lookup=lookup,
+                resolve=resolve,
+            )
+        )
+    except RuntimeError:  # event loop already running
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(
+            _process_animals_async(
+                db_path=db_path,
+                client=client,
+                lookup=lookup,
+                resolve=resolve,
+            )
+        )
 
 
 if __name__ == "__main__":  # pragma: no cover - manual invocation
