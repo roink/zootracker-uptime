@@ -194,8 +194,6 @@ def lookup_breed(
                     {"role": "user", "content": prompt},
                 ],
                 tools=[{"type": "web_search"}],
-                reasoning={"effort": "minimal"},
-                service_tier="flex",
                 text_format=BreedLookup,
             )
             out = resp.output_parsed
