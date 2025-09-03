@@ -20,7 +20,7 @@ from pathlib import Path
 import re
 import sqlite3
 import time
-from typing import Any, Callable, Optional, Tuple
+from typing import Any, Callable, Optional
 
 from matcher_shared import (
     apply_qid_update,
@@ -72,13 +72,6 @@ class BreedLookup(BaseModel):
     wikidata_qid: str | None = None
     wikipedia_en: str | None = None  # page title OR full URL accepted
     wikipedia_de: str | None = None  # page title OR full URL accepted
-
-
-class CollisionLookup(BaseModel):
-    """Structured output for resolving a QID collision."""
-
-    existing_qid: str | None = None
-    new_qid: str | None = None
 
 
 _QID_RE = re.compile(r"^Q\d+$")
@@ -222,116 +215,6 @@ def lookup_breed(
     return None, None, None
 
 
-def resolve_collision(
-    client: Any,
-    existing: Tuple[str, str, Optional[str], Optional[str]],
-    new: Tuple[str, str, Optional[str], Optional[str]],
-    collided_qid: str,
-) -> Tuple[Optional[str], Optional[str]]:
-    """Ask the model for QIDs for two colliding entries."""
-
-    _e_art, e_latin, e_de, e_en = existing
-    _n_art, n_latin, n_de, n_en = new
-    prompt = (
-        "Two different animal entries yielded the same Wikidata QID. "
-        "Return exactly one Wikidata QID for EACH entry so they do NOT share the same QID. "
-        "Rules:\n"
-        "• If an entry is a subspecies (Latin has three terms like Genus species subspecies), "
-        "  prefer a subspecies QID; if none exists, return null for that entry.\n"
-        "• If an entry says 'sensu lato' (species complex), map it to the species-level item if appropriate, "
-        "  but then the other entry MUST be a different QID or null.\n"
-        "• Never return the same QID for both. If only one valid item exists, one entry must be null.\n"
-        f"Previously returned (collided) QID: {collided_qid}\n"
-        f"Entry A – Latin: {e_latin}\nGerman: {e_de or 'unknown'}\nEnglish: {e_en or 'unknown'}\n"
-        f"Entry B – Latin: {n_latin}\nGerman: {n_de or 'unknown'}\nEnglish: {n_en or 'unknown'}"
-    )
-    client_opt = (
-        client.with_options(timeout=900.0)
-        if hasattr(client, "with_options")
-        else client
-    )
-    for attempt in range(3):
-        try:
-            resp = client_opt.responses.parse(
-                model="gpt-5-mini",
-                input=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "You disambiguate animal taxa and provide distinct Wikidata QIDs. "
-                            "Return null if unsure."
-                        ),
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                tools=[{"type": "web_search"}],
-
-                service_tier="flex",
-                text_format=CollisionLookup,
-            )
-            existing_qid = (resp.output_parsed.existing_qid or "").strip()
-            new_qid = (resp.output_parsed.new_qid or "").strip()
-            if existing_qid.lower() in {"", "none", "null", "unknown"}:
-                existing_qid = None
-            if new_qid.lower() in {"", "none", "null", "unknown"}:
-                new_qid = None
-            if existing_qid and not _QID_RE.match(existing_qid):
-                existing_qid = None
-            if new_qid and not _QID_RE.match(new_qid):
-                new_qid = None
-            return existing_qid, new_qid
-        except Exception as exc:  # pragma: no cover - network faults
-            status = getattr(exc, "status_code", None)
-            if status in {408, 429} and attempt < 2:
-                time.sleep(2**attempt)
-                continue
-            raise
-    return None, None
-
-def resolve_breed_collision_restricted(
-    client: Any,
-    keeper: Tuple[str, int, str, Optional[str], Optional[str]],
-    new: Tuple[str, str, Optional[str], Optional[str]],
-    collided_qid: str,
-) -> Optional[str]:
-    """Existing row keeps its QID (often klasse<6, finalized). Ask for a DIFFERENT domesticated/breed QID for new row."""
-    _k_art, k_klasse, k_latin, k_de, k_en = keeper
-    _n_art, n_latin, n_de, n_en = new
-    assert k_klasse < 6, "restricted resolver is for finalized keeper rows"
-    prompt = (
-        "An existing (finalized) animal entry already uses this QID and must keep it. "
-        "We are adding a DOMESTICATED FORM / BREED and need a DIFFERENT QID for the new row. "
-        "Return exactly ONE Wikidata QID for the domesticated form/breed (NOT the wild species). "
-        "If none exists, return null.\n"
-        f"Collided QID (belongs to keeper): {collided_qid}\n"
-        f"Keeper (finalized) – Latin: {k_latin}; DE: {k_de or 'unknown'}; EN: {k_en or 'unknown'}\n"
-        f"New (domestic/breed) – Latin: {n_latin}; DE: {n_de or 'unknown'}; EN: {n_en or 'unknown'}\n"
-    )
-    client_opt = client.with_options(timeout=900.0) if hasattr(client, "with_options") else client
-    for attempt in range(3):
-        try:
-            resp = client_opt.responses.parse(
-                model="gpt-5-mini",
-                input=[
-                    {"role": "system", "content": "Return one QID for the DOMESTICATED/BREED item or null. Do NOT return the keeper's QID."},
-                    {"role": "user", "content": prompt},
-                ],
-                tools=[{"type": "web_search"}],
-                service_tier="flex",
-                text_format=WikidataLookup,
-            )
-            qid = (resp.output_parsed.wikidata_qid or "").strip()
-            if not qid or qid.lower() in {"none", "null", "unknown"}:
-                return None
-            return qid if _QID_RE.match(qid) else None
-        except Exception as exc:
-            status = getattr(exc, "status_code", None)
-            if status in {408, 429} and attempt < 2:
-                time.sleep(2**attempt)
-                continue
-            raise
-    return None
-
 def _update_wikipedia_links_if_unique(cur: sqlite3.Cursor, art: str, wiki_en: Optional[str], wiki_de: Optional[str]) -> None:
     """Write wikipedia_en/de if present AND unique across the table."""
     updates = {}
@@ -357,16 +240,6 @@ async def _process_animals_async(
         [Any, str, Optional[str], Optional[str]],
         tuple[Optional[str], Optional[str], Optional[str]],
     ] | None = None,
-    resolve: Callable[
-        [
-            Any,
-            Tuple[str, str, Optional[str], Optional[str]],
-            Tuple[str, str, Optional[str], Optional[str]],
-            str,
-        ],
-        Tuple[Optional[str], Optional[str]],
-    ]
-    | None = None,
     *,
     concurrency: int = 30,
 ) -> None:
@@ -379,8 +252,6 @@ async def _process_animals_async(
 
     if lookup is None:
         lookup = lookup_breed
-    if resolve is None:
-        resolve = resolve_collision
 
     conn = sqlite3.connect(db_path)
     ensure_db_schema(conn)
@@ -431,14 +302,16 @@ async def _process_animals_async(
         fail_value=(None, None, None),
     ):
         print(f"Processing {art} ({latin})")
+        if qid and qid in existing_qids:
+            print(f" -> collision on QID {qid}; skipping")
+            continue
         if wiki_en and wiki_en not in existing_wiki_en:
             _update_wikipedia_links_if_unique(cur, art, wiki_en, None)
             existing_wiki_en.add(wiki_en)
         if wiki_de and wiki_de not in existing_wiki_de:
             _update_wikipedia_links_if_unique(cur, art, None, wiki_de)
             existing_wiki_de.add(wiki_de)
-
-        if qid and qid not in existing_qids:
+        if qid:
             apply_qid_update(
                 cur,
                 art,
@@ -449,88 +322,10 @@ async def _process_animals_async(
             )
             update_enrichment(cur, art, qid)
             existing_qids.add(qid)
-            conn.commit()
             print(f" -> assigned QID {qid}")
-        elif qid:
-            print(f" -> collision on QID {qid}")
-            cur.execute(
-                "SELECT art, klasse, latin_name, name_de, name_en FROM animal WHERE wikidata_qid=?",
-                (qid,),
-            )
-            existing = cur.fetchone()
-            if existing:
-                ex_art, ex_klasse, ex_latin, ex_de, ex_en = existing
-                new_info = (art, latin, name_de, name_en)
-                if ex_klasse < 6:
-                    new_qid = await asyncio.to_thread(
-                        resolve_breed_collision_restricted,
-                        client,
-                        (ex_art, ex_klasse, ex_latin, ex_de, ex_en),
-                        new_info,
-                        qid,
-                    )
-                    print(f"    restricted resolver returned new={new_qid}")
-                    if new_qid and new_qid not in existing_qids:
-                        apply_qid_update(
-                            cur,
-                            art,
-                            new_qid,
-                            status="llm",
-                            reset_fields=False,
-                            clear_cols=clear_cols,
-                        )
-                        update_enrichment(cur, art, new_qid)
-                        existing_qids.add(new_qid)
-                        conn.commit()
-                        print(f"    assigned {new_qid} to {art}")
-                    else:
-                        print("    no alternative QID found or duplicate; leaving as NULL")
-                else:
-                    pre_existing_qids = set(existing_qids)
-                    existing_qid, new_qid = await asyncio.to_thread(
-                        resolve,
-                        client,
-                        (ex_art, ex_latin, ex_de, ex_en),
-                        new_info,
-                        qid,
-                    )
-                    print(f"    resolver returned: existing={existing_qid}, new={new_qid}")
-                    if existing_qid and existing_qid != qid:
-                        apply_qid_update(
-                            cur,
-                            ex_art,
-                            existing_qid,
-                            status="llm",
-                            reset_fields=True,
-                            clear_cols=clear_cols,
-                        )
-                        update_enrichment(cur, ex_art, existing_qid)
-                        existing_qids.discard(qid)
-                        existing_qids.add(existing_qid)
-                        print(f"    updated {ex_art} to {existing_qid} (was {qid})")
-                    if new_qid and new_qid not in existing_qids:
-                        apply_qid_update(
-                            cur,
-                            art,
-                            new_qid,
-                            status="llm",
-                            reset_fields=False,
-                            clear_cols=clear_cols,
-                        )
-                        update_enrichment(cur, art, new_qid)
-                        existing_qids.add(new_qid)
-                        print(f"    assigned {new_qid} to {art}")
-                    conn.commit()
-                    if (not existing_qid or existing_qid == qid) and (
-                        not new_qid or new_qid in pre_existing_qids
-                    ):
-                        print(
-                            "    resolver made no changes (kept existing; new was null/duplicate)"
-                        )
-            else:
-                print(f"    no existing row found for collision {qid}")
         else:
             print(" -> no QID found")
+        conn.commit()
 
     conn.close()
 
@@ -542,16 +337,6 @@ def process_animals(
         [Any, str, Optional[str], Optional[str]],
         tuple[Optional[str], Optional[str], Optional[str]],
     ] | None = None,
-    resolve: Callable[
-        [
-            Any,
-            Tuple[str, str, Optional[str], Optional[str]],
-            Tuple[str, str, Optional[str], Optional[str]],
-            str,
-        ],
-        Tuple[Optional[str], Optional[str]],
-    ]
-    | None = None,
     *,
     concurrency: int = 30,
 ) -> None:
@@ -563,7 +348,6 @@ def process_animals(
                 db_path=db_path,
                 client=client,
                 lookup=lookup,
-                resolve=resolve,
                 concurrency=concurrency,
             )
         )
@@ -574,7 +358,6 @@ def process_animals(
                 db_path=db_path,
                 client=client,
                 lookup=lookup,
-                resolve=resolve,
                 concurrency=concurrency,
             )
         )
