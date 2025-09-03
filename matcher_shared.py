@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import random
+import threading
 import sqlite3
 from typing import Any, AsyncIterator, Callable, Optional, TypeVar
 
@@ -80,13 +81,31 @@ async def _fetch_all_async(qid: str) -> dict[str, str]:
 
 
 def fetch_wikidata_enrichment(qid: str) -> dict[str, str]:
-    """Fetch Wikipedia links and basic taxonomic data for *qid*."""
+    """Fetch Wikipedia links and basic taxonomic data for *qid*.
 
+    This is a synchronous helper. If called from within a running event loop,
+    it spins up a short-lived thread with its own loop to avoid nested
+    ``asyncio.run()``. SQLite connections remain in the caller's thread.
+    """
+
+    # Fast path: no running loop in this thread → safe to use asyncio.run
     try:
+        asyncio.get_running_loop()
+    except RuntimeError:
         return asyncio.run(_fetch_all_async(qid))
-    except RuntimeError:  # event loop already running
-        loop = asyncio.get_event_loop()
-        return loop.run_until_complete(_fetch_all_async(qid))
+
+    # We *are* in an event loop: run the coroutine in a separate thread
+    result: dict[str, str] | None = None
+
+    def _runner() -> None:
+        nonlocal result
+        result = asyncio.run(_fetch_all_async(qid))
+
+    t = threading.Thread(target=_runner, daemon=True)
+    t.start()
+    t.join()
+    assert result is not None
+    return result
 
 
 def apply_qid_update(
