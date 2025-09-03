@@ -198,6 +198,9 @@ def lookup_qid(client: Any, latin: str, name_de: Optional[str], name_en: Optiona
                     {"role": "user", "content": prompt},
                 ],
                 tools=[{"type": "web_search"}],
+                reasoning={
+                    "effort": "high"
+                },
                 service_tier="flex",
                 text_format=WikidataLookup,
             )
@@ -259,6 +262,7 @@ def resolve_collision(
                     {"role": "user", "content": prompt},
                 ],
                 tools=[{"type": "web_search"}],
+
                 service_tier="flex",
                 text_format=CollisionLookup,
             )
