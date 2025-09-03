@@ -14,15 +14,21 @@ optional OpenAI client instance for easier testing.
 """
 from __future__ import annotations
 
+import argparse
 import asyncio
 from pathlib import Path
 import re
 import sqlite3
 import time
-from typing import Any, AsyncIterator, Callable, Optional, Tuple
+from typing import Any, Callable, Optional, Tuple
 
-import httpx
-from zootierliste_enrich_async import fetch_details, fetch_wikipedia, HEADERS
+from matcher_shared import (
+    apply_qid_update,
+    ensure_enrichment_columns,
+    fetch_wikidata_enrichment,
+    lookup_rows,
+    RESET_COLS,
+)
 
 try:  # pragma: no cover - fallback for environments without python-dotenv
     from dotenv import load_dotenv
@@ -70,59 +76,6 @@ class CollisionLookup(BaseModel):
 
 
 _QID_RE = re.compile(r"^Q\d+$")
-_RESET_COLS = [
-    "wikidata_match_score",
-    "wikidata_review_json",
-    "wikidata_id",
-    "taxon_rank",
-    "parent_taxon",
-    "wikipedia_en",
-    "wikipedia_de",
-    "iucn_conservation_status",
-]
-
-
-def _ensure_enrichment_columns(conn: sqlite3.Connection) -> None:
-    """Add enrichment columns if they do not yet exist."""
-
-    cur = conn.cursor()
-    for col in (
-        "taxon_rank TEXT",
-        "parent_taxon TEXT",
-        "wikipedia_en TEXT",
-        "wikipedia_de TEXT",
-        "iucn_conservation_status TEXT",
-    ):
-        try:
-            cur.execute(f"ALTER TABLE animal ADD COLUMN {col}")
-        except sqlite3.OperationalError:
-            pass
-    conn.commit()
-
-
-async def _fetch_all_async(qid: str) -> dict[str, str]:
-    async with httpx.AsyncClient(http2=True, headers=HEADERS, timeout=30) as client:
-        results = await asyncio.gather(
-            fetch_wikipedia(client, qid, "en"),
-            fetch_wikipedia(client, qid, "de"),
-            fetch_details(client, qid),
-        )
-    merged: dict[str, str] = {}
-    for res in results:
-        merged.update(res)
-    return merged
-
-
-def fetch_wikidata_enrichment(qid: str) -> dict[str, str]:
-    """Fetch Wikipedia links and basic taxonomic data for *qid*."""
-
-    try:
-        return asyncio.run(_fetch_all_async(qid))
-    except RuntimeError:  # event loop already running
-        loop = asyncio.get_event_loop()
-        return loop.run_until_complete(_fetch_all_async(qid))
-
-
 def update_enrichment(
     cur: sqlite3.Cursor, art: str, qid: str, fetch: Callable[[str], dict[str, str]] = fetch_wikidata_enrichment
 ) -> None:
@@ -134,27 +87,6 @@ def update_enrichment(
         return
     set_bits = ", ".join(f"{k}=?" for k in update)
     cur.execute(f"UPDATE animal SET {set_bits} WHERE art=?", (*update.values(), art))
-
-
-def _apply_qid_update(
-    cur: sqlite3.Cursor,
-    art: str,
-    qid: Optional[str],
-    *,
-    status: str,
-    reset_fields: bool,
-    clear_cols: tuple[str, ...],
-    ) -> None:
-    """Update a row with a new QID and optionally reset metadata."""
-
-    set_bits = ["wikidata_qid=?", "wikidata_match_status=?", "wikidata_match_method=?"]
-    params: list[object] = [qid, status, "gpt-5-mini"]
-    if reset_fields:
-        set_bits += [f"{c}=NULL" for c in clear_cols]
-    cur.execute(
-        f"UPDATE animal SET {', '.join(set_bits)} WHERE art=?",
-        (*params, art),
-    )
 
 
 def lookup_qid(client: Any, latin: str, name_de: Optional[str], name_en: Optional[str]) -> Optional[str]:
@@ -286,35 +218,6 @@ def resolve_collision(
     return None, None
 
 
-async def _lookup_rows(
-    rows: list[tuple[str, str, Optional[str], Optional[str]]],
-    client: Any,
-    lookup: Callable[[Any, str, Optional[str], Optional[str]], Optional[str]],
-    concurrency: int = 30,
-) -> AsyncIterator[tuple[tuple[str, str, Optional[str], Optional[str]], Optional[str]]]:
-    """Yield lookup results for *rows* as they become available.
-
-    A semaphore limits the number of concurrent lookups. The *lookup*
-    function itself is executed in a thread so a synchronous
-    implementation can still benefit from concurrency.
-    """
-
-    sem = asyncio.Semaphore(concurrency)
-
-    async def run(
-        row: tuple[str, str, Optional[str], Optional[str]]
-    ) -> tuple[tuple[str, str, Optional[str], Optional[str]], Optional[str]]:
-        art, latin, name_de, name_en = row
-        print(f"Processing {art} ({latin})")
-        async with sem:
-            qid = await asyncio.to_thread(lookup, client, latin, name_de, name_en)
-        return row, qid
-
-    tasks = [asyncio.create_task(run(row)) for row in rows]
-    for task in asyncio.as_completed(tasks):
-        yield await task
-
-
 async def _process_animals_async(
     db_path: str = DB_FILE,
     client: Any | None = None,
@@ -329,6 +232,8 @@ async def _process_animals_async(
         Tuple[Optional[str], Optional[str]],
     ]
     | None = None,
+    *,
+    concurrency: int = 30,
 ) -> None:
     """Process all animals and update their ``wikidata_qid`` values."""
 
@@ -344,7 +249,7 @@ async def _process_animals_async(
 
     conn = sqlite3.connect(db_path)
     ensure_db_schema(conn)
-    _ensure_enrichment_columns(conn)
+    ensure_enrichment_columns(conn)
     cur = conn.cursor()
     cur.execute(
         """
@@ -365,15 +270,16 @@ async def _process_animals_async(
         if qid
     }
     cols = {row[1] for row in cur.execute("PRAGMA table_info(animal)")}
-    clear_cols = tuple(c for c in _RESET_COLS if c in cols)
+    clear_cols = tuple(c for c in RESET_COLS if c in cols)
 
     print(f"{len(rows)} animals to process")
 
-    async for (art, latin, name_de, name_en), qid in _lookup_rows(
-        rows, client, lookup
+    async for (art, latin, name_de, name_en), qid in lookup_rows(
+        rows, client, lookup, concurrency=concurrency
     ):
+        print(f"Processing {art} ({latin})")
         if qid and qid not in existing_qids:
-            _apply_qid_update(
+            apply_qid_update(
                 cur,
                 art,
                 qid,
@@ -403,11 +309,11 @@ async def _process_animals_async(
                 )
                 old_art = existing[0]
                 if existing_qid and existing_qid != qid:
-                    _apply_qid_update(
+                    apply_qid_update(
                         cur,
                         old_art,
                         existing_qid,
-                        status="LLM",
+                        status="llm",
                         reset_fields=True,
                         clear_cols=clear_cols,
                     )
@@ -418,7 +324,7 @@ async def _process_animals_async(
                         f"    updated {old_art} to {existing_qid} (was {qid})"
                     )
                 if new_qid and new_qid not in existing_qids:
-                    _apply_qid_update(
+                    apply_qid_update(
                         cur,
                         art,
                         new_qid,
@@ -458,6 +364,8 @@ def process_animals(
         Tuple[Optional[str], Optional[str]],
     ]
     | None = None,
+    *,
+    concurrency: int = 30,
 ) -> None:
     """Synchronous wrapper for :func:`_process_animals_async`.
 
@@ -472,6 +380,7 @@ def process_animals(
                 client=client,
                 lookup=lookup,
                 resolve=resolve,
+                concurrency=concurrency,
             )
         )
     except RuntimeError:  # event loop already running
@@ -482,9 +391,13 @@ def process_animals(
                 client=client,
                 lookup=lookup,
                 resolve=resolve,
+                concurrency=concurrency,
             )
         )
 
 
 if __name__ == "__main__":  # pragma: no cover - manual invocation
-    process_animals()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--concurrency", type=int, default=30)
+    args = parser.parse_args()
+    process_animals(concurrency=args.concurrency)
