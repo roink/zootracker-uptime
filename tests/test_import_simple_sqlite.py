@@ -21,7 +21,11 @@ def _build_source_db(path: Path) -> Path:
                 zootierliste_description TEXT,
                 name_de TEXT,
                 name_en TEXT,
-                zootierlexikon_link TEXT
+                zootierlexikon_link TEXT,
+                description_en TEXT,
+                description_de TEXT,
+                iucn_conservation_status TEXT,
+                taxon_rank TEXT
             );
             """
         ))
@@ -48,7 +52,11 @@ def _build_source_db(path: Path) -> Path:
             );
             """
         ))
-        conn.execute(text("INSERT INTO animal (art, klasse, ordnung, familie, latin_name, name_de, name_en) VALUES ('Panthera leo',1,1,1,'Panthera leo','L\u00f6we','Lion');"))
+        conn.execute(
+            text(
+                "INSERT INTO animal (art, klasse, ordnung, familie, latin_name, name_de, name_en, description_de, description_en, iucn_conservation_status, taxon_rank) VALUES ('Panthera leo',1,1,1,'Panthera leo','L\u00f6we','Lion','Deutsche Beschreibung','English description','VU','species');"
+            )
+        )
         conn.execute(text("INSERT INTO animal (art, klasse, ordnung, familie, latin_name, name_de) VALUES ('Aquila chrysaetos',2,1,1,'Aquila chrysaetos','Adler');"))
         conn.execute(text("INSERT INTO animal (art, latin_name) VALUES ('Unknownus testus','Unknownus testus');"))
         conn.execute(text("INSERT INTO zoo (zoo_id, continent, country, city, name, latitude, longitude, website) VALUES (1,'Europe','Germany','Berlin','Berlin Zoo',52.5,13.4,'http://example.org');"))
@@ -93,6 +101,10 @@ def test_import_simple_sqlite(monkeypatch, tmp_path):
         lion = db.query(models.Animal).filter_by(scientific_name="Panthera leo").one()
         assert lion.common_name == "L\u00f6we"
         assert lion.name_de == "L\u00f6we"
+        assert lion.description_de == "Deutsche Beschreibung"
+        assert lion.description_en == "English description"
+        assert lion.conservation_state == "VU"
+        assert lion.taxon_rank == "species"
     finally:
         db.close()
 
@@ -103,5 +115,37 @@ def test_import_simple_sqlite(monkeypatch, tmp_path):
         assert db.query(models.Animal).count() == 3
         assert db.query(models.Zoo).count() == 1
         assert db.query(models.ZooAnimal).count() == 3
+    finally:
+        db.close()
+
+
+def test_import_simple_updates_existing_animals(monkeypatch, tmp_path):
+    src_path = _build_source_db(tmp_path / "src.db")
+    target_url = f"sqlite:///{tmp_path}/target.db"
+    target_engine = create_engine(target_url, future=True)
+    Session = sessionmaker(bind=target_engine)
+    monkeypatch.setattr(import_simple_sqlite_data, "SessionLocal", Session)
+
+    import_simple_sqlite_data.main(str(src_path))
+
+    # build new source with extra metadata for the eagle
+    src2_path = _build_source_db(tmp_path / "src2.db")
+    engine = create_engine(f"sqlite:///{src2_path}", future=True)
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "UPDATE animal SET description_de='Neue Beschreibung', description_en='New description', iucn_conservation_status='Endangered', taxon_rank='species' WHERE art='Aquila chrysaetos'"
+            )
+        )
+
+    import_simple_sqlite_data.main(str(src2_path))
+
+    db = Session()
+    try:
+        eagle = db.query(models.Animal).filter_by(scientific_name="Aquila chrysaetos").one()
+        assert eagle.description_de == "Neue Beschreibung"
+        assert eagle.description_en == "New description"
+        assert eagle.conservation_state == "EN"
+        assert eagle.taxon_rank == "species"
     finally:
         db.close()

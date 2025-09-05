@@ -164,7 +164,13 @@ class Animal(Base):
     """An animal that can belong to a category and appear in zoos."""
 
     __tablename__ = "animals"
-    __table_args__ = (CheckConstraint("zoo_count >= 0"),)
+    __table_args__ = (
+        CheckConstraint("zoo_count >= 0"),
+        CheckConstraint(
+            "conservation_state IS NULL OR conservation_state IN ('EX','EW','CR','EN','VU','NT','LC','DD','NE')",
+            name="chk_animals_iucn",
+        ),
+    )
 
     id = Column(
         UUID(as_uuid=True),
@@ -191,6 +197,7 @@ class Animal(Base):
     klasse = Column(Integer)
     ordnung = Column(Integer)
     familie = Column(Integer)
+    taxon_rank = Column(Text)
     zoo_count = Column(Integer, nullable=False, default=0, server_default="0")
     default_image_url = Column(String(512))
     created_at = Column(

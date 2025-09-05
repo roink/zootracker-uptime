@@ -5,6 +5,19 @@ import useAuthFetch from '../hooks/useAuthFetch';
 import SightingModal from '../components/SightingModal';
 import Seo from '../components/Seo';
 
+// Map IUCN codes to labels and bootstrap badge classes
+const IUCN = {
+  EX: { label: 'Extinct', badge: 'bg-dark' },
+  EW: { label: 'Extinct in the Wild', badge: 'bg-dark' },
+  CR: { label: 'Critically Endangered', badge: 'bg-danger' },
+  EN: { label: 'Endangered', badge: 'bg-danger' },
+  VU: { label: 'Vulnerable', badge: 'bg-warning' },
+  NT: { label: 'Near Threatened', badge: 'bg-info' },
+  LC: { label: 'Least Concern', badge: 'bg-success' },
+  DD: { label: 'Data Deficient', badge: 'bg-secondary' },
+  NE: { label: 'Not Evaluated', badge: 'bg-secondary' },
+};
+
 // Detailed page showing an animal along with nearby zoos and user sightings
 
 export default function AnimalDetailPage({ token, refresh, onLogged }) {
@@ -103,6 +116,11 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
       {animal.scientific_name && (
         <div className="fst-italic">{animal.scientific_name}</div>
       )}
+      {animal.taxon_rank && (
+        <div className="mt-1">
+          <span className="badge bg-light text-muted border">{animal.taxon_rank}</span>
+        </div>
+      )}
       {animal.category && (
         <span className="category-badge">
           {animal.category}
@@ -121,6 +139,29 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
               className="gallery-img"
             />
           ))}
+        </div>
+      )}
+      {(animal.description_de || animal.iucn_conservation_status) && (
+        <div className="card mt-3">
+          <div className="card-body">
+            {animal.description_de && (
+              <>
+                <h5 className="card-title">Beschreibung</h5>
+                <p className="card-text">{animal.description_de}</p>
+              </>
+            )}
+            {animal.iucn_conservation_status && (() => {
+              const code = animal.iucn_conservation_status.toUpperCase();
+              const meta = IUCN[code] || { label: code, badge: 'bg-secondary' };
+              return (
+                <p className="card-text mb-0">
+                  <strong>IUCN:</strong>{' '}
+                  <span className={`badge ${meta.badge}`} title={meta.label}>{code}</span>{' '}
+                  <span className="text-muted">({meta.label})</span>
+                </p>
+              );
+            })()}
+          </div>
         </div>
       )}
       <h4 className="spaced-top-lg">Where to See</h4>

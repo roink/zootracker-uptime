@@ -68,9 +68,11 @@ def _build_source_db(path: Path) -> Path:
             );
             """
         ))
-        conn.execute(text(
-            "INSERT INTO animal (klasse, ordnung, familie, art, latin_name, english_label, german_label, english_summary, german_summary) VALUES (1,1,1,'Lion','Panthera leo','Lion','Löwe','King of the jungle','König des Dschungels');"
-        ))
+        conn.execute(
+            text(
+                "INSERT INTO animal (klasse, ordnung, familie, art, latin_name, english_label, german_label, english_summary, german_summary, iucn_conservation_status, taxon_rank) VALUES (1,1,1,'Lion','Panthera leo','Lion','Löwe','King of the jungle','König des Dschungels','EN','species');"
+            )
+        )
         conn.execute(text(
             "INSERT INTO animal (klasse, ordnung, familie, art, latin_name, english_label, german_label) VALUES (2,1,1,'Eagle','Aquila chrysaetos','Eagle','Adler');"
         ))
@@ -116,5 +118,41 @@ def test_import_sqlite(monkeypatch, tmp_path):
         assert lion.german_label == "Löwe"
         assert lion.latin_name == "Panthera leo"
         assert lion.zoo_count == 1
+        assert lion.conservation_state == "EN"
+        assert lion.taxon_rank == "species"
+        assert lion.description_en == "King of the jungle"
+        assert lion.description_de == "König des Dschungels"
+    finally:
+        db.close()
+
+
+def test_import_sqlite_updates_existing_animals(monkeypatch, tmp_path):
+    src_path = _build_source_db(tmp_path / "src.db")
+    target_url = f"sqlite:///{tmp_path}/target.db"
+    target_engine = create_engine(target_url, future=True)
+    Session = sessionmaker(bind=target_engine)
+    monkeypatch.setattr(import_sqlite_data, "SessionLocal", Session)
+
+    import_sqlite_data.main(str(src_path))
+
+    # create new source with more metadata for the eagle
+    src2_path = _build_source_db(tmp_path / "src2.db")
+    engine = create_engine(f"sqlite:///{src2_path}", future=True)
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "UPDATE animal SET english_summary='Mighty eagle', german_summary='Mächtiger Adler', iucn_conservation_status='Vulnerable', taxon_rank='species' WHERE latin_name='Aquila chrysaetos'"
+            )
+        )
+
+    import_sqlite_data.main(str(src2_path))
+
+    db = Session()
+    try:
+        eagle = db.query(models.Animal).filter_by(scientific_name="Aquila chrysaetos").one()
+        assert eagle.description_en == "Mighty eagle"
+        assert eagle.description_de == "Mächtiger Adler"
+        assert eagle.conservation_state == "VU"
+        assert eagle.taxon_rank == "species"
     finally:
         db.close()

@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from .database import SessionLocal, Base
 from . import models
+from .utils.iucn import normalize_status
 
 
 logger = logging.getLogger(__name__)
@@ -41,7 +42,10 @@ def _stage_categories(src: Session, dst: Session, animal_table: Table) -> Dict[i
 def _import_animals(
     src: Session, dst: Session, animal_table: Table, cat_map: Dict[int | None, uuid.UUID]
 ) -> Dict[str, uuid.UUID]:
-    """Insert animals and build id mapping keyed by ``art``."""
+    """Insert animals and build id mapping keyed by ``art``.
+
+    Existing animals are updated with new metadata when fields are missing.
+    """
 
     existing = {
         row.art: row.id
@@ -53,8 +57,28 @@ def _import_animals(
     id_map: Dict[str, uuid.UUID] = {}
     for row in rows:
         art = row.get("art")
+        desc_de = row.get("description_de") or row.get("zootierliste_description")
+        desc_en = row.get("description_en")
+        status = normalize_status(row.get("iucn_conservation_status"))
+        taxon_rank = row.get("taxon_rank")
         if art in existing:
-            id_map[art] = existing[art]
+            aid = existing[art]
+            animal = dst.get(models.Animal, aid)
+            changed = False
+
+            def assign_if_missing(attr: str, value: str | None) -> None:
+                nonlocal changed
+                if value and getattr(animal, attr) in (None, ""):
+                    setattr(animal, attr, value)
+                    changed = True
+
+            assign_if_missing("description_de", desc_de)
+            assign_if_missing("description_en", desc_en)
+            assign_if_missing("conservation_state", status)
+            assign_if_missing("taxon_rank", taxon_rank)
+            if changed:
+                dst.add(animal)
+            id_map[art] = aid
             continue
         if not row.get("latin_name") or not row.get("name_de"):
             logger.warning("Animal %s missing latin or German name", art)
@@ -72,7 +96,10 @@ def _import_animals(
                 klasse=row.get("klasse"),
                 ordnung=row.get("ordnung"),
                 familie=row.get("familie"),
-                description_de=row.get("zootierliste_description"),
+                description_en=desc_en,
+                description_de=desc_de,
+                conservation_state=status,
+                taxon_rank=taxon_rank,
                 category_id=cat_map.get(row.get("klasse")),
             )
         )

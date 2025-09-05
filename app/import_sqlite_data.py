@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from .database import SessionLocal, Base
 from . import models
+from .utils.iucn import normalize_status
 
 
 def _stage_categories(src: Session, dst: Session, animal_table: Table) -> Dict[int, uuid.UUID]:
@@ -28,32 +29,68 @@ def _stage_categories(src: Session, dst: Session, animal_table: Table) -> Dict[i
 
 
 def _import_animals(src: Session, dst: Session, animal_table: Table, cat_map: Dict[int, uuid.UUID]) -> Dict[int, uuid.UUID]:
-    """Insert animals and build id mapping."""
+    """Insert animals and build id mapping.
+
+    Existing animals are updated with new metadata when fields are missing.
+    """
+
+    existing = {
+        row.art: row.id
+        for row in dst.execute(select(models.Animal.id, models.Animal.art)).mappings()
+        if row.art is not None
+    }
+    rows = list(src.execute(select(animal_table)).mappings())
+    animals = []
     id_map: Dict[int, uuid.UUID] = {}
-    rows = src.execute(select(animal_table)).mappings()
     for row in rows:
-        common_name = row.get("english_label") or row.get("german_label") or row.get("art")
+        art = row.get("art")
+        desc_en = row.get("description_en") or row.get("english_summary")
+        desc_de = row.get("description_de") or row.get("german_summary")
+        status = normalize_status(row.get("iucn_conservation_status"))
+        taxon_rank = row.get("taxon_rank")
+        if art in existing:
+            aid = existing[art]
+            animal = dst.get(models.Animal, aid)
+            changed = False
+
+            def assign_if_missing(attr: str, value: str | None) -> None:
+                nonlocal changed
+                if value and getattr(animal, attr) in (None, ""):
+                    setattr(animal, attr, value)
+                    changed = True
+
+            assign_if_missing("description_en", desc_en)
+            assign_if_missing("description_de", desc_de)
+            assign_if_missing("conservation_state", status)
+            assign_if_missing("taxon_rank", taxon_rank)
+            if changed:
+                dst.add(animal)
+            id_map[row["animal_id"]] = aid
+            continue
+        common_name = row.get("english_label") or row.get("german_label") or art
         animal = models.Animal(
             id=uuid.uuid4(),
             common_name=common_name,
             scientific_name=row.get("latin_name"),
             name_en=row.get("english_label"),
             name_de=row.get("german_label"),
-            art=row.get("art"),
+            art=art,
             english_label=row.get("english_label"),
             german_label=row.get("german_label"),
             latin_name=row.get("latin_name"),
             klasse=row.get("klasse"),
             ordnung=row.get("ordnung"),
             familie=row.get("familie"),
-            conservation_state=row.get("iucn_conservation_status"),
-            description_en=row.get("english_summary"),
-            description_de=row.get("german_summary"),
+            conservation_state=status,
+            description_en=desc_en,
+            description_de=desc_de,
+            taxon_rank=taxon_rank,
             category_id=cat_map.get(row.get("klasse")),
         )
-        dst.add(animal)
-        dst.flush()
+        animals.append(animal)
         id_map[row["animal_id"]] = animal.id
+    if animals:
+        dst.bulk_save_objects(animals)
     dst.commit()
     return id_map
 
