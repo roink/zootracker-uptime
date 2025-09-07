@@ -186,3 +186,34 @@ def test_import_sqlite_overwrites_when_requested(monkeypatch, tmp_path):
         assert lion.conservation_state == "LC"
     finally:
         db.close()
+
+
+def test_import_sqlite_clear_fields_with_overwrite(monkeypatch, tmp_path):
+    """Overwrite mode should clear fields when source lacks values."""
+    src_path = _build_source_db(tmp_path / "src.db")
+    target_url = f"sqlite:///{tmp_path}/target.db"
+    target_engine = create_engine(target_url, future=True)
+    Session = sessionmaker(bind=target_engine)
+    monkeypatch.setattr(import_sqlite_data, "SessionLocal", Session)
+
+    import_sqlite_data.main(str(src_path))
+
+    # new source with missing summaries for the lion
+    src2_path = _build_source_db(tmp_path / "src2.db")
+    engine = create_engine(f"sqlite:///{src2_path}", future=True)
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "UPDATE animal SET english_summary=NULL, german_summary=NULL WHERE latin_name='Panthera leo'"
+            )
+        )
+
+    import_sqlite_data.main(str(src2_path), overwrite=True)
+
+    db = Session()
+    try:
+        lion = db.query(models.Animal).filter_by(scientific_name="Panthera leo").one()
+        assert lion.description_en is None
+        assert lion.description_de is None
+    finally:
+        db.close()

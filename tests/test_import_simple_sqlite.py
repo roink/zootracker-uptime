@@ -58,7 +58,11 @@ def _build_source_db(path: Path) -> Path:
             )
         )
         conn.execute(text("INSERT INTO animal (art, klasse, ordnung, familie, latin_name, name_de) VALUES ('Aquila chrysaetos',2,1,1,'Aquila chrysaetos','Adler');"))
-        conn.execute(text("INSERT INTO animal (art, latin_name) VALUES ('Unknownus testus','Unknownus testus');"))
+        conn.execute(
+            text(
+                "INSERT INTO animal (art, latin_name, zootierliste_description) VALUES ('Unknownus testus','Unknownus testus','Legacy description');"
+            )
+        )
         conn.execute(text("INSERT INTO zoo (zoo_id, continent, country, city, name, latitude, longitude, website) VALUES (1,'Europe','Germany','Berlin','Berlin Zoo',52.5,13.4,'http://example.org');"))
         conn.execute(text("INSERT INTO zoo_animal (zoo_id, art) VALUES (1,'Panthera leo');"))
         conn.execute(text("INSERT INTO zoo_animal (zoo_id, art) VALUES (1,'Aquila chrysaetos');"))
@@ -105,6 +109,8 @@ def test_import_simple_sqlite(monkeypatch, tmp_path):
         assert lion.description_en == "English description"
         assert lion.conservation_state == "VU"
         assert lion.taxon_rank == "species"
+        unknown = db.query(models.Animal).filter_by(scientific_name="Unknownus testus").one()
+        assert unknown.description_de is None
     finally:
         db.close()
 
@@ -175,5 +181,35 @@ def test_import_simple_overwrites_when_requested(monkeypatch, tmp_path):
     try:
         lion = db.query(models.Animal).filter_by(scientific_name="Panthera leo").one()
         assert lion.description_de == "Neue Beschreibung"
+    finally:
+        db.close()
+
+
+def test_import_simple_clear_fields_with_overwrite(monkeypatch, tmp_path):
+    """Overwriting with missing values should clear existing text."""
+    src_path = _build_source_db(tmp_path / "src.db")
+    target_url = f"sqlite:///{tmp_path}/target.db"
+    target_engine = create_engine(target_url, future=True)
+    Session = sessionmaker(bind=target_engine)
+    monkeypatch.setattr(import_simple_sqlite_data, "SessionLocal", Session)
+
+    import_simple_sqlite_data.main(str(src_path))
+
+    # new source where the lion has no description_de
+    src2_path = _build_source_db(tmp_path / "src2.db")
+    engine = create_engine(f"sqlite:///{src2_path}", future=True)
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "UPDATE animal SET description_de=NULL WHERE art='Panthera leo'"
+            )
+        )
+
+    import_simple_sqlite_data.main(str(src2_path), overwrite=True)
+
+    db = Session()
+    try:
+        lion = db.query(models.Animal).filter_by(scientific_name="Panthera leo").one()
+        assert lion.description_de is None
     finally:
         db.close()

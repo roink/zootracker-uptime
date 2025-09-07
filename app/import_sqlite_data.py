@@ -68,12 +68,15 @@ def _import_animals(
 
             def assign(attr: str, value: str | None) -> None:
                 nonlocal changed
-                if not value:
-                    return
                 current = getattr(animal, attr)
-                if overwrite or current in (None, ""):
-                    setattr(animal, attr, value)
-                    changed = True
+                if overwrite:
+                    if current != value:
+                        setattr(animal, attr, value)
+                        changed = True
+                else:
+                    if current in (None, "") and value:
+                        setattr(animal, attr, value)
+                        changed = True
 
             assign("description_en", desc_en)
             assign("description_de", desc_de)

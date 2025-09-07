@@ -87,7 +87,6 @@ class AnimalListItem(BaseModel):
     common_name: str
     scientific_name: Optional[str] = None
     category: Optional[str] = None
-    description: Optional[str] = None
     description_de: Optional[str] = None
     iucn_conservation_status: Optional[str] = None
     default_image_url: Optional[str] = None
@@ -165,7 +164,6 @@ class AnimalDetail(BaseModel):
     common_name: str
     scientific_name: Optional[str] = None
     category: Optional[str] = None
-    description: Optional[str] = None
     description_de: Optional[str] = None
     iucn_conservation_status: Optional[str] = None
     taxon_rank: Optional[str] = None

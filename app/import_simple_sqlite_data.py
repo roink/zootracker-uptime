@@ -62,7 +62,8 @@ def _import_animals(
     id_map: Dict[str, uuid.UUID] = {}
     for row in rows:
         art = row.get("art")
-        desc_de = row.get("description_de") or row.get("zootierliste_description")
+        # only import explicit description_de; ignore legacy zootierliste_description
+        desc_de = row.get("description_de")
         if desc_de:
             desc_de = desc_de.strip()
         desc_en = row.get("description_en")
@@ -79,12 +80,15 @@ def _import_animals(
 
             def assign(attr: str, value: str | None) -> None:
                 nonlocal changed
-                if not value:
-                    return
                 current = getattr(animal, attr)
-                if overwrite or current in (None, ""):
-                    setattr(animal, attr, value)
-                    changed = True
+                if overwrite:
+                    if current != value:
+                        setattr(animal, attr, value)
+                        changed = True
+                else:
+                    if current in (None, "") and value:
+                        setattr(animal, attr, value)
+                        changed = True
 
             assign("description_de", desc_de)
             assign("description_en", desc_en)
