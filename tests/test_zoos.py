@@ -16,6 +16,7 @@ def test_get_zoo_details(data):
     assert body["id"] == str(data["zoo"].id)
     assert body["address"] == "123 Zoo St"
     assert body["description"] == "A fun place"
+    assert body["description_de"] == "Ein lustiger Ort"
     assert body["city"] == "Metropolis"
 
 def test_get_zoo_invalid_id():

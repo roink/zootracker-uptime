@@ -54,6 +54,8 @@ class ZooDetail(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     description: Optional[str] = None
+    description_de: Optional[str] = None
+    description_en: Optional[str] = None
     distance_km: Optional[float] = None
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")

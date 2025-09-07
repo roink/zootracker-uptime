@@ -39,7 +39,9 @@ def _build_source_db(path: Path) -> Path:
                 name TEXT,
                 latitude REAL,
                 longitude REAL,
-                website TEXT
+                website TEXT,
+                description_en TEXT,
+                description_de TEXT
             );
             """
         ))
@@ -63,7 +65,7 @@ def _build_source_db(path: Path) -> Path:
                 "INSERT INTO animal (art, latin_name, zootierliste_description) VALUES ('Unknownus testus','Unknownus testus','Legacy description');"
             )
         )
-        conn.execute(text("INSERT INTO zoo (zoo_id, continent, country, city, name, latitude, longitude, website) VALUES (1,'Europe','Germany','Berlin','Berlin Zoo',52.5,13.4,'http://example.org');"))
+        conn.execute(text("INSERT INTO zoo (zoo_id, continent, country, city, name, latitude, longitude, website, description_en, description_de) VALUES (1,'Europe','Germany','Berlin','Berlin Zoo',52.5,13.4,'http://example.org','English zoo','Deutscher Zoo');"))
         conn.execute(text("INSERT INTO zoo_animal (zoo_id, art) VALUES (1,'Panthera leo');"))
         conn.execute(text("INSERT INTO zoo_animal (zoo_id, art) VALUES (1,'Aquila chrysaetos');"))
         conn.execute(text("INSERT INTO zoo_animal (zoo_id, art) VALUES (1,'Unknownus testus');"))
@@ -102,6 +104,8 @@ def test_import_simple_sqlite(monkeypatch, tmp_path):
         assert zoo.city == "Berlin"
         assert float(zoo.latitude) == 52.5
         assert float(zoo.longitude) == 13.4
+        assert zoo.description_en == "English zoo"
+        assert zoo.description_de == "Deutscher Zoo"
         lion = db.query(models.Animal).filter_by(scientific_name="Panthera leo").one()
         assert lion.common_name == "L\u00f6we"
         assert lion.name_de == "L\u00f6we"
@@ -140,8 +144,9 @@ def test_import_simple_updates_existing_animals(monkeypatch, tmp_path):
     with engine.begin() as conn:
         conn.execute(
             text(
-                "UPDATE animal SET description_de='Neue Beschreibung', description_en='New description', iucn_conservation_status='Endangered', taxon_rank='species' WHERE art='Aquila chrysaetos'"
-            )
+                "UPDATE animal SET description_de=:de, description_en=:en, iucn_conservation_status='Endangered', taxon_rank='species' WHERE art='Aquila chrysaetos'"
+            ),
+            {"de": " Neue Beschreibung \x00", "en": "New description\r\n"},
         )
 
     import_simple_sqlite_data.main(str(src2_path))
@@ -211,5 +216,55 @@ def test_import_simple_clear_fields_with_overwrite(monkeypatch, tmp_path):
     try:
         lion = db.query(models.Animal).filter_by(scientific_name="Panthera leo").one()
         assert lion.description_de is None
+    finally:
+        db.close()
+
+
+def test_import_simple_updates_existing_zoo(monkeypatch, tmp_path):
+    src_path = _build_source_db(tmp_path / "src.db")
+    target_url = f"sqlite:///{tmp_path}/target.db"
+    target_engine = create_engine(target_url, future=True)
+    Session = sessionmaker(bind=target_engine)
+    monkeypatch.setattr(import_simple_sqlite_data, "SessionLocal", Session)
+
+    import_simple_sqlite_data.main(str(src_path))
+
+    src2_path = _build_source_db(tmp_path / "src2.db")
+    engine = create_engine(f"sqlite:///{src2_path}", future=True)
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "UPDATE zoo SET description_en=:en, description_de=:de WHERE zoo_id=1"
+            ),
+            {"en": " New EN \x00", "de": " Neue DE\r\n"},
+        )
+
+    import_simple_sqlite_data.main(str(src2_path))
+
+    db = Session()
+    try:
+        zoo = db.query(models.Zoo).one()
+        assert zoo.description_en == "New EN"
+        assert zoo.description_de == "Neue DE"
+    finally:
+        db.close()
+
+    # incoming empty descriptions should not overwrite existing text
+    src3_path = _build_source_db(tmp_path / "src3.db")
+    engine3 = create_engine(f"sqlite:///{src3_path}", future=True)
+    with engine3.begin() as conn:
+        conn.execute(
+            text(
+                "UPDATE zoo SET description_en=:en, description_de=:de WHERE zoo_id=1"
+            ),
+            {"en": "", "de": None},
+        )
+    import_simple_sqlite_data.main(str(src3_path))
+
+    db = Session()
+    try:
+        zoo = db.query(models.Zoo).one()
+        assert zoo.description_en == "New EN"
+        assert zoo.description_de == "Neue DE"
     finally:
         db.close()
