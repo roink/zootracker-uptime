@@ -14,6 +14,7 @@ export default function ZooDetail({ zoo, token, userId, refresh, onLogged }) {
   const [modalData, setModalData] = useState(null);
   const navigate = useNavigate();
   const authFetch = useAuthFetch(token);
+  const [descExpanded, setDescExpanded] = useState(false); // track full description visibility
 
   // Load animals in this zoo (server already returns popularity order;
   // keep client-side sort as a fallback for robustness)
@@ -50,6 +51,10 @@ export default function ZooDetail({ zoo, token, userId, refresh, onLogged }) {
 
   const visited = visits.some((v) => v.zoo_id === zoo.id);
   const seenIds = new Set(seenAnimals.map((a) => a.id));
+  // prefer German description from backend when available
+  const zooDescription = zoo.description_de || zoo.description;
+  const MAX_DESC = 400; // collapse threshold
+  const needsCollapse = zooDescription && zooDescription.length > MAX_DESC;
 
   return (
     <div className="p-3">
@@ -67,10 +72,40 @@ export default function ZooDetail({ zoo, token, userId, refresh, onLogged }) {
           <LazyMap latitude={zoo.latitude} longitude={zoo.longitude} />
         </div>
       )}
-      {zoo.description && (
-        <p className="mt-2 pre-wrap">
-          {zoo.description}
-        </p>
+      {zooDescription && (
+        <div className="card mt-3">
+          <div className="card-body">
+            <h5 className="card-title">Beschreibung</h5>
+            {needsCollapse ? (
+              <>
+                {!descExpanded && (
+                  <p className="card-text pre-wrap">
+                    {zooDescription.slice(0, MAX_DESC)}…
+                  </p>
+                )}
+                <p
+                  id="zoo-desc-full"
+                  className={`card-text pre-wrap collapse ${descExpanded ? 'show' : ''}`}
+                >
+                  {zooDescription}
+                </p>
+                <button
+                  className="btn btn-link p-0"
+                  type="button"
+                  data-bs-toggle="collapse"
+                  data-bs-target="#zoo-desc-full"
+                  aria-expanded={descExpanded}
+                  aria-controls="zoo-desc-full"
+                  onClick={() => setDescExpanded((v) => !v)}
+                >
+                  {descExpanded ? 'Weniger anzeigen' : 'Mehr anzeigen'}
+                </button>
+              </>
+            ) : (
+              <p className="card-text pre-wrap">{zooDescription}</p>
+            )}
+          </div>
+        </div>
       )}
       <div className="mt-2">Visited? {visited ? '☑️ Yes' : '✘ No'}</div>
       {/* visit logging removed - visits are created automatically from sightings */}

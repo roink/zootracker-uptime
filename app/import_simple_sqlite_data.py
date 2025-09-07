@@ -1,5 +1,6 @@
 import argparse
 import logging
+import re
 import uuid
 from typing import Dict, Tuple
 
@@ -14,6 +15,18 @@ from .import_utils import _ensure_animal_columns
 
 
 logger = logging.getLogger(__name__)
+
+
+def _clean_text(s: str | None) -> str | None:
+    """Normalize whitespace and return ``None`` for blank strings."""
+
+    if not s:
+        return None
+    s = s.replace("\x00", "")
+    s = s.replace("\r\n", "\n")
+    s = re.sub(r"[ \t\u00A0]+", " ", s)
+    s = s.strip()
+    return s or None
 
 
 def _stage_categories(src: Session, dst: Session, animal_table: Table) -> Dict[int | None, uuid.UUID]:
@@ -63,12 +76,8 @@ def _import_animals(
     for row in rows:
         art = row.get("art")
         # only import explicit description_de; ignore legacy zootierliste_description
-        desc_de = row.get("description_de")
-        if desc_de:
-            desc_de = desc_de.strip()
-        desc_en = row.get("description_en")
-        if desc_en:
-            desc_en = desc_en.strip()
+        desc_de = _clean_text(row.get("description_de"))
+        desc_en = _clean_text(row.get("description_en"))
         status = normalize_status(row.get("iucn_conservation_status"))
         taxon_rank = row.get("taxon_rank")
         if taxon_rank:
@@ -145,8 +154,22 @@ def _import_zoos(src: Session, dst: Session, zoo_table: Table) -> Dict[int, uuid
             row.get("city"),
             row.get("country"),
         )
+        desc_en = _clean_text(row.get("description_en"))
+        desc_de = _clean_text(row.get("description_de"))
         if key in existing:
-            mapping[row["zoo_id"]] = existing[key]
+            zid = existing[key]
+            if desc_en or desc_de:
+                z = dst.get(models.Zoo, zid)
+                changed = False
+                if desc_en and z.description_en != desc_en:
+                    z.description_en = desc_en
+                    changed = True
+                if desc_de and z.description_de != desc_de:
+                    z.description_de = desc_de
+                    changed = True
+                if changed:
+                    dst.add(z)
+            mapping[row["zoo_id"]] = zid
             continue
         lat = row.get("latitude")
         lon = row.get("longitude")
@@ -163,6 +186,8 @@ def _import_zoos(src: Session, dst: Session, zoo_table: Table) -> Dict[int, uuid
                 name=row.get("name"),
                 country=row.get("country"),
                 city=row.get("city"),
+                description_en=desc_en,
+                description_de=desc_de,
                 latitude=lat,
                 longitude=lon,
             )
