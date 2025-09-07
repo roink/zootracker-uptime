@@ -164,13 +164,7 @@ class Animal(Base):
     """An animal that can belong to a category and appear in zoos."""
 
     __tablename__ = "animals"
-    __table_args__ = (
-        CheckConstraint("zoo_count >= 0"),
-        CheckConstraint(
-            "conservation_state IS NULL OR conservation_state IN ('EX','EW','CR','EN','VU','NT','LC','DD','NE')",
-            name="chk_animals_iucn",
-        ),
-    )
+    __table_args__ = (CheckConstraint("zoo_count >= 0"),)
 
     id = Column(
         UUID(as_uuid=True),

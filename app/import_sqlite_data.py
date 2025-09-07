@@ -2,12 +2,13 @@ import argparse
 import uuid
 from typing import Dict
 
-from sqlalchemy import MetaData, Table, create_engine, select, func, bindparam, text
+from sqlalchemy import MetaData, Table, create_engine, select, func, bindparam
 from sqlalchemy.orm import Session
 
 from .database import SessionLocal, Base
 from . import models
 from .utils.iucn import normalize_status
+from .import_utils import _ensure_animal_columns
 
 
 def _stage_categories(src: Session, dst: Session, animal_table: Table) -> Dict[int, uuid.UUID]:
@@ -28,7 +29,13 @@ def _stage_categories(src: Session, dst: Session, animal_table: Table) -> Dict[i
     return mapping
 
 
-def _import_animals(src: Session, dst: Session, animal_table: Table, cat_map: Dict[int, uuid.UUID]) -> Dict[int, uuid.UUID]:
+def _import_animals(
+    src: Session,
+    dst: Session,
+    animal_table: Table,
+    cat_map: Dict[int, uuid.UUID],
+    overwrite: bool = False,
+) -> Dict[int, uuid.UUID]:
     """Insert animals and build id mapping.
 
     Existing animals are updated with new metadata when fields are missing.
@@ -45,24 +52,33 @@ def _import_animals(src: Session, dst: Session, animal_table: Table, cat_map: Di
     for row in rows:
         art = row.get("art")
         desc_en = row.get("description_en") or row.get("english_summary")
+        if desc_en:
+            desc_en = desc_en.strip()
         desc_de = row.get("description_de") or row.get("german_summary")
+        if desc_de:
+            desc_de = desc_de.strip()
         status = normalize_status(row.get("iucn_conservation_status"))
         taxon_rank = row.get("taxon_rank")
+        if taxon_rank:
+            taxon_rank = taxon_rank.strip()
         if art in existing:
             aid = existing[art]
             animal = dst.get(models.Animal, aid)
             changed = False
 
-            def assign_if_missing(attr: str, value: str | None) -> None:
+            def assign(attr: str, value: str | None) -> None:
                 nonlocal changed
-                if value and getattr(animal, attr) in (None, ""):
+                if not value:
+                    return
+                current = getattr(animal, attr)
+                if overwrite or current in (None, ""):
                     setattr(animal, attr, value)
                     changed = True
 
-            assign_if_missing("description_en", desc_en)
-            assign_if_missing("description_de", desc_de)
-            assign_if_missing("conservation_state", status)
-            assign_if_missing("taxon_rank", taxon_rank)
+            assign("description_en", desc_en)
+            assign("description_de", desc_de)
+            assign("conservation_state", status)
+            assign("taxon_rank", taxon_rank)
             if changed:
                 dst.add(animal)
             id_map[row["animal_id"]] = aid
@@ -81,9 +97,9 @@ def _import_animals(src: Session, dst: Session, animal_table: Table, cat_map: Di
             klasse=row.get("klasse"),
             ordnung=row.get("ordnung"),
             familie=row.get("familie"),
-            conservation_state=status,
             description_en=desc_en,
             description_de=desc_de,
+            conservation_state=status,
             taxon_rank=taxon_rank,
             category_id=cat_map.get(row.get("klasse")),
         )
@@ -156,28 +172,7 @@ def _import_links(src: Session, dst: Session, link_table: Table, zoo_map: Dict[i
     dst.commit()
 
 
-def _ensure_columns(dst: Session) -> None:
-    """Create new animal columns if they do not already exist."""
-    dialect = dst.get_bind().dialect.name
-    if dialect == "sqlite":
-        cols = {row["name"] for row in dst.execute(text("PRAGMA table_info(animals)")).mappings()}
-        if "description_de" not in cols:
-            dst.execute(text("ALTER TABLE animals ADD COLUMN description_de TEXT"))
-        if "description_en" not in cols:
-            dst.execute(text("ALTER TABLE animals ADD COLUMN description_en TEXT"))
-        if "conservation_state" not in cols:
-            dst.execute(text("ALTER TABLE animals ADD COLUMN conservation_state TEXT"))
-        if "taxon_rank" not in cols:
-            dst.execute(text("ALTER TABLE animals ADD COLUMN taxon_rank TEXT"))
-    else:
-        dst.execute(text("ALTER TABLE animals ADD COLUMN IF NOT EXISTS description_de TEXT"))
-        dst.execute(text("ALTER TABLE animals ADD COLUMN IF NOT EXISTS description_en TEXT"))
-        dst.execute(text("ALTER TABLE animals ADD COLUMN IF NOT EXISTS conservation_state TEXT"))
-        dst.execute(text("ALTER TABLE animals ADD COLUMN IF NOT EXISTS taxon_rank TEXT"))
-    dst.commit()
-
-
-def main(source: str) -> None:
+def main(source: str, overwrite: bool = False) -> None:
     """Import data from a SQLite database file into the application's database."""
     source_url = f"sqlite:///{source}"
     src_engine = create_engine(source_url, future=True)
@@ -185,14 +180,14 @@ def main(source: str) -> None:
     dst = SessionLocal()
     try:
         Base.metadata.create_all(bind=dst.get_bind())
-        _ensure_columns(dst)
+        _ensure_animal_columns(dst)
         metadata = MetaData()
         animal_table = Table("animal", metadata, autoload_with=src_engine)
         zoo_table = Table("zoo", metadata, autoload_with=src_engine)
         link_table = Table("zoo_animal", metadata, autoload_with=src_engine)
 
         cat_map = _stage_categories(src, dst, animal_table)
-        animal_map = _import_animals(src, dst, animal_table, cat_map)
+        animal_map = _import_animals(src, dst, animal_table, cat_map, overwrite=overwrite)
         zoo_map = _import_zoos(src, dst, zoo_table)
         _import_links(src, dst, link_table, zoo_map, animal_map)
     finally:
@@ -203,5 +198,10 @@ def main(source: str) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Import data from a SQLite dump")
     parser.add_argument("source", help="Path to source SQLite database")
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Replace existing field values with those from the source",
+    )
     args = parser.parse_args()
-    main(args.source)
+    main(args.source, overwrite=args.overwrite)

@@ -3,13 +3,14 @@ import logging
 import uuid
 from typing import Dict, Tuple
 
-from sqlalchemy import MetaData, Table, create_engine, select, func, bindparam, insert, text
+from sqlalchemy import MetaData, Table, create_engine, select, func, bindparam, insert
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from .database import SessionLocal, Base
 from . import models
 from .utils.iucn import normalize_status
+from .import_utils import _ensure_animal_columns
 
 
 logger = logging.getLogger(__name__)
@@ -40,7 +41,11 @@ def _stage_categories(src: Session, dst: Session, animal_table: Table) -> Dict[i
 
 
 def _import_animals(
-    src: Session, dst: Session, animal_table: Table, cat_map: Dict[int | None, uuid.UUID]
+    src: Session,
+    dst: Session,
+    animal_table: Table,
+    cat_map: Dict[int | None, uuid.UUID],
+    overwrite: bool = False,
 ) -> Dict[str, uuid.UUID]:
     """Insert animals and build id mapping keyed by ``art``.
 
@@ -58,24 +63,33 @@ def _import_animals(
     for row in rows:
         art = row.get("art")
         desc_de = row.get("description_de") or row.get("zootierliste_description")
+        if desc_de:
+            desc_de = desc_de.strip()
         desc_en = row.get("description_en")
+        if desc_en:
+            desc_en = desc_en.strip()
         status = normalize_status(row.get("iucn_conservation_status"))
         taxon_rank = row.get("taxon_rank")
+        if taxon_rank:
+            taxon_rank = taxon_rank.strip()
         if art in existing:
             aid = existing[art]
             animal = dst.get(models.Animal, aid)
             changed = False
 
-            def assign_if_missing(attr: str, value: str | None) -> None:
+            def assign(attr: str, value: str | None) -> None:
                 nonlocal changed
-                if value and getattr(animal, attr) in (None, ""):
+                if not value:
+                    return
+                current = getattr(animal, attr)
+                if overwrite or current in (None, ""):
                     setattr(animal, attr, value)
                     changed = True
 
-            assign_if_missing("description_de", desc_de)
-            assign_if_missing("description_en", desc_en)
-            assign_if_missing("conservation_state", status)
-            assign_if_missing("taxon_rank", taxon_rank)
+            assign("description_de", desc_de)
+            assign("description_en", desc_en)
+            assign("conservation_state", status)
+            assign("taxon_rank", taxon_rank)
             if changed:
                 dst.add(animal)
             id_map[art] = aid
@@ -221,28 +235,7 @@ def _import_links(
         )
 
 
-def _ensure_columns(dst: Session) -> None:
-    """Create new animal columns if they do not already exist."""
-    dialect = dst.get_bind().dialect.name
-    if dialect == "sqlite":
-        cols = {row["name"] for row in dst.execute(text("PRAGMA table_info(animals)")).mappings()}
-        if "description_de" not in cols:
-            dst.execute(text("ALTER TABLE animals ADD COLUMN description_de TEXT"))
-        if "description_en" not in cols:
-            dst.execute(text("ALTER TABLE animals ADD COLUMN description_en TEXT"))
-        if "conservation_state" not in cols:
-            dst.execute(text("ALTER TABLE animals ADD COLUMN conservation_state TEXT"))
-        if "taxon_rank" not in cols:
-            dst.execute(text("ALTER TABLE animals ADD COLUMN taxon_rank TEXT"))
-    else:
-        dst.execute(text("ALTER TABLE animals ADD COLUMN IF NOT EXISTS description_de TEXT"))
-        dst.execute(text("ALTER TABLE animals ADD COLUMN IF NOT EXISTS description_en TEXT"))
-        dst.execute(text("ALTER TABLE animals ADD COLUMN IF NOT EXISTS conservation_state TEXT"))
-        dst.execute(text("ALTER TABLE animals ADD COLUMN IF NOT EXISTS taxon_rank TEXT"))
-    dst.commit()
-
-
-def main(source: str, dry_run: bool = False) -> None:
+def main(source: str, dry_run: bool = False, overwrite: bool = False) -> None:
     """Import data from a SQLite database file into the application's database."""
 
     logging.basicConfig(level=logging.INFO)
@@ -252,7 +245,7 @@ def main(source: str, dry_run: bool = False) -> None:
     dst = SessionLocal()
     try:
         Base.metadata.create_all(bind=dst.get_bind())
-        _ensure_columns(dst)
+        _ensure_animal_columns(dst)
         metadata = MetaData()
         animal_table = Table("animal", metadata, autoload_with=src_engine)
         zoo_table = Table("zoo", metadata, autoload_with=src_engine)
@@ -260,7 +253,9 @@ def main(source: str, dry_run: bool = False) -> None:
 
         with dst.begin() as trans:
             cat_map = _stage_categories(src, dst, animal_table)
-            animal_map = _import_animals(src, dst, animal_table, cat_map)
+            animal_map = _import_animals(
+                src, dst, animal_table, cat_map, overwrite=overwrite
+            )
             zoo_map = _import_zoos(src, dst, zoo_table)
             _import_links(src, dst, link_table, zoo_map, animal_map)
             if dry_run:
@@ -281,5 +276,10 @@ if __name__ == "__main__":
         action="store_true",
         help="Parse and log counts without writing",
     )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Replace existing field values with those from the source",
+    )
     args = parser.parse_args()
-    main(args.source, dry_run=args.dry_run)
+    main(args.source, dry_run=args.dry_run, overwrite=args.overwrite)

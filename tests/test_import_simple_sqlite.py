@@ -149,3 +149,31 @@ def test_import_simple_updates_existing_animals(monkeypatch, tmp_path):
         assert eagle.taxon_rank == "species"
     finally:
         db.close()
+
+
+def test_import_simple_overwrites_when_requested(monkeypatch, tmp_path):
+    src_path = _build_source_db(tmp_path / "src.db")
+    target_url = f"sqlite:///{tmp_path}/target.db"
+    target_engine = create_engine(target_url, future=True)
+    Session = sessionmaker(bind=target_engine)
+    monkeypatch.setattr(import_simple_sqlite_data, "SessionLocal", Session)
+
+    import_simple_sqlite_data.main(str(src_path))
+
+    src2_path = _build_source_db(tmp_path / "src2.db")
+    engine = create_engine(f"sqlite:///{src2_path}", future=True)
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "UPDATE animal SET description_de=' Neue Beschreibung ' WHERE art='Panthera leo'"
+            )
+        )
+
+    import_simple_sqlite_data.main(str(src2_path), overwrite=True)
+
+    db = Session()
+    try:
+        lion = db.query(models.Animal).filter_by(scientific_name="Panthera leo").one()
+        assert lion.description_de == "Neue Beschreibung"
+    finally:
+        db.close()
