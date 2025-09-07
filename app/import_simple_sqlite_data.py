@@ -9,6 +9,8 @@ from sqlalchemy.orm import Session
 
 from .database import SessionLocal, Base
 from . import models
+from .utils.iucn import normalize_status
+from .import_utils import _ensure_animal_columns
 
 
 logger = logging.getLogger(__name__)
@@ -39,9 +41,16 @@ def _stage_categories(src: Session, dst: Session, animal_table: Table) -> Dict[i
 
 
 def _import_animals(
-    src: Session, dst: Session, animal_table: Table, cat_map: Dict[int | None, uuid.UUID]
+    src: Session,
+    dst: Session,
+    animal_table: Table,
+    cat_map: Dict[int | None, uuid.UUID],
+    overwrite: bool = False,
 ) -> Dict[str, uuid.UUID]:
-    """Insert animals and build id mapping keyed by ``art``."""
+    """Insert animals and build id mapping keyed by ``art``.
+
+    Existing animals are updated with new metadata when fields are missing.
+    """
 
     existing = {
         row.art: row.id
@@ -53,8 +62,41 @@ def _import_animals(
     id_map: Dict[str, uuid.UUID] = {}
     for row in rows:
         art = row.get("art")
+        # only import explicit description_de; ignore legacy zootierliste_description
+        desc_de = row.get("description_de")
+        if desc_de:
+            desc_de = desc_de.strip()
+        desc_en = row.get("description_en")
+        if desc_en:
+            desc_en = desc_en.strip()
+        status = normalize_status(row.get("iucn_conservation_status"))
+        taxon_rank = row.get("taxon_rank")
+        if taxon_rank:
+            taxon_rank = taxon_rank.strip()
         if art in existing:
-            id_map[art] = existing[art]
+            aid = existing[art]
+            animal = dst.get(models.Animal, aid)
+            changed = False
+
+            def assign(attr: str, value: str | None) -> None:
+                nonlocal changed
+                current = getattr(animal, attr)
+                if overwrite:
+                    if current != value:
+                        setattr(animal, attr, value)
+                        changed = True
+                else:
+                    if current in (None, "") and value:
+                        setattr(animal, attr, value)
+                        changed = True
+
+            assign("description_de", desc_de)
+            assign("description_en", desc_en)
+            assign("conservation_state", status)
+            assign("taxon_rank", taxon_rank)
+            if changed:
+                dst.add(animal)
+            id_map[art] = aid
             continue
         if not row.get("latin_name") or not row.get("name_de"):
             logger.warning("Animal %s missing latin or German name", art)
@@ -72,7 +114,10 @@ def _import_animals(
                 klasse=row.get("klasse"),
                 ordnung=row.get("ordnung"),
                 familie=row.get("familie"),
-                description_de=row.get("zootierliste_description"),
+                description_en=desc_en,
+                description_de=desc_de,
+                conservation_state=status,
+                taxon_rank=taxon_rank,
                 category_id=cat_map.get(row.get("klasse")),
             )
         )
@@ -194,7 +239,7 @@ def _import_links(
         )
 
 
-def main(source: str, dry_run: bool = False) -> None:
+def main(source: str, dry_run: bool = False, overwrite: bool = False) -> None:
     """Import data from a SQLite database file into the application's database."""
 
     logging.basicConfig(level=logging.INFO)
@@ -204,6 +249,7 @@ def main(source: str, dry_run: bool = False) -> None:
     dst = SessionLocal()
     try:
         Base.metadata.create_all(bind=dst.get_bind())
+        _ensure_animal_columns(dst)
         metadata = MetaData()
         animal_table = Table("animal", metadata, autoload_with=src_engine)
         zoo_table = Table("zoo", metadata, autoload_with=src_engine)
@@ -211,7 +257,9 @@ def main(source: str, dry_run: bool = False) -> None:
 
         with dst.begin() as trans:
             cat_map = _stage_categories(src, dst, animal_table)
-            animal_map = _import_animals(src, dst, animal_table, cat_map)
+            animal_map = _import_animals(
+                src, dst, animal_table, cat_map, overwrite=overwrite
+            )
             zoo_map = _import_zoos(src, dst, zoo_table)
             _import_links(src, dst, link_table, zoo_map, animal_map)
             if dry_run:
@@ -232,5 +280,10 @@ if __name__ == "__main__":
         action="store_true",
         help="Parse and log counts without writing",
     )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Replace existing field values with those from the source",
+    )
     args = parser.parse_args()
-    main(args.source, dry_run=args.dry_run)
+    main(args.source, dry_run=args.dry_run, overwrite=args.overwrite)

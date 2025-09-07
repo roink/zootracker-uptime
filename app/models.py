@@ -191,6 +191,7 @@ class Animal(Base):
     klasse = Column(Integer)
     ordnung = Column(Integer)
     familie = Column(Integer)
+    taxon_rank = Column(Text)
     zoo_count = Column(Integer, nullable=False, default=0, server_default="0")
     default_image_url = Column(String(512))
     created_at = Column(

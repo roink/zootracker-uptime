@@ -70,7 +70,8 @@ def list_animals(
             common_name=a.common_name,
             scientific_name=a.scientific_name,
             category=a.category.name if a.category else None,
-            description=a.description,
+            description_de=a.description_de,
+            iucn_conservation_status=a.conservation_state,
             default_image_url=a.default_image_url,
         )
         for a in animals
@@ -141,7 +142,9 @@ def get_animal_detail(
         common_name=animal.common_name,
         scientific_name=animal.scientific_name,
         category=animal.category.name if animal.category else None,
-        description=animal.description,
+        description_de=animal.description_de,
+        iucn_conservation_status=animal.conservation_state,
+        taxon_rank=animal.taxon_rank,
         default_image_url=animal.default_image_url,
         zoos=zoos,
     )

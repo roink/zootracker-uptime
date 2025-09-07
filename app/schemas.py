@@ -87,7 +87,8 @@ class AnimalListItem(BaseModel):
     common_name: str
     scientific_name: Optional[str] = None
     category: Optional[str] = None
-    description: Optional[str] = None
+    description_de: Optional[str] = None
+    iucn_conservation_status: Optional[str] = None
     default_image_url: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")
@@ -163,7 +164,9 @@ class AnimalDetail(BaseModel):
     common_name: str
     scientific_name: Optional[str] = None
     category: Optional[str] = None
-    description: Optional[str] = None
+    description_de: Optional[str] = None
+    iucn_conservation_status: Optional[str] = None
+    taxon_rank: Optional[str] = None
     default_image_url: Optional[str] = None
     # include full zoo details with distance information
     zoos: list[ZooDetail] = Field(default_factory=list)
