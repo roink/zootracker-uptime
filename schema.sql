@@ -63,7 +63,7 @@ CREATE TABLE animals (
   description        TEXT,
   description_de     TEXT,
   description_en     TEXT,
-  conservation_state TEXT CHECK (conservation_state IS NULL OR conservation_state IN ('EX','EW','CR','EN','VU','NT','LC','DD','NE')),
+  conservation_state TEXT,
   name_fallback      TEXT,
   name_en            TEXT,
   name_de            TEXT,

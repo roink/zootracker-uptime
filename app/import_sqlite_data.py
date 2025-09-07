@@ -2,7 +2,7 @@ import argparse
 import uuid
 from typing import Dict
 
-from sqlalchemy import MetaData, Table, create_engine, select, func, bindparam
+from sqlalchemy import MetaData, Table, create_engine, select, func, bindparam, text
 from sqlalchemy.orm import Session
 
 from .database import SessionLocal, Base
@@ -156,6 +156,27 @@ def _import_links(src: Session, dst: Session, link_table: Table, zoo_map: Dict[i
     dst.commit()
 
 
+def _ensure_columns(dst: Session) -> None:
+    """Create new animal columns if they do not already exist."""
+    dialect = dst.get_bind().dialect.name
+    if dialect == "sqlite":
+        cols = {row["name"] for row in dst.execute(text("PRAGMA table_info(animals)")).mappings()}
+        if "description_de" not in cols:
+            dst.execute(text("ALTER TABLE animals ADD COLUMN description_de TEXT"))
+        if "description_en" not in cols:
+            dst.execute(text("ALTER TABLE animals ADD COLUMN description_en TEXT"))
+        if "conservation_state" not in cols:
+            dst.execute(text("ALTER TABLE animals ADD COLUMN conservation_state TEXT"))
+        if "taxon_rank" not in cols:
+            dst.execute(text("ALTER TABLE animals ADD COLUMN taxon_rank TEXT"))
+    else:
+        dst.execute(text("ALTER TABLE animals ADD COLUMN IF NOT EXISTS description_de TEXT"))
+        dst.execute(text("ALTER TABLE animals ADD COLUMN IF NOT EXISTS description_en TEXT"))
+        dst.execute(text("ALTER TABLE animals ADD COLUMN IF NOT EXISTS conservation_state TEXT"))
+        dst.execute(text("ALTER TABLE animals ADD COLUMN IF NOT EXISTS taxon_rank TEXT"))
+    dst.commit()
+
+
 def main(source: str) -> None:
     """Import data from a SQLite database file into the application's database."""
     source_url = f"sqlite:///{source}"
@@ -164,6 +185,7 @@ def main(source: str) -> None:
     dst = SessionLocal()
     try:
         Base.metadata.create_all(bind=dst.get_bind())
+        _ensure_columns(dst)
         metadata = MetaData()
         animal_table = Table("animal", metadata, autoload_with=src_engine)
         zoo_table = Table("zoo", metadata, autoload_with=src_engine)
