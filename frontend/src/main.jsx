@@ -216,8 +216,9 @@ function App() {
     setRefreshCounter((c) => c + 1);
   };
 
+  // Opt in to React Router v7 behaviors to silence future warnings
   return (
-    <BrowserRouter>
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <AppRoutes
         token={token}
         userId={userId}

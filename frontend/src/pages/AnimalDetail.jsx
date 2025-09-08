@@ -241,7 +241,7 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
                             sizes={sizes}
                             decoding="async"
                             loading={loadingAttr}
-                            fetchPriority={fetchPri}
+                            fetchpriority={fetchPri} // hint network priority
                             alt={
                               img.commons_title
                                 ? `${animal.common_name} — ${img.commons_title}`
