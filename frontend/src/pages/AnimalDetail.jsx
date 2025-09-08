@@ -91,31 +91,6 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
     }
   }, []);
 
-  if (loading) return <div className="page-container">Loading...</div>;
-  if (error) return (
-    <div className="page-container">
-      <p className="text-danger">Unable to load animal.</p>
-    </div>
-  );
-  if (!animal) return (
-    <div className="page-container">
-      <p>Animal not found.</p>
-    </div>
-  );
-
-  const userSightings = sightings.filter((s) => s.animal_id === animal.id);
-  const seen = userSightings.length > 0;
-  const firstSeen = seen
-    ? new Date(
-        userSightings
-          .map((s) => s.sighting_datetime)
-          .sort()[0]
-      ).toLocaleDateString()
-    : null;
-  const gallery = userSightings.filter((s) => s.photo_url);
-
-  const closestZoo = zoos[0];
-
   // Keep sort default in sync with location availability
   useEffect(() => {
     if (location) setSortBy('distance');
@@ -141,6 +116,31 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
     });
     return list;
   }, [zoos, zooFilter, sortBy, location]);
+
+  if (loading) return <div className="page-container">Loading...</div>;
+  if (error) return (
+    <div className="page-container">
+      <p className="text-danger">Unable to load animal.</p>
+    </div>
+  );
+  if (!animal) return (
+    <div className="page-container">
+      <p>Animal not found.</p>
+    </div>
+  );
+
+  const userSightings = sightings.filter((s) => s.animal_id === animal.id);
+  const seen = userSightings.length > 0;
+  const firstSeen = seen
+    ? new Date(
+        userSightings
+          .map((s) => s.sighting_datetime)
+          .sort()[0]
+      ).toLocaleDateString()
+    : null;
+  const gallery = userSightings.filter((s) => s.photo_url);
+
+  const closestZoo = zoos[0];
 
   // compute a stable aspect ratio from the first image (fallback 4/3)
   const computeAspect = (img) => {
