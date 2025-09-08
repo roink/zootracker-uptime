@@ -118,11 +118,11 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
             : 'Animal details on ZooTracker.'
         }
       />
-      {/* Layout image and details side by side on large screens */}
+      {/* Image above on mobile, swapped to the right on large screens */}
       <div className="row g-3">
-        <div className="col-12 col-lg-6">
+        <div className="col-12 col-lg-6 order-lg-2">
           {/* Stable image stage: fixed aspect ratio, no jumping controls */}
-          <div className="animal-media shadow-sm" style={{ '--ar': aspect }}>
+          <div className="animal-media" style={{ '--ar': aspect }}>
             {animal.images && animal.images.length > 0 ? (
               // Render image gallery using Bootstrap carousel
               <div
@@ -237,7 +237,7 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
             )}
           </div>
         </div>
-        <div className="col-12 col-lg-6">
+        <div className="col-12 col-lg-6 order-lg-1">
           <h3>{animal.common_name}</h3>
           {animal.scientific_name && (
             <div className="fst-italic">{animal.scientific_name}</div>

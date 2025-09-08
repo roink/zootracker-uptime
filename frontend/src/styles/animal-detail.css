@@ -2,8 +2,9 @@
 .animal-media {
   position: relative;
   aspect-ratio: var(--ar, 4/3);          /* keeps height stable across slides */
-  background: var(--bs-body-tertiary-bg);
-  border-radius: .75rem;
+  background: var(--bs-card-bg);
+  border: 1px solid var(--bs-border-color); /* match description card border */
+  border-radius: var(--bs-border-radius);
   overflow: hidden;
 }
 
@@ -16,10 +17,16 @@
 
 /* Center anything inside the slide */
 .animal-media .carousel-item {
-  display: flex;
   align-items: center;
   justify-content: center;
   padding: .5rem;                        /* breathing room for small images */
+}
+
+/* Only show one slide at a time */
+.animal-media .carousel-item.active,
+.animal-media .carousel-item-next,
+.animal-media .carousel-item-prev {
+  display: flex;
 }
 
 /* Never stretch; letterbox instead */
