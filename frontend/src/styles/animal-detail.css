@@ -1,0 +1,61 @@
+/* Stable, pleasant image stage */
+.animal-media {
+  position: relative;
+  aspect-ratio: var(--ar, 4/3);          /* keeps height stable across slides */
+  background: var(--bs-card-bg);
+  border: 1px solid var(--bs-border-color); /* match description card border */
+  border-radius: var(--bs-border-radius);
+  overflow: hidden;
+}
+
+/* Make the carousel fill the stage */
+.animal-media .carousel,
+.animal-media .carousel-inner,
+.animal-media .carousel-item {
+  height: 100%;
+}
+
+/* Center anything inside the slide */
+.animal-media .carousel-item {
+  align-items: center;
+  justify-content: center;
+  padding: .5rem;                        /* breathing room for small images */
+}
+
+/* Only show one slide at a time */
+.animal-media .carousel-item.active,
+.animal-media .carousel-item-next,
+.animal-media .carousel-item-prev {
+  display: flex;
+}
+
+/* Never stretch; letterbox instead */
+.animal-media img {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  display: block;
+  user-select: none;
+}
+
+/* Controls + indicators: consistent, subtle */
+.animal-media .carousel-control-prev,
+.animal-media .carousel-control-next {
+  width: 3rem;
+  opacity: .8;
+}
+
+.animal-media .carousel-indicators [data-bs-target] {
+  width: .5rem;
+  height: .5rem;
+  border-radius: 50%;
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .animal-media .carousel-item {
+    transition: none !important;
+  }
+}

@@ -4,6 +4,7 @@ import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
 import SightingModal from '../components/SightingModal';
 import Seo from '../components/Seo';
+import '../styles/animal-detail.css';
 
 // Map IUCN codes to labels and bootstrap badge classes
 const IUCN = {
@@ -95,6 +96,18 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
 
   const closestZoo = zoos[0];
 
+  // compute a stable aspect ratio from the first image (fallback 4/3)
+  const computeAspect = (img) => {
+    if (!img) return '4 / 3';
+    const candidates = (img.variants && img.variants.length ? img.variants : []);
+    const v = candidates[candidates.length - 1] || img; // prefer a larger variant if present
+    const w = v?.width || img?.width;
+    const h = v?.height || img?.height;
+    return w && h ? `${w} / ${h}` : '4 / 3';
+  };
+  const aspect =
+    animal.images && animal.images.length ? computeAspect(animal.images[0]) : '4 / 3';
+
   return (
     <div className="page-container">
       <Seo
@@ -105,169 +118,180 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
             : 'Animal details on ZooTracker.'
         }
       />
-      {animal.images && animal.images.length > 0 ? (
-        // Render image gallery using Bootstrap carousel
-        <div id="animalCarousel" className="carousel slide">
-          {animal.images.length > 1 && (
-            <div className="carousel-indicators">
-              {animal.images.map((_, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  data-bs-target="#animalCarousel"
-                  data-bs-slide-to={i}
-                  className={i === 0 ? 'active' : ''}
-                  aria-label={`Slide ${i + 1}`}
+      {/* Image above on mobile, swapped to the right on large screens */}
+      <div className="row g-3">
+        <div className="col-12 col-lg-6 order-lg-2">
+          {/* Stable image stage: fixed aspect ratio, no jumping controls */}
+          <div className="animal-media" style={{ '--ar': aspect }}>
+            {animal.images && animal.images.length > 0 ? (
+              // Render image gallery using Bootstrap carousel
+              <div
+                id="animalCarousel"
+                className="carousel slide h-100"
+                data-bs-ride="false"
+                data-bs-interval="false"
+                data-bs-touch="true"
+              >
+                {animal.images.length > 1 && (
+                  <div className="carousel-indicators">
+                    {animal.images.map((_, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        data-bs-target="#animalCarousel"
+                        data-bs-slide-to={i}
+                        className={i === 0 ? 'active' : ''}
+                        aria-label={`Slide ${i + 1}`}
+                      />
+                    ))}
+                  </div>
+                )}
+                <div className="carousel-inner h-100">
+                  {animal.images.map((img, idx) => {
+                    // Sort variants so the smallest width comes first
+                    const sorted = [...(img.variants || [])].sort(
+                      (a, b) => a.width - b.width
+                    );
+                    const fallback = sorted[0];
+                    const fallbackSrc = fallback?.thumb_url || img.original_url;
+                    // Deduplicate widths to keep srcset concise
+                    const uniqueByWidth = [];
+                    const seen = new Set();
+                    for (const v of sorted) {
+                      if (!seen.has(v.width)) {
+                        uniqueByWidth.push(v);
+                        seen.add(v.width);
+                      }
+                    }
+                    const srcSet = uniqueByWidth
+                      .map((v) => `${v.thumb_url} ${v.width}w`)
+                      .join(', ');
+                    // First slide is likely LCP: prioritize it; others can be lazy/low
+                    const isFirst = idx === 0;
+                    const loadingAttr = isFirst ? 'eager' : 'lazy';
+                    const fetchPri = isFirst ? 'high' : 'low';
+
+                    // Each image links to its Commons description page
+                    return (
+                      <div
+                        key={img.mid}
+                        className={`carousel-item ${idx === 0 ? 'active' : ''}`}
+                      >
+                        <a
+                          href={img.commons_page_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="d-block"
+                        >
+                          <img
+                            src={fallbackSrc}
+                            srcSet={srcSet}
+                            sizes="(min-width: 992px) 50vw, 100vw"
+                            decoding="async"
+                            loading={loadingAttr}
+                            fetchPriority={fetchPri}
+                            alt={
+                              img.commons_title
+                                ? `${animal.common_name} — ${img.commons_title}`
+                                : `${animal.common_name} – Wikimedia Commons image`
+                            }
+                            className="img-fluid"
+                          />
+                        </a>
+                      </div>
+                    );
+                  })}
+                </div>
+                {animal.images.length > 1 && (
+                  <>
+                    <button
+                      className="carousel-control-prev"
+                      type="button"
+                      data-bs-target="#animalCarousel"
+                      data-bs-slide="prev"
+                    >
+                      <span className="carousel-control-prev-icon" aria-hidden="true"></span>
+                      <span className="visually-hidden">Previous</span>
+                    </button>
+                    <button
+                      className="carousel-control-next"
+                      type="button"
+                      data-bs-target="#animalCarousel"
+                      data-bs-slide="next"
+                    >
+                      <span className="carousel-control-next-icon" aria-hidden="true"></span>
+                      <span className="visually-hidden">Next</span>
+                    </button>
+                  </>
+                )}
+              </div>
+            ) : (
+              animal.default_image_url && (
+                <img
+                  src={animal.default_image_url}
+                  alt={`${animal.common_name} – Wikimedia Commons image`}
+                  className="img-fluid"
+                  loading="lazy"
+                />
+              )
+            )}
+          </div>
+        </div>
+        <div className="col-12 col-lg-6 order-lg-1">
+          <h3>{animal.common_name}</h3>
+          {animal.scientific_name && (
+            <div className="fst-italic">{animal.scientific_name}</div>
+          )}
+          {animal.taxon_rank && (
+            <div className="mt-1">
+              <span className="badge bg-light text-muted border">{animal.taxon_rank}</span>
+            </div>
+          )}
+          {animal.category && (
+            <span className="category-badge">
+              {animal.category}
+            </span>
+          )}
+          <div className="spaced-top">
+            {seen ? `Seen ✔️ (first on ${firstSeen})` : 'Not seen 🚫'}
+          </div>
+          {gallery.length > 0 && (
+            <div className="gallery">
+              {gallery.map((g, idx) => (
+                <img
+                  key={idx}
+                  src={g.photo_url}
+                  alt="sighting"
+                  className="gallery-img"
                 />
               ))}
             </div>
           )}
-          <div className="carousel-inner">
-            {animal.images.map((img, idx) => {
-              // Sort variants so the smallest width comes first
-              const sorted = [...(img.variants || [])].sort(
-                (a, b) => a.width - b.width
-              );
-              // Smallest variant as the fallback src so we don't eager-load a huge image
-              const fallback = sorted[0];
-              const fallbackSrc = fallback?.thumb_url || img.original_url;
-              // Deduplicate widths to keep srcset concise
-              const uniqueByWidth = [];
-              const seen = new Set();
-              for (const v of sorted) {
-                if (!seen.has(v.width)) {
-                  uniqueByWidth.push(v);
-                  seen.add(v.width);
-                }
-              }
-              const srcSet = uniqueByWidth
-                .map((v) => `${v.thumb_url} ${v.width}w`)
-                .join(', ');
-              // Hint the layout aspect ratio to avoid CLS
-              const intrinsicW = fallback?.width ?? undefined;
-              const intrinsicH = fallback?.height ?? undefined;
-              // First slide is likely LCP: prioritize it; others can be lazy/low
-              const isFirst = idx === 0;
-              const loadingAttr = isFirst ? 'eager' : 'lazy';
-              const fetchPriority = isFirst ? 'high' : 'low';
-
-              // Each image links to its Commons description page
-              return (
-                <div
-                  key={img.mid}
-                  className={`carousel-item ${idx === 0 ? 'active' : ''}`}
-                >
-                  <a
-                    href={img.commons_page_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <img
-                      src={fallbackSrc}
-                      srcSet={srcSet}
-                      sizes="(min-width: 1400px) 1320px, (min-width: 1200px) 1140px, (min-width: 992px) 960px, (min-width: 768px) 720px, 100vw"
-                      width={intrinsicW}
-                      height={intrinsicH}
-                      decoding="async"
-                      loading={loadingAttr}
-                      fetchpriority={fetchPriority}
-                      alt={
-                        img.commons_title
-                          ? `${animal.common_name} — ${img.commons_title}`
-                          : `${animal.common_name} – Wikimedia Commons image`
-                      }
-                      className="d-block w-100 img-fluid"
-                    />
-                  </a>
-                </div>
-              );
-            })}
-          </div>
-          {animal.images.length > 1 && (
-            <>
-              <button
-                className="carousel-control-prev"
-                type="button"
-                data-bs-target="#animalCarousel"
-                data-bs-slide="prev"
-              >
-                <span className="carousel-control-prev-icon" aria-hidden="true"></span>
-                <span className="visually-hidden">Previous</span>
-              </button>
-              <button
-                className="carousel-control-next"
-                type="button"
-                data-bs-target="#animalCarousel"
-                data-bs-slide="next"
-              >
-                <span className="carousel-control-next-icon" aria-hidden="true"></span>
-                <span className="visually-hidden">Next</span>
-              </button>
-            </>
+          {(animal.description_de || animal.iucn_conservation_status) && (
+            <div className="card mt-3">
+              <div className="card-body">
+                {animal.description_de && (
+                  <>
+                    <h5 className="card-title">Beschreibung</h5>
+                    <p className="card-text">{animal.description_de}</p>
+                  </>
+                )}
+                {animal.iucn_conservation_status && (() => {
+                  const code = animal.iucn_conservation_status.toUpperCase();
+                  const meta = IUCN[code] || { label: code, badge: 'bg-secondary' };
+                  return (
+                    <p className="card-text mb-0">
+                      <strong>IUCN:</strong>{' '}
+                      <span className={`badge ${meta.badge}`} title={meta.label}>{code}</span>{' '}
+                      <span className="text-muted">({meta.label})</span>
+                    </p>
+                  );
+                })()}
+              </div>
+            </div>
           )}
         </div>
-      ) : (
-        animal.default_image_url && (
-          <img
-            src={animal.default_image_url}
-            alt={`${animal.common_name} – Wikimedia Commons image`}
-            className="cover-image img-fluid"
-            loading="lazy"
-          />
-        )
-      )}
-      <h3>{animal.common_name}</h3>
-      {animal.scientific_name && (
-        <div className="fst-italic">{animal.scientific_name}</div>
-      )}
-      {animal.taxon_rank && (
-        <div className="mt-1">
-          <span className="badge bg-light text-muted border">{animal.taxon_rank}</span>
-        </div>
-      )}
-      {animal.category && (
-        <span className="category-badge">
-          {animal.category}
-        </span>
-      )}
-      <div className="spaced-top">
-        {seen ? `Seen ✔️ (first on ${firstSeen})` : 'Not seen 🚫'}
       </div>
-      {gallery.length > 0 && (
-        <div className="gallery">
-          {gallery.map((g, idx) => (
-            <img
-              key={idx}
-              src={g.photo_url}
-              alt='sighting'
-              className="gallery-img"
-            />
-          ))}
-        </div>
-      )}
-      {(animal.description_de || animal.iucn_conservation_status) && (
-        <div className="card mt-3">
-          <div className="card-body">
-            {animal.description_de && (
-              <>
-                <h5 className="card-title">Beschreibung</h5>
-                <p className="card-text">{animal.description_de}</p>
-              </>
-            )}
-            {animal.iucn_conservation_status && (() => {
-              const code = animal.iucn_conservation_status.toUpperCase();
-              const meta = IUCN[code] || { label: code, badge: 'bg-secondary' };
-              return (
-                <p className="card-text mb-0">
-                  <strong>IUCN:</strong>{' '}
-                  <span className={`badge ${meta.badge}`} title={meta.label}>{code}</span>{' '}
-                  <span className="text-muted">({meta.label})</span>
-                </p>
-              );
-            })()}
-          </div>
-        </div>
-      )}
       <h4 className="spaced-top-lg">Where to See</h4>
       <table className="table-full">
         <thead>
@@ -317,7 +341,7 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
               : undefined,
           });
         }}
-        className="spaced-top"
+        className="spaced-top btn btn-primary"
       >
         Log Sighting
       </button>
