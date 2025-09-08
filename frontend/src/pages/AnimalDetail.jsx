@@ -33,6 +33,8 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
   const [zooFilter, setZooFilter] = useState('');
   const [sortBy, setSortBy] = useState('name'); // 'name' | 'distance'
   const [descOpen, setDescOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     const params = [];
@@ -41,6 +43,8 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
       params.push(`longitude=${location.lon}`);
     }
     const controller = new AbortController();
+    setLoading(true);
+    setError(false);
     // fetch animal details and associated zoos (with distance when available)
     fetch(
       `${API}/animals/${id}${params.length ? `?${params.join('&')}` : ''}`,
@@ -50,12 +54,15 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
       .then((data) => {
         setAnimal(data);
         setZoos(data.zoos || []);
+        setLoading(false);
       })
       .catch(() => {
         if (!controller.signal.aborted) {
-          setAnimal(null);
-          setZoos([]);
+          setError(true);
+          setLoading(false);
         }
+        setAnimal(null);
+        setZoos([]);
       });
 
     return () => controller.abort();
@@ -84,7 +91,17 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
     }
   }, []);
 
-  if (!animal) return <div>Loading...</div>;
+  if (loading) return <div className="page-container">Loading...</div>;
+  if (error) return (
+    <div className="page-container">
+      <p className="text-danger">Unable to load animal.</p>
+    </div>
+  );
+  if (!animal) return (
+    <div className="page-container">
+      <p>Animal not found.</p>
+    </div>
+  );
 
   const userSightings = sightings.filter((s) => s.animal_id === animal.id);
   const seen = userSightings.length > 0;
