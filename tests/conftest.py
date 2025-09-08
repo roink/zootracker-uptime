@@ -139,8 +139,13 @@ def seed_data():
         source="TEST",
         variants=[
             models.ImageVariant(
+                width=320,
+                height=240,
+                thumb_url="http://example.com/lion-320.jpg",
+            ),
+            models.ImageVariant(
                 width=640, height=480, thumb_url="http://example.com/lion.jpg"
-            )
+            ),
         ],
     )
     img2 = models.Image(
