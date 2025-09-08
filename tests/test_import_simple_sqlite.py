@@ -2,7 +2,7 @@ from pathlib import Path
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
-from datetime import datetime, timezone
+from datetime import datetime
 
 from app import import_simple_sqlite_data
 from app import models

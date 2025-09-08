@@ -21,8 +21,8 @@ def test_get_animal_detail_includes_images(data):
     body = resp.json()
     assert len(body["images"]) == 2
     assert body["images"][0]["variants"][0]["thumb_url"].startswith("http://example.com/")
-    assert body["images"][0]["commons_page_url"].startswith("http://commons.org/")
-    assert body["images"][0]["commons_title"] == "File:Lion.jpg"
+    assert "commons_page_url" not in body["images"][0]
+    assert "commons_title" not in body["images"][0]
 
 
 def test_get_animal_detail_variants_sorted(data):

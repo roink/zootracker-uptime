@@ -19,6 +19,7 @@ import Dashboard from "./pages/Dashboard";
 import ZoosPage from "./pages/Zoos";
 import AnimalsPage from "./pages/Animals";
 import AnimalDetailPage from "./pages/AnimalDetail";
+import ImageAttributionPage from "./pages/ImageAttribution";
 import Header from "./components/Header";
 import SearchPage from "./pages/Search";
 import ZooDetailPage from "./pages/ZooDetail";
@@ -147,6 +148,7 @@ function AppRoutes({
             />
           }
         />
+        <Route path="/images/:mid" element={<ImageAttributionPage />} />
         <Route path="/search" element={<SearchPage />} />
         <Route
           path="/badges"

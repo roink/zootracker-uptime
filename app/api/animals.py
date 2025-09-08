@@ -145,24 +145,26 @@ def get_animal_detail(
 
     zoos = [to_zoodetail(z, dist) for z, dist in results]
 
-    images = [
-        schemas.ImageRead(
-            mid=i.mid,
-            original_url=i.original_url,
-            commons_page_url=i.commons_page_url,
-            commons_title=i.commons_title if hasattr(i, "commons_title") else None,
-            source=i.source,
-            # Return thumbnail variants sorted by width so the frontend can
-            # build a proper ``srcset`` with increasing sizes.
-            variants=[
-                schemas.ImageVariant(
-                    width=v.width, height=v.height, thumb_url=v.thumb_url
-                )
-                for v in sorted(i.variants, key=lambda v: v.width)
-            ],
+    images = []
+    for i in animal.images:
+        # Return thumbnail variants sorted by width and deduplicated so the
+        # frontend can build concise ``srcset`` attributes.
+        variants: list[schemas.ImageVariant] = []
+        seen_widths: set[int] = set()
+        for v in sorted(i.variants, key=lambda v: v.width):
+            if v.width in seen_widths:
+                continue
+            seen_widths.add(v.width)
+            variants.append(
+                schemas.ImageVariant(width=v.width, height=v.height, thumb_url=v.thumb_url)
+            )
+        images.append(
+            schemas.ImageRead(
+                mid=i.mid,
+                original_url=i.original_url,
+                variants=variants,
+            )
         )
-        for i in animal.images
-    ]
 
     return schemas.AnimalDetail(
         id=animal.id,
