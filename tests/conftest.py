@@ -136,7 +136,12 @@ def seed_data():
         commons_title="File:Lion.jpg",
         commons_page_url="http://commons.org/File:Lion.jpg",
         original_url="http://example.com/lion.jpg",
-        source="TEST",
+        width=640,
+        height=480,
+        size_bytes=1000,
+        sha1="0" * 40,
+        mime="image/jpeg",
+        source="WIKIDATA_P18",
         variants=[
             models.ImageVariant(
                 width=320,
@@ -154,7 +159,12 @@ def seed_data():
         commons_title="File:Lion2.jpg",
         commons_page_url="http://commons.org/File:Lion2.jpg",
         original_url="http://example.com/lion2.jpg",
-        source="TEST",
+        width=640,
+        height=480,
+        size_bytes=2000,
+        sha1="1" * 40,
+        mime="image/jpeg",
+        source="WIKIDATA_P18",
         variants=[
             models.ImageVariant(
                 width=640, height=480, thumb_url="http://example.com/lion2.jpg"
