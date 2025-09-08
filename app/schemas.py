@@ -108,12 +108,25 @@ class ImageVariant(BaseModel):
 
 class ImageRead(BaseModel):
     """Image information including available thumbnail variants."""
+    mid: str
+    original_url: str
+    variants: list[ImageVariant] = Field(default_factory=list)
+
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
+
+
+class ImageAttribution(BaseModel):
+    """Full image metadata used for attribution."""
 
     mid: str
     original_url: str
     commons_page_url: Optional[str] = None
     commons_title: Optional[str] = None
-    source: Optional[str] = None
+    author: Optional[str] = None
+    license: Optional[str] = None
+    license_url: Optional[str] = None
+    credit_line: Optional[str] = None
+    attribution_required: Optional[bool] = None
     variants: list[ImageVariant] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")

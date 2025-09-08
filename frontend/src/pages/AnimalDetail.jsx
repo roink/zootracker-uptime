@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
 import SightingModal from '../components/SightingModal';
@@ -229,10 +229,10 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
                         className={`carousel-item ${idx === 0 ? 'active' : ''}`}
                         aria-label={`Slide ${idx + 1} of ${animal.images.length}`}
                       >
-                        <a
-                          href={img.commons_page_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                        {/* Clicking the image opens the attribution page */}
+                        <Link
+                          to={`/images/${img.mid}`}
+                          state={{ name: animal.common_name }}
                           className="d-block"
                         >
                           <img
@@ -241,20 +241,11 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
                             sizes={sizes}
                             decoding="async"
                             loading={loadingAttr}
-                            fetchpriority={fetchPri} // hint network priority
-                            alt={
-                              img.commons_title
-                                ? `${animal.common_name} — ${img.commons_title}`
-                                : `${animal.common_name} – Wikimedia Commons image`
-                            }
+                            fetchpriority={fetchPri}
+                            alt={animal.common_name}
                             className="img-fluid"
                           />
-                          {img.commons_title && (
-                            <div className="media-caption">
-                              {img.commons_title} · Wikimedia Commons
-                            </div>
-                          )}
-                        </a>
+                        </Link>
                       </div>
                     );
                   })}
@@ -286,7 +277,7 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
               animal.default_image_url && (
                 <img
                   src={animal.default_image_url}
-                  alt={`${animal.common_name} – Wikimedia Commons image`}
+                  alt={animal.common_name}
                   className="img-fluid w-100"
                   loading="lazy"
                 />

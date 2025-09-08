@@ -141,6 +141,9 @@ def seed_data():
         size_bytes=1000,
         sha1="0" * 40,
         mime="image/jpeg",
+        artist_plain="Jane Smith",
+        license="CC BY-SA 4.0",
+        license_url="http://creativecommons.org/licenses/by-sa/4.0/",
         source="WIKIDATA_P18",
         variants=[
             models.ImageVariant(
@@ -152,6 +155,8 @@ def seed_data():
                 width=640, height=480, thumb_url="http://example.com/lion.jpg"
             ),
         ],
+        attribution_required=True,
+        credit_line="Photo by Jane",
     )
     img2 = models.Image(
         mid="M2",
@@ -164,6 +169,9 @@ def seed_data():
         size_bytes=2000,
         sha1="1" * 40,
         mime="image/jpeg",
+        artist_plain="John Doe",
+        license="CC BY-SA 4.0",
+        license_url="http://creativecommons.org/licenses/by-sa/4.0/",
         source="WIKIDATA_P18",
         variants=[
             models.ImageVariant(

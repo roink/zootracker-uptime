@@ -345,9 +345,10 @@ def send_contact(message: schemas.ContactMessage, request: Request, background_t
     return response
 
 
-from .api import auth_router, users_router, zoos_router, animals_router  # noqa: E402
+from .api import auth_router, users_router, zoos_router, animals_router, images_router  # noqa: E402
 
 app.include_router(auth_router)
 app.include_router(users_router)
 app.include_router(zoos_router)
 app.include_router(animals_router)
+app.include_router(images_router)
