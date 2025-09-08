@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
@@ -30,6 +30,9 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
   const [location, setLocation] = useState(null);
   const [zoos, setZoos] = useState([]);
   const [modalData, setModalData] = useState(null);
+  const [zooFilter, setZooFilter] = useState('');
+  const [sortBy, setSortBy] = useState('name'); // 'name' | 'distance'
+  const [descOpen, setDescOpen] = useState(false);
 
   useEffect(() => {
     const params = [];
@@ -96,6 +99,32 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
 
   const closestZoo = zoos[0];
 
+  // Keep sort default in sync with location availability
+  useEffect(() => {
+    if (location) setSortBy('distance');
+  }, [location]);
+
+  const filteredZoos = useMemo(() => {
+    const q = zooFilter.trim().toLowerCase();
+    let list = [...zoos];
+    if (q) {
+      list = list.filter((z) =>
+        [z.city, z.name].filter(Boolean).join(' ').toLowerCase().includes(q)
+      );
+    }
+    list.sort((a, b) => {
+      if (sortBy === 'distance' && location) {
+        const da = a.distance_km ?? Number.POSITIVE_INFINITY;
+        const db = b.distance_km ?? Number.POSITIVE_INFINITY;
+        return da - db;
+      }
+      const an = (a.city ? `${a.city}: ${a.name}` : a.name) || '';
+      const bn = (b.city ? `${b.city}: ${b.name}` : b.name) || '';
+      return an.localeCompare(bn);
+    });
+    return list;
+  }, [zoos, zooFilter, sortBy, location]);
+
   // compute a stable aspect ratio from the first image (fallback 4/3)
   const computeAspect = (img) => {
     if (!img) return '4 / 3';
@@ -120,7 +149,7 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
       />
       {/* Image above on mobile, swapped to the right on large screens */}
       <div className="row g-3">
-        <div className="col-12 col-lg-6 order-lg-2">
+        <div className="col-12 col-lg-6 order-lg-2 sticky-lg-top" style={{ top: '1rem' }}>
           {/* Stable image stage: fixed aspect ratio, no jumping controls */}
           <div className="animal-media" style={{ '--ar': aspect }}>
             {animal.images && animal.images.length > 0 ? (
@@ -128,6 +157,9 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
               <div
                 id="animalCarousel"
                 className="carousel slide h-100"
+                role="region"
+                aria-roledescription="carousel"
+                aria-label={`${animal.common_name} image gallery`}
                 data-bs-ride="false"
                 data-bs-interval="false"
                 data-bs-touch="true"
@@ -170,12 +202,15 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
                     const isFirst = idx === 0;
                     const loadingAttr = isFirst ? 'eager' : 'lazy';
                     const fetchPri = isFirst ? 'high' : 'low';
+                    const sizes =
+                      '(min-width: 1200px) 540px, (min-width: 992px) 50vw, 100vw'; // matches 2-col layout
 
                     // Each image links to its Commons description page
                     return (
                       <div
                         key={img.mid}
                         className={`carousel-item ${idx === 0 ? 'active' : ''}`}
+                        aria-label={`Slide ${idx + 1} of ${animal.images.length}`}
                       >
                         <a
                           href={img.commons_page_url}
@@ -186,7 +221,7 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
                           <img
                             src={fallbackSrc}
                             srcSet={srcSet}
-                            sizes="(min-width: 992px) 50vw, 100vw"
+                            sizes={sizes}
                             decoding="async"
                             loading={loadingAttr}
                             fetchPriority={fetchPri}
@@ -197,6 +232,11 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
                             }
                             className="img-fluid"
                           />
+                          {img.commons_title && (
+                            <div className="media-caption">
+                              {img.commons_title} · Wikimedia Commons
+                            </div>
+                          )}
                         </a>
                       </div>
                     );
@@ -230,7 +270,7 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
                 <img
                   src={animal.default_image_url}
                   alt={`${animal.common_name} – Wikimedia Commons image`}
-                  className="img-fluid"
+                  className="img-fluid w-100"
                   loading="lazy"
                 />
               )
@@ -238,7 +278,7 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
           </div>
         </div>
         <div className="col-12 col-lg-6 order-lg-1">
-          <h3>{animal.common_name}</h3>
+          <h2 className="mb-1">{animal.common_name}</h2>
           {animal.scientific_name && (
             <div className="fst-italic">{animal.scientific_name}</div>
           )}
@@ -252,8 +292,19 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
               {animal.category}
             </span>
           )}
-          <div className="spaced-top">
-            {seen ? `Seen ✔️ (first on ${firstSeen})` : 'Not seen 🚫'}
+          <div className="spaced-top d-flex flex-wrap gap-2 align-items-center">
+            <span className={`badge ${seen ? 'bg-success' : 'bg-secondary'}`}>
+              {seen ? `Seen (first on ${firstSeen})` : 'Not seen'}
+            </span>
+            {animal.iucn_conservation_status && (() => {
+              const code = animal.iucn_conservation_status.toUpperCase();
+              const meta = IUCN[code] || { label: code, badge: 'bg-secondary' };
+              return (
+                <span className={`badge ${meta.badge}`} title={meta.label}>
+                  IUCN: {code}
+                </span>
+              );
+            })()}
           </div>
           {gallery.length > 0 && (
             <div className="gallery">
@@ -267,63 +318,101 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
               ))}
             </div>
           )}
-          {(animal.description_de || animal.iucn_conservation_status) && (
+          {animal.description_de && (
             <div className="card mt-3">
               <div className="card-body">
-                {animal.description_de && (
-                  <>
-                    <h5 className="card-title">Beschreibung</h5>
-                    <p className="card-text">{animal.description_de}</p>
-                  </>
-                )}
-                {animal.iucn_conservation_status && (() => {
-                  const code = animal.iucn_conservation_status.toUpperCase();
-                  const meta = IUCN[code] || { label: code, badge: 'bg-secondary' };
-                  return (
-                    <p className="card-text mb-0">
-                      <strong>IUCN:</strong>{' '}
-                      <span className={`badge ${meta.badge}`} title={meta.label}>{code}</span>{' '}
-                      <span className="text-muted">({meta.label})</span>
-                    </p>
-                  );
-                })()}
+                <h5 className="card-title">Beschreibung</h5>
+                <p
+                  id="animal-description"
+                  className={`card-text ${descOpen ? '' : 'line-clamp-6'}`}
+                >
+                  {animal.description_de}
+                </p>
+                <button
+                  className="btn btn-link p-0"
+                  onClick={() => setDescOpen((v) => !v)}
+                  aria-expanded={descOpen}
+                  aria-controls="animal-description"
+                >
+                  {descOpen ? 'Show less' : 'Read more'}
+                </button>
               </div>
             </div>
           )}
         </div>
       </div>
-      <h4 className="spaced-top-lg">Where to See</h4>
-      <table className="table-full">
-        <thead>
-          <tr>
-            <th align='left'>Zoo</th>
-            {location && <th className="text-end">Distance (km)</th>}
-          </tr>
-        </thead>
-        <tbody>
-          {zoos.map((z) => (
-            <tr
-              key={z.id}
-              className="pointer-row"
-              onClick={() => navigate(`/zoos/${z.id}`)}
-              tabIndex="0"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  navigate(`/zoos/${z.id}`);
-                }
-              }}
-            >
-              <td>{z.city ? `${z.city}: ${z.name}` : z.name}</td>
-              {location && (
-                <td className="text-end">
-                  {z.distance_km != null ? z.distance_km.toFixed(1) : ''}
-                </td>
-              )}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div className="card spaced-top-lg">
+        <div className="card-body pb-2">
+          <div className="d-flex flex-wrap gap-2 align-items-center">
+            <h4 className="mb-0 me-auto">Where to See</h4>
+            <div className="input-group input-group-sm" style={{ maxWidth: 280 }}>
+              <span className="input-group-text">Filter</span>
+              <input
+                type="search"
+                className="form-control"
+                placeholder="City or zoo name"
+                value={zooFilter}
+                onChange={(e) => setZooFilter(e.target.value)}
+                aria-label="Filter zoos by city or name"
+              />
+            </div>
+            <div className="btn-group btn-group-sm" role="group" aria-label="Sort zoos">
+              <button
+                className={`btn btn-outline-secondary ${sortBy === 'name' ? 'active' : ''}`}
+                onClick={() => setSortBy('name')}
+              >
+                Sort by name
+              </button>
+              <button
+                className={`btn btn-outline-secondary ${sortBy === 'distance' ? 'active' : ''}`}
+                onClick={() => setSortBy('distance')}
+                disabled={!location}
+                title={!location ? 'Enable location to sort by distance' : undefined}
+              >
+                Sort by distance
+              </button>
+            </div>
+          </div>
+          <div className="small text-muted mt-2" aria-live="polite">
+            Showing {filteredZoos.length} of {zoos.length}
+          </div>
+        </div>
+        <div className="table-responsive">
+          <table className="table table-hover align-middle mb-0">
+            <thead className="table-light">
+              <tr>
+                <th scope="col">Zoo</th>
+                {location && <th scope="col" className="text-end">Distance (km)</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {filteredZoos.map((z) => (
+                <tr
+                  key={z.id}
+                  className="pointer-row"
+                  role="link"
+                  aria-label={`Open ${z.city ? `${z.city}: ${z.name}` : z.name}`}
+                  onClick={() => navigate(`/zoos/${z.id}`)}
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      navigate(`/zoos/${z.id}`);
+                    }
+                  }}
+                >
+                  <td>{z.city ? `${z.city}: ${z.name}` : z.name}</td>
+                  {location && (
+                    <td className="text-end">
+                      {z.distance_km != null ? z.distance_km.toFixed(1) : ''}
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
       <button
         onClick={() => {
           if (!token) {
