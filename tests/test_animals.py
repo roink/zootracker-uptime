@@ -25,6 +25,16 @@ def test_get_animal_detail_includes_images(data):
     assert body["images"][0]["commons_title"] == "File:Lion.jpg"
 
 
+def test_get_animal_detail_variants_sorted(data):
+    resp = client.get(f"/animals/{data['animal'].id}")
+    assert resp.status_code == 200
+    variants = resp.json()["images"][0]["variants"]
+    widths = [v["width"] for v in variants]
+    # Variants should be returned in ascending width order
+    assert widths == sorted(widths)
+    assert 320 in widths and 640 in widths
+
+
 def test_get_animal_detail_with_distance(data):
     params = {"latitude": data["zoo"].latitude, "longitude": data["zoo"].longitude}
     resp = client.get(f"/animals/{data['animal'].id}", params=params)

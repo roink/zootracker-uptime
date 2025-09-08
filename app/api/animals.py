@@ -152,11 +152,13 @@ def get_animal_detail(
             commons_page_url=i.commons_page_url,
             commons_title=i.commons_title if hasattr(i, "commons_title") else None,
             source=i.source,
+            # Return thumbnail variants sorted by width so the frontend can
+            # build a proper ``srcset`` with increasing sizes.
             variants=[
                 schemas.ImageVariant(
                     width=v.width, height=v.height, thumb_url=v.thumb_url
                 )
-                for v in i.variants
+                for v in sorted(i.variants, key=lambda v: v.width)
             ],
         )
         for i in animal.images
