@@ -4,6 +4,7 @@ import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
 import SightingModal from '../components/SightingModal';
 import Seo from '../components/Seo';
+import '../styles/animal-detail.css';
 
 // Map IUCN codes to labels and bootstrap badge classes
 const IUCN = {
@@ -95,6 +96,18 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
 
   const closestZoo = zoos[0];
 
+  // compute a stable aspect ratio from the first image (fallback 4/3)
+  const computeAspect = (img) => {
+    if (!img) return '4 / 3';
+    const candidates = (img.variants && img.variants.length ? img.variants : []);
+    const v = candidates[candidates.length - 1] || img; // prefer a larger variant if present
+    const w = v?.width || img?.width;
+    const h = v?.height || img?.height;
+    return w && h ? `${w} / ${h}` : '4 / 3';
+  };
+  const aspect =
+    animal.images && animal.images.length ? computeAspect(animal.images[0]) : '4 / 3';
+
   return (
     <div className="page-container">
       <Seo
@@ -108,11 +121,17 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
       {/* Layout image and details side by side on large screens */}
       <div className="row g-3">
         <div className="col-12 col-lg-6">
-          {/* Image container to prevent layout shifts */}
-          <div className="animal-image-container">
+          {/* Stable image stage: fixed aspect ratio, no jumping controls */}
+          <div className="animal-media shadow-sm" style={{ '--ar': aspect }}>
             {animal.images && animal.images.length > 0 ? (
               // Render image gallery using Bootstrap carousel
-              <div id="animalCarousel" className="carousel slide h-100">
+              <div
+                id="animalCarousel"
+                className="carousel slide h-100"
+                data-bs-ride="false"
+                data-bs-interval="false"
+                data-bs-touch="true"
+              >
                 {animal.images.length > 1 && (
                   <div className="carousel-indicators">
                     {animal.images.map((_, i) => (
@@ -133,7 +152,6 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
                     const sorted = [...(img.variants || [])].sort(
                       (a, b) => a.width - b.width
                     );
-                    // Smallest variant as the fallback src so we don't eager-load a huge image
                     const fallback = sorted[0];
                     const fallbackSrc = fallback?.thumb_url || img.original_url;
                     // Deduplicate widths to keep srcset concise
@@ -148,41 +166,36 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
                     const srcSet = uniqueByWidth
                       .map((v) => `${v.thumb_url} ${v.width}w`)
                       .join(', ');
-                    // Hint the layout aspect ratio to avoid CLS
-                    const intrinsicW = fallback?.width ?? undefined;
-                    const intrinsicH = fallback?.height ?? undefined;
                     // First slide is likely LCP: prioritize it; others can be lazy/low
                     const isFirst = idx === 0;
                     const loadingAttr = isFirst ? 'eager' : 'lazy';
-                    const fetchPriority = isFirst ? 'high' : 'low';
+                    const fetchPri = isFirst ? 'high' : 'low';
 
                     // Each image links to its Commons description page
                     return (
                       <div
                         key={img.mid}
-                        className={`carousel-item h-100 ${idx === 0 ? 'active' : ''}`}
+                        className={`carousel-item ${idx === 0 ? 'active' : ''}`}
                       >
                         <a
                           href={img.commons_page_url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="d-block w-100 h-100"
+                          className="d-block"
                         >
                           <img
                             src={fallbackSrc}
                             srcSet={srcSet}
-                            sizes="(min-width: 1400px) 1320px, (min-width: 1200px) 1140px, (min-width: 992px) 960px, (min-width: 768px) 720px, 100vw"
-                            width={intrinsicW}
-                            height={intrinsicH}
+                            sizes="(min-width: 992px) 50vw, 100vw"
                             decoding="async"
                             loading={loadingAttr}
-                            fetchpriority={fetchPriority}
+                            fetchPriority={fetchPri}
                             alt={
                               img.commons_title
                                 ? `${animal.common_name} — ${img.commons_title}`
                                 : `${animal.common_name} – Wikimedia Commons image`
                             }
-                            className="d-block w-100 h-100"
+                            className="img-fluid"
                           />
                         </a>
                       </div>
@@ -217,7 +230,7 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
                 <img
                   src={animal.default_image_url}
                   alt={`${animal.common_name} – Wikimedia Commons image`}
-                  className="d-block w-100 h-100"
+                  className="img-fluid"
                   loading="lazy"
                 />
               )
@@ -328,7 +341,7 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
               : undefined,
           });
         }}
-        className="spaced-top"
+        className="spaced-top btn btn-primary"
       >
         Log Sighting
       </button>
