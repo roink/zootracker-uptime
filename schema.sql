@@ -148,10 +148,29 @@ CREATE TABLE IF NOT EXISTS images (
   commons_title    TEXT,
   commons_page_url TEXT,
   original_url     TEXT NOT NULL,
-  source           TEXT
+  width            INTEGER NOT NULL,
+  height           INTEGER NOT NULL,
+  size_bytes       INTEGER NOT NULL,
+  sha1             TEXT NOT NULL CHECK (length(sha1) = 40),
+  mime             TEXT NOT NULL,
+  uploaded_at      TIMESTAMP,
+  uploader         TEXT,
+  title            TEXT,
+  artist_raw       TEXT,
+  artist_plain     TEXT,
+  license          TEXT,
+  license_short    TEXT,
+  license_url      TEXT,
+  attribution_required BOOLEAN,
+  usage_terms      TEXT,
+  credit_line      TEXT,
+  source           TEXT NOT NULL CHECK (source IN ('WIKIDATA_P18','WIKI_LEAD_DE','WIKI_LEAD_EN')),
+  retrieved_at     TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP)
 );
 
 CREATE INDEX IF NOT EXISTS idx_images_animal_id ON images (animal_id);
+CREATE INDEX IF NOT EXISTS idx_images_sha1 ON images (sha1);
+CREATE INDEX IF NOT EXISTS idx_images_source ON images (source);
 
 CREATE TABLE IF NOT EXISTS image_variants (
   mid       TEXT NOT NULL REFERENCES images(mid) ON DELETE CASCADE,

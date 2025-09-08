@@ -2,6 +2,7 @@ from pathlib import Path
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
+from datetime import datetime, timezone
 
 from app import import_simple_sqlite_data
 from app import models
@@ -59,10 +60,28 @@ def _build_source_db(path: Path) -> Path:
             CREATE TABLE image (
                 mid TEXT PRIMARY KEY,
                 animal_art TEXT NOT NULL,
-                commons_title TEXT,
-                commons_page_url TEXT,
-                original_url TEXT,
-                source TEXT
+                commons_title TEXT NOT NULL,
+                commons_page_url TEXT NOT NULL,
+                original_url TEXT NOT NULL,
+                width INTEGER NOT NULL,
+                height INTEGER NOT NULL,
+                size_bytes INTEGER NOT NULL,
+                sha1 TEXT NOT NULL,
+                mime TEXT NOT NULL,
+                uploaded_at TEXT,
+                uploader TEXT,
+                title TEXT,
+                artist_raw TEXT,
+                artist_plain TEXT,
+                license TEXT,
+                license_short TEXT,
+                license_url TEXT,
+                attribution_required INTEGER,
+                usage_terms TEXT,
+                credit_line TEXT,
+                source TEXT NOT NULL,
+                retrieved_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+                UNIQUE(commons_title)
             );
             """
         ))
@@ -92,7 +111,22 @@ def _build_source_db(path: Path) -> Path:
         conn.execute(text("INSERT INTO zoo_animal (zoo_id, art) VALUES (1,'Panthera leo');"))
         conn.execute(text("INSERT INTO zoo_animal (zoo_id, art) VALUES (1,'Aquila chrysaetos');"))
         conn.execute(text("INSERT INTO zoo_animal (zoo_id, art) VALUES (1,'Unknownus testus');"))
-        conn.execute(text("INSERT INTO image (mid, animal_art, commons_title, commons_page_url, original_url, source) VALUES ('M1','Panthera leo','File:Lion.jpg','http://commons.org/File:Lion.jpg','http://example.com/lion.jpg','TEST');"))
+        conn.execute(text("""
+            INSERT INTO image (
+                mid, animal_art, commons_title, commons_page_url, original_url,
+                width, height, size_bytes, sha1, mime, uploaded_at, uploader, title,
+                artist_raw, artist_plain, license, license_short, license_url,
+                attribution_required, usage_terms, credit_line, source, retrieved_at
+            ) VALUES (
+                'M1', 'Panthera leo', 'File:Lion.jpg', 'http://commons.org/File:Lion.jpg',
+                'http://example.com/lion.jpg', 1000, 800, 12345,
+                '0123456789abcdef0123456789abcdef01234567',
+                'image/jpeg', '2024-01-01T00:00:00Z', ' User:Example \n', ' Lion ',
+                'Raw Artist\n', ' Plain Artist ', ' CC BY-SA 4.0 ', ' CC-BY-SA-4.0 ',
+                ' https://creativecommons.org/licenses/by-sa/4.0/ ', 1, ' Some terms\r\n',
+                ' Credit line ', 'WIKIDATA_P18', '2024-01-02T00:00:00Z'
+            );
+        """))
         conn.execute(text("INSERT INTO image_variant (mid, width, height, thumb_url) VALUES ('M1',640,480,'http://example.com/lion.jpg');"))
     return path
 
@@ -141,6 +175,24 @@ def test_import_simple_sqlite(monkeypatch, tmp_path):
         assert db.query(models.Image).count() == 1
         assert db.query(models.ImageVariant).count() == 1
         assert lion.default_image_url == "http://example.com/lion.jpg"
+        image = db.query(models.Image).filter_by(mid="M1").one()
+        assert image.width == 1000
+        assert image.height == 800
+        assert image.size_bytes == 12345
+        assert image.sha1 == "0123456789abcdef0123456789abcdef01234567"
+        assert image.mime == "image/jpeg"
+        assert image.uploaded_at == datetime(2024, 1, 1, tzinfo=image.uploaded_at.tzinfo)
+        assert image.uploader == "User:Example"
+        assert image.title == "Lion"
+        assert image.artist_raw == "Raw Artist"
+        assert image.artist_plain == "Plain Artist"
+        assert image.license == "CC BY-SA 4.0"
+        assert image.license_short == "CC-BY-SA-4.0"
+        assert image.license_url == "https://creativecommons.org/licenses/by-sa/4.0/"
+        assert image.attribution_required is True
+        assert image.usage_terms == "Some terms"
+        assert image.credit_line == "Credit line"
+        assert image.retrieved_at == datetime(2024, 1, 2, tzinfo=image.retrieved_at.tzinfo)
         unknown = db.query(models.Animal).filter_by(scientific_name="Unknownus testus").one()
         assert unknown.description_de is None
     finally:

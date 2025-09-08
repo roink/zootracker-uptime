@@ -1,5 +1,7 @@
 import argparse
 import uuid
+import re
+from datetime import datetime, timezone
 from typing import Dict
 
 from sqlalchemy import MetaData, Table, create_engine, select, func, bindparam, inspect
@@ -8,7 +10,12 @@ from sqlalchemy.orm import Session
 from .database import SessionLocal, Base
 from . import models
 from .utils.iucn import normalize_status
-from .import_utils import _ensure_animal_columns
+from .import_utils import (
+    _ensure_animal_columns,
+    _ensure_image_columns,
+    _clean_text,
+    _parse_datetime,
+)
 
 
 def _stage_categories(src: Session, dst: Session, animal_table: Table) -> Dict[int, uuid.UUID]:
@@ -153,33 +160,89 @@ def _import_images(
     image_table: Table,
     variant_table: Table,
     animal_map: Dict[int, uuid.UUID],
+    overwrite: bool = False,
 ) -> None:
     """Insert images and thumbnail variants."""
 
     img_rows = list(src.execute(select(image_table)).mappings())
     images: list[models.Image] = []
     mid_to_animal: Dict[str, uuid.UUID] = {}
-    existing = set(dst.execute(select(models.Image.mid)).scalars())
+    existing = {img.mid: img for img in dst.execute(select(models.Image)).scalars()}
     for row in img_rows:
         mid = row.get("mid")
-        if mid in existing:
-            key = row.get("animal_art") or row.get("animal_id")
-            mid_to_animal[mid] = animal_map.get(key) or mid_to_animal.get(mid)
-            continue
         key = row.get("animal_art") or row.get("animal_id")
         aid = animal_map.get(key)
         if not aid:
             continue
-        images.append(
-            models.Image(
-                mid=mid,
-                animal_id=aid,
-                commons_title=row.get("commons_title"),
-                commons_page_url=row.get("commons_page_url"),
-                original_url=row.get("original_url"),
-                source=row.get("source"),
-            )
-        )
+
+        width = row.get("width")
+        height = row.get("height")
+        size_bytes = row.get("size_bytes")
+        mime = row.get("mime")
+        sha1 = row.get("sha1")
+        original_url = row.get("original_url")
+        source = row.get("source")
+        if (
+            width is None
+            or width <= 0
+            or height is None
+            or height <= 0
+            or size_bytes is None
+            or size_bytes < 0
+            or not mime
+            or not mime.startswith("image/")
+            or not sha1
+            or not re.fullmatch(r"[0-9a-f]{40}", sha1)
+            or not original_url
+            or source not in {"WIKIDATA_P18", "WIKI_LEAD_DE", "WIKI_LEAD_EN"}
+        ):
+            continue
+
+        uploaded_at = _parse_datetime(row.get("uploaded_at"))
+        retrieved_at = _parse_datetime(row.get("retrieved_at")) or datetime.now(timezone.utc)
+        attr_req = row.get("attribution_required")
+        attr_bool = None
+        if attr_req is not None:
+            try:
+                attr_bool = bool(int(attr_req))
+            except (TypeError, ValueError):
+                attr_bool = None
+
+        data = {
+            "mid": mid,
+            "animal_id": aid,
+            "commons_title": row.get("commons_title"),
+            "commons_page_url": row.get("commons_page_url"),
+            "original_url": original_url,
+            "width": width,
+            "height": height,
+            "size_bytes": size_bytes,
+            "sha1": sha1,
+            "mime": mime,
+            "uploaded_at": uploaded_at,
+            "uploader": _clean_text(row.get("uploader")),
+            "title": _clean_text(row.get("title")),
+            "artist_raw": _clean_text(row.get("artist_raw")),
+            "artist_plain": _clean_text(row.get("artist_plain")),
+            "license": _clean_text(row.get("license")),
+            "license_short": _clean_text(row.get("license_short")),
+            "license_url": _clean_text(row.get("license_url")),
+            "attribution_required": attr_bool,
+            "usage_terms": _clean_text(row.get("usage_terms")),
+            "credit_line": _clean_text(row.get("credit_line")),
+            "source": source,
+            "retrieved_at": retrieved_at,
+        }
+
+        if mid in existing:
+            mid_to_animal[mid] = aid or existing[mid].animal_id
+            if overwrite:
+                for k, v in data.items():
+                    setattr(existing[mid], k, v)
+                dst.add(existing[mid])
+            continue
+
+        images.append(models.Image(**data))
         mid_to_animal[mid] = aid
     if images:
         dst.bulk_save_objects(images)
@@ -266,6 +329,7 @@ def main(source: str, overwrite: bool = False) -> None:
     try:
         Base.metadata.create_all(bind=dst.get_bind())
         _ensure_animal_columns(dst)
+        _ensure_image_columns(dst)
         metadata = MetaData()
         insp = inspect(src_engine)
         animal_table = Table("animal", metadata, autoload_with=src_engine)
@@ -280,7 +344,14 @@ def main(source: str, overwrite: bool = False) -> None:
         animal_map = _import_animals(src, dst, animal_table, cat_map, overwrite=overwrite)
         zoo_map = _import_zoos(src, dst, zoo_table)
         if image_table is not None and variant_table is not None:
-            _import_images(src, dst, image_table, variant_table, animal_map)
+            _import_images(
+                src,
+                dst,
+                image_table,
+                variant_table,
+                animal_map,
+                overwrite=overwrite,
+            )
         _import_links(src, dst, link_table, zoo_map, animal_map)
     finally:
         src.close()

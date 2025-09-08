@@ -1,6 +1,7 @@
 """SQLAlchemy ORM models for the Zoo Tracker application."""
 
 from sqlalchemy import (
+    Boolean,
     Column,
     String,
     Text,
@@ -165,15 +166,43 @@ class Image(Base):
     """Image metadata for an animal sourced from Wikimedia."""
 
     __tablename__ = "images"
+    __table_args__ = (
+        CheckConstraint(
+            "source IN ('WIKIDATA_P18','WIKI_LEAD_DE','WIKI_LEAD_EN')"
+        ),
+        Index("idx_images_animal_id", "animal_id"),
+        Index("idx_images_sha1", "sha1"),
+        Index("idx_images_source", "source"),
+    )
 
+    # Commons MediaInfo ID ("M" + file page ID); stable across renames
     mid = Column(String(32), primary_key=True)
     animal_id = Column(
         UUID(as_uuid=True), ForeignKey("animals.id", ondelete="CASCADE"), nullable=False
     )
     commons_title = Column(Text)
     commons_page_url = Column(Text)
-    original_url = Column(Text)
-    source = Column(String(20))
+    original_url = Column(Text, nullable=False)
+    width = Column(Integer, nullable=False)
+    height = Column(Integer, nullable=False)
+    size_bytes = Column(Integer, nullable=False)
+    sha1 = Column(String(40), nullable=False)
+    mime = Column(Text, nullable=False)
+    uploaded_at = Column(DateTime(timezone=True))
+    uploader = Column(Text)
+    title = Column(Text)
+    artist_raw = Column(Text)
+    artist_plain = Column(Text)
+    license = Column(Text)
+    license_short = Column(Text)
+    license_url = Column(Text)
+    attribution_required = Column(Boolean)
+    usage_terms = Column(Text)
+    credit_line = Column(Text)
+    source = Column(String(20), nullable=False)
+    retrieved_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
 
     animal = relationship("Animal", back_populates="images")
     variants = relationship(

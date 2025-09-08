@@ -76,7 +76,14 @@ def _build_source_db(path: Path) -> Path:
                 commons_title TEXT,
                 commons_page_url TEXT,
                 original_url TEXT,
-                source TEXT
+                width INTEGER NOT NULL,
+                height INTEGER NOT NULL,
+                size_bytes INTEGER NOT NULL,
+                sha1 TEXT NOT NULL,
+                mime TEXT NOT NULL,
+                uploaded_at TEXT,
+                source TEXT NOT NULL,
+                retrieved_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP)
             );
             """
         ))
@@ -110,7 +117,9 @@ def _build_source_db(path: Path) -> Path:
         conn.execute(text(
             "INSERT INTO zoo_animal (zoo_id,animal_id) VALUES (1,2);"
         ))
-        conn.execute(text("INSERT INTO image (mid, animal_id, commons_title, commons_page_url, original_url, source) VALUES ('M1',1,'File:Lion.jpg','http://commons.org/File:Lion.jpg','http://example.com/lion.jpg','TEST');"))
+        conn.execute(text(
+            "INSERT INTO image (mid, animal_id, commons_title, commons_page_url, original_url, width, height, size_bytes, sha1, mime, uploaded_at, source, retrieved_at) VALUES ('M1',1,'File:Lion.jpg','http://commons.org/File:Lion.jpg','http://example.com/lion.jpg',1000,800,12345,'0123456789abcdef0123456789abcdef01234567','image/jpeg','2024-01-01T00:00:00Z','WIKIDATA_P18','2024-01-02T00:00:00Z');"
+        ))
         conn.execute(text("INSERT INTO image_variant (mid, width, height, thumb_url) VALUES ('M1',640,480,'http://example.com/lion.jpg');"))
     return path
 
