@@ -124,13 +124,14 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
           )}
           <div className="carousel-inner">
             {animal.images.map((img, idx) => {
-              // Sort variants so the smallest width comes first. This lets the
               // Sort variants so the smallest width comes first
               const sorted = [...(img.variants || [])].sort(
                 (a, b) => a.width - b.width
               );
-              const fallbackSrc = sorted[0]?.thumb_url || img.original_url;
-              // Deduplicate widths to keep ``srcset`` concise
+              // Smallest variant as the fallback src so we don't eager-load a huge image
+              const fallback = sorted[0];
+              const fallbackSrc = fallback?.thumb_url || img.original_url;
+              // Deduplicate widths to keep srcset concise
               const uniqueByWidth = [];
               const seen = new Set();
               for (const v of sorted) {
@@ -142,6 +143,14 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
               const srcSet = uniqueByWidth
                 .map((v) => `${v.thumb_url} ${v.width}w`)
                 .join(', ');
+              // Hint the layout aspect ratio to avoid CLS
+              const intrinsicW = fallback?.width ?? undefined;
+              const intrinsicH = fallback?.height ?? undefined;
+              // First slide is likely LCP: prioritize it; others can be lazy/low
+              const isFirst = idx === 0;
+              const loadingAttr = isFirst ? 'eager' : 'lazy';
+              const fetchPriority = isFirst ? 'high' : 'low';
+
               // Each image links to its Commons description page
               return (
                 <div
@@ -156,14 +165,18 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
                     <img
                       src={fallbackSrc}
                       srcSet={srcSet}
-                      sizes="(min-width: 1200px) 1140px, (min-width: 992px) 960px, (min-width: 768px) 720px, 100vw"
+                      sizes="(min-width: 1400px) 1320px, (min-width: 1200px) 1140px, (min-width: 992px) 960px, (min-width: 768px) 720px, 100vw"
+                      width={intrinsicW}
+                      height={intrinsicH}
+                      decoding="async"
+                      loading={loadingAttr}
+                      fetchpriority={fetchPriority}
                       alt={
                         img.commons_title
                           ? `${animal.common_name} — ${img.commons_title}`
                           : `${animal.common_name} – Wikimedia Commons image`
                       }
                       className="d-block w-100 img-fluid"
-                      loading="lazy"
                     />
                   </a>
                 </div>
