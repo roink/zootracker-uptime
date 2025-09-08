@@ -140,3 +140,23 @@ CREATE TABLE user_achievements (
   awarded_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (user_id, achievement_id)
 );
+
+-- 10. Animal images (match app.models.Image / ImageVariant)
+CREATE TABLE IF NOT EXISTS images (
+  mid              TEXT PRIMARY KEY,
+  animal_id        UUID NOT NULL REFERENCES animals(id) ON DELETE CASCADE,
+  commons_title    TEXT,
+  commons_page_url TEXT,
+  original_url     TEXT NOT NULL,
+  source           TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_images_animal_id ON images (animal_id);
+
+CREATE TABLE IF NOT EXISTS image_variants (
+  mid       TEXT NOT NULL REFERENCES images(mid) ON DELETE CASCADE,
+  width     INTEGER NOT NULL,
+  height    INTEGER NOT NULL,
+  thumb_url TEXT NOT NULL,
+  PRIMARY KEY (mid, width)
+);

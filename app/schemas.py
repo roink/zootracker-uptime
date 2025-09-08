@@ -96,6 +96,29 @@ class AnimalListItem(BaseModel):
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 
 
+class ImageVariant(BaseModel):
+    """Represents a stored thumbnail for an animal image."""
+
+    width: int
+    height: int
+    thumb_url: str
+
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
+
+
+class ImageRead(BaseModel):
+    """Image information including available thumbnail variants."""
+
+    mid: str
+    original_url: str
+    commons_page_url: Optional[str] = None
+    commons_title: Optional[str] = None
+    source: Optional[str] = None
+    variants: list[ImageVariant] = Field(default_factory=list)
+
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
+
+
 class ZooVisitCreate(BaseModel):
     """Input data required to log a zoo visit."""
     zoo_id: UUID
@@ -170,6 +193,7 @@ class AnimalDetail(BaseModel):
     iucn_conservation_status: Optional[str] = None
     taxon_rank: Optional[str] = None
     default_image_url: Optional[str] = None
+    images: list[ImageRead] = Field(default_factory=list)
     # include full zoo details with distance information
     zoos: list[ZooDetail] = Field(default_factory=list)
 

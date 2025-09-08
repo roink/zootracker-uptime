@@ -13,6 +13,7 @@ from sqlalchemy import (
     CheckConstraint,
     Index,
     text,
+    case,
 )
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
@@ -160,6 +161,52 @@ class Category(Base):
     animals = relationship("Animal", back_populates="category")
 
 
+class Image(Base):
+    """Image metadata for an animal sourced from Wikimedia."""
+
+    __tablename__ = "images"
+
+    mid = Column(String(32), primary_key=True)
+    animal_id = Column(
+        UUID(as_uuid=True), ForeignKey("animals.id", ondelete="CASCADE"), nullable=False
+    )
+    commons_title = Column(Text)
+    commons_page_url = Column(Text)
+    original_url = Column(Text)
+    source = Column(String(20))
+
+    animal = relationship("Animal", back_populates="images")
+    variants = relationship(
+        "ImageVariant",
+        back_populates="image",
+        cascade="all, delete-orphan",
+        order_by="ImageVariant.width",
+    )
+
+
+class ImageVariant(Base):
+    """Stored thumbnail variants for a Commons image."""
+
+    __tablename__ = "image_variants"
+
+    mid = Column(
+        String(32), ForeignKey("images.mid", ondelete="CASCADE"), primary_key=True
+    )
+    width = Column(Integer, primary_key=True)
+    height = Column(Integer, nullable=False)
+    thumb_url = Column(Text, nullable=False)
+
+    image = relationship("Image", back_populates="variants")
+
+
+SOURCE_ORDER = case(
+    (Image.source == "WIKIDATA_P18", 0),
+    (Image.source == "WIKI_LEAD_EN", 1),
+    (Image.source == "WIKI_LEAD_DE", 2),
+    else_=3,
+)
+
+
 class Animal(Base):
     """An animal that can belong to a category and appear in zoos."""
 
@@ -207,6 +254,11 @@ class Animal(Base):
     category = relationship("Category", back_populates="animals")
     zoos = relationship("ZooAnimal", back_populates="animal")
     sightings = relationship("AnimalSighting", back_populates="animal")
+    images = relationship(
+        "Image",
+        back_populates="animal",
+        order_by=(SOURCE_ORDER, Image.mid),
+    )
 
 
 class ZooAnimal(Base):

@@ -2,7 +2,7 @@ import argparse
 import uuid
 from typing import Dict
 
-from sqlalchemy import MetaData, Table, create_engine, select, func, bindparam
+from sqlalchemy import MetaData, Table, create_engine, select, func, bindparam, inspect
 from sqlalchemy.orm import Session
 
 from .database import SessionLocal, Base
@@ -147,6 +147,88 @@ def _import_zoos(src: Session, dst: Session, zoo_table: Table) -> Dict[int, uuid
     return mapping
 
 
+def _import_images(
+    src: Session,
+    dst: Session,
+    image_table: Table,
+    variant_table: Table,
+    animal_map: Dict[int, uuid.UUID],
+) -> None:
+    """Insert images and thumbnail variants."""
+
+    img_rows = list(src.execute(select(image_table)).mappings())
+    images: list[models.Image] = []
+    mid_to_animal: Dict[str, uuid.UUID] = {}
+    existing = set(dst.execute(select(models.Image.mid)).scalars())
+    for row in img_rows:
+        mid = row.get("mid")
+        if mid in existing:
+            key = row.get("animal_art") or row.get("animal_id")
+            mid_to_animal[mid] = animal_map.get(key) or mid_to_animal.get(mid)
+            continue
+        key = row.get("animal_art") or row.get("animal_id")
+        aid = animal_map.get(key)
+        if not aid:
+            continue
+        images.append(
+            models.Image(
+                mid=mid,
+                animal_id=aid,
+                commons_title=row.get("commons_title"),
+                commons_page_url=row.get("commons_page_url"),
+                original_url=row.get("original_url"),
+                source=row.get("source"),
+            )
+        )
+        mid_to_animal[mid] = aid
+    if images:
+        dst.bulk_save_objects(images)
+
+    var_rows = list(src.execute(select(variant_table)).mappings())
+    variants: list[models.ImageVariant] = []
+    best_variant: Dict[uuid.UUID, tuple[int, str]] = {}
+    existing_vars = set(
+        dst.execute(select(models.ImageVariant.mid, models.ImageVariant.width)).all()
+    )
+    for row in var_rows:
+        key = (row.get("mid"), row.get("width"))
+        if key in existing_vars:
+            continue
+        variants.append(
+            models.ImageVariant(
+                mid=row.get("mid"),
+                width=row.get("width"),
+                height=row.get("height"),
+                thumb_url=row.get("thumb_url"),
+            )
+        )
+        aid = mid_to_animal.get(row.get("mid"))
+        if aid:
+            width = row.get("width")
+            url = row.get("thumb_url")
+            current = best_variant.get(aid)
+            if current is None or (
+                current[0] != 640 and (width == 640 or width > current[0])
+            ):
+                best_variant[aid] = (width, url)
+    if variants:
+        dst.bulk_save_objects(variants)
+
+    if best_variant:
+        dst.execute(
+            models.Animal.__table__
+            .update()
+            .where(
+                models.Animal.id == bindparam("aid"),
+                models.Animal.default_image_url.is_(None),
+            ),
+            [
+                {"aid": aid, "default_image_url": url}
+                for aid, (_, url) in best_variant.items()
+            ],
+        )
+
+
 def _import_links(src: Session, dst: Session, link_table: Table, zoo_map: Dict[int, uuid.UUID], animal_map: Dict[int, uuid.UUID]) -> None:
     rows = src.execute(select(link_table)).mappings()
     for row in rows:
@@ -185,13 +267,20 @@ def main(source: str, overwrite: bool = False) -> None:
         Base.metadata.create_all(bind=dst.get_bind())
         _ensure_animal_columns(dst)
         metadata = MetaData()
+        insp = inspect(src_engine)
         animal_table = Table("animal", metadata, autoload_with=src_engine)
         zoo_table = Table("zoo", metadata, autoload_with=src_engine)
         link_table = Table("zoo_animal", metadata, autoload_with=src_engine)
+        image_table = variant_table = None
+        if insp.has_table("image") and insp.has_table("image_variant"):
+            image_table = Table("image", metadata, autoload_with=src_engine)
+            variant_table = Table("image_variant", metadata, autoload_with=src_engine)
 
         cat_map = _stage_categories(src, dst, animal_table)
         animal_map = _import_animals(src, dst, animal_table, cat_map, overwrite=overwrite)
         zoo_map = _import_zoos(src, dst, zoo_table)
+        if image_table is not None and variant_table is not None:
+            _import_images(src, dst, image_table, variant_table, animal_map)
         _import_links(src, dst, link_table, zoo_map, animal_map)
     finally:
         src.close()

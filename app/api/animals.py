@@ -110,7 +110,15 @@ def get_animal_detail(
     distance and include a ``distance_km`` field so the frontend only needs a
     single request.
     """
-    animal = db.get(models.Animal, animal_id)
+    animal = (
+        db.query(models.Animal)
+        .options(
+            joinedload(models.Animal.images).joinedload(models.Image.variants),
+            joinedload(models.Animal.category),
+        )
+        .filter(models.Animal.id == animal_id)
+        .first()
+    )
     if animal is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Animal not found")
 
@@ -137,6 +145,23 @@ def get_animal_detail(
 
     zoos = [to_zoodetail(z, dist) for z, dist in results]
 
+    images = [
+        schemas.ImageRead(
+            mid=i.mid,
+            original_url=i.original_url,
+            commons_page_url=i.commons_page_url,
+            commons_title=i.commons_title if hasattr(i, "commons_title") else None,
+            source=i.source,
+            variants=[
+                schemas.ImageVariant(
+                    width=v.width, height=v.height, thumb_url=v.thumb_url
+                )
+                for v in i.variants
+            ],
+        )
+        for i in animal.images
+    ]
+
     return schemas.AnimalDetail(
         id=animal.id,
         common_name=animal.common_name,
@@ -146,6 +171,7 @@ def get_animal_detail(
         iucn_conservation_status=animal.conservation_state,
         taxon_rank=animal.taxon_rank,
         default_image_url=animal.default_image_url,
+        images=images,
         zoos=zoos,
     )
 

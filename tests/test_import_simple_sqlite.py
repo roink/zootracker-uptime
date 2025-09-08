@@ -54,6 +54,29 @@ def _build_source_db(path: Path) -> Path:
             );
             """
         ))
+        conn.execute(text(
+            """
+            CREATE TABLE image (
+                mid TEXT PRIMARY KEY,
+                animal_art TEXT NOT NULL,
+                commons_title TEXT,
+                commons_page_url TEXT,
+                original_url TEXT,
+                source TEXT
+            );
+            """
+        ))
+        conn.execute(text(
+            """
+            CREATE TABLE image_variant (
+                mid TEXT,
+                width INTEGER,
+                height INTEGER,
+                thumb_url TEXT,
+                PRIMARY KEY(mid, width)
+            );
+            """
+        ))
         conn.execute(
             text(
                 "INSERT INTO animal (art, klasse, ordnung, familie, latin_name, name_de, name_en, description_de, description_en, iucn_conservation_status, taxon_rank) VALUES ('Panthera leo',1,1,1,'Panthera leo','L\u00f6we','Lion','Deutsche Beschreibung','English description','VU','species');"
@@ -69,6 +92,8 @@ def _build_source_db(path: Path) -> Path:
         conn.execute(text("INSERT INTO zoo_animal (zoo_id, art) VALUES (1,'Panthera leo');"))
         conn.execute(text("INSERT INTO zoo_animal (zoo_id, art) VALUES (1,'Aquila chrysaetos');"))
         conn.execute(text("INSERT INTO zoo_animal (zoo_id, art) VALUES (1,'Unknownus testus');"))
+        conn.execute(text("INSERT INTO image (mid, animal_art, commons_title, commons_page_url, original_url, source) VALUES ('M1','Panthera leo','File:Lion.jpg','http://commons.org/File:Lion.jpg','http://example.com/lion.jpg','TEST');"))
+        conn.execute(text("INSERT INTO image_variant (mid, width, height, thumb_url) VALUES ('M1',640,480,'http://example.com/lion.jpg');"))
     return path
 
 
@@ -113,6 +138,9 @@ def test_import_simple_sqlite(monkeypatch, tmp_path):
         assert lion.description_en == "English description"
         assert lion.conservation_state == "VU"
         assert lion.taxon_rank == "species"
+        assert db.query(models.Image).count() == 1
+        assert db.query(models.ImageVariant).count() == 1
+        assert lion.default_image_url == "http://example.com/lion.jpg"
         unknown = db.query(models.Animal).filter_by(scientific_name="Unknownus testus").one()
         assert unknown.description_de is None
     finally:

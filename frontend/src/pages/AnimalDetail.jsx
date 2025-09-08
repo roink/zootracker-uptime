@@ -105,12 +105,92 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
             : 'Animal details on ZooTracker.'
         }
       />
-      {animal.default_image_url && (
-        <img
-          src={animal.default_image_url}
-          alt={animal.common_name}
-          className="cover-image"
-        />
+      {animal.images && animal.images.length > 0 ? (
+        // Render image gallery using Bootstrap carousel
+        <div id="animalCarousel" className="carousel slide">
+          {animal.images.length > 1 && (
+            <div className="carousel-indicators">
+              {animal.images.map((_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  data-bs-target="#animalCarousel"
+                  data-bs-slide-to={i}
+                  className={i === 0 ? 'active' : ''}
+                  aria-label={`Slide ${i + 1}`}
+                />
+              ))}
+            </div>
+          )}
+          <div className="carousel-inner">
+            {animal.images.map((img, idx) => {
+              const variant =
+                img.variants.find((v) => v.width === 640) || img.variants[0];
+              const bestSrc = variant?.thumb_url ?? img.original_url;
+              const srcSet = (img.variants || [])
+                .sort((a, b) => a.width - b.width)
+                .map((v) => `${v.thumb_url} ${v.width}w`)
+                .join(', ');
+              // Each image links to its Commons description page
+              return (
+                <div
+                  key={img.mid}
+                  className={`carousel-item ${idx === 0 ? 'active' : ''}`}
+                >
+                  <a
+                    href={img.commons_page_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <img
+                      src={bestSrc}
+                      srcSet={srcSet}
+                      sizes="(max-width: 576px) 100vw, (max-width: 992px) 85vw, 1200px"
+                      alt={
+                        img.commons_title
+                          ? `${animal.common_name} — ${img.commons_title}`
+                          : `${animal.common_name} – Wikimedia Commons image`
+                      }
+                      className="d-block w-100 img-fluid"
+                      loading="lazy"
+                    />
+                  </a>
+                </div>
+              );
+            })}
+          </div>
+          {animal.images.length > 1 && (
+            <>
+              <button
+                className="carousel-control-prev"
+                type="button"
+                data-bs-target="#animalCarousel"
+                data-bs-slide="prev"
+              >
+                <span className="carousel-control-prev-icon" aria-hidden="true"></span>
+                <span className="visually-hidden">Previous</span>
+              </button>
+              <button
+                className="carousel-control-next"
+                type="button"
+                data-bs-target="#animalCarousel"
+                data-bs-slide="next"
+              >
+                <span className="carousel-control-next-icon" aria-hidden="true"></span>
+                <span className="visually-hidden">Next</span>
+              </button>
+            </>
+          )}
+        </div>
+      ) : (
+        animal.default_image_url && (
+          <img
+            src={animal.default_image_url}
+            alt={`${animal.common_name} – Wikimedia Commons image`}
+            className="cover-image img-fluid"
+            loading="lazy"
+          />
+        )
       )}
       <h3>{animal.common_name}</h3>
       {animal.scientific_name && (
