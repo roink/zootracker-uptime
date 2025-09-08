@@ -15,6 +15,16 @@ def test_get_animal_detail_success(data):
     assert body["zoos"][0]["city"] == "Metropolis"
 
 
+def test_get_animal_detail_includes_images(data):
+    resp = client.get(f"/animals/{data['animal'].id}")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body["images"]) == 2
+    assert body["images"][0]["variants"][0]["thumb_url"].startswith("http://example.com/")
+    assert body["images"][0]["commons_page_url"].startswith("http://commons.org/")
+    assert body["images"][0]["commons_title"] == "File:Lion.jpg"
+
+
 def test_get_animal_detail_with_distance(data):
     params = {"latitude": data["zoo"].latitude, "longitude": data["zoo"].longitude}
     resp = client.get(f"/animals/{data['animal'].id}", params=params)

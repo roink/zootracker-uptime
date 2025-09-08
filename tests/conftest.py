@@ -130,6 +130,35 @@ def seed_data():
     db.refresh(tiger)
     db.refresh(eagle)
 
+    img1 = models.Image(
+        mid="M1",
+        animal_id=animal.id,
+        commons_title="File:Lion.jpg",
+        commons_page_url="http://commons.org/File:Lion.jpg",
+        original_url="http://example.com/lion.jpg",
+        source="TEST",
+        variants=[
+            models.ImageVariant(
+                width=640, height=480, thumb_url="http://example.com/lion.jpg"
+            )
+        ],
+    )
+    img2 = models.Image(
+        mid="M2",
+        animal_id=animal.id,
+        commons_title="File:Lion2.jpg",
+        commons_page_url="http://commons.org/File:Lion2.jpg",
+        original_url="http://example.com/lion2.jpg",
+        source="TEST",
+        variants=[
+            models.ImageVariant(
+                width=640, height=480, thumb_url="http://example.com/lion2.jpg"
+            )
+        ],
+    )
+    db.add_all([img1, img2])
+    db.commit()
+
     link = models.ZooAnimal(zoo_id=zoo.id, animal_id=animal.id)
     db.add(link)
     db.commit()

@@ -68,6 +68,29 @@ def _build_source_db(path: Path) -> Path:
             );
             """
         ))
+        conn.execute(text(
+            """
+            CREATE TABLE image (
+                mid TEXT PRIMARY KEY,
+                animal_id INTEGER NOT NULL,
+                commons_title TEXT,
+                commons_page_url TEXT,
+                original_url TEXT,
+                source TEXT
+            );
+            """
+        ))
+        conn.execute(text(
+            """
+            CREATE TABLE image_variant (
+                mid TEXT,
+                width INTEGER,
+                height INTEGER,
+                thumb_url TEXT,
+                PRIMARY KEY(mid, width)
+            );
+            """
+        ))
         conn.execute(
             text(
                 "INSERT INTO animal (klasse, ordnung, familie, art, latin_name, english_label, german_label, english_summary, german_summary, iucn_conservation_status, taxon_rank) VALUES (1,1,1,'Lion','Panthera leo','Lion','Löwe','King of the jungle','König des Dschungels','EN','species');"
@@ -87,6 +110,8 @@ def _build_source_db(path: Path) -> Path:
         conn.execute(text(
             "INSERT INTO zoo_animal (zoo_id,animal_id) VALUES (1,2);"
         ))
+        conn.execute(text("INSERT INTO image (mid, animal_id, commons_title, commons_page_url, original_url, source) VALUES ('M1',1,'File:Lion.jpg','http://commons.org/File:Lion.jpg','http://example.com/lion.jpg','TEST');"))
+        conn.execute(text("INSERT INTO image_variant (mid, width, height, thumb_url) VALUES ('M1',640,480,'http://example.com/lion.jpg');"))
     return path
 
 
@@ -122,6 +147,9 @@ def test_import_sqlite(monkeypatch, tmp_path):
         assert lion.taxon_rank == "species"
         assert lion.description_en == "King of the jungle"
         assert lion.description_de == "König des Dschungels"
+        assert db.query(models.Image).count() == 1
+        assert db.query(models.ImageVariant).count() == 1
+        assert lion.default_image_url == "http://example.com/lion.jpg"
     finally:
         db.close()
 
