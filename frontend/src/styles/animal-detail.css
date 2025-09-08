@@ -6,6 +6,7 @@
   border: 1px solid var(--bs-border-color); /* match description card border */
   border-radius: var(--bs-border-radius);
   overflow: hidden;
+  max-width: 100%;
 }
 
 /* Make the carousel fill the stage */
@@ -40,6 +41,20 @@
   user-select: none;
 }
 
+/* Caption overlay on images */
+.media-caption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: .5rem .75rem;
+  background: linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,.55) 100%);
+  color: #fff;
+  font-size: .875rem;
+  text-shadow: 0 1px 1px rgba(0,0,0,.5);
+}
+.media-caption a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+
 /* Controls + indicators: consistent, subtle */
 .animal-media .carousel-control-prev,
 .animal-media .carousel-control-next {
@@ -58,4 +73,24 @@
   .animal-media .carousel-item {
     transition: none !important;
   }
+}
+
+/* Desktop nicety: keep media visible while reading */
+@media (min-width: 992px) {
+  .animal-media { max-height: 70vh; }
+}
+
+/* Read-more clamp for long descriptions */
+.line-clamp-6 {
+  display: -webkit-box;
+  -webkit-line-clamp: 6;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Table interaction affordances */
+.pointer-row { cursor: pointer; }
+.pointer-row:focus-visible {
+  outline: 2px solid var(--bs-primary);
+  outline-offset: 2px;
 }
