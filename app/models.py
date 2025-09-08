@@ -240,7 +240,7 @@ class Animal(Base):
     familie = Column(Integer)
     taxon_rank = Column(Text)
     zoo_count = Column(Integer, nullable=False, default=0, server_default="0")
-    default_image_url = Column(String(512))
+    default_image_url = Column(Text)
     created_at = Column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

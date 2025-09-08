@@ -76,7 +76,7 @@ CREATE TABLE animals (
   familie            INTEGER,
   taxon_rank         TEXT,
   zoo_count          INTEGER NOT NULL DEFAULT 0 CHECK (zoo_count >= 0),
-  default_image_url  VARCHAR(512),
+  default_image_url  TEXT,
   created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at         TIMESTAMPTZ NOT NULL DEFAULT now()
 );
