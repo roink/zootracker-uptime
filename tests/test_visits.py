@@ -94,3 +94,33 @@ def test_visit_updated_on_sighting_change(data):
     assert len(visits) == 1
     assert visits[0]["zoo_id"] == str(far_zoo)
     assert visits[0]["visit_date"] == str(tomorrow)
+
+
+def test_has_visited_endpoint_true(data):
+    token, user_id = register_and_login()
+    zoo_id = data["zoo"].id
+    animal_id = data["animal"].id
+    create_sighting(token, user_id, zoo_id, animal_id)
+    resp = client.get(
+        f"/zoos/{zoo_id}/visited",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    assert resp.json() == {"visited": True}
+
+
+def test_has_visited_endpoint_false(data):
+    token, _ = register_and_login()
+    zoo_id = data["zoo"].id
+    resp = client.get(
+        f"/zoos/{zoo_id}/visited",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    assert resp.json() == {"visited": False}
+
+
+def test_has_visited_requires_auth(data):
+    zoo_id = data["zoo"].id
+    resp = client.get(f"/zoos/{zoo_id}/visited")
+    assert resp.status_code == 401

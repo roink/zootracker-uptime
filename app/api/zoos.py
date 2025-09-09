@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import or_
+from sqlalchemy import or_, exists
 from sqlalchemy.orm import Session
 import uuid
 
@@ -7,6 +7,7 @@ from .. import schemas, models
 from ..database import get_db
 from ..config import RADIUS_KM_DEFAULT
 from ..utils.geometry import query_zoos_with_distance
+from ..auth import get_current_user
 from .deps import resolve_coords
 
 router = APIRouter()
@@ -45,6 +46,22 @@ def get_zoo(zoo_id: uuid.UUID, db: Session = Depends(get_db)):
     if zoo is None:
         raise HTTPException(status_code=404, detail="Zoo not found")
     return zoo
+
+
+@router.get("/zoos/{zoo_id}/visited", response_model=schemas.Visited)
+def has_visited_zoo(
+    zoo_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    """Return whether the authenticated user has visited a given zoo."""
+    visited = db.query(
+        exists().where(
+            models.ZooVisit.user_id == user.id,
+            models.ZooVisit.zoo_id == zoo_id,
+        )
+    ).scalar()
+    return {"visited": visited}
 
 @router.get("/zoos/{zoo_id}/animals", response_model=list[schemas.AnimalRead])
 def list_zoo_animals(zoo_id: uuid.UUID, db: Session = Depends(get_db)):
