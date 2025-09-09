@@ -61,7 +61,14 @@ def has_visited_zoo(
             models.ZooVisit.zoo_id == zoo_id,
         )
     ).scalar()
-    return {"visited": visited}
+    if not visited:
+        visited = db.query(
+            exists().where(
+                models.AnimalSighting.user_id == user.id,
+                models.AnimalSighting.zoo_id == zoo_id,
+            )
+        ).scalar()
+    return {"visited": bool(visited)}
 
 @router.get("/zoos/{zoo_id}/animals", response_model=list[schemas.AnimalRead])
 def list_zoo_animals(zoo_id: uuid.UUID, db: Session = Depends(get_db)):

@@ -1,5 +1,7 @@
 from datetime import datetime, date, UTC
 from .conftest import client, register_and_login
+from app.database import SessionLocal
+from app import models
 
 
 def create_sighting(token, user_id, zoo_id, animal_id, dt=None):
@@ -118,6 +120,23 @@ def test_has_visited_endpoint_false(data):
     )
     assert resp.status_code == 200
     assert resp.json() == {"visited": False}
+
+
+def test_has_visited_without_zoo_visit(data):
+    token, user_id = register_and_login()
+    zoo_id = data["zoo"].id
+    animal_id = data["animal"].id
+    create_sighting(token, user_id, zoo_id, animal_id)
+    db = SessionLocal()
+    db.query(models.ZooVisit).delete()
+    db.commit()
+    db.close()
+    resp = client.get(
+        f"/zoos/{zoo_id}/visited",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    assert resp.json() == {"visited": True}
 
 
 def test_has_visited_requires_auth(data):
