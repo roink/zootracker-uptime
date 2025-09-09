@@ -318,7 +318,10 @@ class ZooVisit(Base):
     """Record of a user visiting a zoo."""
 
     __tablename__ = "zoo_visits"
-    __table_args__ = (UniqueConstraint("user_id", "zoo_id", "visit_date"),)
+    __table_args__ = (
+        UniqueConstraint("user_id", "zoo_id", "visit_date"),
+        Index("idx_zoovisit_user_zoo", "user_id", "zoo_id"),
+    )
 
     id = Column(
         UUID(as_uuid=True),
@@ -357,7 +360,7 @@ class AnimalSighting(Base):
 
     __tablename__ = "animal_sightings"
     __table_args__ = (
-        Index("idx_animal_sighting_user_animal", "user_id", "animal_id"),
+        Index("idx_animalsighting_user_animal", "user_id", "animal_id"),
     )
 
     id = Column(

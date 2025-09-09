@@ -5,5 +5,9 @@ export default defineConfig({
   server: {
     cors: true
   },
-  plugins: [react()]
+  plugins: [react()],
+  test: {
+    environment: 'jsdom',
+    setupFiles: ['./tests/setup.ts']
+  }
 });

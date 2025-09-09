@@ -237,3 +237,11 @@ class Count(BaseModel):
     count: int
 
     model_config = ConfigDict(extra="forbid")
+
+
+class Visited(BaseModel):
+    """Boolean flag indicating whether a zoo was visited."""
+
+    visited: bool
+
+    model_config = ConfigDict(extra="forbid")

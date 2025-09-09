@@ -45,6 +45,27 @@ def list_seen_animals(
     return animals
 
 
+@router.get("/users/{user_id}/animals/ids", response_model=list[uuid.UUID])
+def list_seen_animal_ids(
+    user_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    """Return IDs of unique animals seen by the specified user."""
+    if user_id != user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot view animals for another user",
+        )
+    ids = (
+        db.query(models.AnimalSighting.animal_id)
+        .filter(models.AnimalSighting.user_id == user_id)
+        .distinct()
+        .all()
+    )
+    return [row[0] for row in ids]
+
+
 @router.get("/users/{user_id}/animals/count", response_model=schemas.Count)
 def count_seen_animals(
     user_id: uuid.UUID,

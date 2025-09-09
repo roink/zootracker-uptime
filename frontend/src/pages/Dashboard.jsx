@@ -50,6 +50,15 @@ export default function Dashboard({ token, userId, zoos, animals, refresh, onUpd
     return [...v, ...s].sort((a, b) => new Date(b.date) - new Date(a.date));
   }, [visits, sightings]);
 
+  // Distinct zoo count, derived from visits and sightings in case visit sync is missing.
+  const visitedZooCount = useMemo(() => {
+    const ids = new Set([
+      ...visits.map((v) => v.zoo_id),
+      ...sightings.map((s) => s.zoo_id),
+    ]);
+    return ids.size;
+  }, [visits, sightings]);
+
   const zooName = (id) => zoos.find((z) => z.id === id)?.name || id;
   const animalName = (id) => animals.find((a) => a.id === id)?.common_name || id;
 
@@ -60,7 +69,7 @@ export default function Dashboard({ token, userId, zoos, animals, refresh, onUpd
         description="View your zoo visits, animal sightings and badges."
       />
       <div className="row text-center mb-3">
-        <div className="col">Zoos Visited: {new Set(visits.map((v) => v.zoo_id)).size}</div>
+        <div className="col">Zoos Visited: {visitedZooCount}</div>
         <div className="col">Animals Seen: {seenCount}</div>
         <div className="col">Badges: {badges.length}</div>
       </div>

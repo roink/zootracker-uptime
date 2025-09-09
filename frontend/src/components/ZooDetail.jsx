@@ -9,8 +9,8 @@ import LazyMap from './LazyMap';
 // Used by the ZooDetailPage component.
 export default function ZooDetail({ zoo, token, userId, refresh, onLogged }) {
   const [animals, setAnimals] = useState([]);
-  const [visits, setVisits] = useState([]);
-  const [seenAnimals, setSeenAnimals] = useState([]);
+  const [visited, setVisited] = useState(false);
+  const [seenIds, setSeenIds] = useState(new Set());
   const [modalData, setModalData] = useState(null);
   const navigate = useNavigate();
   const authFetch = useAuthFetch(token);
@@ -29,28 +29,27 @@ export default function ZooDetail({ zoo, token, userId, refresh, onLogged }) {
       .catch(() => setAnimals([]));
   }, [zoo, refresh]);
 
-  // Load user's visit history
+  // Load whether user has visited this zoo
   useEffect(() => {
     if (!token) return;
-    authFetch(`${API}/visits`, { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => (r.ok ? r.json() : []))
-      .then(setVisits)
-      .catch(() => setVisits([]));
-  }, [token, authFetch, refresh]);
+    authFetch(`${API}/zoos/${zoo.id}/visited`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => (r.ok ? r.json() : { visited: false }))
+      .then((d) => setVisited(Boolean(d.visited)))
+      .catch(() => setVisited(false));
+  }, [token, authFetch, zoo.id, refresh]);
 
-  // Load animals the user has seen
+  // Load IDs of animals the user has seen
   useEffect(() => {
     if (!token || !userId) return;
-    authFetch(`${API}/users/${userId}/animals`, {
+    authFetch(`${API}/users/${userId}/animals/ids`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => (r.ok ? r.json() : []))
-      .then(setSeenAnimals)
-      .catch(() => setSeenAnimals([]));
+      .then((ids) => setSeenIds(new Set(ids)))
+      .catch(() => setSeenIds(new Set()));
   }, [token, userId, authFetch, refresh]);
-
-  const visited = visits.some((v) => v.zoo_id === zoo.id);
-  const seenIds = new Set(seenAnimals.map((a) => a.id));
   // prefer German description from backend when available
   const zooDescription = zoo.description_de || zoo.description;
   const MAX_DESC = 400; // collapse threshold
@@ -182,19 +181,19 @@ export default function ZooDetail({ zoo, token, userId, refresh, onLogged }) {
                 })
                 .catch(() => setAnimals([]));
               if (token) {
-                authFetch(`${API}/visits`, {
+                authFetch(`${API}/zoos/${zoo.id}/visited`, {
                   headers: { Authorization: `Bearer ${token}` },
                 })
-                  .then((r) => (r.ok ? r.json() : []))
-                  .then(setVisits)
-                  .catch(() => setVisits([]));
+                  .then((r) => (r.ok ? r.json() : { visited: false }))
+                  .then((d) => setVisited(Boolean(d.visited)))
+                  .catch(() => setVisited(false));
                 if (userId) {
-                  authFetch(`${API}/users/${userId}/animals`, {
+                  authFetch(`${API}/users/${userId}/animals/ids`, {
                     headers: { Authorization: `Bearer ${token}` },
                   })
                     .then((r) => (r.ok ? r.json() : []))
-                    .then(setSeenAnimals)
-                    .catch(() => setSeenAnimals([]));
+                    .then((ids) => setSeenIds(new Set(ids)))
+                    .catch(() => setSeenIds(new Set()));
                 }
               }
             }}
