@@ -31,16 +31,3 @@ When these parameters are omitted, the server falls back to Cloudflare's
 when they are present. Invalid, partial or out-of-range header values are
 ignored.
 
-## GET /animals/{id}/zoos
-
-Returns the zoos where the specified animal can be found.
-
-### Query Parameters
-
-- `latitude` – optional latitude of the requester
-- `longitude` – optional longitude of the requester
-
-When these parameters are omitted, the server falls back to Cloudflare's
-`cf-iplatitude` and `cf-iplongitude` headers to estimate the client's location
-when they are present. Invalid, partial or out-of-range header values are
-ignored.

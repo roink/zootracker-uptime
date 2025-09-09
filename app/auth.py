@@ -23,7 +23,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 # Inform clients of token lifetime in the OpenAPI docs
 # Import this dependency from ``app.auth`` when securing routes.
 oauth2_scheme = OAuth2PasswordBearer(
-    tokenUrl="token",
+    tokenUrl="auth/login",
     description=f"Access token expires in {ACCESS_TOKEN_EXPIRE_MINUTES} minutes",
 )
 

@@ -50,7 +50,7 @@ async def rate_limit(request: Request, call_next):
     """Apply simple rate limiting per client IP, honoring proxy headers."""
     ip = get_client_ip(request)
     path = request.url.path
-    limiter = auth_limiter if path in {"/token", "/auth/login"} else general_limiter
+    limiter = auth_limiter if path.endswith("/auth/login") else general_limiter
     allowed, remaining, retry_after = await limiter.is_allowed(ip)
     if not allowed:
         return JSONResponse(
