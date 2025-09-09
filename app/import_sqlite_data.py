@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 from typing import Dict
 
 from sqlalchemy import MetaData, Table, create_engine, select, func, bindparam, inspect
+
+from app.db_extensions import ensure_pg_extensions
 from sqlalchemy.orm import Session
 
 from .database import SessionLocal, Base
@@ -327,7 +329,9 @@ def main(source: str, overwrite: bool = False) -> None:
     src = Session(src_engine)
     dst = SessionLocal()
     try:
-        Base.metadata.create_all(bind=dst.get_bind())
+        engine = dst.get_bind()
+        ensure_pg_extensions(engine)
+        Base.metadata.create_all(bind=engine)
         _ensure_animal_columns(dst)
         _ensure_image_columns(dst)
         metadata = MetaData()

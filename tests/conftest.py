@@ -2,7 +2,6 @@ import os
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import text
 
 
 def pytest_addoption(parser):
@@ -38,6 +37,7 @@ if DATABASE_URL.startswith("sqlite") and os.path.exists("test.db"):
 from app.database import Base, engine, SessionLocal  # noqa: E402
 from app import models  # noqa: E402
 from app.triggers import create_triggers  # noqa: E402
+from app.db_extensions import ensure_pg_extensions  # noqa: E402
 from app.main import app, get_db  # noqa: E402
 
 
@@ -51,10 +51,7 @@ def override_get_db():
 
 app.dependency_overrides[get_db] = override_get_db
 
-if engine.dialect.name == "postgresql":
-    with engine.begin() as conn:
-        conn.execute(text("CREATE EXTENSION IF NOT EXISTS pgcrypto"))
-        conn.execute(text("CREATE EXTENSION IF NOT EXISTS postgis"))
+ensure_pg_extensions(engine)
 
 # ensure a clean schema for every run to avoid duplicate indexes
 Base.metadata.drop_all(bind=engine)
