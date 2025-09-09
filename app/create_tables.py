@@ -3,16 +3,13 @@
 from .database import engine
 from .models import Base
 from .triggers import create_triggers
+from .db_extensions import ensure_pg_extensions
 from sqlalchemy import text
 
 
 def create_tables() -> None:
     """Create all database tables using the SQLAlchemy metadata."""
-    if engine.dialect.name == "postgresql":
-        with engine.begin() as conn:
-            conn.execute(text("CREATE EXTENSION IF NOT EXISTS pgcrypto"))
-            conn.execute(text("CREATE EXTENSION IF NOT EXISTS postgis"))
-            conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
+    ensure_pg_extensions(engine)
     Base.metadata.create_all(bind=engine)
     create_triggers(engine)
     with engine.begin() as conn:
