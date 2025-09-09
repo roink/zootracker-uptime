@@ -18,8 +18,8 @@ from datetime import datetime, timezone
 import re
 from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
-from sqlalchemy import types as satypes
 from sqlalchemy.schema import CreateColumn
+from sqlalchemy.exc import ProgrammingError
 
 # ``models`` is imported lazily inside ``_ensure_animal_columns`` to avoid a
 # circular import during normal application start-up.
@@ -31,17 +31,6 @@ def _ensure_animal_columns(dst: Session) -> None:
     insp = inspect(bind)
     cols = {c["name"]: c for c in insp.get_columns("animals")}
 
-    # Self-heal older Postgres databases where ``default_image_url`` was
-    # previously defined as ``VARCHAR(512)`` instead of ``TEXT``.  The SQLite
-    # backend does not need this adjustment.
-    if bind.dialect.name == "postgresql":
-        col = cols.get("default_image_url")
-        if col and isinstance(col["type"], satypes.String):
-            dst.execute(
-                text("ALTER TABLE animals ALTER COLUMN default_image_url TYPE TEXT;")
-            )
-            dst.commit()
-
     existing = set(cols)
 
     # Import here to avoid circular imports when this module is loaded by
@@ -50,6 +39,17 @@ def _ensure_animal_columns(dst: Session) -> None:
 
     table = models.Animal.__table__
     with bind.begin() as conn:
+        if bind.dialect.name == "postgresql" and "default_image_url" in cols:
+            try:
+                conn.execute(
+                    text(
+                        "ALTER TABLE animals ALTER COLUMN default_image_url TYPE TEXT"
+                    )
+                )
+            except ProgrammingError:
+                # Already TEXT or not changeable; ignore to keep idempotence.
+                pass
+
         # Add any columns missing from the current ``animals`` table by
         # comparing against the ORM model definition.  ``CreateColumn`` generates
         # the appropriate SQL for the active dialect so types such as UUID work
