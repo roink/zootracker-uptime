@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import ReactDOM from "react-dom/client";
 import { Helmet, HelmetProvider } from 'react-helmet-async';
 import {
@@ -12,7 +12,6 @@ import {
 // Base URL of the FastAPI backend. When the frontend is served on a different
 // port (e.g. via `python -m http.server`), the API won't be on the same origin
 // anymore, so we explicitly point to the backend running on port 8000.
-import { API } from "./api";
 import Landing from "./pages/Landing";
 import LoginPage from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
@@ -31,13 +30,11 @@ import "./styles/app.css";
 // MapLibre default styles for the OpenFreeMap tiles
 import "maplibre-gl/dist/maplibre-gl.css";
 
-function DashboardPage({ token, userId, zoos, animals, refresh, onUpdate }) {
+function DashboardPage({ token, userId, refresh, onUpdate }) {
   return (
     <Dashboard
       token={token}
       userId={userId}
-      zoos={zoos}
-      animals={animals}
       refresh={refresh}
       onUpdate={onUpdate}
     />
@@ -67,8 +64,6 @@ function AppRoutes({
   token,
   userId,
   userEmail,
-  zoos,
-  animals,
   refreshCounter,
   onSignedUp,
   onLoggedIn,
@@ -88,8 +83,6 @@ function AppRoutes({
               <DashboardPage
                 token={token}
                 userId={userId}
-                zoos={zoos}
-                animals={animals}
                 refresh={refreshCounter}
                 onUpdate={refreshSeen}
               />
@@ -106,8 +99,6 @@ function AppRoutes({
               <DashboardPage
                 token={token}
                 userId={userId}
-                zoos={zoos}
-                animals={animals}
                 refresh={refreshCounter}
                 onUpdate={refreshSeen}
               />
@@ -180,14 +171,7 @@ function App() {
   const [token, setToken] = useState(localStorage.getItem("token"));
   const [userId, setUserId] = useState(localStorage.getItem("userId"));
   const [userEmail, setUserEmail] = useState(localStorage.getItem("userEmail"));
-  const [zoos, setZoos] = useState([]);
-  const [animals, setAnimals] = useState([]);
   const [refreshCounter, setRefreshCounter] = useState(0);
-
-  useEffect(() => {
-    fetch(`${API}/zoos`).then((r) => r.json()).then(setZoos);
-    fetch(`${API}/animals`).then((r) => r.json()).then(setAnimals);
-  }, []);
 
   const handleSignedUp = (user, email) => {
     setUserId(user.id);
@@ -225,8 +209,6 @@ function App() {
         token={token}
         userId={userId}
         userEmail={userEmail}
-        zoos={zoos}
-        animals={animals}
         refreshCounter={refreshCounter}
         onSignedUp={handleSignedUp}
         onLoggedIn={handleLoggedIn}

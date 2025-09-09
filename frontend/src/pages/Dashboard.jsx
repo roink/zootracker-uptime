@@ -8,15 +8,42 @@ import Seo from '../components/Seo';
 // User dashboard showing recent visits, sightings and badges. Includes
 // buttons to open forms for logging additional activity.
 
-export default function Dashboard({ token, userId, zoos, animals, refresh, onUpdate }) {
+export default function Dashboard({ token, userId, refresh, onUpdate }) {
   const [visits, setVisits] = useState([]);
   // Number of unique animals the user has seen
   const [seenCount, setSeenCount] = useState(0);
   const [sightings, setSightings] = useState([]);
   const [badges, setBadges] = useState([]);
+  const [zoos, setZoos] = useState([]);
+  const [animals, setAnimals] = useState([]);
   const [modalData, setModalData] = useState(null);
   const navigate = useNavigate();
   const authFetch = useAuthFetch(token);
+
+  // Load zoo and animal lists when the dashboard is viewed so we
+  // don't fetch them on every app startup.
+  useEffect(() => {
+    if (!token) return;
+    const controller = new AbortController();
+    (async () => {
+      try {
+        const [zRes, aRes] = await Promise.all([
+          fetch(`${API}/zoos`, { signal: controller.signal }),
+          fetch(`${API}/animals`, { signal: controller.signal }),
+        ]);
+        const zData = zRes.ok ? await zRes.json() : [];
+        const aData = aRes.ok ? await aRes.json() : [];
+        setZoos(zData);
+        setAnimals(aData);
+      } catch (e) {
+        if (e.name !== 'AbortError') {
+          setZoos([]);
+          setAnimals([]);
+        }
+      }
+    })();
+    return () => controller.abort();
+  }, [token]);
 
   useEffect(() => {
     const uid = userId || localStorage.getItem('userId');
