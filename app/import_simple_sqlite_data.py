@@ -296,18 +296,22 @@ def _import_images(
         dst.execute(select(models.ImageVariant.mid, models.ImageVariant.width)).all()
     )
     for row in var_rows:
-        key = (row.get("mid"), row.get("width"))
+        mid = row.get("mid")
+        # Skip variants for images that were skipped earlier due to invalid metadata
+        if mid not in mid_to_animal:
+            continue
+        key = (mid, row.get("width"))
         if key in existing_vars:
             continue
         variants.append(
             models.ImageVariant(
-                mid=row.get("mid"),
+                mid=mid,
                 width=row.get("width"),
                 height=row.get("height"),
                 thumb_url=row.get("thumb_url"),
             )
         )
-        aid = mid_to_animal.get(row.get("mid"))
+        aid = mid_to_animal.get(mid)
         if aid:
             width = row.get("width")
             url = row.get("thumb_url")
