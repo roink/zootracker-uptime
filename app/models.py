@@ -320,7 +320,7 @@ class ZooVisit(Base):
     __tablename__ = "zoo_visits"
     __table_args__ = (
         UniqueConstraint("user_id", "zoo_id", "visit_date"),
-        Index("idx_zoovisit_user_zoo", "user_id", "zoo_id"),
+        Index("ix_zoo_visit_user_zoo", "user_id", "zoo_id"),
     )
 
     id = Column(
