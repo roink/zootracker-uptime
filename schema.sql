@@ -119,7 +119,7 @@ CREATE TABLE animal_sightings (
   updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 -- Index to accelerate user-specific sighting queries
-CREATE INDEX IF NOT EXISTS idx_sightings_user_animal ON animal_sightings(user_id, animal_id);
+CREATE INDEX IF NOT EXISTS idx_animal_sighting_user_animal ON animal_sightings(user_id, animal_id);
 
 -- 8. Achievements / Badges
 CREATE TABLE achievements (

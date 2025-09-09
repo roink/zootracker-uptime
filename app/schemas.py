@@ -229,3 +229,11 @@ class ContactMessage(BaseModel):
     message: constr(min_length=1, max_length=2000)
 
     model_config = ConfigDict(extra="forbid")
+
+
+class Count(BaseModel):
+    """Simple response model holding a numeric count."""
+
+    count: int
+
+    model_config = ConfigDict(extra="forbid")

@@ -10,7 +10,8 @@ import Seo from '../components/Seo';
 
 export default function Dashboard({ token, userId, zoos, animals, refresh, onUpdate }) {
   const [visits, setVisits] = useState([]);
-  const [seenAnimals, setSeenAnimals] = useState([]);
+  // Number of unique animals the user has seen
+  const [seenCount, setSeenCount] = useState(0);
   const [sightings, setSightings] = useState([]);
   const [badges, setBadges] = useState([]);
   const [modalData, setModalData] = useState(null);
@@ -24,12 +25,12 @@ export default function Dashboard({ token, userId, zoos, animals, refresh, onUpd
       .then(setVisits)
       .catch(() => setVisits([]));
     if (!uid) return;
-    authFetch(`${API}/users/${uid}/animals`, {
+    authFetch(`${API}/users/${uid}/animals/count`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then((r) => (r.ok ? r.json() : []))
-      .then(setSeenAnimals)
-      .catch(() => setSeenAnimals([]));
+      .then((r) => (r.ok ? r.json() : { count: 0 }))
+      .then((d) => setSeenCount(d.count ?? 0))
+      .catch(() => setSeenCount(0));
     authFetch(`${API}/sightings`, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => (r.ok ? r.json() : []))
       .then(setSightings)
@@ -60,7 +61,7 @@ export default function Dashboard({ token, userId, zoos, animals, refresh, onUpd
       />
       <div className="row text-center mb-3">
         <div className="col">Zoos Visited: {new Set(visits.map((v) => v.zoo_id)).size}</div>
-        <div className="col">Animals Seen: {seenAnimals.length}</div>
+        <div className="col">Animals Seen: {seenCount}</div>
         <div className="col">Badges: {badges.length}</div>
       </div>
       <h3>Activity Feed</h3>
