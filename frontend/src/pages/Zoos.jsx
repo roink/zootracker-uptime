@@ -9,7 +9,7 @@ import Seo from '../components/Seo';
 export default function ZoosPage({ token }) {
   const navigate = useNavigate();
   const [zoos, setZoos] = useState([]);
-  const [visits, setVisits] = useState([]);
+  const [visitedIds, setVisitedIds] = useState([]);
   const [query, setQuery] = useState('');
   const [region, setRegion] = useState('All');
   const [visitedOnly, setVisitedOnly] = useState(false);
@@ -52,13 +52,13 @@ export default function ZoosPage({ token }) {
 
   useEffect(() => {
     if (!token) return;
-    authFetch(`${API}/visits`)
+    authFetch(`${API}/visits/ids`)
       .then((r) => (r.ok ? r.json() : []))
-      .then(setVisits)
-      .catch(() => setVisits([]));
+      .then(setVisitedIds)
+      .catch(() => setVisitedIds([]));
   }, [token, authFetch]);
 
-  const visitedIds = useMemo(() => visits.map((v) => v.zoo_id), [visits]);
+  const visitedSet = useMemo(() => new Set(visitedIds), [visitedIds]);
 
   // Apply search, visited-only filter and region filter in sequence.
   const filtered = zoos
@@ -66,7 +66,7 @@ export default function ZoosPage({ token }) {
       z.name.toLowerCase().includes(query.toLowerCase()) ||
       (z.city || '').toLowerCase().includes(query.toLowerCase())
     )
-    .filter((z) => (visitedOnly ? visitedIds.includes(z.id) : true))
+    .filter((z) => (visitedOnly ? visitedSet.has(z.id) : true))
     .filter((z) =>
       region === 'All' ? true : (z.address || '').toLowerCase().includes(region.toLowerCase())
     );
@@ -136,7 +136,7 @@ export default function ZoosPage({ token }) {
                     {z.distance_km.toFixed(1)} km
                   </div>
                 )}
-                {visitedIds.includes(z.id) && (
+                {visitedSet.has(z.id) && (
                   <span className="badge bg-success mt-1">Visited</span>
                 )}
               </div>

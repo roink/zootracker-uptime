@@ -135,30 +135,6 @@ def read_root():
     """Health check endpoint for the API."""
     return {"message": "Zoo Tracker API"}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-@app.get("/visits", response_model=list[schemas.ZooVisitRead])
-def list_visits(
-    db: Session = Depends(get_db),
-    user: models.User = Depends(get_current_user),
-):
-    """List all visits for the authenticated user."""
-    return db.query(models.ZooVisit).filter_by(user_id=user.id).all()
-
-
-
-
 @app.post(
     "/sightings",
     response_model=schemas.AnimalSightingRead,
@@ -345,10 +321,18 @@ def send_contact(message: schemas.ContactMessage, request: Request, background_t
     return response
 
 
-from .api import auth_router, users_router, zoos_router, animals_router, images_router  # noqa: E402
+from .api import (  # noqa: E402
+    auth_router,
+    users_router,
+    zoos_router,
+    animals_router,
+    images_router,
+    visits_router,
+)
 
 app.include_router(auth_router)
 app.include_router(users_router)
 app.include_router(zoos_router)
 app.include_router(animals_router)
 app.include_router(images_router)
+app.include_router(visits_router)

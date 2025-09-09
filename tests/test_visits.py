@@ -98,6 +98,48 @@ def test_visit_updated_on_sighting_change(data):
     assert visits[0]["visit_date"] == str(tomorrow)
 
 
+def test_visit_ids_requires_auth():
+    resp = client.get("/visits/ids")
+    assert resp.status_code == 401
+
+
+def test_visit_ids_returns_only_ids(data):
+    token, user_id = register_and_login()
+    zoo_id = data["zoo"].id
+    animal_id = data["animal"].id
+    create_sighting(token, user_id, zoo_id, animal_id)
+    resp = client.get("/visits/ids", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+    assert resp.json() == [str(zoo_id)]
+
+
+def test_visit_ids_isolated_per_user(data):
+    token1, user1 = register_and_login()
+    token2, user2 = register_and_login()
+    zoo1 = data["zoo"].id
+    zoo2 = data["far_zoo"].id
+    animal = data["animal"].id
+    create_sighting(token1, user1, zoo1, animal)
+    create_sighting(token2, user2, zoo2, animal)
+    resp1 = client.get("/visits/ids", headers={"Authorization": f"Bearer {token1}"})
+    resp2 = client.get("/visits/ids", headers={"Authorization": f"Bearer {token2}"})
+    assert resp1.status_code == 200
+    assert resp1.json() == [str(zoo1)]
+    assert resp2.status_code == 200
+    assert resp2.json() == [str(zoo2)]
+
+
+def test_visit_ids_unique(data):
+    token, user_id = register_and_login()
+    zoo = data["zoo"].id
+    animal = data["animal"].id
+    create_sighting(token, user_id, zoo, animal)
+    create_sighting(token, user_id, zoo, animal)
+    resp = client.get("/visits/ids", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+    assert resp.json() == [str(zoo)]
+
+
 def test_has_visited_endpoint_true(data):
     token, user_id = register_and_login()
     zoo_id = data["zoo"].id
