@@ -4,7 +4,7 @@ import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
 import Seo from '../components/Seo';
 
-// Listing page showing all zoos with filters for region and search query.
+// Listing page showing all zoos with filters for region, search query and visit status.
 
 export default function ZoosPage({ token }) {
   const navigate = useNavigate();
@@ -12,7 +12,7 @@ export default function ZoosPage({ token }) {
   const [visitedIds, setVisitedIds] = useState([]);
   const [query, setQuery] = useState('');
   const [region, setRegion] = useState('All');
-  const [visitedOnly, setVisitedOnly] = useState(false);
+  const [visitFilter, setVisitFilter] = useState('all'); // all | visited | not
   // Persist user location so zoos remain sorted by distance across navigation
   const [location, setLocation] = useState(() => {
     const stored = sessionStorage.getItem('userLocation');
@@ -60,16 +60,28 @@ export default function ZoosPage({ token }) {
 
   const visitedSet = useMemo(() => new Set(visitedIds), [visitedIds]);
 
-  // Apply search, visited-only filter and region filter in sequence.
-  const filtered = zoos
-    .filter((z) =>
-      z.name.toLowerCase().includes(query.toLowerCase()) ||
-      (z.city || '').toLowerCase().includes(query.toLowerCase())
-    )
-    .filter((z) => (visitedOnly ? visitedSet.has(z.id) : true))
-    .filter((z) =>
-      region === 'All' ? true : (z.address || '').toLowerCase().includes(region.toLowerCase())
-    );
+  // Apply search, visit status and region filters in sequence.
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const r = region.toLowerCase();
+    return zoos
+      .filter(
+        (z) =>
+          z.name.toLowerCase().includes(q) ||
+          (z.city || '').toLowerCase().includes(q)
+      )
+      .filter((z) => {
+        // Keep zoos based on the selected visit status
+        if (visitFilter === 'visited') return visitedSet.has(z.id);
+        if (visitFilter === 'not') return !visitedSet.has(z.id);
+        return true;
+      })
+      .filter((z) =>
+        region === 'All'
+          ? true
+          : (z.address || '').toLowerCase().includes(r)
+      );
+  }, [zoos, query, region, visitFilter, visitedSet]);
 
   return (
     <div className="container">
@@ -100,16 +112,41 @@ export default function ZoosPage({ token }) {
             <option value="Oceania">Oceania</option>
           </select>
         </div>
-        <div className="col-md-4 d-flex align-items-center">
-          <div className="form-check">
+        <div className="col-md-4 mb-2">
+          {/* Visit filter: show all, only visited, or only not visited zoos */}
+          <div className="btn-group w-100" role="group" aria-label="Visit filter">
             <input
-              className="form-check-input"
-              id="visitedOnly"
-              type="checkbox"
-              checked={visitedOnly}
-              onChange={(e) => setVisitedOnly(e.target.checked)}
+              type="radio"
+              className="btn-check"
+              name="visit-filter"
+              id="visit-all"
+              autoComplete="off"
+              checked={visitFilter === 'all'}
+              onChange={() => setVisitFilter('all')}
             />
-            <label className="form-check-label" htmlFor="visitedOnly">Visited</label>
+            <label className="btn btn-outline-primary" htmlFor="visit-all">All</label>
+
+            <input
+              type="radio"
+              className="btn-check"
+              name="visit-filter"
+              id="visit-visited"
+              autoComplete="off"
+              checked={visitFilter === 'visited'}
+              onChange={() => setVisitFilter('visited')}
+            />
+            <label className="btn btn-outline-primary" htmlFor="visit-visited">Visited</label>
+
+            <input
+              type="radio"
+              className="btn-check"
+              name="visit-filter"
+              id="visit-not"
+              autoComplete="off"
+              checked={visitFilter === 'not'}
+              onChange={() => setVisitFilter('not')}
+            />
+            <label className="btn btn-outline-primary" htmlFor="visit-not">Not visited</label>
           </div>
         </div>
       </div>
