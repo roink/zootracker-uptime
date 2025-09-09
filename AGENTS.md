@@ -34,26 +34,22 @@ Always run the tests after making changes.
 
 ## Environment setup
 
-Create a virtual environment and install dependencies before running tests or the app:
-
-```bash
-./setup_env.sh
-```
-
-This uses `requirements.txt` which must list all Python packages like `fastapi` needed to execute the backend and test suite.
-
-### Notes
-
-The `venv` directory in this repository is already set up with all required packages installed.
-Activate it with:
+Activate the provided virtual environment before running tests, linting, or the app. All required Python packages are already installed there.
 
 ```bash
 source venv/bin/activate
 ```
 
+If you need to recreate the environment, run:
+
+```bash
+./setup_env.sh
+```
+This uses `requirements.txt` which must list all Python packages like `fastapi` needed to execute the backend and test suite.
+
 ### Linting
 
-- Python: `ruff .`
+- Python: `ruff check .`
 - Frontend: `npm --prefix frontend ci && npm --prefix frontend run lint`
 
 
