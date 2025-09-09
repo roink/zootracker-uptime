@@ -58,7 +58,10 @@ export default function ZoosPage({ token }) {
       .catch(() => setVisitedIds([]));
   }, [token, authFetch]);
 
-  const visitedSet = useMemo(() => new Set(visitedIds), [visitedIds]);
+  const visitedSet = useMemo(
+    () => new Set(visitedIds.map(String)),
+    [visitedIds]
+  );
 
   // Apply search, visit status and region filters in sequence.
   const filtered = useMemo(() => {
@@ -72,8 +75,8 @@ export default function ZoosPage({ token }) {
       )
       .filter((z) => {
         // Keep zoos based on the selected visit status
-        if (visitFilter === 'visited') return visitedSet.has(z.id);
-        if (visitFilter === 'not') return !visitedSet.has(z.id);
+        if (visitFilter === 'visited') return visitedSet.has(String(z.id));
+        if (visitFilter === 'not') return !visitedSet.has(String(z.id));
         return true;
       })
       .filter((z) =>
@@ -173,7 +176,7 @@ export default function ZoosPage({ token }) {
                     {z.distance_km.toFixed(1)} km
                   </div>
                 )}
-                {visitedSet.has(z.id) && (
+                {visitedSet.has(String(z.id)) && (
                   <span className="badge bg-success mt-1">Visited</span>
                 )}
               </div>
