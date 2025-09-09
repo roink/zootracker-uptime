@@ -222,7 +222,7 @@ def register_and_login(return_register_resp: bool = False):
     assert register_resp.status_code == 200
     user_id = register_resp.json()["id"]
     login_resp = client.post(
-        "/token",
+        "/auth/login",
         data={"username": email, "password": TEST_PASSWORD},
         headers={"content-type": "application/x-www-form-urlencoded"},
     )

@@ -82,9 +82,8 @@ If unset the frontend falls back to the OpenFreeMap "liberty" tiles.
 
 ### Authentication
 
-The `/token` and `/auth/login` endpoints now include the authenticated
-user's `user_id` in the JSON response along with the access token, allowing
-clients to identify the user without an additional lookup.
+The `/auth/login` endpoint includes the authenticated user’s `user_id` in the
+JSON response so clients can identify the user without an extra lookup.
 
 ### Contact Form Email
 

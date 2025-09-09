@@ -1,6 +1,5 @@
 import uuid
-from .conftest import client, SessionLocal
-from app import models
+from .conftest import client
 
 def test_get_animals_for_zoo(data):
     resp = client.get(f"/zoos/{data['zoo'].id}/animals")
@@ -53,62 +52,4 @@ def test_search_zoos_by_city(data):
     assert resp.status_code == 200
     names = [z["name"] for z in resp.json()]
     assert "Central Zoo" in names
-
-def test_animal_zoos_sorted_by_distance(data):
-    """Zoos for an animal should be ordered by proximity when location is given."""
-    # link far_zoo to the animal for this test
-    db = SessionLocal()
-    db.add(models.ZooAnimal(zoo_id=data["far_zoo"].id, animal_id=data["animal"].id))
-    db.commit()
-    db.close()
-
-    params = {
-        "latitude": data["zoo"].latitude,
-        "longitude": data["zoo"].longitude,
-    }
-    resp = client.get(f"/animals/{data['animal'].id}/zoos", params=params)
-    assert resp.status_code == 200
-    body = resp.json()
-    assert len(body) == 2
-    assert body[0]["id"] == str(data["zoo"].id)
-    assert body[0]["city"] == "Metropolis"
-    dists = [z["distance_km"] for z in body]
-    assert dists == sorted(dists)
-
-def test_animal_zoos_invalid_params(data):
-    """Invalid animal ids or coordinates should fail."""
-    bad = client.get(f"/animals/{uuid.uuid4()}/zoos")
-    assert bad.status_code == 404
-
-    params = {"latitude": 200, "longitude": 0}
-    resp = client.get(f"/animals/{data['animal'].id}/zoos", params=params)
-    assert resp.status_code == 400
-
-    params = {"latitude": 0, "longitude": 200}
-    resp = client.get(f"/animals/{data['animal'].id}/zoos", params=params)
-    assert resp.status_code == 400
-
-
-def test_animal_zoos_cf_headers_used(data):
-    headers = {
-        "cf-iplatitude": str(data["zoo"].latitude),
-        "cf-iplongitude": str(data["zoo"].longitude),
-    }
-    resp = client.get(f"/animals/{data['animal'].id}/zoos", headers=headers)
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body[0]["distance_km"] == 0
-
-
-def test_animal_zoos_explicit_coords_override_cf_headers(data):
-    headers = {"cf-iplatitude": "0", "cf-iplongitude": "0"}
-    params = {
-        "latitude": data["zoo"].latitude,
-        "longitude": data["zoo"].longitude,
-    }
-    resp = client.get(
-        f"/animals/{data['animal'].id}/zoos", headers=headers, params=params
-    )
-    assert resp.status_code == 200
-    assert resp.json()[0]["distance_km"] == 0
 

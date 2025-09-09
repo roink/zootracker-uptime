@@ -103,7 +103,7 @@ The web app will interact with the backend via AJAX calls (using `fetch` or a li
 
 * It will call `GET /api/zoos?search=query` as the user types in a search box, and display the list of matching zoos.
 * On a Zoo page, it might call `GET /api/zoos/{id}/animals` to load the animals in that zoo.
-* On an Animal page, it might call `GET /api/animals/{id}/zoos` to get the list of zoos that have that animal, and `GET /api/animals/{id}/user-status` to see if the current user has seen it (or this could be included in the first call).
+* On an Animal page, it might call `GET /api/animals/{id}` to get animal details **including** the zoos that have that animal, and `GET /api/animals/{id}/user-status` to see if the current user has seen it (or this could be included in the first call).
 * When the user submits a log (through a form in the UI), the web app will send a `POST` request with the form data (and the image file if one is attached; for file upload, we might use an `<input type="file">` and either do a direct form post or use an AJAX upload).
 * For login, the web app might call `POST /api/auth/login` with username/password and on success store the returned token (likely in localStorage or a cookie) to use for subsequent requests.
 

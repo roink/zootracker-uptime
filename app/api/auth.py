@@ -9,7 +9,7 @@ from ..auth import get_user, verify_password, create_access_token
 router = APIRouter()
 
 
-@router.post("/token", response_model=schemas.Token)
+@router.post("/auth/login", response_model=schemas.Token)
 def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db),
@@ -32,7 +32,3 @@ def login(
         "token_type": "bearer",
         "user_id": str(user.id),
     }
-
-
-# Alias route used by the frontend without extra wrapper
-router.post("/auth/login", response_model=schemas.Token)(login)

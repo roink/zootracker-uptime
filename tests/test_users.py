@@ -102,13 +102,13 @@ def test_create_user_response_fields():
 def test_login_empty_username_password():
     """Login with empty credentials should return 400."""
     resp = client.post(
-        "/token",
+        "/auth/login",
         data={"username": "", "password": ""},
         headers={"content-type": "application/x-www-form-urlencoded"},
     )
     assert resp.status_code == 400
 
-def test_login_alias_route():
+def test_login_endpoint():
     global _counter
     email = f"alias{_counter}@example.com"
     _counter += 1
@@ -130,8 +130,8 @@ def test_login_alias_route():
     assert "password_hash" not in data
     assert "password_salt" not in data
 
-def test_token_response_excludes_password_fields():
-    """Token endpoint should not leak password details."""
+def test_login_response_excludes_password_fields():
+    """Login endpoint should not leak password details."""
     global _counter
     email = f"token{_counter}@example.com"
     _counter += 1
@@ -141,7 +141,7 @@ def test_token_response_excludes_password_fields():
     )
     assert resp.status_code == 200
     resp = client.post(
-        "/token",
+        "/auth/login",
         data={"username": email, "password": TEST_PASSWORD},
         headers={"content-type": "application/x-www-form-urlencoded"},
     )

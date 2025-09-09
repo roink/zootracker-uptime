@@ -147,11 +147,11 @@ def get_animal_detail(
 
     images = []
     for i in animal.images:
-        # Return thumbnail variants sorted by width and deduplicated so the
-        # frontend can build concise ``srcset`` attributes.
+        # Return thumbnail variants deduplicated by width so the frontend can
+        # build concise ``srcset`` attributes.
         variants: list[schemas.ImageVariant] = []
         seen_widths: set[int] = set()
-        for v in sorted(i.variants, key=lambda v: v.width):
+        for v in i.variants:
             if v.width in seen_widths:
                 continue
             seen_widths.add(v.width)
@@ -179,38 +179,3 @@ def get_animal_detail(
         zoos=zoos,
     )
 
-@router.get(
-    "/animals/{animal_id}/zoos",
-    response_model=list[schemas.ZooDetail],
-)
-def list_zoos_for_animal(
-    animal_id: uuid.UUID,
-    coords: tuple[float | None, float | None] = Depends(resolve_coords),
-    db: Session = Depends(get_db),
-):
-    """Return zoos that house the given animal ordered by distance if provided."""
-    animal = db.get(models.Animal, animal_id)
-    if animal is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Animal not found")
-
-    latitude, longitude = coords
-
-    query = (
-        db.query(models.Zoo)
-        .options(
-            load_only(
-                models.Zoo.id,
-                models.Zoo.name,
-                models.Zoo.address,
-                models.Zoo.city,
-                models.Zoo.latitude,
-                models.Zoo.longitude,
-                models.Zoo.description,
-            )
-        )
-        .join(models.ZooAnimal, models.Zoo.id == models.ZooAnimal.zoo_id)
-        .filter(models.ZooAnimal.animal_id == animal_id)
-    )
-
-    results = query_zoos_with_distance(query, latitude, longitude, include_no_coords=True)
-    return [to_zoodetail(z, dist) for z, dist in results]
