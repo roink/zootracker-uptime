@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 import uuid
 
@@ -42,3 +43,23 @@ def list_seen_animals(
         .all()
     )
     return animals
+
+
+@router.get("/users/{user_id}/animals/count", response_model=schemas.Count)
+def count_seen_animals(
+    user_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    """Return the number of unique animals seen by the specified user."""
+    if user_id != user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot view animals for another user",
+        )
+    count = (
+        db.query(func.count(func.distinct(models.AnimalSighting.animal_id)))
+        .filter(models.AnimalSighting.user_id == user_id)
+        .scalar()
+    ) or 0
+    return {"count": count}

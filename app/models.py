@@ -356,6 +356,9 @@ class AnimalSighting(Base):
     """A specific instance of a user seeing an animal at a zoo."""
 
     __tablename__ = "animal_sightings"
+    __table_args__ = (
+        Index("idx_animal_sighting_user_animal", "user_id", "animal_id"),
+    )
 
     id = Column(
         UUID(as_uuid=True),
