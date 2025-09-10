@@ -26,6 +26,7 @@ Notes:
     - Primary key is the Commons MediaInfo ID (M-ID = "M" + pageid of the file on Commons).
     - We store direct URLs to thumbnail sizes returned by Commons (`imageinfo&iiurlwidth=`).
     - No Commons Structured Data (SDC) search is performed.
+    - Only Commons files whose `mime` starts with ``image/`` are used.
     - No files are downloaded.
 
 Requires:
@@ -630,6 +631,11 @@ async def process_animal(
                 # not on Commons (or missing)
                 continue
 
+            mime = core.get("mime") or ""
+            if not mime.startswith("image/"):
+                # Skip non-image files (e.g. audio, video)
+                continue
+
             mid = await upsert_image(db, art, source, core)
             if not mid:
                 continue
@@ -699,6 +705,7 @@ async def fetch_images_without_variants(
     WHERE NOT EXISTS (
         SELECT 1 FROM image_variant WHERE image_variant.mid = image.mid
     )
+      AND mime LIKE 'image/%'
     """
     async with db.execute(query) as cur:
         rows = await cur.fetchall()
