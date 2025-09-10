@@ -16,6 +16,13 @@ def test_ensure_name_tables_creates_tables():
         row[0] for row in cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
     }
     assert {"klasse_name", "ordnung_name", "familie_name"} <= tables
+    for table, pk in [
+        ("klasse_name", "klasse"),
+        ("ordnung_name", "ordnung"),
+        ("familie_name", "familie"),
+    ]:
+        cols = {row[1] for row in cur.execute(f"PRAGMA table_info({table})")}
+        assert {pk, "name_de", "name_en"} <= cols
 
 
 def test_extract_names_parses_html():

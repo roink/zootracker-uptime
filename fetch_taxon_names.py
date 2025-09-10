@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fetch German names for classes, orders and families and store them in SQLite."""
+"""Fetch German and English names for classes, orders and families."""
 
 from __future__ import annotations
 
@@ -18,6 +18,7 @@ from zootier_scraper_sqlite import (
     DB_FILE,
     SESSION,
     SLEEP_SECONDS,
+    build_locale_url,
     ensure_db_schema,
 )
 
@@ -25,13 +26,14 @@ _WS_RE = re.compile(r"\s+")
 
 
 def ensure_name_tables(conn: sqlite3.Connection) -> None:
-    """Create simple tables for German taxon names if they do not exist."""
+    """Create tables for German and English taxon names if absent."""
     cur = conn.cursor()
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS klasse_name (
             klasse INTEGER PRIMARY KEY,
-            name_de TEXT
+            name_de TEXT,
+            name_en TEXT
         )
         """
     )
@@ -39,7 +41,8 @@ def ensure_name_tables(conn: sqlite3.Connection) -> None:
         """
         CREATE TABLE IF NOT EXISTS ordnung_name (
             ordnung INTEGER PRIMARY KEY,
-            name_de TEXT
+            name_de TEXT,
+            name_en TEXT
         )
         """
     )
@@ -47,7 +50,8 @@ def ensure_name_tables(conn: sqlite3.Connection) -> None:
         """
         CREATE TABLE IF NOT EXISTS familie_name (
             familie INTEGER PRIMARY KEY,
-            name_de TEXT
+            name_de TEXT,
+            name_en TEXT
         )
         """
     )
@@ -61,7 +65,7 @@ def _clean_label(label: str) -> str:
 
 
 def extract_names(html: str) -> tuple[Dict[int, str], Dict[int, str], Dict[int, str]]:
-    """Extract German names for classes, orders and families from *html*."""
+    """Extract names for classes, orders and families from *html*."""
 
     soup = BeautifulSoup(html, "html.parser")
     # Class links are not within #navigation; scan all anchors in the document.
@@ -102,7 +106,7 @@ def fetch_and_store_names(
     only_missing: bool = False,
     limit: int | None = None,
 ) -> None:
-    """Fetch German taxon names for all known orders in *db_path* and store them."""
+    """Fetch taxon names in German and English and store them in *db_path*."""
 
     conn = sqlite3.connect(db_path, timeout=30)
     ensure_db_schema(conn)
@@ -123,38 +127,51 @@ def fetch_and_store_names(
 
     for klasse, ordnung in pairs:
         print(f"[+] Fetching klasse={klasse} ordnung={ordnung}...")
-        r = SESSION.get(BASE_URL, params={"klasse": klasse, "ordnung": ordnung})
-        r.raise_for_status()
+        r_de = SESSION.get(BASE_URL, params={"klasse": klasse, "ordnung": ordnung})
+        r_de.raise_for_status()
         time.sleep(SLEEP_SECONDS)
-        classes, orders, families = extract_names(r.text)
-        print(f"    → {len(families)} families found")
+        r_en = SESSION.get(
+            build_locale_url(BASE_URL, "en"), params={"klasse": klasse, "ordnung": ordnung}
+        )
+        r_en.raise_for_status()
+        time.sleep(SLEEP_SECONDS)
 
-        for k, name in classes.items():
+        classes_de, orders_de, families_de = extract_names(r_de.text)
+        classes_en, orders_en, families_en = extract_names(r_en.text)
+        print(f"    → {len(families_de)} families found")
+
+        for k in set(classes_de) | set(classes_en):
             cur.execute(
                 """
-                INSERT INTO klasse_name (klasse, name_de)
-                VALUES (?, ?)
-                ON CONFLICT(klasse) DO UPDATE SET name_de=excluded.name_de
+                INSERT INTO klasse_name (klasse, name_de, name_en)
+                VALUES (?, ?, ?)
+                ON CONFLICT(klasse) DO UPDATE SET
+                    name_de=excluded.name_de,
+                    name_en=excluded.name_en
                 """,
-                (k, name),
+                (k, classes_de.get(k), classes_en.get(k)),
             )
-        for o, name in orders.items():
+        for o in set(orders_de) | set(orders_en):
             cur.execute(
                 """
-                INSERT INTO ordnung_name (ordnung, name_de)
-                VALUES (?, ?)
-                ON CONFLICT(ordnung) DO UPDATE SET name_de=excluded.name_de
+                INSERT INTO ordnung_name (ordnung, name_de, name_en)
+                VALUES (?, ?, ?)
+                ON CONFLICT(ordnung) DO UPDATE SET
+                    name_de=excluded.name_de,
+                    name_en=excluded.name_en
                 """,
-                (o, name),
+                (o, orders_de.get(o), orders_en.get(o)),
             )
-        for f, name in families.items():
+        for f in set(families_de) | set(families_en):
             cur.execute(
                 """
-                INSERT INTO familie_name (familie, name_de)
-                VALUES (?, ?)
-                ON CONFLICT(familie) DO UPDATE SET name_de=excluded.name_de
+                INSERT INTO familie_name (familie, name_de, name_en)
+                VALUES (?, ?, ?)
+                ON CONFLICT(familie) DO UPDATE SET
+                    name_de=excluded.name_de,
+                    name_en=excluded.name_en
                 """,
-                (f, name),
+                (f, families_de.get(f), families_en.get(f)),
             )
         conn.commit()
     conn.close()
@@ -162,7 +179,7 @@ def fetch_and_store_names(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Fetch German taxon names from zootierliste.de",
+        description="Fetch German and English taxon names from zootierliste.de",
     )
     parser.add_argument(
         "--db", default=DB_FILE, help="path to SQLite database (default: %(default)s)",

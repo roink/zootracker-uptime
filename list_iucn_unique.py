@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-import argparse, sqlite3, json, re
+import argparse
+import json
+import re
+import sqlite3
 from collections import Counter, defaultdict
 
 CODE_RE = re.compile(r"^\s*([A-Z]{1,3})\b")
@@ -30,7 +33,8 @@ def main():
     for desc_text, iucn in cur.fetchall():
         # IUCN status (English)
         iucn_clean = (iucn or "").strip()
-        if iucn_clean == "": iucn_clean = None
+        if iucn_clean == "":
+            iucn_clean = None
         if iucn_clean is not None:
             iucn_counter[iucn_clean] += 1
 
