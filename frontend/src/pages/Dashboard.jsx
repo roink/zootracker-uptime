@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo, Fragment } from 'react';
+import { useState, useMemo, useEffect, Fragment } from 'react';
+import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
 import SightingModal from '../components/SightingModal';
@@ -7,70 +8,118 @@ import Seo from '../components/Seo';
 
 // User dashboard showing recent visits, sightings and badges. Includes
 // buttons to open forms for logging additional activity.
-
 export default function Dashboard({ token, userId, refresh, onUpdate }) {
-  const [visits, setVisits] = useState([]);
-  // Number of unique animals the user has seen
-  const [seenCount, setSeenCount] = useState(0);
-  const [sightings, setSightings] = useState([]);
-  const [badges, setBadges] = useState([]);
-  const [zoos, setZoos] = useState([]);
-  const [animals, setAnimals] = useState([]);
   const [modalData, setModalData] = useState(null);
   const navigate = useNavigate();
   const authFetch = useAuthFetch(token);
+  const queryClient = useQueryClient();
+  const uid = userId || localStorage.getItem('userId');
 
-  // Load zoo and animal lists when the dashboard is viewed so we
-  // don't fetch them on every app startup.
+  // Refetch dashboard data when refresh counter changes
   useEffect(() => {
     if (!token) return;
-    const controller = new AbortController();
-    (async () => {
-      try {
-        const [zRes, aRes] = await Promise.all([
-          fetch(`${API}/zoos`, { signal: controller.signal }),
-          fetch(`${API}/animals`, { signal: controller.signal }),
-        ]);
-        const zData = zRes.ok ? await zRes.json() : [];
-        const aData = aRes.ok ? await aRes.json() : [];
-        setZoos(zData);
-        setAnimals(aData);
-      } catch (e) {
-        if (e.name !== 'AbortError') {
-          setZoos([]);
-          setAnimals([]);
-        }
-      }
-    })();
-    return () => controller.abort();
-  }, [token]);
+    queryClient.invalidateQueries({ queryKey: ['user', uid, 'visits'] });
+    queryClient.invalidateQueries({ queryKey: ['user', uid, 'animalsSeen'] });
+    queryClient.invalidateQueries({ queryKey: ['user', uid, 'sightings'] });
+    queryClient.invalidateQueries({ queryKey: ['user', uid, 'achievements'] });
+  }, [refresh, uid, token, queryClient]);
 
-  useEffect(() => {
-    const uid = userId || localStorage.getItem('userId');
-    authFetch(`${API}/visits`, { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => (r.ok ? r.json() : []))
-      .then(setVisits)
-      .catch(() => setVisits([]));
-    if (!uid) return;
-    authFetch(`${API}/users/${uid}/animals/count`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => (r.ok ? r.json() : { count: 0 }))
-      .then((d) => setSeenCount(d.count ?? 0))
-      .catch(() => setSeenCount(0));
-    authFetch(`${API}/sightings`, { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => (r.ok ? r.json() : []))
-      .then(setSightings)
-      .catch(() => setSightings([]));
-    authFetch(`${API}/users/${uid}/achievements`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => (r.ok ? r.json() : []))
-      .then(setBadges)
-      .catch(() => setBadges([]));
-  }, [token, userId, refresh, authFetch]);
+  const { data: zooMap = {}, isFetching: zoosFetching } = useQuery({
+    queryKey: ['zoos'],
+    queryFn: async ({ signal }) => {
+      const r = await fetch(`${API}/zoos`, { signal });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    },
+    staleTime: 'static',
+    placeholderData: keepPreviousData,
+    select: (zoos) => Object.fromEntries(zoos.map((z) => [z.id, z])),
+  });
 
-  // Group sightings by day and order by day descending then creation time.
+  const { data: animalMap = {}, isFetching: animalsFetching } = useQuery({
+    queryKey: ['animals'],
+    queryFn: async ({ signal }) => {
+      const r = await fetch(`${API}/animals`, { signal });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    },
+    staleTime: 'static',
+    placeholderData: keepPreviousData,
+    select: (animals) => Object.fromEntries(animals.map((a) => [a.id, a])),
+  });
+
+  const {
+    data: visits = [],
+    isFetching: visitsFetching,
+  } = useQuery({
+    queryKey: ['user', uid, 'visits'],
+    queryFn: async ({ signal }) => {
+      const r = await authFetch(`${API}/visits`, { signal });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    },
+    enabled: !!token,
+    placeholderData: keepPreviousData,
+  });
+
+  const {
+    data: seenCount = 0,
+    isFetching: seenFetching,
+  } = useQuery({
+    queryKey: ['user', uid, 'animalsSeen'],
+    queryFn: async ({ signal }) => {
+      const r = await authFetch(`${API}/users/${uid}/animals/count`, { signal });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const d = await r.json();
+      return d.count ?? 0;
+    },
+    enabled: !!token && !!uid,
+    placeholderData: keepPreviousData,
+  });
+
+  const {
+    data: sightings = [],
+    isFetching: sightingsFetching,
+  } = useQuery({
+    queryKey: ['user', uid, 'sightings'],
+    queryFn: async ({ signal }) => {
+      const r = await authFetch(`${API}/sightings`, { signal });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    },
+    enabled: !!token,
+    placeholderData: keepPreviousData,
+  });
+
+  const {
+    data: badges = [],
+    isFetching: badgesFetching,
+  } = useQuery({
+    queryKey: ['user', uid, 'achievements'],
+    queryFn: async ({ signal }) => {
+      const r = await authFetch(`${API}/users/${uid}/achievements`, { signal });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    },
+    enabled: !!token && !!uid,
+    placeholderData: keepPreviousData,
+  });
+
+  const zoos = useMemo(() => Object.values(zooMap), [zooMap]);
+  const animals = useMemo(() => Object.values(animalMap), [animalMap]);
+
+  const zooName = (id) => zooMap[id]?.name || id;
+  const animalName = (id) => animalMap[id]?.common_name || id;
+
+  const refreshing =
+    zoosFetching ||
+    animalsFetching ||
+    visitsFetching ||
+    seenFetching ||
+    sightingsFetching ||
+    badgesFetching;
+
+  // Group sightings by day and order by day descending then creation time
   const groupedSightings = useMemo(() => {
     const sorted = [...sightings].sort((a, b) => {
       const dayA = new Date(a.sighting_datetime).toDateString();
@@ -103,7 +152,7 @@ export default function Dashboard({ token, userId, refresh, onUpdate }) {
     return new Date(day).toLocaleDateString();
   };
 
-  // Distinct zoo count, derived from visits and sightings in case visit sync is missing.
+  // Distinct zoo count, derived from visits and sightings in case visit sync is missing
   const visitedZooCount = useMemo(() => {
     const ids = new Set([
       ...visits.map((v) => v.zoo_id),
@@ -112,17 +161,13 @@ export default function Dashboard({ token, userId, refresh, onUpdate }) {
     return ids.size;
   }, [visits, sightings]);
 
-  const zooName = (id) => zoos.find((z) => z.id === id)?.name || id;
-  const animalName = (id) =>
-    animals.find((a) => a.id === id)?.common_name || id;
-
   return (
     <div className="container">
       <Seo
         title="Dashboard"
         description="View your zoo visits, animal sightings and badges."
       />
-      <div className="row text-center mb-3">
+      <div className={`row text-center mb-3 ${refreshing ? 'opacity-50' : ''}`}>
         <div className="col">Zoos Visited: {visitedZooCount}</div>
         <div className="col">Animals Seen: {seenCount}</div>
         <div className="col">Badges: {badges.length}</div>
