@@ -1,4 +1,7 @@
 import { useState } from "react";
+import { QueryClient } from "@tanstack/react-query";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
+import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
 import ReactDOM from "react-dom/client";
 import { Helmet, HelmetProvider } from 'react-helmet-async';
 import {
@@ -29,6 +32,28 @@ import Footer from "./components/Footer";
 import "./styles/app.css";
 // MapLibre default styles for the OpenFreeMap tiles
 import "maplibre-gl/dist/maplibre-gl.css";
+
+// Cache API data and persist between reloads
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000,
+      gcTime: 24 * 60 * 60 * 1000,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
+
+const persister = createSyncStoragePersister({ storage: window.localStorage });
+const persistOptions = {
+  persister,
+  dehydrateOptions: {
+    shouldDehydrateQuery: (q) =>
+      !Array.isArray(q.queryKey) || q.queryKey[0] !== 'user',
+  },
+  maxAge: 24 * 60 * 60 * 1000,
+  buster: 'app@1.0.0',
+};
 
 function DashboardPage({ token, userId, refresh, onUpdate }) {
   return (
@@ -196,6 +221,7 @@ function App() {
     localStorage.removeItem("token");
     localStorage.removeItem("userId");
     localStorage.removeItem("userEmail");
+    queryClient.removeQueries({ queryKey: ['user'] });
   };
 
   const refreshSeen = () => {
@@ -224,6 +250,8 @@ const helmetContext = {};
 ReactDOM.createRoot(document.getElementById("root")).render(
   <HelmetProvider context={helmetContext}>
     <Helmet titleTemplate="%s - ZooTracker" defaultTitle="ZooTracker" />
-    <App />
+    <PersistQueryClientProvider client={queryClient} persistOptions={persistOptions}>
+      <App />
+    </PersistQueryClientProvider>
   </HelmetProvider>
 );
