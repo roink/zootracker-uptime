@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
 import Seo from '../components/Seo';
 
-// Listing page showing all zoos with filters for region and search query.
+// Listing page showing all zoos with filters for region, search query and visit status.
 
 export default function ZoosPage({ token }) {
   const navigate = useNavigate();
@@ -12,7 +12,12 @@ export default function ZoosPage({ token }) {
   const [visitedIds, setVisitedIds] = useState([]);
   const [query, setQuery] = useState('');
   const [region, setRegion] = useState('All');
-  const [visitedOnly, setVisitedOnly] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [visitFilter, setVisitFilter] = useState(() => {
+    const v = searchParams.get('visit');
+    return v === 'visited' || v === 'not' ? v : 'all';
+  }); // all | visited | not
+  const [visitedLoading, setVisitedLoading] = useState(true);
   // Persist user location so zoos remain sorted by distance across navigation
   const [location, setLocation] = useState(() => {
     const stored = sessionStorage.getItem('userLocation');
@@ -51,25 +56,62 @@ export default function ZoosPage({ token }) {
   }, []);
 
   useEffect(() => {
-    if (!token) return;
+    if (!token) {
+      setVisitedLoading(false);
+      return;
+    }
+    setVisitedLoading(true);
     authFetch(`${API}/visits/ids`)
       .then((r) => (r.ok ? r.json() : []))
       .then(setVisitedIds)
-      .catch(() => setVisitedIds([]));
+      .catch(() => setVisitedIds([]))
+      .finally(() => setVisitedLoading(false));
   }, [token, authFetch]);
 
-  const visitedSet = useMemo(() => new Set(visitedIds), [visitedIds]);
+  const visitedSet = useMemo(
+    () => new Set(visitedIds.map(String)),
+    [visitedIds]
+  );
 
-  // Apply search, visited-only filter and region filter in sequence.
-  const filtered = zoos
-    .filter((z) =>
-      z.name.toLowerCase().includes(query.toLowerCase()) ||
-      (z.city || '').toLowerCase().includes(query.toLowerCase())
-    )
-    .filter((z) => (visitedOnly ? visitedSet.has(z.id) : true))
-    .filter((z) =>
-      region === 'All' ? true : (z.address || '').toLowerCase().includes(region.toLowerCase())
-    );
+  useEffect(() => {
+    const v = searchParams.get('visit');
+    if (v === 'visited' || v === 'not') {
+      setVisitFilter(v);
+    } else {
+      setVisitFilter('all');
+    }
+  }, [searchParams]);
+
+  const updateVisitFilter = (v) => {
+    setVisitFilter(v);
+    const params = new URLSearchParams(searchParams);
+    if (v === 'all') params.delete('visit');
+    else params.set('visit', v);
+    setSearchParams(params);
+  };
+
+  // Apply search, visit status and region filters in sequence.
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const r = region.toLowerCase();
+    return zoos
+      .filter(
+        (z) =>
+          z.name.toLowerCase().includes(q) ||
+          (z.city || '').toLowerCase().includes(q)
+      )
+      .filter((z) => {
+        // Keep zoos based on the selected visit status
+        if (visitFilter === 'visited') return visitedSet.has(String(z.id));
+        if (visitFilter === 'not') return !visitedSet.has(String(z.id));
+        return true;
+      })
+      .filter((z) =>
+        region === 'All'
+          ? true
+          : (z.address || '').toLowerCase().includes(r)
+      );
+  }, [zoos, query, region, visitFilter, visitedSet]);
 
   return (
     <div className="container">
@@ -100,17 +142,59 @@ export default function ZoosPage({ token }) {
             <option value="Oceania">Oceania</option>
           </select>
         </div>
-        <div className="col-md-4 d-flex align-items-center">
-          <div className="form-check">
+        <div className="col-md-4 mb-2">
+          {
+            // Visit filter: show all, only visited, or only not visited zoos
+          }
+          <fieldset
+            className="btn-group w-100"
+            role="group"
+            aria-label="Visit filter"
+          >
+            <legend className="visually-hidden">Visit filter</legend>
             <input
-              className="form-check-input"
-              id="visitedOnly"
-              type="checkbox"
-              checked={visitedOnly}
-              onChange={(e) => setVisitedOnly(e.target.checked)}
+              type="radio"
+              className="btn-check"
+              name="visit-filter"
+              id="visit-all"
+              autoComplete="off"
+              checked={visitFilter === 'all'}
+              onChange={() => updateVisitFilter('all')}
+              disabled={visitedLoading}
             />
-            <label className="form-check-label" htmlFor="visitedOnly">Visited</label>
-          </div>
+            <label className="btn btn-outline-primary" htmlFor="visit-all">All</label>
+
+            <input
+              type="radio"
+              className="btn-check"
+              name="visit-filter"
+              id="visit-visited"
+              autoComplete="off"
+              checked={visitFilter === 'visited'}
+              onChange={() => updateVisitFilter('visited')}
+              disabled={visitedLoading}
+            />
+            <label className="btn btn-outline-primary" htmlFor="visit-visited">Visited</label>
+
+            <input
+              type="radio"
+              className="btn-check"
+              name="visit-filter"
+              id="visit-not"
+              autoComplete="off"
+              checked={visitFilter === 'not'}
+              onChange={() => updateVisitFilter('not')}
+              disabled={visitedLoading}
+            />
+            <label className="btn btn-outline-primary" htmlFor="visit-not">Not visited</label>
+          </fieldset>
+          {visitFilter !== 'all' && visitedLoading && (
+            <div
+              className="spinner-border spinner-border-sm text-primary ms-2"
+              role="status"
+              aria-label="Loading visited"
+            />
+          )}
         </div>
       </div>
       <div className="list-group">
@@ -136,7 +220,7 @@ export default function ZoosPage({ token }) {
                     {z.distance_km.toFixed(1)} km
                   </div>
                 )}
-                {visitedSet.has(z.id) && (
+                {visitedSet.has(String(z.id)) && (
                   <span className="badge bg-success mt-1">Visited</span>
                 )}
               </div>

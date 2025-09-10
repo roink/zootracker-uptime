@@ -123,6 +123,7 @@ CREATE INDEX IF NOT EXISTS idx_animalsighting_user_animal ON animal_sightings(us
 CREATE INDEX IF NOT EXISTS idx_sightings_user_day_created
   ON animal_sightings (user_id, (CAST(sighting_datetime AS date)), created_at DESC);
 
+
 -- 8. Achievements / Badges
 CREATE TABLE achievements (
   id           UUID       PRIMARY KEY DEFAULT gen_random_uuid(),
