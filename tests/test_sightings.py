@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime, UTC
+from sqlalchemy import text
 from .conftest import client, register_and_login, SessionLocal
 from app import models
 
@@ -307,4 +308,73 @@ def test_sightings_are_user_specific(data):
 def test_get_sightings_requires_auth():
     resp = client.get("/sightings")
     assert resp.status_code == 401
+
+
+def test_sighting_list_sorted_and_named(data):
+    token, user_id = register_and_login()
+    zoo_id = data["zoo"].id
+    animal_id = data["animal"].id
+
+    # First sighting on a recent day
+    sight1 = {
+        "zoo_id": str(zoo_id),
+        "animal_id": str(animal_id),
+        "user_id": str(user_id),
+        "sighting_datetime": datetime(2024, 1, 1, tzinfo=UTC).isoformat(),
+    }
+    r1 = client.post(
+        "/sightings", json=sight1, headers={"Authorization": f"Bearer {token}"}
+    )
+    assert r1.status_code == 200
+    id1 = r1.json()["id"]
+
+    # Older day
+    sight2 = {
+        "zoo_id": str(zoo_id),
+        "animal_id": str(animal_id),
+        "user_id": str(user_id),
+        "sighting_datetime": datetime(2023, 1, 1, tzinfo=UTC).isoformat(),
+    }
+    r2 = client.post(
+        "/sightings", json=sight2, headers={"Authorization": f"Bearer {token}"}
+    )
+    assert r2.status_code == 200
+
+    # Same day as first but created later
+    sight3 = {
+        "zoo_id": str(zoo_id),
+        "animal_id": str(animal_id),
+        "user_id": str(user_id),
+        "sighting_datetime": datetime(2024, 1, 1, tzinfo=UTC).isoformat(),
+    }
+    r3 = client.post(
+        "/sightings", json=sight3, headers={"Authorization": f"Bearer {token}"}
+    )
+    assert r3.status_code == 200
+
+    with SessionLocal() as session:
+        dialect = session.bind.dialect.name
+        if dialect == "sqlite":
+            session.execute(
+                text(
+                    "UPDATE animal_sightings SET created_at = datetime(created_at, '-1 second') WHERE id = :id"
+                ),
+                {"id": id1},
+            )
+        else:
+            session.execute(
+                text(
+                    "UPDATE animal_sightings SET created_at = created_at - interval '1 second' WHERE id = :id"
+                ),
+                {"id": id1},
+            )
+        session.commit()
+
+    resp = client.get("/sightings", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+    body = resp.json()
+    dates = [s["sighting_datetime"][:10] for s in body]
+    assert dates == ["2024-01-01", "2024-01-01", "2023-01-01"]
+    assert body[0]["created_at"] >= body[1]["created_at"]
+    assert body[0]["animal_name_de"]
 

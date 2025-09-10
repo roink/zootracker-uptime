@@ -401,6 +401,17 @@ class AnimalSighting(Base):
     zoo = relationship("Zoo", back_populates="sightings")
     animal = relationship("Animal", back_populates="sightings")
 
+    @property
+    def animal_name_de(self):
+        """Return the German name for the sighted animal if available."""
+        if self.animal is None:
+            return None
+        return (
+            self.animal.name_de
+            or self.animal.german_label
+            or self.animal.common_name
+        )
+
 
 class Achievement(Base):
     """An achievement that can be awarded to a user."""

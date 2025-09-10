@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo, useEffect, Fragment } from 'react';
+import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
 import SightingModal from '../components/SightingModal';
@@ -7,77 +8,151 @@ import Seo from '../components/Seo';
 
 // User dashboard showing recent visits, sightings and badges. Includes
 // buttons to open forms for logging additional activity.
-
 export default function Dashboard({ token, userId, refresh, onUpdate }) {
-  const [visits, setVisits] = useState([]);
-  // Number of unique animals the user has seen
-  const [seenCount, setSeenCount] = useState(0);
-  const [sightings, setSightings] = useState([]);
-  const [badges, setBadges] = useState([]);
-  const [zoos, setZoos] = useState([]);
-  const [animals, setAnimals] = useState([]);
   const [modalData, setModalData] = useState(null);
   const navigate = useNavigate();
   const authFetch = useAuthFetch(token);
+  const queryClient = useQueryClient();
+  const uid = userId || localStorage.getItem('userId');
 
-  // Load zoo and animal lists when the dashboard is viewed so we
-  // don't fetch them on every app startup.
+  // Refetch dashboard data when refresh counter changes
   useEffect(() => {
     if (!token) return;
-    const controller = new AbortController();
-    (async () => {
-      try {
-        const [zRes, aRes] = await Promise.all([
-          fetch(`${API}/zoos`, { signal: controller.signal }),
-          fetch(`${API}/animals`, { signal: controller.signal }),
-        ]);
-        const zData = zRes.ok ? await zRes.json() : [];
-        const aData = aRes.ok ? await aRes.json() : [];
-        setZoos(zData);
-        setAnimals(aData);
-      } catch (e) {
-        if (e.name !== 'AbortError') {
-          setZoos([]);
-          setAnimals([]);
-        }
+    queryClient.invalidateQueries({ queryKey: ['user', uid, 'visits'] });
+    queryClient.invalidateQueries({ queryKey: ['user', uid, 'animalsSeen'] });
+    queryClient.invalidateQueries({ queryKey: ['user', uid, 'sightings'] });
+    queryClient.invalidateQueries({ queryKey: ['user', uid, 'achievements'] });
+  }, [refresh, uid, token, queryClient]);
+
+  const { data: zooMap = {}, isFetching: zoosFetching } = useQuery({
+    queryKey: ['zoos'],
+    queryFn: async ({ signal }) => {
+      const r = await fetch(`${API}/zoos`, { signal });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    },
+    staleTime: 'static',
+    placeholderData: keepPreviousData,
+    select: (zoos) => Object.fromEntries(zoos.map((z) => [z.id, z])),
+  });
+
+  const { data: animalMap = {}, isFetching: animalsFetching } = useQuery({
+    queryKey: ['animals'],
+    queryFn: async ({ signal }) => {
+      const r = await fetch(`${API}/animals`, { signal });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    },
+    staleTime: 'static',
+    placeholderData: keepPreviousData,
+    select: (animals) => Object.fromEntries(animals.map((a) => [a.id, a])),
+  });
+
+  const {
+    data: visits = [],
+    isFetching: visitsFetching,
+  } = useQuery({
+    queryKey: ['user', uid, 'visits'],
+    queryFn: async ({ signal }) => {
+      const r = await authFetch(`${API}/visits`, { signal });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    },
+    enabled: !!token,
+    placeholderData: keepPreviousData,
+  });
+
+  const {
+    data: seenCount = 0,
+    isFetching: seenFetching,
+  } = useQuery({
+    queryKey: ['user', uid, 'animalsSeen'],
+    queryFn: async ({ signal }) => {
+      const r = await authFetch(`${API}/users/${uid}/animals/count`, { signal });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const d = await r.json();
+      return d.count ?? 0;
+    },
+    enabled: !!token && !!uid,
+    placeholderData: keepPreviousData,
+  });
+
+  const {
+    data: sightings = [],
+    isFetching: sightingsFetching,
+  } = useQuery({
+    queryKey: ['user', uid, 'sightings'],
+    queryFn: async ({ signal }) => {
+      const r = await authFetch(`${API}/sightings`, { signal });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    },
+    enabled: !!token,
+    placeholderData: keepPreviousData,
+  });
+
+  const {
+    data: badges = [],
+    isFetching: badgesFetching,
+  } = useQuery({
+    queryKey: ['user', uid, 'achievements'],
+    queryFn: async ({ signal }) => {
+      const r = await authFetch(`${API}/users/${uid}/achievements`, { signal });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    },
+    enabled: !!token && !!uid,
+    placeholderData: keepPreviousData,
+  });
+
+  const zoos = useMemo(() => Object.values(zooMap), [zooMap]);
+  const animals = useMemo(() => Object.values(animalMap), [animalMap]);
+
+  const zooName = (id) => zooMap[id]?.name || id;
+  const animalName = (id) => animalMap[id]?.common_name || id;
+
+  const refreshing =
+    zoosFetching ||
+    animalsFetching ||
+    visitsFetching ||
+    seenFetching ||
+    sightingsFetching ||
+    badgesFetching;
+
+  // Group sightings by day and order by day descending then creation time
+  const groupedSightings = useMemo(() => {
+    const sorted = [...sightings].sort((a, b) => {
+      const dayA = new Date(a.sighting_datetime).toDateString();
+      const dayB = new Date(b.sighting_datetime).toDateString();
+      if (dayA === dayB) {
+        return new Date(b.created_at) - new Date(a.created_at);
       }
-    })();
-    return () => controller.abort();
-  }, [token]);
+      return new Date(b.sighting_datetime) - new Date(a.sighting_datetime);
+    });
+    const groups = [];
+    sorted.forEach((s) => {
+      const day = s.sighting_datetime.slice(0, 10);
+      const last = groups[groups.length - 1];
+      if (!last || last.day !== day) {
+        groups.push({ day, items: [s] });
+      } else {
+        last.items.push(s);
+      }
+    });
+    return groups;
+  }, [sightings]);
 
-  useEffect(() => {
-    const uid = userId || localStorage.getItem('userId');
-    authFetch(`${API}/visits`, { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => (r.ok ? r.json() : []))
-      .then(setVisits)
-      .catch(() => setVisits([]));
-    if (!uid) return;
-    authFetch(`${API}/users/${uid}/animals/count`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => (r.ok ? r.json() : { count: 0 }))
-      .then((d) => setSeenCount(d.count ?? 0))
-      .catch(() => setSeenCount(0));
-    authFetch(`${API}/sightings`, { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => (r.ok ? r.json() : []))
-      .then(setSightings)
-      .catch(() => setSightings([]));
-    authFetch(`${API}/users/${uid}/achievements`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => (r.ok ? r.json() : []))
-      .then(setBadges)
-      .catch(() => setBadges([]));
-  }, [token, userId, refresh, authFetch]);
+  const formatDay = (day) => {
+    const today = new Date().toISOString().slice(0, 10);
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yDay = yesterday.toISOString().slice(0, 10);
+    if (day === today) return 'Today';
+    if (day === yDay) return 'Yesterday';
+    return new Date(day).toLocaleDateString();
+  };
 
-  // Combine visits and sightings into a single chronologically sorted feed.
-  const feedItems = useMemo(() => {
-    const v = visits.map((x) => ({ type: 'visit', date: x.visit_date, item: x }));
-    const s = sightings.map((x) => ({ type: 'sighting', date: x.sighting_datetime, item: x }));
-    return [...v, ...s].sort((a, b) => new Date(b.date) - new Date(a.date));
-  }, [visits, sightings]);
-
-  // Distinct zoo count, derived from visits and sightings in case visit sync is missing.
+  // Distinct zoo count, derived from visits and sightings in case visit sync is missing
   const visitedZooCount = useMemo(() => {
     const ids = new Set([
       ...visits.map((v) => v.zoo_id),
@@ -86,49 +161,49 @@ export default function Dashboard({ token, userId, refresh, onUpdate }) {
     return ids.size;
   }, [visits, sightings]);
 
-  const zooName = (id) => zoos.find((z) => z.id === id)?.name || id;
-  const animalName = (id) => animals.find((a) => a.id === id)?.common_name || id;
-
   return (
     <div className="container">
       <Seo
         title="Dashboard"
         description="View your zoo visits, animal sightings and badges."
       />
-      <div className="row text-center mb-3">
+      <div className={`row text-center mb-3 ${refreshing ? 'opacity-50' : ''}`}>
         <div className="col">Zoos Visited: {visitedZooCount}</div>
         <div className="col">Animals Seen: {seenCount}</div>
         <div className="col">Badges: {badges.length}</div>
       </div>
       <h3>Activity Feed</h3>
       <ul className="list-group mb-3">
-        {feedItems.map((f, idx) => (
-          <li
-            key={idx}
-            className="list-group-item d-flex justify-content-between align-items-center"
-          >
-            <span>
-              {f.type === 'visit'
-                ? `Visited ${zooName(f.item.zoo_id)} on ${f.item.visit_date}`
-                : `Saw ${animalName(f.item.animal_id)} at ${zooName(f.item.zoo_id)} on ${f.item.sighting_datetime.slice(0, 10)}`}
-            </span>
-            {f.type === 'sighting' && (
-              <button
-                className="btn btn-sm btn-outline-secondary"
-                onClick={() =>
-                  setModalData({
-                    sightingId: f.item.id,
-                    zooId: f.item.zoo_id,
-                    zooName: zooName(f.item.zoo_id),
-                    animalId: f.item.animal_id,
-                    animalName: animalName(f.item.animal_id),
-                  })
-                }
+        {groupedSightings.map((g) => (
+          <Fragment key={g.day}>
+            <li className="list-group-item active">{formatDay(g.day)}</li>
+            {g.items.map((s) => (
+              <li
+                key={s.id}
+                className="list-group-item d-flex justify-content-between align-items-center"
               >
-                Edit
-              </button>
-            )}
-          </li>
+                <span>
+                  {`Saw ${
+                    s.animal_name_de ?? animalName(s.animal_id)
+                  } at ${zooName(s.zoo_id)} on ${s.sighting_datetime.slice(0, 10)}`}
+                </span>
+                <button
+                  className="btn btn-sm btn-outline-secondary"
+                  onClick={() =>
+                    setModalData({
+                      sightingId: s.id,
+                      zooId: s.zoo_id,
+                      zooName: zooName(s.zoo_id),
+                      animalId: s.animal_id,
+                      animalName: s.animal_name_de ?? animalName(s.animal_id),
+                    })
+                  }
+                >
+                  Edit
+                </button>
+              </li>
+            ))}
+          </Fragment>
         ))}
       </ul>
       <h3>Recent Badges</h3>
