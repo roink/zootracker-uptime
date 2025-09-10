@@ -24,7 +24,11 @@ def list_visited_zoo_ids(
     db: Session = Depends(get_db),
     user: models.User = Depends(get_current_user),
 ):
-    """Return unique zoo IDs for zoos the user has visited or logged sightings at."""
+    """Return unique zoo IDs where the user has a visit or sighting.
+
+    A zoo is considered *visited* when there is a :class:`ZooVisit` row or at
+    least one :class:`AnimalSighting` for the authenticated user.
+    """
     q_visits = db.query(models.ZooVisit.zoo_id).filter_by(user_id=user.id)
     q_sightings = db.query(models.AnimalSighting.zoo_id).filter_by(user_id=user.id)
     rows = (
