@@ -25,12 +25,9 @@ def list_visited_zoo_ids(
     user: models.User = Depends(get_current_user),
 ):
     """Return unique zoo IDs visited by the authenticated user."""
-    rows = (
-        db.query(models.ZooVisit.zoo_id)
-        .filter_by(user_id=user.id)
-        .distinct()
-        .all()
-    )
+    q_visits = db.query(models.ZooVisit.zoo_id).filter_by(user_id=user.id)
+    q_sightings = db.query(models.AnimalSighting.zoo_id).filter_by(user_id=user.id)
+    rows = q_visits.union(q_sightings).all()
     ids = [z for (z,) in rows]
     response.headers["Cache-Control"] = "private, max-age=60"
     return ids

@@ -140,6 +140,20 @@ def test_visit_ids_unique(data):
     assert resp.json() == [str(zoo)]
 
 
+def test_visit_ids_include_sightings(data):
+    token, user_id = register_and_login()
+    zoo_id = data["zoo"].id
+    animal_id = data["animal"].id
+    create_sighting(token, user_id, zoo_id, animal_id)
+    db = SessionLocal()
+    db.query(models.ZooVisit).delete()
+    db.commit()
+    db.close()
+    resp = client.get("/visits/ids", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+    assert resp.json() == [str(zoo_id)]
+
+
 def test_has_visited_endpoint_true(data):
     token, user_id = register_and_login()
     zoo_id = data["zoo"].id
