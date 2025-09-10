@@ -20,9 +20,6 @@ CREATE TABLE users (
 CREATE TABLE zoos (
   id              UUID       PRIMARY KEY DEFAULT gen_random_uuid(),
   name            VARCHAR(255) NOT NULL,
-  default_label   TEXT,
-  label_en        TEXT,
-  label_de        TEXT,
   address         TEXT,
   latitude        DECIMAL(9,6),
   longitude       DECIMAL(9,6),
