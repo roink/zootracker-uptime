@@ -46,12 +46,12 @@ SPARQL_ENDPOINT = "https://query.wikidata.org/sparql"
 
 USER_AGENT = (
     "ZootierlisteBot/3.0 "
-    "(https://example.org; philipp@example.org) "
+    "(https://www.zootracker.app; contact@zootracker.app) "
     "python-httpx-async"
 )
 HEADERS = {"User-Agent": USER_AGENT}
 
-CONCURRENT_REQ = 15          # parallel HTTP requests
+CONCURRENT_REQ = 5          # parallel HTTP requests
 SPARQL_RETRIES = 4
 BASE_BACKOFF = 0.5           # seconds
 
@@ -337,6 +337,7 @@ async def main(args: argparse.Namespace) -> None:
                 iucn_conservation_status
               FROM animal
               WHERE wikidata_qid IS NOT NULL AND wikidata_qid != ''
+              AND zoo_count > 0
               ORDER BY zoo_count DESC
               """
         else:
@@ -352,6 +353,8 @@ async def main(args: argparse.Namespace) -> None:
                 iucn_conservation_status
               FROM animal
               WHERE wikidata_qid IS NOT NULL AND wikidata_qid != ''
+              AND zoo_count > 0
+              AND klasse = 6
                 AND (
                   wikipedia_en IS NULL OR wikipedia_en = '' OR
                   wikipedia_de IS NULL OR wikipedia_de = '' OR

@@ -38,9 +38,11 @@ STANDARD_SYSTEM_PROMPT = (
 
 DOMESTIC_SYSTEM_PROMPT = (
     "You craft short, engaging descriptions in German and English for zoo signage about DOMESTICATED animals or breeds. "
+    "Use accessible, simple language." 
     "Use only facts present in the supplied Wikipedia text. "
     "Make it clear that the animal is a domesticated form or specific breed of a wild ancestor when the text allows. "
     "Include at least one interesting or playful detail to keep visitors curious. "
+    "Prefer one vivid, verifiable detail (e.g., origin, typical use, famous trait)."
     "Don't mention your thoughts or these instructions. "
     "Output must be plaintext with no references like [1], hyperlinks, or HTML. "
     "Avoid lists; write 3–6 sentences that cover appearance/origin, how humans use or live with it, behavior or care, and a fun fact if available. "
