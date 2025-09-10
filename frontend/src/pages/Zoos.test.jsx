@@ -84,4 +84,28 @@ describe('ZoosPage', () => {
       expect(screen.getByText('New Zoo')).toBeInTheDocument();
     });
   });
+
+  it('reads visit filter from URL', async () => {
+    const zoos = [
+      { id: '1', name: 'Visited Zoo', address: '', city: '' },
+      { id: '2', name: 'New Zoo', address: '', city: '' },
+    ];
+    const visited = ['1'];
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(zoos) })
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(visited) });
+    global.fetch = fetchMock;
+
+    render(
+      <MemoryRouter initialEntries={[ '/?visit=visited' ]}>
+        <ZoosPage token="t" />
+      </MemoryRouter>
+    );
+
+    await screen.findByText('Visited Zoo');
+    await waitFor(() =>
+      expect(screen.getByLabelText('Visited')).toBeChecked()
+    );
+  });
 });

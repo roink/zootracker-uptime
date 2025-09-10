@@ -15,7 +15,6 @@ router = APIRouter()
 def search_zoos(
     q: str = "",
     coords: tuple[float | None, float | None] = Depends(resolve_coords),
-    radius_km: float | None = None,
     db: Session = Depends(get_db),
 ):
     """Search for zoos by name and optional distance from a point."""
@@ -26,7 +25,8 @@ def search_zoos(
             or_(models.Zoo.name.ilike(pattern), models.Zoo.city.ilike(pattern))
         )
     latitude, longitude = coords
-    results = query_zoos_with_distance(query, latitude, longitude, radius_km)
+    # Always return all zoos, ordering by distance when coordinates are provided
+    results = query_zoos_with_distance(query, latitude, longitude)
     return [
         schemas.ZooSearchResult(
             id=z.id,

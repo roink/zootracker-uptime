@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
 import Seo from '../components/Seo';
@@ -12,7 +12,11 @@ export default function ZoosPage({ token }) {
   const [visitedIds, setVisitedIds] = useState([]);
   const [query, setQuery] = useState('');
   const [region, setRegion] = useState('All');
-  const [visitFilter, setVisitFilter] = useState('all'); // all | visited | not
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [visitFilter, setVisitFilter] = useState(() => {
+    const v = searchParams.get('visit');
+    return v === 'visited' || v === 'not' ? v : 'all';
+  }); // all | visited | not
   const [visitedLoading, setVisitedLoading] = useState(true);
   // Persist user location so zoos remain sorted by distance across navigation
   const [location, setLocation] = useState(() => {
@@ -68,6 +72,23 @@ export default function ZoosPage({ token }) {
     () => new Set(visitedIds.map(String)),
     [visitedIds]
   );
+
+  useEffect(() => {
+    const v = searchParams.get('visit');
+    if (v === 'visited' || v === 'not') {
+      setVisitFilter(v);
+    } else {
+      setVisitFilter('all');
+    }
+  }, [searchParams]);
+
+  const updateVisitFilter = (v) => {
+    setVisitFilter(v);
+    const params = new URLSearchParams(searchParams);
+    if (v === 'all') params.delete('visit');
+    else params.set('visit', v);
+    setSearchParams(params);
+  };
 
   // Apply search, visit status and region filters in sequence.
   const filtered = useMemo(() => {
@@ -138,7 +159,7 @@ export default function ZoosPage({ token }) {
               id="visit-all"
               autoComplete="off"
               checked={visitFilter === 'all'}
-              onChange={() => setVisitFilter('all')}
+              onChange={() => updateVisitFilter('all')}
               disabled={visitedLoading}
             />
             <label className="btn btn-outline-primary" htmlFor="visit-all">All</label>
@@ -150,7 +171,7 @@ export default function ZoosPage({ token }) {
               id="visit-visited"
               autoComplete="off"
               checked={visitFilter === 'visited'}
-              onChange={() => setVisitFilter('visited')}
+              onChange={() => updateVisitFilter('visited')}
               disabled={visitedLoading}
             />
             <label className="btn btn-outline-primary" htmlFor="visit-visited">Visited</label>
@@ -162,7 +183,7 @@ export default function ZoosPage({ token }) {
               id="visit-not"
               autoComplete="off"
               checked={visitFilter === 'not'}
-              onChange={() => setVisitFilter('not')}
+              onChange={() => updateVisitFilter('not')}
               disabled={visitedLoading}
             />
             <label className="btn btn-outline-primary" htmlFor="visit-not">Not visited</label>
