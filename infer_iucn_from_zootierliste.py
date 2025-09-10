@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-import argparse, sqlite3, json, re, sys
+import argparse
+import json
+import re
+import sqlite3
 
 CODE_RE = re.compile(r"^\s*([A-Z]{2,3})(?:\b|-)")  # grabs LC, NT, VU, EN, CR, DD, NE, EW, EX, GEH-*
 
