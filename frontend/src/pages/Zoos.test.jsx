@@ -1,8 +1,8 @@
 import React from 'react';
 import '@testing-library/jest-dom';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { screen, waitFor, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { MemoryRouter } from 'react-router-dom';
+import { renderWithRouter } from '../test-utils/router.jsx';
 
 vi.mock('../hooks/useAuthFetch', () => ({ default: () => fetch }));
 vi.mock('../components/Seo', () => ({ default: () => null }));
@@ -26,11 +26,7 @@ describe('ZoosPage', () => {
       .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(visited) });
     global.fetch = fetchMock;
 
-    render(
-      <MemoryRouter>
-        <ZoosPage token="t" />
-      </MemoryRouter>
-    );
+    renderWithRouter(<ZoosPage token="t" />);
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(`${API}/zoos`));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(`${API}/visits/ids`));
@@ -50,11 +46,7 @@ describe('ZoosPage', () => {
       .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(visited) });
     global.fetch = fetchMock;
 
-    render(
-      <MemoryRouter>
-        <ZoosPage token="t" />
-      </MemoryRouter>
-    );
+    renderWithRouter(<ZoosPage token="t" />);
 
     // ensure items are rendered
     await screen.findByText('Visited Zoo');
@@ -97,11 +89,7 @@ describe('ZoosPage', () => {
       .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(visited) });
     global.fetch = fetchMock;
 
-    render(
-      <MemoryRouter initialEntries={[ '/?visit=visited' ]}>
-        <ZoosPage token="t" />
-      </MemoryRouter>
-    );
+    renderWithRouter(<ZoosPage token="t" />, { route: '/?visit=visited' });
 
     await screen.findByText('Visited Zoo');
     await waitFor(() =>

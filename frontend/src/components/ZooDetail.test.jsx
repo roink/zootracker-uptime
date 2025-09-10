@@ -1,7 +1,7 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { MemoryRouter } from 'react-router-dom';
+import { renderWithRouter } from '../test-utils/router.jsx';
 import ZooDetail from './ZooDetail';
 import { API } from '../api';
 vi.mock('./LazyMap', () => ({ default: () => <div data-testid="map" /> }));
@@ -40,11 +40,7 @@ describe('ZooDetail component', () => {
   });
 
   it('shows visit status and seen marker', async () => {
-    render(
-      <MemoryRouter>
-        <ZooDetail zoo={zoo} token="t" userId={userId} />
-      </MemoryRouter>
-    );
+    renderWithRouter(<ZooDetail zoo={zoo} token="t" userId={userId} />);
 
     await waitFor(() => {
       expect(screen.getByText('Visited? ☑️ Yes')).toBeInTheDocument();

@@ -11,6 +11,7 @@ import {
   Navigate,
   useLocation,
 } from "react-router-dom";
+import { routerFuture } from './routerFuture';
 
 // Base URL of the FastAPI backend. When the frontend is served on a different
 // port (e.g. via `python -m http.server`), the API won't be on the same origin
@@ -230,7 +231,7 @@ function App() {
 
   // Opt in to React Router v7 behaviors to silence future warnings
   return (
-    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <BrowserRouter future={routerFuture}>
       <AppRoutes
         token={token}
         userId={userId}
