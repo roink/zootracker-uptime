@@ -15,14 +15,12 @@ environment variable to connect.
 cp .env.example .env
 docker compose up -d db
 python -m app.create_tables
-python -m app.load_example_data
 uvicorn app.main:app --reload
 ```
 
 The API will be available at `http://localhost:8000` and the database listens on `localhost:5432`.
-These commands create the tables, enable the required `postgis` extension and
-insert sample records from `example_data/`. You can verify the connection with a
-quick Python shell:
+These commands create the tables and enable the required `postgis` extension.
+You can verify the connection with a quick Python shell:
 
 ```python
 from app.database import SessionLocal
@@ -141,11 +139,11 @@ error.
 
 ### Importing data from a SQLite dump
 
-The utility ``app/import_sqlite_data.py`` can populate the database from an
-existing SQLite dataset. Pass the dump filename directly:
+Use ``app/import_simple_sqlite_data.py`` to populate the database from a
+SQLite dataset with a minimal schema:
 
 ```bash
-python -m app.import_sqlite_data path/to/data.db
+python -m app.import_simple_sqlite_data path/to/data.db
 ```
 
 ## Production Security Notes

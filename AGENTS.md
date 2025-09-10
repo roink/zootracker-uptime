@@ -11,7 +11,7 @@ Project structure overview:
   - `src/styles/` – custom CSS loaded by `main.jsx`
 - `tests/` – pytest suite for the backend
 - `docs/` – architecture and planning documents
-- `example_data/` and `schema.sql` – demo data and database schema
+- `schema.sql` – database schema
 
 ## Running tests
 
