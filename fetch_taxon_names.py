@@ -8,7 +8,7 @@ import html
 import re
 import sqlite3
 import time
-from typing import Dict, Tuple
+from typing import Dict
 from urllib.parse import parse_qs
 
 from bs4 import BeautifulSoup
@@ -25,7 +25,7 @@ _WS_RE = re.compile(r"\s+")
 
 
 def ensure_name_tables(conn: sqlite3.Connection) -> None:
-    """Create tables for German taxon names if they do not exist."""
+    """Create simple tables for German taxon names if they do not exist."""
     cur = conn.cursor()
     cur.execute(
         """
@@ -39,10 +39,7 @@ def ensure_name_tables(conn: sqlite3.Connection) -> None:
         """
         CREATE TABLE IF NOT EXISTS ordnung_name (
             ordnung INTEGER PRIMARY KEY,
-            klasse INTEGER NOT NULL,
-            name_de TEXT,
-            FOREIGN KEY (klasse) REFERENCES klasse_name(klasse),
-            UNIQUE (klasse, ordnung)
+            name_de TEXT
         )
         """
     )
@@ -50,22 +47,8 @@ def ensure_name_tables(conn: sqlite3.Connection) -> None:
         """
         CREATE TABLE IF NOT EXISTS familie_name (
             familie INTEGER PRIMARY KEY,
-            ordnung INTEGER NOT NULL,
-            klasse INTEGER NOT NULL,
-            name_de TEXT,
-            FOREIGN KEY (ordnung) REFERENCES ordnung_name(ordnung),
-            UNIQUE (klasse, ordnung, familie)
+            name_de TEXT
         )
-        """
-    )
-    cur.execute(
-        """
-        CREATE INDEX IF NOT EXISTS ordnung_name_klasse_idx ON ordnung_name(klasse)
-        """
-    )
-    cur.execute(
-        """
-        CREATE INDEX IF NOT EXISTS familie_name_ordnung_idx ON familie_name(ordnung)
         """
     )
     conn.commit()
@@ -77,9 +60,7 @@ def _clean_label(label: str) -> str:
     return _WS_RE.sub(" ", html.unescape(label)).strip()
 
 
-def extract_names(
-    html: str,
-) -> tuple[Dict[int, str], Dict[Tuple[int, int], str], Dict[Tuple[int, int, int], str]]:
+def extract_names(html: str) -> tuple[Dict[int, str], Dict[int, str], Dict[int, str]]:
     """Extract German names for classes, orders and families from *html*."""
 
     soup = BeautifulSoup(html, "html.parser")
@@ -87,8 +68,8 @@ def extract_names(
     anchors = nav.find_all("a", href=True) if nav else soup.find_all("a", href=True)
 
     classes: Dict[int, str] = {}
-    orders: Dict[Tuple[int, int], str] = {}
-    families: Dict[Tuple[int, int, int], str] = {}
+    orders: Dict[int, str] = {}
+    families: Dict[int, str] = {}
 
     for a in anchors:
         href = a["href"]
@@ -101,14 +82,11 @@ def extract_names(
                 k = int(qs["klasse"][0])
                 classes[k] = _clean_label(a.get_text())
             elif keys == {"klasse", "ordnung"}:
-                k = int(qs["klasse"][0])
                 o = int(qs["ordnung"][0])
-                orders[(k, o)] = _clean_label(a.get_text())
+                orders[o] = _clean_label(a.get_text())
             elif keys == {"klasse", "ordnung", "familie"}:
-                k = int(qs["klasse"][0])
-                o = int(qs["ordnung"][0])
                 f = int(qs["familie"][0])
-                families[(k, o, f)] = _clean_label(a.get_text())
+                families[f] = _clean_label(a.get_text())
         except (ValueError, KeyError, IndexError):
             continue
     return classes, orders, families
@@ -156,28 +134,23 @@ def fetch_and_store_names(
                 """,
                 (k, name),
             )
-        for (k, o), name in orders.items():
+        for o, name in orders.items():
             cur.execute(
                 """
-                INSERT INTO ordnung_name (ordnung, klasse, name_de)
-                VALUES (?, ?, ?)
-                ON CONFLICT(ordnung) DO UPDATE SET
-                    klasse=excluded.klasse,
-                    name_de=excluded.name_de
+                INSERT INTO ordnung_name (ordnung, name_de)
+                VALUES (?, ?)
+                ON CONFLICT(ordnung) DO UPDATE SET name_de=excluded.name_de
                 """,
-                (o, k, name),
+                (o, name),
             )
-        for (k, o, f), name in families.items():
+        for f, name in families.items():
             cur.execute(
                 """
-                INSERT INTO familie_name (familie, ordnung, klasse, name_de)
-                VALUES (?, ?, ?, ?)
-                ON CONFLICT(familie) DO UPDATE SET
-                    ordnung=excluded.ordnung,
-                    klasse=excluded.klasse,
-                    name_de=excluded.name_de
+                INSERT INTO familie_name (familie, name_de)
+                VALUES (?, ?)
+                ON CONFLICT(familie) DO UPDATE SET name_de=excluded.name_de
                 """,
-                (f, o, k, name),
+                (f, name),
             )
         conn.commit()
     conn.close()

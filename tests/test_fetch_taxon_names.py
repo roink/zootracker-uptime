@@ -8,7 +8,7 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 from fetch_taxon_names import ensure_name_tables, extract_names
 
 
-def test_ensure_name_tables_creates_tables_and_indexes():
+def test_ensure_name_tables_creates_tables():
     conn = sqlite3.connect(":memory:")
     ensure_name_tables(conn)
     cur = conn.cursor()
@@ -16,20 +16,6 @@ def test_ensure_name_tables_creates_tables_and_indexes():
         row[0] for row in cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
     }
     assert {"klasse_name", "ordnung_name", "familie_name"} <= tables
-
-    ord_indexes = {
-        row[1] for row in cur.execute("PRAGMA index_list('ordnung_name')")
-    }
-    fam_indexes = {
-        row[1] for row in cur.execute("PRAGMA index_list('familie_name')")
-    }
-    assert "ordnung_name_klasse_idx" in ord_indexes
-    assert "familie_name_ordnung_idx" in fam_indexes
-
-    ord_fks = cur.execute("PRAGMA foreign_key_list('ordnung_name')").fetchall()
-    fam_fks = cur.execute("PRAGMA foreign_key_list('familie_name')").fetchall()
-    assert any(row[2] == "klasse_name" for row in ord_fks)
-    assert any(row[2] == "ordnung_name" for row in fam_fks)
 
 
 def test_extract_names_parses_html():
@@ -46,8 +32,8 @@ def test_extract_names_parses_html():
     """
     classes, orders, families = extract_names(html)
     assert classes == {1: "Säugetiere", 2: "Vögel"}
-    assert orders == {(1, 101): "Kloakentiere", (1, 102): "Beuteltiere"}
+    assert orders == {101: "Kloakentiere", 102: "Beuteltiere"}
     assert families == {
-        (1, 102, 10201): "Testfamilie & Co",
-        (1, 102, 10202): "Haustierrassen & Zuchtformen",
+        10201: "Testfamilie & Co",
+        10202: "Haustierrassen & Zuchtformen",
     }
