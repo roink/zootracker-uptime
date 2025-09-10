@@ -68,6 +68,9 @@ BASE_BACKOFF = 0.5  # seconds
 # Standard thumbnail widths to persist (you can adjust)
 THUMB_WIDTHS = (320, 640, 1024, 1280, 2560)
 
+# Commons MediaInfo IDs that should be skipped entirely
+SKIP_MIDS = {"M31984332", "M1723980", "M117776631", "M55041643"}
+
 # API endpoints
 WIKIDATA_API = "https://www.wikidata.org/w/api.php"
 COMMONS_API = "https://commons.wikimedia.org/w/api.php"
@@ -413,6 +416,8 @@ async def upsert_image(
     if pageid is None:
         return None
     mid = mid_from_pageid(pageid)
+    if mid in SKIP_MIDS:
+        return None
 
     commons_title = core.get("canonicaltitle") or ""
     commons_title = ensure_file_prefix(commons_title)
@@ -636,6 +641,13 @@ async def process_animal(
                 # Skip non-image files (e.g. audio, video)
                 continue
 
+            pageid = core.get("pageid")
+            if pageid is None:
+                continue
+            mid = mid_from_pageid(pageid)
+            if mid in SKIP_MIDS:
+                continue
+
             mid = await upsert_image(db, art, source, core)
             if not mid:
                 continue
@@ -699,15 +711,17 @@ async def fetch_images_without_variants(
     db: aiosqlite.Connection,
 ) -> list[tuple[str, str]]:
     """Return (mid, commons_title) for images lacking any variants."""
-    query = """
+    placeholders = ",".join("?" for _ in SKIP_MIDS)
+    query = f"""
     SELECT mid, commons_title
     FROM image
     WHERE NOT EXISTS (
         SELECT 1 FROM image_variant WHERE image_variant.mid = image.mid
     )
       AND mime LIKE 'image/%'
+      AND mid NOT IN ({placeholders})
     """
-    async with db.execute(query) as cur:
+    async with db.execute(query, tuple(SKIP_MIDS)) as cur:
         rows = await cur.fetchall()
     return rows
 
@@ -721,6 +735,8 @@ async def process_image_variants(
     """Fetch and store thumbnail variants for a single existing image."""
     async with sem:
         mid, commons_title = row
+        if mid in SKIP_MIDS:
+            return
         for w in THUMB_WIDTHS:
             try:
                 th = await commons_thumb_for_width(client, commons_title, w)
