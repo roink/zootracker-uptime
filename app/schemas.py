@@ -77,6 +77,7 @@ class AnimalRead(BaseModel):
     id: UUID
     common_name: str
     scientific_name: Optional[str] = None
+    name_de: Optional[str] = None
     zoo_count: int = 0
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")
@@ -88,6 +89,7 @@ class AnimalListItem(BaseModel):
     id: UUID
     common_name: str
     scientific_name: Optional[str] = None
+    name_de: Optional[str] = None
     category: Optional[str] = None
     description_de: Optional[str] = None
     iucn_conservation_status: Optional[str] = None
@@ -167,9 +169,11 @@ class AnimalSightingRead(BaseModel):
     id: UUID
     zoo_id: UUID
     animal_id: UUID
+    animal_name_de: Optional[str] = None
     sighting_datetime: datetime
     notes: Optional[str] = None
     photo_url: Optional[str] = None
+    created_at: datetime
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 
@@ -201,6 +205,7 @@ class AnimalDetail(BaseModel):
     id: UUID
     common_name: str
     scientific_name: Optional[str] = None
+    name_de: Optional[str] = None
     category: Optional[str] = None
     description_de: Optional[str] = None
     iucn_conservation_status: Optional[str] = None
