@@ -91,9 +91,6 @@ class Zoo(Base):
         server_default=text("gen_random_uuid()"),
     )
     name = Column(String(255), nullable=False)
-    default_label = Column(Text)
-    label_en = Column(Text)
-    label_de = Column(Text)
     address = Column(Text)
     latitude = Column(DECIMAL(9, 6))
     longitude = Column(DECIMAL(9, 6))
