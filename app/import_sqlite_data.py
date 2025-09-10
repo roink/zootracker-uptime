@@ -95,12 +95,11 @@ def _import_animals(
                 dst.add(animal)
             id_map[row["animal_id"]] = aid
             continue
-        common_name = row.get("english_label") or row.get("german_label") or art
+        name_en = row.get("english_label") or row.get("german_label") or art
         animal = models.Animal(
             id=uuid.uuid4(),
-            common_name=common_name,
             scientific_name=row.get("latin_name"),
-            name_en=row.get("english_label"),
+            name_en=name_en,
             name_de=row.get("german_label"),
             art=art,
             english_label=row.get("english_label"),

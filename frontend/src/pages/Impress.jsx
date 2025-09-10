@@ -1,9 +1,11 @@
 import Seo from '../components/Seo';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import React from 'react';
 
 // Impress page with legal information in German and English.
 export default function ImpressPage() {
+  const { lang } = useParams();
+  const prefix = `/${lang}`;
   // Structured data describing the organization for search engines.
   const orgJsonLd = {
     '@context': 'https://schema.org',
@@ -12,7 +14,7 @@ export default function ImpressPage() {
     url:
       typeof window !== 'undefined'
         ? window.location.origin
-        : 'https://zootracker.app',
+        : 'https://www.ZooTracker.app',
     email: 'contact@zootracker.app',
     vatID: 'DE455872662',
     address: {
@@ -50,7 +52,7 @@ export default function ImpressPage() {
             </address>
             <h4>Kontakt</h4>
             <p className="mb-2">
-              Kontaktformular: <Link to="/contact">über die Website (Menüpunkt „Kontakt“)</Link>
+              Kontaktformular: <Link to={`${prefix}/contact`}>über die Website (Menüpunkt „Kontakt“)</Link>
               <br />
               E-Mail: <a href="mailto:contact@zootracker.app">contact@zootracker.app</a>
             </p>
@@ -78,7 +80,7 @@ export default function ImpressPage() {
             </address>
             <h4>Contact</h4>
             <p className="mb-2">
-              Contact form: <Link to="/contact">via the website (“Contact”)</Link>
+              Contact form: <Link to={`${prefix}/contact`}>via the website (“Contact”)</Link>
               <br />
               E-mail: <a href="mailto:contact@zootracker.app">contact@zootracker.app</a>
             </p>

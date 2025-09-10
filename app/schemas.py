@@ -53,7 +53,6 @@ class ZooDetail(BaseModel):
     city: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
-    description: Optional[str] = None
     description_de: Optional[str] = None
     description_en: Optional[str] = None
     distance_km: Optional[float] = None
@@ -75,7 +74,7 @@ class ZooSearchResult(BaseModel):
 class AnimalRead(BaseModel):
     """Minimal representation of an animal."""
     id: UUID
-    common_name: str
+    name_en: str
     scientific_name: Optional[str] = None
     name_de: Optional[str] = None
     zoo_count: int = 0
@@ -87,7 +86,7 @@ class AnimalListItem(BaseModel):
     """Detailed fields returned by the animals list endpoint."""
 
     id: UUID
-    common_name: str
+    name_en: str
     scientific_name: Optional[str] = None
     name_de: Optional[str] = None
     category: Optional[str] = None
@@ -203,11 +202,12 @@ class AnimalDetail(BaseModel):
     """Detailed information about an animal including available zoos."""
 
     id: UUID
-    common_name: str
+    name_en: str
     scientific_name: Optional[str] = None
     name_de: Optional[str] = None
     category: Optional[str] = None
     description_de: Optional[str] = None
+    description_en: Optional[str] = None
     iucn_conservation_status: Optional[str] = None
     taxon_rank: Optional[str] = None
     default_image_url: Optional[str] = None

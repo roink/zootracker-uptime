@@ -35,7 +35,6 @@ CREATE TABLE zoos (
   wikipedia_en    TEXT,
   description_de  TEXT,
   description_en  TEXT,
-  description     TEXT,
   image_url       VARCHAR(512),
   animal_count    INTEGER NOT NULL DEFAULT 0 CHECK (animal_count >= 0),
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -57,7 +56,6 @@ CREATE TABLE categories (
 -- 4. Animals
 CREATE TABLE animals (
   id                 UUID       PRIMARY KEY DEFAULT gen_random_uuid(),
-  common_name        VARCHAR(255) NOT NULL,
   scientific_name    VARCHAR(255),
   category_id        UUID       NOT NULL REFERENCES categories(id),
   description        TEXT,
@@ -65,7 +63,7 @@ CREATE TABLE animals (
   description_en     TEXT,
   conservation_state TEXT,
   name_fallback      TEXT,
-  name_en            TEXT,
+  name_en            VARCHAR(255) NOT NULL,
   name_de            TEXT,
   art                TEXT,
   english_label      TEXT,

@@ -53,6 +53,16 @@ This uses `requirements.txt` which must list all Python packages like `fastapi` 
 - Frontend: `npm --prefix frontend ci && npm --prefix frontend run lint`
 
 
+## Translations
+
+All user-facing strings in the frontend live in `frontend/src/locales/<lang>/common.json`. When adding new UI text:
+
+- Add keys to both the English and German files with descriptive names (e.g. `actions.logSighting`).
+- Use `useTranslation` and `t()` in components instead of hardcoded strings.
+- Update documentation if necessary and run the tests and linters.
+
+See `docs/i18n.md` for more details on the translation workflow.
+
 ## Frontend overlays
 
 A generic modal layout is provided in `frontend/src/styles/app.css` using the

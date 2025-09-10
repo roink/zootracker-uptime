@@ -80,6 +80,10 @@ VITE_MAP_STYLE_URL=https://tiles.openfreemap.org/styles/liberty
 
 If unset the frontend falls back to the OpenFreeMap "liberty" tiles.
 
+### Internationalization
+
+The frontend supports English and German. Routes are prefixed with the language code (e.g. `/en/animals`). Translations live in `frontend/src/locales`. See [docs/i18n.md](docs/i18n.md) for details on adding or updating strings.
+
 ### Authentication
 
 The `/auth/login` endpoint includes the authenticated user’s `user_id` in the
@@ -117,7 +121,7 @@ is missing. Rate-limited responses include `X-RateLimit-Remaining` and
 `GET /animals` now returns detailed animal information including scientific
 name, category and image URL. The endpoint accepts `limit` and `offset`
 parameters for pagination so clients can request results in smaller batches.
-Results are sorted by common name for stable paging and can be further
+Results are sorted by English name for stable paging and can be further
 filtered by `q` and an optional `category` name. `limit` must be between 1 and
 100 and `offset` cannot be negative:
 
@@ -125,7 +129,7 @@ filtered by `q` and an optional `category` name. `limit` must be between 1 and
 GET /animals?limit=20&offset=0
 ```
 
-Providing a search query via `q` filters the results by common name. Each page
+Providing a search query via `q` filters the results by English or German name. Each page
 contains at most `limit` records and an empty response indicates there are no
 more animals.
 

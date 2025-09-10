@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { API } from '../api';
 import Seo from '../components/Seo';
 
@@ -11,6 +11,8 @@ function useQuery() {
 
 export default function SearchPage() {
   const navigate = useNavigate();
+  const { lang } = useParams();
+  const prefix = `/${lang}`;
   const query = useQuery().get('q') || '';
   const [zoos, setZoos] = useState([]);
   const [animals, setAnimals] = useState([]);
@@ -36,7 +38,7 @@ export default function SearchPage() {
       <ul>
         {zoos.map((z) => (
           <li key={z.id}>
-            <button onClick={() => navigate(`/zoos/${z.id}`)}>
+            <button onClick={() => navigate(`${prefix}/zoos/${z.id}`)}>
               {z.city ? `${z.city}: ${z.name}` : z.name}
             </button>
           </li>
@@ -46,8 +48,8 @@ export default function SearchPage() {
       <ul>
         {animals.map((a) => (
           <li key={a.id}>
-            <button onClick={() => navigate(`/animals/${a.id}`)}>
-              {a.common_name}
+            <button onClick={() => navigate(`${prefix}/animals/${a.id}`)}>
+              {lang === 'de' ? a.name_de || a.name_en : a.name_en || a.name_de}
             </button>
           </li>
         ))}

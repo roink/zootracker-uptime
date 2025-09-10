@@ -106,15 +106,14 @@ def _import_animals(
             continue
         if not row.get("latin_name") or not row.get("name_de"):
             logger.warning("Animal %s missing latin or German name", art)
-        common_name = row.get("name_de") or row.get("latin_name") or art
+        name_en = row.get("name_en") or row.get("latin_name") or art
         aid = uuid.uuid4()
         animals.append(
             models.Animal(
                 id=aid,
-                common_name=common_name,
                 scientific_name=row.get("latin_name"),
                 name_de=row.get("name_de"),
-                name_en=row.get("name_en"),
+                name_en=name_en,
                 latin_name=row.get("latin_name"),
                 art=art,
                 klasse=row.get("klasse"),

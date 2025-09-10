@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { API } from '../api';
 import Seo from '../components/Seo';
 
@@ -7,6 +7,8 @@ import Seo from '../components/Seo';
 export default function LoginPage({ email, onLoggedIn, onSignedUp }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { lang } = useParams();
+  const prefix = `/${lang}`;
   // State for the login form
   const [inputEmail, setInputEmail] = useState(email || '');
   const [password, setPassword] = useState('');
@@ -68,7 +70,7 @@ export default function LoginPage({ email, onLoggedIn, onSignedUp }) {
         if (onLoggedIn) {
           onLoggedIn(data.access_token, data.user_id, cleanEmail);
         }
-        navigate('/', { replace: true });
+        navigate(prefix, { replace: true });
       } else {
         alert('Login failed');
       }

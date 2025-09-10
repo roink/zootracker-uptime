@@ -17,7 +17,8 @@ def to_zoodetail(z: models.Zoo, dist: float | None) -> schemas.ZooDetail:
         city=z.city,
         latitude=float(z.latitude) if z.latitude is not None else None,
         longitude=float(z.longitude) if z.longitude is not None else None,
-        description=z.description,
+        description_de=z.description_de,
+        description_en=z.description_en,
         distance_km=dist,
     )
 
@@ -52,13 +53,18 @@ def list_animals(
 
     if q:
         pattern = f"%{q}%"
-        query = query.filter(models.Animal.common_name.ilike(pattern))
+        query = query.filter(
+            or_(
+                models.Animal.name_en.ilike(pattern),
+                models.Animal.name_de.ilike(pattern),
+            )
+        )
 
     if category:
         query = query.filter(models.Category.name == category)
 
     animals = (
-        query.order_by(models.Animal.common_name)
+        query.order_by(models.Animal.name_en)
         .offset(offset)
         .limit(limit)
         .all()
@@ -67,7 +73,7 @@ def list_animals(
     return [
         schemas.AnimalListItem(
             id=a.id,
-            common_name=a.common_name,
+            name_en=a.name_en,
             scientific_name=a.scientific_name,
             name_de=a.name_de,
             category=a.category.name if a.category else None,
@@ -94,7 +100,12 @@ def combined_search(q: str = "", limit: int = 5, db: Session = Depends(get_db)):
     animal_q = db.query(models.Animal)
     if q:
         pattern = f"%{q}%"
-        animal_q = animal_q.filter(models.Animal.common_name.ilike(pattern))
+        animal_q = animal_q.filter(
+            or_(
+                models.Animal.name_en.ilike(pattern),
+                models.Animal.name_de.ilike(pattern),
+            )
+        )
     animals = animal_q.limit(limit).all()
 
     return {"zoos": zoos, "animals": animals}
@@ -135,7 +146,8 @@ def get_animal_detail(
                 models.Zoo.city,
                 models.Zoo.latitude,
                 models.Zoo.longitude,
-                models.Zoo.description,
+                models.Zoo.description_de,
+                models.Zoo.description_en,
             )
         )
         .join(models.ZooAnimal, models.Zoo.id == models.ZooAnimal.zoo_id)
@@ -169,11 +181,12 @@ def get_animal_detail(
 
     return schemas.AnimalDetail(
         id=animal.id,
-        common_name=animal.common_name,
+        name_en=animal.name_en,
         scientific_name=animal.scientific_name,
         name_de=animal.name_de,
         category=animal.category.name if animal.category else None,
         description_de=animal.description_de,
+        description_en=animal.description_en,
         iucn_conservation_status=animal.conservation_state,
         taxon_rank=animal.taxon_rank,
         default_image_url=animal.default_image_url,

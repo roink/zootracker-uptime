@@ -146,7 +146,7 @@ def test_import_sqlite(monkeypatch, tmp_path):
         assert zoo.label_de == "Berliner Zoo"
         assert zoo.default_label == "Zoo Berlin"
         lion = db.query(models.Animal).filter_by(scientific_name="Panthera leo").one()
-        assert lion.common_name == "Lion"
+        assert lion.name_en == "Lion"
         assert lion.art == "Lion"
         assert lion.english_label == "Lion"
         assert lion.german_label == "Löwe"

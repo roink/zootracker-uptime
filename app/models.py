@@ -108,7 +108,6 @@ class Zoo(Base):
     wikipedia_en = Column(Text)
     description_de = Column(Text)
     description_en = Column(Text)
-    description = Column(Text)
     image_url = Column(String(512))
     animal_count = Column(Integer, nullable=False, default=0, server_default="0")
     created_at = Column(
@@ -248,7 +247,6 @@ class Animal(Base):
         default=uuid.uuid4,
         server_default=text("gen_random_uuid()"),
     )
-    common_name = Column(String(255), nullable=False)
     scientific_name = Column(String(255))
     category_id = Column(
         UUID(as_uuid=True), ForeignKey("categories.id"), nullable=False
@@ -258,7 +256,7 @@ class Animal(Base):
     description_en = Column(Text)
     conservation_state = Column(Text)
     name_fallback = Column(Text)
-    name_en = Column(Text)
+    name_en = Column(String(255), nullable=False)
     name_de = Column(Text)
     art = Column(Text)
     english_label = Column(Text)
@@ -409,7 +407,7 @@ class AnimalSighting(Base):
         return (
             self.animal.name_de
             or self.animal.german_label
-            or self.animal.common_name
+            or self.animal.name_en
         )
 
 

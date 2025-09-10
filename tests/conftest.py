@@ -82,7 +82,7 @@ def seed_data():
         address="123 Zoo St",
         latitude=10.0,
         longitude=20.0,
-        description="A fun place",
+        description_en="A fun place",
         description_de="Ein lustiger Ort",
         city="Metropolis",
     )
@@ -95,7 +95,7 @@ def seed_data():
         address="456 Distant Rd",
         latitude=50.0,
         longitude=60.0,
-        description="Too far away",
+        description_en="Too far away",
         description_de="Zu weit entfernt",
         city="Remoteville",
     )
@@ -104,22 +104,27 @@ def seed_data():
     db.refresh(far_zoo)
 
     animal = models.Animal(
-        common_name="Lion",
+        name_en="Lion",
         scientific_name="Panthera leo",
         category_id=mammal.id,
         default_image_url="http://example.com/lion.jpg",
+        name_de="L\u00f6we",
+        description_en="King of the jungle",
+        description_de="K\u00f6nig der Tiere",
     )
     tiger = models.Animal(
-        common_name="Tiger",
+        name_en="Tiger",
         scientific_name="Panthera tigris",
         category_id=mammal.id,
         default_image_url="http://example.com/tiger.jpg",
+        name_de="Tiger",
     )
     eagle = models.Animal(
-        common_name="Eagle",
+        name_en="Eagle",
         scientific_name="Aquila chrysaetos",
         category_id=bird.id,
         default_image_url="http://example.com/eagle.jpg",
+        name_de="Adler",
     )
     db.add_all([animal, tiger, eagle])
     db.commit()

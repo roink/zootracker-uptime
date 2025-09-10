@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
 import SightingModal from './SightingModal';
@@ -13,8 +14,19 @@ export default function ZooDetail({ zoo, token, userId, refresh, onLogged }) {
   const [seenIds, setSeenIds] = useState(new Set());
   const [modalData, setModalData] = useState(null);
   const navigate = useNavigate();
+  const { lang } = useParams();
+  const prefix = `/${lang}`;
+  const { t } = useTranslation();
   const authFetch = useAuthFetch(token);
   const [descExpanded, setDescExpanded] = useState(false); // track full description visibility
+  // Helper: pick animal name in current language
+  const getAnimalName = useCallback(
+    (a) =>
+      lang === 'de'
+        ? a.name_de || a.name_en
+        : a.name_en || a.name_de,
+    [lang]
+  );
 
   // Load animals in this zoo (server already returns popularity order;
   // keep client-side sort as a fallback for robustness)
@@ -50,8 +62,9 @@ export default function ZooDetail({ zoo, token, userId, refresh, onLogged }) {
       .then((ids) => setSeenIds(new Set(ids)))
       .catch(() => setSeenIds(new Set()));
   }, [token, userId, authFetch, refresh]);
-  // prefer German description from backend when available
-  const zooDescription = zoo.description_de || zoo.description;
+  // pick description based on current language with fallback to generic text
+  const zooDescription =
+    lang === 'de' ? zoo.description_de : zoo.description_en;
   const MAX_DESC = 400; // collapse threshold
   const needsCollapse = zooDescription && zooDescription.length > MAX_DESC;
 
@@ -74,7 +87,7 @@ export default function ZooDetail({ zoo, token, userId, refresh, onLogged }) {
       {zooDescription && (
         <div className="card mt-3">
           <div className="card-body">
-            <h5 className="card-title">Beschreibung</h5>
+            <h5 className="card-title">{t('zoo.description')}</h5>
             {needsCollapse ? (
               <>
                 {!descExpanded && (
@@ -97,7 +110,7 @@ export default function ZooDetail({ zoo, token, userId, refresh, onLogged }) {
                   aria-controls="zoo-desc-full"
                   onClick={() => setDescExpanded((v) => !v)}
                 >
-                  {descExpanded ? 'Weniger anzeigen' : 'Mehr anzeigen'}
+                  {descExpanded ? t('zoo.showLess') : t('zoo.showMore')}
                 </button>
               </>
             ) : (
@@ -106,14 +119,16 @@ export default function ZooDetail({ zoo, token, userId, refresh, onLogged }) {
           </div>
         </div>
       )}
-      <div className="mt-2">Visited? {visited ? '☑️ Yes' : '✘ No'}</div>
+      <div className="mt-2">
+        {t('zoo.visited')} {visited ? `☑️ ${t('zoo.yes')}` : `✘ ${t('zoo.no')}`}
+      </div>
       {/* visit logging removed - visits are created automatically from sightings */}
-      <h4 className="mt-3">Animals</h4>
+      <h4 className="mt-3">{t('zoo.animals')}</h4>
       <table className="table">
         <thead>
           <tr>
-            <th align="left">Name</th>
-            <th className="text-center">Seen?</th>
+            <th align="left">{t('zoo.name')}</th>
+            <th className="text-center">{t('zoo.seen')}</th>
             <th className="text-center"></th>
           </tr>
         </thead>
@@ -122,17 +137,17 @@ export default function ZooDetail({ zoo, token, userId, refresh, onLogged }) {
             <tr
               key={a.id}
               className="pointer-row"
-              onClick={() => navigate(`/animals/${a.id}`)}
+              onClick={() => navigate(`${prefix}/animals/${a.id}`)}
               tabIndex="0"
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
-                  navigate(`/animals/${a.id}`);
+                  navigate(`${prefix}/animals/${a.id}`);
                 }
               }}
             >
               <td>
-                <div>{a.common_name}</div>
+                <div>{getAnimalName(a)}</div>
                 {a.scientific_name && (
                   <div className="fst-italic small">{a.scientific_name}</div>
                 )}
@@ -144,14 +159,14 @@ export default function ZooDetail({ zoo, token, userId, refresh, onLogged }) {
                   onClick={(e) => {
                     e.stopPropagation();
                     if (!token) {
-                      navigate('/login');
+                      navigate(`${prefix}/login`);
                       return;
                     }
                     setModalData({
                       zooId: zoo.id,
                       zooName: zoo.name,
                       animalId: a.id,
-                      animalName: a.common_name,
+                      animalName: getAnimalName(a),
                     });
                   }}
                 >

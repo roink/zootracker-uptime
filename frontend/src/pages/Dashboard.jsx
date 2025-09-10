@@ -3,7 +3,8 @@ import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-quer
 import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
 import SightingModal from '../components/SightingModal';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import Seo from '../components/Seo';
 
 // User dashboard showing recent visits, sightings and badges. Includes
@@ -11,9 +12,12 @@ import Seo from '../components/Seo';
 export default function Dashboard({ token, userId, refresh, onUpdate }) {
   const [modalData, setModalData] = useState(null);
   const navigate = useNavigate();
+  const { lang } = useParams();
+  const prefix = `/${lang}`;
   const authFetch = useAuthFetch(token);
   const queryClient = useQueryClient();
   const uid = userId || localStorage.getItem('userId');
+  const { t } = useTranslation();
 
   // Refetch dashboard data when refresh counter changes
   useEffect(() => {
@@ -109,7 +113,11 @@ export default function Dashboard({ token, userId, refresh, onUpdate }) {
   const animals = useMemo(() => Object.values(animalMap), [animalMap]);
 
   const zooName = (id) => zooMap[id]?.name || id;
-  const animalName = (id) => animalMap[id]?.common_name || id;
+  const animalName = (id) => {
+    const a = animalMap[id];
+    if (!a) return id;
+    return lang === 'de' ? a.name_de || a.name_en : a.name_en || a.name_de;
+  };
 
   const refreshing =
     zoosFetching ||
@@ -218,13 +226,13 @@ export default function Dashboard({ token, userId, refresh, onUpdate }) {
           className="btn btn-secondary me-2"
           onClick={() => {
             if (!token) {
-              navigate('/login');
+              navigate(`${prefix}/login`);
               return;
             }
             setModalData({});
           }}
         >
-          Log Sighting
+          {t('actions.logSighting')}
         </button>
       </div>
       {modalData && (
