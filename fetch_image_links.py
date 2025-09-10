@@ -9,7 +9,12 @@ Build an image dataset for animals from Wikidata (P18) and Wikipedia lead images
     - image_variant (direct Wikimedia thumbnail URLs for a standard set of widths)
 
 Selection:
-    Process all animals with klasse < 6 AND zoo_count > 0, ordered by zoo_count DESC.
+    Process all animals with klasse < 6 AND zoo_count > 0 that don't yet have images,
+    ordered by zoo_count DESC.
+
+Additionally, for any existing image lacking thumbnail variants, the script will
+retrieve the standard set of thumbnail widths and store them in the
+`image_variant` table.
 
 Sources (no downloads performed):
     1) Wikidata P18 for each row with a wikidata_qid
@@ -661,6 +666,7 @@ async def ensure_tables(db: aiosqlite.Connection) -> None:
 
 
 async def fetch_animals(db: aiosqlite.Connection) -> list[tuple[Any, ...]]:
+    """Return animals eligible for image harvesting that lack any images."""
     query = """
     SELECT
         art,
@@ -673,11 +679,57 @@ async def fetch_animals(db: aiosqlite.Connection) -> list[tuple[Any, ...]]:
     FROM animal
     WHERE (klasse IS NULL OR klasse < 6)
       AND zoo_count > 0
+      AND NOT EXISTS (
+          SELECT 1 FROM image WHERE image.animal_art = animal.art
+      )
     ORDER BY zoo_count DESC
     """
     async with db.execute(query) as cur:
         rows = await cur.fetchall()
     return rows
+
+
+async def fetch_images_without_variants(
+    db: aiosqlite.Connection,
+) -> list[tuple[str, str]]:
+    """Return (mid, commons_title) for images lacking any variants."""
+    query = """
+    SELECT mid, commons_title
+    FROM image
+    WHERE NOT EXISTS (
+        SELECT 1 FROM image_variant WHERE image_variant.mid = image.mid
+    )
+    """
+    async with db.execute(query) as cur:
+        rows = await cur.fetchall()
+    return rows
+
+
+async def process_image_variants(
+    db: aiosqlite.Connection,
+    client: httpx.AsyncClient,
+    sem: asyncio.Semaphore,
+    row: tuple[str, str],
+) -> None:
+    """Fetch and store thumbnail variants for a single existing image."""
+    async with sem:
+        mid, commons_title = row
+        for w in THUMB_WIDTHS:
+            try:
+                th = await commons_thumb_for_width(client, commons_title, w)
+                if not th or not th.get("thumb_url"):
+                    continue
+                await upsert_variant(
+                    db,
+                    mid,
+                    th.get("thumb_width") or w,
+                    th.get("thumb_height") or 0,
+                    th["thumb_url"],
+                )
+            except Exception as e:
+                print(f"[WARN] thumb {w}px for {commons_title} failed: {e}")
+        await db.commit()
+        print(f"[OK]   {commons_title} ({mid}) variants")
 
 
 async def main(args: argparse.Namespace) -> None:
@@ -695,6 +747,15 @@ async def main(args: argparse.Namespace) -> None:
         for i in range(0, len(rows), BATCH):
             batch = rows[i : i + BATCH]
             await asyncio.gather(*(process_animal(db, client, sem, r) for r in batch))
+
+        images = await fetch_images_without_variants(db)
+        if images:
+            print(f"Fetching variants for {len(images)} existing images…")
+            for i in range(0, len(images), BATCH):
+                batch = images[i : i + BATCH]
+                await asyncio.gather(
+                    *(process_image_variants(db, client, sem, r) for r in batch)
+                )
 
         print("Finished.")
 
