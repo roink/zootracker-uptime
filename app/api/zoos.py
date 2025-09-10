@@ -5,7 +5,6 @@ import uuid
 
 from .. import schemas, models
 from ..database import get_db
-from ..config import RADIUS_KM_DEFAULT
 from ..utils.geometry import query_zoos_with_distance
 from ..auth import get_current_user
 from .deps import resolve_coords
@@ -16,7 +15,7 @@ router = APIRouter()
 def search_zoos(
     q: str = "",
     coords: tuple[float | None, float | None] = Depends(resolve_coords),
-    radius_km: float = RADIUS_KM_DEFAULT,
+    radius_km: float | None = None,
     db: Session = Depends(get_db),
 ):
     """Search for zoos by name and optional distance from a point."""

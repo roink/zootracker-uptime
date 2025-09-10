@@ -59,6 +59,9 @@ describe('ZoosPage', () => {
     // ensure items are rendered
     await screen.findByText('Visited Zoo');
     await screen.findByText('New Zoo');
+    await waitFor(() =>
+      expect(screen.getByLabelText('Visited')).not.toBeDisabled()
+    );
 
     // show only visited zoos
     fireEvent.click(screen.getByLabelText('Visited'));

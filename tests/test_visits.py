@@ -1,4 +1,5 @@
 from datetime import datetime, date, UTC
+from uuid import UUID
 from .conftest import client, register_and_login
 from app.database import SessionLocal
 from app import models
@@ -19,6 +20,21 @@ def create_sighting(token, user_id, zoo_id, animal_id, dt=None):
     )
     assert resp.status_code == 200
     return resp.json(), dt.date()
+
+
+def create_visit(token, user_id, zoo_id, vdate=None):
+    """Helper to insert a visit record for the user."""
+    vdate = vdate or date.today()
+    db = SessionLocal()
+    visit = models.ZooVisit(
+        user_id=UUID(str(user_id)),
+        zoo_id=UUID(str(zoo_id)),
+        visit_date=vdate,
+    )
+    db.add(visit)
+    db.commit()
+    db.close()
+    return vdate
 
 
 def _count_visits(token):
@@ -149,6 +165,17 @@ def test_visit_ids_include_sightings(data):
     db.query(models.ZooVisit).delete()
     db.commit()
     db.close()
+    resp = client.get("/visits/ids", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+    assert resp.json() == [str(zoo_id)]
+
+
+def test_visit_ids_dedup_across_visits_and_sightings(data):
+    token, user_id = register_and_login()
+    zoo_id = data["zoo"].id
+    animal_id = data["animal"].id
+    create_visit(token, user_id, zoo_id)
+    create_sighting(token, user_id, zoo_id, animal_id)
     resp = client.get("/visits/ids", headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code == 200
     assert resp.json() == [str(zoo_id)]

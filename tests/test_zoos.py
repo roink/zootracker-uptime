@@ -39,6 +39,19 @@ def test_search_zoos_with_radius(data):
     assert dists == sorted(dists)
     assert any(z["city"] == "Metropolis" for z in body)
 
+
+def test_search_zoos_without_radius_returns_all(data):
+    """Supplying coordinates without a radius should return all zoos."""
+    params = {
+        "latitude": data["zoo"].latitude,
+        "longitude": data["zoo"].longitude,
+    }
+    resp = client.get("/zoos", params=params)
+    assert resp.status_code == 200
+    ids = {z["id"] for z in resp.json()}
+    assert str(data["zoo"].id) in ids
+    assert str(data["far_zoo"].id) in ids
+
 def test_search_zoos_name_only(data):
     """Name search should work without location parameters."""
     resp = client.get("/zoos", params={"q": "Central"})

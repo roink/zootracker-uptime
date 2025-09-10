@@ -13,6 +13,7 @@ export default function ZoosPage({ token }) {
   const [query, setQuery] = useState('');
   const [region, setRegion] = useState('All');
   const [visitFilter, setVisitFilter] = useState('all'); // all | visited | not
+  const [visitedLoading, setVisitedLoading] = useState(true);
   // Persist user location so zoos remain sorted by distance across navigation
   const [location, setLocation] = useState(() => {
     const stored = sessionStorage.getItem('userLocation');
@@ -51,11 +52,16 @@ export default function ZoosPage({ token }) {
   }, []);
 
   useEffect(() => {
-    if (!token) return;
+    if (!token) {
+      setVisitedLoading(false);
+      return;
+    }
+    setVisitedLoading(true);
     authFetch(`${API}/visits/ids`)
       .then((r) => (r.ok ? r.json() : []))
       .then(setVisitedIds)
-      .catch(() => setVisitedIds([]));
+      .catch(() => setVisitedIds([]))
+      .finally(() => setVisitedLoading(false));
   }, [token, authFetch]);
 
   const visitedSet = useMemo(
@@ -116,8 +122,15 @@ export default function ZoosPage({ token }) {
           </select>
         </div>
         <div className="col-md-4 mb-2">
-          {/* Visit filter: show all, only visited, or only not visited zoos */}
-          <div className="btn-group w-100" role="group" aria-label="Visit filter">
+          {
+            // Visit filter: show all, only visited, or only not visited zoos
+          }
+          <fieldset
+            className="btn-group w-100"
+            role="group"
+            aria-label="Visit filter"
+          >
+            <legend className="visually-hidden">Visit filter</legend>
             <input
               type="radio"
               className="btn-check"
@@ -126,6 +139,7 @@ export default function ZoosPage({ token }) {
               autoComplete="off"
               checked={visitFilter === 'all'}
               onChange={() => setVisitFilter('all')}
+              disabled={visitedLoading}
             />
             <label className="btn btn-outline-primary" htmlFor="visit-all">All</label>
 
@@ -137,6 +151,7 @@ export default function ZoosPage({ token }) {
               autoComplete="off"
               checked={visitFilter === 'visited'}
               onChange={() => setVisitFilter('visited')}
+              disabled={visitedLoading}
             />
             <label className="btn btn-outline-primary" htmlFor="visit-visited">Visited</label>
 
@@ -148,9 +163,17 @@ export default function ZoosPage({ token }) {
               autoComplete="off"
               checked={visitFilter === 'not'}
               onChange={() => setVisitFilter('not')}
+              disabled={visitedLoading}
             />
             <label className="btn btn-outline-primary" htmlFor="visit-not">Not visited</label>
-          </div>
+          </fieldset>
+          {visitFilter !== 'all' && visitedLoading && (
+            <div
+              className="spinner-border spinner-border-sm text-primary ms-2"
+              role="status"
+              aria-label="Loading visited"
+            />
+          )}
         </div>
       </div>
       <div className="list-group">
