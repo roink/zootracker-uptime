@@ -1,122 +1,110 @@
 #!/usr/bin/env python3
-"""
-Infer IUCN conservation status from German 'Gefährdungsstatus' JSON field.
+import argparse, sqlite3, json, re, sys
 
-- Only fills rows where iucn_conservation_status is NULL or empty.
-- Uses exact string mapping (do not change formatting).
-- Tries a single SQL UPDATE using JSON1; falls back to Python per-row updates
-  if JSON1 functions are unavailable.
+CODE_RE = re.compile(r"^\s*([A-Z]{2,3})(?:\b|-)")  # grabs LC, NT, VU, EN, CR, DD, NE, EW, EX, GEH-*
 
-Usage:
-  python infer_iucn_from_zootierliste.py path/to/db.sqlite \
-      --table animals \
-      --desc-col zootierliste_description \
-      --iucn-col iucn_conservation_status
-"""
-import argparse, sqlite3, json
-
-MAPPING = {
-    "LC (nicht gefährdet)": "Least Concern",
-    "VU (gefährdet)": "Vulnerable",
-    "EN (stark gefährdet)": "Endangered status",
-    "NT (gering gefährdet)": "Near Threatened",
-    "CR (vom Aussterben bedroht)": "Critically Endangered",
-    "DD (Daten unzureichend)": "Data Deficient",
-    "EW (in freier Natur ausgestorben)": "extinct in the wild",
+# Map strictly to existing strings in your DB (exact casing/spelling)
+IUCN_MAP = {
+    "LC": "Least Concern",
+    "NT": "Near Threatened",
+    "VU": "Vulnerable",
+    "EN": "Endangered status",      # note: unusual label, but matches your DB
+    "CR": "Critically Endangered",
+    "DD": "Data Deficient",
+    "EW": "extinct in the wild",
+    "EX": "extinct species",
+    # "NE":  (Not Evaluated) -> intentionally skipped to avoid introducing new value
 }
 
-def try_sql_update(con, table, desc_col, iucn_col):
-    """
-    Fast path: single SQL UPDATE using JSON1.
-    Returns number of rows updated, or raises OperationalError if JSON1 missing.
-    """
-    placeholders_g = ",".join(["?"] * len(MAPPING))
-    # Build CASE WHEN ... THEN ... using parameters
-    case_parts = []
-    params = []
-    for g, e in MAPPING.items():
-        case_parts.append("WHEN TRIM(json_extract({dc}, '$.Gefährdungsstatus')) = ? THEN ?".format(dc=desc_col))
-        params.extend([g, e])
-    case_sql = " ".join(case_parts)
+SKIP_CODES = {"NE", "GEH"}  # NE (Not Evaluated) + German Red List buckets (GEH-*)
 
-    sql = f"""
-    UPDATE {table}
-    SET {iucn_col} = CASE
-        {case_sql}
-        ELSE {iucn_col}
-    END
-    WHERE ({iucn_col} IS NULL OR TRIM({iucn_col}) = '')
-      AND json_valid({desc_col})
-      AND TRIM(json_extract({desc_col}, '$.Gefährdungsstatus')) IN ({placeholders_g})
-    """
-    params.extend(list(MAPPING.keys()))
-    cur = con.cursor()
-    cur.execute(sql, params)
-    con.commit()
-    return cur.rowcount if cur.rowcount is not None else 0
-
-def python_fallback_update(con, table, desc_col, iucn_col):
-    """
-    Safe fallback if JSON1 is unavailable: parse JSON in Python, row by row.
-    """
-    cur = con.cursor()
-    cur.execute(f"""
-        SELECT rowid, {desc_col}
-        FROM {table}
-        WHERE {iucn_col} IS NULL OR TRIM({iucn_col}) = ''
-    """)
-    rows = cur.fetchall()
-    updates = []
-    stats = {k: 0 for k in MAPPING.keys()}
-
-    for rowid, desc_text in rows:
-        if not isinstance(desc_text, str) or not desc_text.strip():
-            continue
-        try:
-            data = json.loads(desc_text)
-        except Exception:
-            continue
-        g = data.get("Gefährdungsstatus")
-        if not g:
-            continue
-        g = str(g).strip()
-        e = MAPPING.get(g)
-        if e:
-            updates.append((e, rowid))
-            stats[g] += 1
-
-    if updates:
-        cur.executemany(f"UPDATE {table} SET {iucn_col} = ? WHERE rowid = ?", updates)
-        con.commit()
-
-    return sum(stats.values()), stats
+def find_primary_key(cur, table):
+    cur.execute(f"PRAGMA table_info({table})")
+    cols = cur.fetchall()
+    # cols: cid, name, type, notnull, dflt_value, pk
+    for _cid, name, _type, _notnull, _dflt, pk in cols:
+        if pk:  # first column with pk flag
+            return name
+    # Fallback to rowid if no explicit PK (works unless table was created WITHOUT ROWID)
+    return "rowid"
 
 def main():
-    ap = argparse.ArgumentParser()
+    ap = argparse.ArgumentParser(description="Fill missing IUCN statuses from German 'Gefährdungsstatus' JSON.")
     ap.add_argument("db", help="Path to SQLite database")
     ap.add_argument("--table", default="animal", help="Table name (default: animal)")
     ap.add_argument("--desc-col", default="zootierliste_description",
                     help="JSON text column (default: zootierliste_description)")
     ap.add_argument("--iucn-col", default="iucn_conservation_status",
                     help="IUCN status column (default: iucn_conservation_status)")
+    ap.add_argument("--dry-run", action="store_true", help="Show what would change without writing")
     args = ap.parse_args()
 
     con = sqlite3.connect(args.db)
+    cur = con.cursor()
+    pk_col = find_primary_key(cur, args.table)
 
-    # First try the fast JSON1 UPDATE; if JSON1 is missing, fall back.
-    try:
-        updated = try_sql_update(con, args.table, args.desc_col, args.iucn_col)
-        print(f"Updated rows (JSON1 fast path): {updated}")
-    except sqlite3.OperationalError as e:
-        # Likely: "no such function: json_extract" or similar
-        print(f"JSON1 not available ({e}); using Python fallback…")
-        updated, per_key = python_fallback_update(con, args.table, args.desc_col, args.iucn_col)
-        print(f"Updated rows (Python fallback): {updated}")
-        if updated:
-            print("Breakdown by 'Gefährdungsstatus':")
-            for g, cnt in per_key.items():
-                if cnt:
-                    print(f"  {g}  →  {MAPPING[g]} : {cnt}")
+    # Select only rows where the IUCN column is NULL or empty/whitespace
+    cur.execute(f"""
+        SELECT {pk_col}, {args.desc_col}
+        FROM {args.table}
+        WHERE {args.iucn_col} IS NULL OR TRIM({args.iucn_col}) = ''
+    """)
+
+    to_update = []
+    skipped_ne_or_geh = 0
+    skipped_no_match = 0
+    malformed_json = 0
+
+    for pk, desc_text in cur.fetchall():
+        if not isinstance(desc_text, str) or not desc_text.strip():
+            skipped_no_match += 1
+            continue
+        try:
+            data = json.loads(desc_text)
+        except Exception:
+            malformed_json += 1
+            continue
+
+        g = data.get("Gefährdungsstatus")
+        if not g or not isinstance(g, str):
+            skipped_no_match += 1
+            continue
+
+        m = CODE_RE.match(g)
+        if not m:
+            skipped_no_match += 1
+            continue
+
+        code = m.group(1)
+        # Normalize GEH-* to GEH
+        if code.startswith("GEH"):
+            code = "GEH"
+
+        if code in SKIP_CODES:
+            skipped_ne_or_geh += 1
+            continue
+
+        mapped = IUCN_MAP.get(code)
+        if mapped:
+            to_update.append((mapped, pk))
+        else:
+            # Unknown/unsupported code — skip
+            skipped_no_match += 1
+
+    print(f"Rows to update: {len(to_update)}")
+    print(f"Skipped NE/GEH: {skipped_ne_or_geh}")
+    print(f"Skipped (no/unknown match): {skipped_no_match}")
+    print(f"Malformed JSON: {malformed_json}")
+
+    if not args.dry_run and to_update:
+        cur.executemany(
+            f"UPDATE {args.table} SET {args.iucn_col} = ? WHERE {pk_col} = ?",
+            to_update
+        )
+        con.commit()
+        print(f"Updated {cur.rowcount} rows.")
+    elif args.dry_run:
+        print("Dry-run mode: no changes written.")
 
     con.close()
 
