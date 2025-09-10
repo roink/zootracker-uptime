@@ -16,7 +16,7 @@ describe('ZooDetail component', () => {
       if (url.endsWith(`/zoos/${zoo.id}/animals`)) {
         return Promise.resolve({
           ok: true,
-          json: () => Promise.resolve([{ id: animalId, common_name: 'Lion' }]),
+          json: () => Promise.resolve([{ id: animalId, name_en: 'Lion' }]),
         });
       }
       if (url.endsWith(`/zoos/${zoo.id}/visited`)) {

@@ -42,7 +42,7 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
   // Choose localized name for current language
   const animalName = useMemo(() => {
     if (!animal) return '';
-    return lang === 'de' ? animal.name_de || animal.common_name : animal.common_name;
+    return lang === 'de' ? animal.name_de || animal.name_en : animal.name_en || animal.name_de;
   }, [animal, lang]);
 
   // Choose description in the active language with fallback

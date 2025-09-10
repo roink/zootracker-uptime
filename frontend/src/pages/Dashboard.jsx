@@ -113,7 +113,11 @@ export default function Dashboard({ token, userId, refresh, onUpdate }) {
   const animals = useMemo(() => Object.values(animalMap), [animalMap]);
 
   const zooName = (id) => zooMap[id]?.name || id;
-  const animalName = (id) => animalMap[id]?.common_name || id;
+  const animalName = (id) => {
+    const a = animalMap[id];
+    if (!a) return id;
+    return lang === 'de' ? a.name_de || a.name_en : a.name_en || a.name_de;
+  };
 
   const refreshing =
     zoosFetching ||

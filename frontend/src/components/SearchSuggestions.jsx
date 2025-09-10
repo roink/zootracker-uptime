@@ -2,8 +2,13 @@
 // Dropdown list showing search suggestions below the header search field.
 // Buttons use `onPointerDown` so the selection fires before the input field
 // loses focus which keeps taps and clicks reliable on all devices.
+import { useParams } from 'react-router-dom';
+
 export default function SearchSuggestions({ results, onSelect }) {
   const handleDown = (type, id) => onSelect(type, id);
+  const { lang } = useParams();
+  const getName = (a) =>
+    lang === 'de' ? a.name_de || a.name_en : a.name_en || a.name_de;
 
   return (
     <ul className="list-group position-absolute top-100 start-0 search-suggestions">
@@ -25,7 +30,7 @@ export default function SearchSuggestions({ results, onSelect }) {
             className="btn btn-link p-0"
             onPointerDown={() => handleDown('animal', a.id)}
           >
-            {a.common_name}
+            {getName(a)}
           </button>
         </li>
       ))}

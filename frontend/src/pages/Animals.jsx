@@ -148,13 +148,13 @@ export default function AnimalsPage({ token, userId }) {
             {a.default_image_url && (
               <img
                 src={a.default_image_url}
-                alt={a.common_name}
+                alt={lang === 'de' ? a.name_de || a.name_en : a.name_en || a.name_de}
                 className="card-img"
               />
             )}
-            {/* Always show the common name in bold */}
+            {/* Always show the localized name in bold */}
             <div className="fw-bold">
-              {a.common_name}
+              {lang === 'de' ? a.name_de || a.name_en : a.name_en || a.name_de}
             </div>
             {a.scientific_name && (
               <div className="fst-italic small">{a.scientific_name}</div>

@@ -142,7 +142,7 @@ def test_list_animals_returns_details_and_pagination(data):
     resp = client.get("/animals", params={"limit": 2, "offset": 0})
     assert resp.status_code == 200
     body = resp.json()
-    assert [a["common_name"] for a in body] == ["Eagle", "Lion"]
+    assert [a["name_en"] for a in body] == ["Eagle", "Lion"]
     item = body[0]
     assert item["scientific_name"] == "Aquila chrysaetos"
     assert item["category"] == "Bird"
@@ -170,14 +170,14 @@ def test_list_animals_invalid_offset():
 def test_list_animals_category_filter():
     resp = client.get("/animals", params={"category": "Mammal"})
     assert resp.status_code == 200
-    names = [a["common_name"] for a in resp.json()]
+    names = [a["name_en"] for a in resp.json()]
     assert names == ["Lion", "Tiger"]
 
     resp = client.get("/animals", params={"category": "Bird"})
     assert resp.status_code == 200
     body = resp.json()
     assert len(body) == 1
-    assert body[0]["common_name"] == "Eagle"
+    assert body[0]["name_en"] == "Eagle"
 
 
 def test_list_animals_empty_page():

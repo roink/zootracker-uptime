@@ -166,7 +166,7 @@ def test_import_simple_sqlite(monkeypatch, tmp_path):
         assert zoo.description_en == "English zoo"
         assert zoo.description_de == "Deutscher Zoo"
         lion = db.query(models.Animal).filter_by(scientific_name="Panthera leo").one()
-        assert lion.common_name == "L\u00f6we"
+        assert lion.name_en == "Lion"
         assert lion.name_de == "L\u00f6we"
         assert lion.description_de == "Deutsche Beschreibung"
         assert lion.description_en == "English description"

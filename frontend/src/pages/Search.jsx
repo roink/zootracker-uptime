@@ -49,7 +49,7 @@ export default function SearchPage() {
         {animals.map((a) => (
           <li key={a.id}>
             <button onClick={() => navigate(`${prefix}/animals/${a.id}`)}>
-              {a.common_name}
+              {lang === 'de' ? a.name_de || a.name_en : a.name_en || a.name_de}
             </button>
           </li>
         ))}

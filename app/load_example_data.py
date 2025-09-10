@@ -59,7 +59,7 @@ load_animals = partial(
     model_cls=models.Animal,
     field_map={
         "id": ("id", _uuid),
-        "common_name": ("common_name", None),
+        "name_en": ("name_en", None),
         "category_id": ("category_id", _uuid),
     },
 )
@@ -74,7 +74,7 @@ load_zoos = partial(
         "address": ("address", None),
         "latitude": ("latitude", float),
         "longitude": ("longitude", float),
-        "description": ("description", None),
+        "description": ("description_de", None),
     },
 )
 

@@ -21,7 +21,10 @@ export default function ZooDetail({ zoo, token, userId, refresh, onLogged }) {
   const [descExpanded, setDescExpanded] = useState(false); // track full description visibility
   // Helper: pick animal name in current language
   const getAnimalName = useCallback(
-    (a) => (lang === 'de' ? a.name_de || a.common_name : a.common_name),
+    (a) =>
+      lang === 'de'
+        ? a.name_de || a.name_en
+        : a.name_en || a.name_de,
     [lang]
   );
 
@@ -61,9 +64,7 @@ export default function ZooDetail({ zoo, token, userId, refresh, onLogged }) {
   }, [token, userId, authFetch, refresh]);
   // pick description based on current language with fallback to generic text
   const zooDescription =
-    lang === 'de'
-      ? zoo.description_de || zoo.description
-      : zoo.description_en || zoo.description;
+    lang === 'de' ? zoo.description_de : zoo.description_en;
   const MAX_DESC = 400; // collapse threshold
   const needsCollapse = zooDescription && zooDescription.length > MAX_DESC;
 

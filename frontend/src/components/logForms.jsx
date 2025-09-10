@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useParams } from 'react-router-dom';
 import { API } from '../api';
 
 import useAuthFetch from '../hooks/useAuthFetch';
@@ -42,6 +43,11 @@ export function LogSighting({
   );
   // Wrapper for fetch that redirects to login on 401
   const authFetch = useAuthFetch(token);
+  const { lang } = useParams();
+  const getName = useCallback(
+    (a) => (lang === 'de' ? a.name_de || a.name_en : a.name_en || a.name_de),
+    [lang]
+  );
   // Date input defaults to today
   const [sightingDate, setSightingDate] = useState(
     () => defaultDate || new Date().toISOString().split('T')[0]
@@ -73,8 +79,8 @@ export function LogSighting({
 
   useEffect(() => {
     const a = animals.find(a => a.id === (animalId || defaultAnimalId));
-    if (a) setAnimalInput(a.common_name);
-  }, [animals, animalId, defaultAnimalId]);
+    if (a) setAnimalInput(getName(a));
+  }, [animals, animalId, defaultAnimalId, getName]);
 
   useEffect(() => {
     const z = zoos.find(z => z.id === (zooId || defaultZooId));
@@ -196,11 +202,11 @@ export function LogSighting({
                   className="btn btn-link p-0"
                   onMouseDown={() => {
                     setAnimalId(a.id);
-                    setAnimalInput(a.common_name);
+                    setAnimalInput(getName(a));
                     setAnimalFocused(false);
                   }}
                 >
-                  {a.common_name}
+                  {getName(a)}
                 </button>
               </li>
             ))}

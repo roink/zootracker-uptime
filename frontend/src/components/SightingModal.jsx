@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { LogSighting } from './logForms';
 import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
@@ -24,6 +25,9 @@ export default function SightingModal({
   const [animals, setAnimals] = useState(propAnimals || []);
   const [sighting, setSighting] = useState(null);
   const authFetch = useAuthFetch(token);
+  const { lang } = useParams();
+  const getName = (a) =>
+    lang === 'de' ? a.name_de || a.name_en : a.name_en || a.name_de;
 
   // Load zoo list when none were provided
   useEffect(() => {
@@ -102,8 +106,9 @@ export default function SightingModal({
           }
           initialAnimalName={
             sighting
-              ? animals.find((a) => a.id === sighting.animal_id)?.common_name ||
-                defaultAnimalName
+              ? getName(
+                  animals.find((a) => a.id === sighting.animal_id) || {}
+                ) || defaultAnimalName
               : defaultAnimalName
           }
           sightingId={sightingId}
