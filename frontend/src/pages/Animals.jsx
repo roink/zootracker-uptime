@@ -1,13 +1,16 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
+import { useTranslation } from 'react-i18next';
 import Seo from '../components/Seo';
 
 // Browse all animals with category filters, search and load-more pagination
 
 export default function AnimalsPage({ token, userId }) {
   const navigate = useNavigate();
+  const { lang } = useParams();
+  const prefix = `/${lang}`;
   const [animals, setAnimals] = useState([]);
   const [seenAnimals, setSeenAnimals] = useState([]);
   const [search, setSearch] = useState(''); // raw input value
@@ -20,6 +23,7 @@ export default function AnimalsPage({ token, userId }) {
   const [error, setError] = useState('');
   const authFetch = useAuthFetch(token);
   const limit = 20; // number of animals per page
+  const { t } = useTranslation();
 
   // Map backend category names to German class labels
   // Explicit "Klasse N" keys are provided per client request while English
@@ -139,7 +143,7 @@ export default function AnimalsPage({ token, userId }) {
             key={a.id}
             type="button"
             className="animal-card"
-            onClick={() => navigate(`/animals/${a.id}`)}
+            onClick={() => navigate(`${prefix}/animals/${a.id}`)}
           >
             {a.default_image_url && (
               <img
@@ -156,9 +160,7 @@ export default function AnimalsPage({ token, userId }) {
               <div className="fst-italic small">{a.scientific_name}</div>
             )}
             {seenIds.has(a.id) && (
-              <span className="seen-badge">
-                Seen
-              </span>
+              <span className="seen-badge">{t('animal.seen')}</span>
             )}
           </button>
         ))}

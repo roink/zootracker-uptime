@@ -80,6 +80,10 @@ VITE_MAP_STYLE_URL=https://tiles.openfreemap.org/styles/liberty
 
 If unset the frontend falls back to the OpenFreeMap "liberty" tiles.
 
+### Internationalization
+
+The frontend supports English and German. Routes are prefixed with the language code (e.g. `/en/animals`). Translations live in `frontend/src/locales`. See [docs/i18n.md](docs/i18n.md) for details on adding or updating strings.
+
 ### Authentication
 
 The `/auth/login` endpoint includes the authenticated user’s `user_id` in the

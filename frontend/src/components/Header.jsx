@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useLocation, useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import SearchSuggestions from './SearchSuggestions';
 import useSearchSuggestions from '../hooks/useSearchSuggestions';
+import LanguageSwitcher from './LanguageSwitcher';
 
 // Navigation header shown on all pages. Includes a simple search
 // form and links that depend on authentication state.
@@ -13,6 +15,9 @@ export default function Header({ token, onLogout }) {
   const blurRef = useRef(null);
   const navigate = useNavigate();
   const location = useLocation();
+  const { lang } = useParams();
+  const prefix = `/${lang}`;
+  const { t } = useTranslation();
   const collapseRef = useRef(null);
   const toggleRef = useRef(null);
 
@@ -52,7 +57,7 @@ export default function Header({ token, onLogout }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (query.trim()) {
-      navigate(`/search?q=${encodeURIComponent(query.trim())}`);
+      navigate(`${prefix}/search?q=${encodeURIComponent(query.trim())}`);
     }
   };
 
@@ -60,22 +65,24 @@ export default function Header({ token, onLogout }) {
     setQuery('');
     setFocused(false);
     if (type === 'zoo') {
-      navigate(`/zoos/${id}`);
+      navigate(`${prefix}/zoos/${id}`);
     } else {
-      navigate(`/animals/${id}`);
+      navigate(`${prefix}/animals/${id}`);
     }
   };
 
   // Clear auth info and return to the home page when logging out
   const handleLogout = () => {
     if (onLogout) onLogout();
-    navigate('/');
+    navigate(prefix);
   };
 
   return (
     <nav className="navbar navbar-expand-lg navbar-dark bg-success mb-3">
       <div className="container-fluid">
-        <Link className="navbar-brand" to="/">ZooTracker</Link>
+        <Link className="navbar-brand" to={prefix}>
+          ZooTracker
+        </Link>
         <button
           className="navbar-toggler"
           type="button"
@@ -88,15 +95,21 @@ export default function Header({ token, onLogout }) {
         <div className="collapse navbar-collapse" id="navbarContent" ref={collapseRef}>
           <ul className="navbar-nav me-auto mb-2 mb-lg-0">
             <li className="nav-item">
-              <Link className="nav-link" to="/zoos">Zoos</Link>
+              <Link className="nav-link" to={`${prefix}/zoos`}>
+                {t('nav.zoos')}
+              </Link>
             </li>
             <li className="nav-item">
-              <Link className="nav-link" to="/animals">Animals</Link>
+              <Link className="nav-link" to={`${prefix}/animals`}>
+                {t('nav.animals')}
+              </Link>
             </li>
             {token ? (
               <>
                 <li className="nav-item">
-                  <Link className="nav-link" to="/home">Dashboard</Link>
+                  <Link className="nav-link" to={`${prefix}/home`}>
+                    {t('nav.dashboard')}
+                  </Link>
                 </li>
                 <li className="nav-item">
                   <button
@@ -104,23 +117,28 @@ export default function Header({ token, onLogout }) {
                     onClick={handleLogout}
                     className="btn btn-link nav-link"
                   >
-                    Log out
+                    {t('nav.logout')}
                   </button>
                 </li>
               </>
             ) : (
               <>
                 <li className="nav-item">
-                  <Link className="nav-link" to="/login">Log In / Sign Up</Link>
+                  <Link className="nav-link" to={`${prefix}/login`}>
+                    {t('nav.login')}
+                  </Link>
                 </li>
               </>
             )}
+            <li className="nav-item">
+              <LanguageSwitcher />
+            </li>
           </ul>
           <form className="d-flex position-relative" onSubmit={handleSubmit}>
             <input
               className="form-control"
               type="search"
-              placeholder="Search"
+              placeholder={t('nav.search')}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onFocus={() => {

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useParams } from 'react-router-dom';
 import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
 import Seo from '../components/Seo';
@@ -8,6 +8,8 @@ import Seo from '../components/Seo';
 
 export default function ZoosPage({ token }) {
   const navigate = useNavigate();
+  const { lang } = useParams();
+  const prefix = `/${lang}`;
   const [zoos, setZoos] = useState([]);
   const [visitedIds, setVisitedIds] = useState([]);
   const [query, setQuery] = useState('');
@@ -203,7 +205,7 @@ export default function ZoosPage({ token }) {
             key={z.id}
             type="button"
             className="list-group-item list-group-item-action text-start w-100"
-            onClick={() => navigate(`/zoos/${z.id}`)}
+            onClick={() => navigate(`${prefix}/zoos/${z.id}`)}
           >
             <div className="d-flex justify-content-between">
               <div>

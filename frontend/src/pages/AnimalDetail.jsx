@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
 import SightingModal from '../components/SightingModal';
@@ -22,8 +23,10 @@ const IUCN = {
 // Detailed page showing an animal along with nearby zoos and user sightings
 
 export default function AnimalDetailPage({ token, refresh, onLogged }) {
-  const { id } = useParams();
+  const { id, lang } = useParams();
   const navigate = useNavigate();
+  const prefix = `/${lang}`;
+  const { t } = useTranslation();
   const authFetch = useAuthFetch(token);
   const [animal, setAnimal] = useState(null);
   const [sightings, setSightings] = useState([]);
@@ -231,7 +234,7 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
                       >
                         {/* Clicking the image opens the attribution page */}
                         <Link
-                          to={`/images/${img.mid}`}
+                          to={`${prefix}/images/${img.mid}`}
                           state={{ name: animal.common_name }}
                           className="d-block"
                         >
@@ -302,7 +305,9 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
           )}
           <div className="spaced-top d-flex flex-wrap gap-2 align-items-center">
             <span className={`badge ${seen ? 'bg-success' : 'bg-secondary'}`}>
-              {seen ? `Seen (first on ${firstSeen})` : 'Not seen'}
+              {seen
+                ? t('animal.seenOn', { date: firstSeen })
+                : t('animal.notSeen')}
             </span>
             {animal.iucn_conservation_status && (() => {
               const code = animal.iucn_conservation_status.toUpperCase();
@@ -326,15 +331,17 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
               ))}
             </div>
           )}
-          {animal.description_de && (
+          {(lang === 'de' ? animal.description_de : animal.description_en) && (
             <div className="card mt-3">
               <div className="card-body">
-                <h5 className="card-title">Beschreibung</h5>
+                <h5 className="card-title">{t('zoo.description')}</h5>
                 <p
                   id="animal-description"
                   className={`card-text ${descOpen ? '' : 'line-clamp-6'}`}
                 >
-                  {animal.description_de}
+                  {lang === 'de'
+                    ? animal.description_de
+                    : animal.description_en || animal.description_de}
                 </p>
                 <button
                   className="btn btn-link p-0"
@@ -342,7 +349,7 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
                   aria-expanded={descOpen}
                   aria-controls="animal-description"
                 >
-                  {descOpen ? 'Show less' : 'Read more'}
+                  {descOpen ? t('zoo.showLess') : t('zoo.showMore')}
                 </button>
               </div>
             </div>
@@ -352,9 +359,9 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
       <div className="card spaced-top-lg">
         <div className="card-body pb-2">
           <div className="d-flex flex-wrap gap-2 align-items-center">
-            <h4 className="mb-0 me-auto">Where to See</h4>
+            <h4 className="mb-0 me-auto">{t('animal.whereToSee')}</h4>
             <div className="input-group input-group-sm" style={{ maxWidth: 280 }}>
-              <span className="input-group-text">Filter</span>
+              <span className="input-group-text">{t('actions.filter')}</span>
               <input
                 type="search"
                 className="form-control"
@@ -369,7 +376,7 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
                 className={`btn btn-outline-secondary ${sortBy === 'name' ? 'active' : ''}`}
                 onClick={() => setSortBy('name')}
               >
-                Sort by name
+                {t('actions.sortByName')}
               </button>
               <button
                 className={`btn btn-outline-secondary ${sortBy === 'distance' ? 'active' : ''}`}
@@ -377,7 +384,7 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
                 disabled={!location}
                 title={!location ? 'Enable location to sort by distance' : undefined}
               >
-                Sort by distance
+                {t('actions.sortByDistance')}
               </button>
             </div>
           </div>
@@ -400,12 +407,12 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
                   className="pointer-row"
                   role="link"
                   aria-label={`Open ${z.city ? `${z.city}: ${z.name}` : z.name}`}
-                  onClick={() => navigate(`/zoos/${z.id}`)}
+                  onClick={() => navigate(`${prefix}/zoos/${z.id}`)}
                   tabIndex={0}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();
-                      navigate(`/zoos/${z.id}`);
+                      navigate(`${prefix}/zoos/${z.id}`);
                     }
                   }}
                 >
@@ -424,7 +431,7 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
       <button
         onClick={() => {
           if (!token) {
-            navigate('/login');
+            navigate(`${prefix}/login`);
             return;
           }
           setModalData({
@@ -440,7 +447,7 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
         }}
         className="spaced-top btn btn-primary"
       >
-        Log Sighting
+        {t('actions.logSighting')}
       </button>
       {modalData && (
         <SightingModal

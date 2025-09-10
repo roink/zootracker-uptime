@@ -1,10 +1,12 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import Seo from '../components/Seo';
 
 // Simple marketing page shown at the root of the site.
 
 export default function Landing() {
   const navigate = useNavigate();
+  const { lang } = useParams();
+  const prefix = `/${lang}`;
   return (
     <div className="text-center py-4">
       <Seo
@@ -40,11 +42,14 @@ export default function Landing() {
       <div className="mt-4">
         <button
           className="btn btn-primary me-2"
-          onClick={() => navigate('/login#signup')}
+          onClick={() => navigate(`${prefix}/login#signup`)}
         >
           Sign Up
         </button>
-        <button className="btn btn-secondary" onClick={() => navigate('/login')}>
+        <button
+          className="btn btn-secondary"
+          onClick={() => navigate(`${prefix}/login`)}
+        >
           Log In
         </button>
       </div>

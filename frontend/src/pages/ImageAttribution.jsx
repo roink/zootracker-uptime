@@ -5,7 +5,7 @@ import Seo from '../components/Seo';
 
 // Page showing an image alongside attribution metadata
 export default function ImageAttributionPage() {
-  const { mid } = useParams();
+  const { mid, lang } = useParams();
   const location = useLocation();
   const animalName = location.state?.name;
   const [image, setImage] = useState(null);
@@ -53,7 +53,7 @@ export default function ImageAttributionPage() {
         title={image.commons_title || 'Image Attribution'}
         description={`Attribution details for ${image.commons_title || 'image'}.`}
         image={image.original_url}
-        canonical={`/images/${mid}`}
+        canonical={`/${lang}/images/${mid}`}
       />
       <img
         src={fallbackSrc}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { QueryClient } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
@@ -10,8 +10,11 @@ import {
   Route,
   Navigate,
   useLocation,
+  useParams,
+  useNavigate,
 } from "react-router-dom";
 import { routerFuture } from './routerFuture';
+import { loadLocale, DEFAULT_LANG } from './i18n';
 
 // Base URL of the FastAPI backend. When the frontend is served on a different
 // port (e.g. via `python -m http.server`), the API won't be on the same origin
@@ -83,7 +86,8 @@ function ProfilePage({ email }) {
 
 
 function RequireAuth({ token, children }) {
-  return token ? children : <Navigate to="/login" replace />;
+  const { lang } = useParams();
+  return token ? children : <Navigate to={`/${lang}/login`} replace />;
 }
 
 function AppRoutes({
@@ -102,126 +106,145 @@ function AppRoutes({
       <Header token={token} onLogout={onLoggedOut} />
       <main className="flex-grow-1 pb-5">
         <Routes location={location}>
-        <Route
-          path="/"
-          element={
-            token ? (
-              <DashboardPage
+          <Route
+            index
+            element={
+              token ? (
+                <DashboardPage
+                  token={token}
+                  userId={userId}
+                  refresh={refreshCounter}
+                  onUpdate={refreshSeen}
+                />
+              ) : (
+                <Landing />
+              )
+            }
+          />
+          <Route path="landing" element={<Navigate to=".." replace />} />
+          <Route
+            path="home"
+            element={
+              <RequireAuth token={token}>
+                <DashboardPage
+                  token={token}
+                  userId={userId}
+                  refresh={refreshCounter}
+                  onUpdate={refreshSeen}
+                />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="login"
+            element={
+              <LoginPage
+                email={userEmail}
+                onLoggedIn={onLoggedIn}
+                onSignedUp={onSignedUp}
+              />
+            }
+          />
+          <Route path="zoos" element={<ZoosPage token={token} />} />
+          <Route
+            path="zoos/:id"
+            element={
+              <ZooDetailPage
                 token={token}
                 userId={userId}
                 refresh={refreshCounter}
-                onUpdate={refreshSeen}
+                onLogged={refreshSeen}
               />
-            ) : (
-              <Landing />
-            )
-          }
-        />
-        <Route path="/landing" element={<Navigate to="/" replace />} />
-        <Route
-          path="/home"
-          element={
-            <RequireAuth token={token}>
-              <DashboardPage
+            }
+          />
+          <Route path="animals" element={<AnimalsPage token={token} userId={userId} />} />
+          <Route
+            path="animals/:id"
+            element={
+              <AnimalDetailPage
                 token={token}
                 userId={userId}
                 refresh={refreshCounter}
-                onUpdate={refreshSeen}
+                onLogged={refreshSeen}
               />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/login"
-          element={
-            <LoginPage
-              email={userEmail}
-              onLoggedIn={onLoggedIn}
-              onSignedUp={onSignedUp}
-            />
-          }
-        />
-        <Route path="/zoos" element={<ZoosPage token={token} />} />
-        <Route
-          path="/zoos/:id"
-          element={
-            <ZooDetailPage
-              token={token}
-              userId={userId}
-              refresh={refreshCounter}
-              onLogged={refreshSeen}
-            />
-          }
-        />
-        <Route path="/animals" element={<AnimalsPage token={token} userId={userId} />} />
-        <Route
-          path="/animals/:id"
-          element={
-            <AnimalDetailPage
-              token={token}
-              userId={userId}
-              refresh={refreshCounter}
-              onLogged={refreshSeen}
-            />
-          }
-        />
-        <Route path="/images/:mid" element={<ImageAttributionPage />} />
-        <Route path="/search" element={<SearchPage />} />
-        <Route
-          path="/badges"
-          element={
-            <RequireAuth token={token}>
-              <BadgesPage />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/profile"
-          element={
-            <RequireAuth token={token}>
-              <ProfilePage email={userEmail} />
-            </RequireAuth>
-          }
-        />
-        <Route path="/impress" element={<ImpressPage />} />
-        <Route path="/data-protection" element={<DataProtectionPage />} />
-        <Route path="/contact" element={<ContactPage />} />
-      </Routes>
+            }
+          />
+          <Route path="images/:mid" element={<ImageAttributionPage />} />
+          <Route path="search" element={<SearchPage />} />
+          <Route
+            path="badges"
+            element={
+              <RequireAuth token={token}>
+                <BadgesPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="profile"
+            element={
+              <RequireAuth token={token}>
+                <ProfilePage email={userEmail} />
+              </RequireAuth>
+            }
+          />
+          <Route path="impress" element={<ImpressPage />} />
+          <Route path="data-protection" element={<DataProtectionPage />} />
+          <Route path="contact" element={<ContactPage />} />
+        </Routes>
       </main>
       <Footer />
     </div>
   );
 }
 
+function LangApp(props) {
+  const { lang } = useParams();
+  useEffect(() => {
+    loadLocale(lang);
+    localStorage.setItem('lang', lang);
+  }, [lang]);
+  return <AppRoutes {...props} />;
+}
+
+function RootRedirect() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    const stored = localStorage.getItem('lang');
+    const browser = navigator.language.startsWith('de') ? 'de' : DEFAULT_LANG;
+    navigate(`/${stored || browser}`, { replace: true });
+  }, [navigate]);
+  return null;
+}
+
 function App() {
-  const [token, setToken] = useState(localStorage.getItem("token"));
-  const [userId, setUserId] = useState(localStorage.getItem("userId"));
-  const [userEmail, setUserEmail] = useState(localStorage.getItem("userEmail"));
+  const [token, setToken] = useState(localStorage.getItem('token'));
+  const [userId, setUserId] = useState(localStorage.getItem('userId'));
+  const [userEmail, setUserEmail] = useState(localStorage.getItem('userEmail'));
   const [refreshCounter, setRefreshCounter] = useState(0);
 
   const handleSignedUp = (user, email) => {
     setUserId(user.id);
     setUserEmail(email);
-    localStorage.setItem("userId", user.id);
-    localStorage.setItem("userEmail", email);
+    localStorage.setItem('userId', user.id);
+    localStorage.setItem('userEmail', email);
   };
 
   const handleLoggedIn = (tok, uid, email) => {
     setToken(tok);
     setUserId(uid);
     setUserEmail(email);
-    localStorage.setItem("token", tok);
-    localStorage.setItem("userId", uid);
-    localStorage.setItem("userEmail", email);
+    localStorage.setItem('token', tok);
+    localStorage.setItem('userId', uid);
+    localStorage.setItem('userEmail', email);
   };
 
   const handleLoggedOut = () => {
     setToken(null);
     setUserId(null);
     setUserEmail(null);
-    localStorage.removeItem("token");
-    localStorage.removeItem("userId");
-    localStorage.removeItem("userEmail");
+    localStorage.removeItem('token');
+    localStorage.removeItem('userId');
+    localStorage.removeItem('userEmail');
     queryClient.removeQueries({ queryKey: ['user'] });
   };
 
@@ -232,16 +255,24 @@ function App() {
   // Opt in to React Router v7 behaviors to silence future warnings
   return (
     <BrowserRouter future={routerFuture}>
-      <AppRoutes
-        token={token}
-        userId={userId}
-        userEmail={userEmail}
-        refreshCounter={refreshCounter}
-        onSignedUp={handleSignedUp}
-        onLoggedIn={handleLoggedIn}
-        onLoggedOut={handleLoggedOut}
-        refreshSeen={refreshSeen}
-      />
+      <Routes>
+        <Route path="/" element={<RootRedirect />} />
+        <Route
+          path="/:lang/*"
+          element={
+            <LangApp
+              token={token}
+              userId={userId}
+              userEmail={userEmail}
+              refreshCounter={refreshCounter}
+              onSignedUp={handleSignedUp}
+              onLoggedIn={handleLoggedIn}
+              onLoggedOut={handleLoggedOut}
+              refreshSeen={refreshSeen}
+            />
+          }
+        />
+      </Routes>
     </BrowserRouter>
   );
 }
