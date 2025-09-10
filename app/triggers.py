@@ -26,6 +26,12 @@ def create_triggers(engine: Engine) -> None:
                 """
             )
             conn.exec_driver_sql(
+                """
+                CREATE INDEX IF NOT EXISTS idx_sightings_user_day_created
+                  ON animal_sightings (user_id, date(sighting_datetime), created_at DESC);
+                """
+            )
+            conn.exec_driver_sql(
                 "CREATE INDEX IF NOT EXISTS idx_zoo_animals_zoo_id ON zoo_animals(zoo_id);"
             )
             conn.exec_driver_sql(
@@ -114,6 +120,12 @@ def create_triggers(engine: Engine) -> None:
                     CREATE INDEX IF NOT EXISTS ix_sightings_user_zoo_date
                       ON animal_sightings (user_id, zoo_id, sighting_date(sighting_datetime));
                     """
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS idx_sightings_user_day_created "
+                    "ON animal_sightings (user_id, (CAST(sighting_datetime AS date)), created_at DESC);"
                 )
             )
             conn.execute(

@@ -15,6 +15,13 @@ def test_get_animal_detail_success(data):
     assert body["zoos"][0]["city"] == "Metropolis"
 
 
+def test_get_animal_detail_includes_name_de(data):
+    resp = client.get(f"/animals/{data['animal'].id}")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "name_de" in body
+
+
 def test_get_animal_detail_includes_images(data):
     resp = client.get(f"/animals/{data['animal'].id}")
     assert resp.status_code == 200
@@ -33,6 +40,13 @@ def test_get_animal_detail_variants_sorted(data):
     # Variants should be returned in ascending width order
     assert widths == sorted(widths)
     assert 320 in widths and 640 in widths
+
+
+def test_list_animals_includes_name_de(data):
+    resp = client.get("/animals", params={"limit": 1})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "name_de" in body[0]
 
 
 def test_get_animal_detail_with_distance(data):

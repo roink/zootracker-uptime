@@ -15,7 +15,8 @@ from fastapi import FastAPI, Depends, HTTPException, Request, status, Background
 from fastapi.responses import JSONResponse, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.orm import Session
+from sqlalchemy import cast, Date
+from sqlalchemy.orm import Session, joinedload
 from jose import jwt, JWTError
 
 from . import models, schemas
@@ -227,7 +228,16 @@ def list_sightings(
     user: models.User = Depends(get_current_user),
 ):
     """Retrieve all animal sightings recorded by the current user."""
-    return db.query(models.AnimalSighting).filter_by(user_id=user.id).all()
+    return (
+        db.query(models.AnimalSighting)
+        .options(joinedload(models.AnimalSighting.animal))
+        .filter_by(user_id=user.id)
+        .order_by(
+            cast(models.AnimalSighting.sighting_datetime, Date).desc(),
+            models.AnimalSighting.created_at.desc(),
+        )
+        .all()
+    )
 
 
 @app.delete("/sightings/{sighting_id}", status_code=status.HTTP_204_NO_CONTENT)

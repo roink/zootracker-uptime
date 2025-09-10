@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, Fragment } from 'react';
 import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
 import SightingModal from '../components/SightingModal';
@@ -70,12 +70,38 @@ export default function Dashboard({ token, userId, refresh, onUpdate }) {
       .catch(() => setBadges([]));
   }, [token, userId, refresh, authFetch]);
 
-  // Combine visits and sightings into a single chronologically sorted feed.
-  const feedItems = useMemo(() => {
-    const v = visits.map((x) => ({ type: 'visit', date: x.visit_date, item: x }));
-    const s = sightings.map((x) => ({ type: 'sighting', date: x.sighting_datetime, item: x }));
-    return [...v, ...s].sort((a, b) => new Date(b.date) - new Date(a.date));
-  }, [visits, sightings]);
+  // Group sightings by day and order by day descending then creation time.
+  const groupedSightings = useMemo(() => {
+    const sorted = [...sightings].sort((a, b) => {
+      const dayA = new Date(a.sighting_datetime).toDateString();
+      const dayB = new Date(b.sighting_datetime).toDateString();
+      if (dayA === dayB) {
+        return new Date(b.created_at) - new Date(a.created_at);
+      }
+      return new Date(b.sighting_datetime) - new Date(a.sighting_datetime);
+    });
+    const groups = [];
+    sorted.forEach((s) => {
+      const day = s.sighting_datetime.slice(0, 10);
+      const last = groups[groups.length - 1];
+      if (!last || last.day !== day) {
+        groups.push({ day, items: [s] });
+      } else {
+        last.items.push(s);
+      }
+    });
+    return groups;
+  }, [sightings]);
+
+  const formatDay = (day) => {
+    const today = new Date().toISOString().slice(0, 10);
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yDay = yesterday.toISOString().slice(0, 10);
+    if (day === today) return 'Today';
+    if (day === yDay) return 'Yesterday';
+    return new Date(day).toLocaleDateString();
+  };
 
   // Distinct zoo count, derived from visits and sightings in case visit sync is missing.
   const visitedZooCount = useMemo(() => {
@@ -87,7 +113,8 @@ export default function Dashboard({ token, userId, refresh, onUpdate }) {
   }, [visits, sightings]);
 
   const zooName = (id) => zoos.find((z) => z.id === id)?.name || id;
-  const animalName = (id) => animals.find((a) => a.id === id)?.common_name || id;
+  const animalName = (id) =>
+    animals.find((a) => a.id === id)?.common_name || id;
 
   return (
     <div className="container">
@@ -102,33 +129,36 @@ export default function Dashboard({ token, userId, refresh, onUpdate }) {
       </div>
       <h3>Activity Feed</h3>
       <ul className="list-group mb-3">
-        {feedItems.map((f, idx) => (
-          <li
-            key={idx}
-            className="list-group-item d-flex justify-content-between align-items-center"
-          >
-            <span>
-              {f.type === 'visit'
-                ? `Visited ${zooName(f.item.zoo_id)} on ${f.item.visit_date}`
-                : `Saw ${animalName(f.item.animal_id)} at ${zooName(f.item.zoo_id)} on ${f.item.sighting_datetime.slice(0, 10)}`}
-            </span>
-            {f.type === 'sighting' && (
-              <button
-                className="btn btn-sm btn-outline-secondary"
-                onClick={() =>
-                  setModalData({
-                    sightingId: f.item.id,
-                    zooId: f.item.zoo_id,
-                    zooName: zooName(f.item.zoo_id),
-                    animalId: f.item.animal_id,
-                    animalName: animalName(f.item.animal_id),
-                  })
-                }
+        {groupedSightings.map((g) => (
+          <Fragment key={g.day}>
+            <li className="list-group-item active">{formatDay(g.day)}</li>
+            {g.items.map((s) => (
+              <li
+                key={s.id}
+                className="list-group-item d-flex justify-content-between align-items-center"
               >
-                Edit
-              </button>
-            )}
-          </li>
+                <span>
+                  {`Saw ${
+                    s.animal_name_de ?? animalName(s.animal_id)
+                  } at ${zooName(s.zoo_id)} on ${s.sighting_datetime.slice(0, 10)}`}
+                </span>
+                <button
+                  className="btn btn-sm btn-outline-secondary"
+                  onClick={() =>
+                    setModalData({
+                      sightingId: s.id,
+                      zooId: s.zoo_id,
+                      zooName: zooName(s.zoo_id),
+                      animalId: s.animal_id,
+                      animalName: s.animal_name_de ?? animalName(s.animal_id),
+                    })
+                  }
+                >
+                  Edit
+                </button>
+              </li>
+            ))}
+          </Fragment>
         ))}
       </ul>
       <h3>Recent Badges</h3>
