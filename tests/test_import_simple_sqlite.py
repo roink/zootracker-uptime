@@ -8,7 +8,7 @@ from app import import_simple_sqlite_data
 from app import models
 
 
-def _build_source_db(path: Path) -> Path:
+def _build_source_db(path: Path, mid: str = "M1") -> Path:
     engine = create_engine(f"sqlite:///{path}", future=True)
     with engine.begin() as conn:
         conn.execute(text(
@@ -111,14 +111,16 @@ def _build_source_db(path: Path) -> Path:
         conn.execute(text("INSERT INTO zoo_animal (zoo_id, art) VALUES (1,'Panthera leo');"))
         conn.execute(text("INSERT INTO zoo_animal (zoo_id, art) VALUES (1,'Aquila chrysaetos');"))
         conn.execute(text("INSERT INTO zoo_animal (zoo_id, art) VALUES (1,'Unknownus testus');"))
-        conn.execute(text("""
+        conn.execute(
+            text(
+                """
             INSERT INTO image (
                 mid, animal_art, commons_title, commons_page_url, original_url,
                 width, height, size_bytes, sha1, mime, uploaded_at, uploader, title,
                 artist_raw, artist_plain, license, license_short, license_url,
                 attribution_required, usage_terms, credit_line, source, retrieved_at
             ) VALUES (
-                'M1', 'Panthera leo', 'File:Lion.jpg', 'http://commons.org/File:Lion.jpg',
+                :mid, 'Panthera leo', 'File:Lion.jpg', 'http://commons.org/File:Lion.jpg',
                 'http://example.com/lion.jpg', 1000, 800, 12345,
                 '0123456789abcdef0123456789abcdef01234567',
                 'image/jpeg', '2024-01-01T00:00:00Z', ' User:Example \n', ' Lion ',
@@ -126,8 +128,16 @@ def _build_source_db(path: Path) -> Path:
                 ' https://creativecommons.org/licenses/by-sa/4.0/ ', 1, ' Some terms\r\n',
                 ' Credit line ', 'WIKIDATA_P18', '2024-01-02T00:00:00Z'
             );
-        """))
-        conn.execute(text("INSERT INTO image_variant (mid, width, height, thumb_url) VALUES ('M1',640,480,'http://example.com/lion.jpg');"))
+        """,
+            ),
+            {"mid": mid},
+        )
+        conn.execute(
+            text(
+                "INSERT INTO image_variant (mid, width, height, thumb_url) VALUES (:mid,640,480,'http://example.com/lion.jpg');"
+            ),
+            {"mid": mid},
+        )
     return path
 
 
@@ -205,6 +215,21 @@ def test_import_simple_sqlite(monkeypatch, tmp_path):
         assert db.query(models.Animal).count() == 3
         assert db.query(models.Zoo).count() == 1
         assert db.query(models.ZooAnimal).count() == 3
+    finally:
+        db.close()
+
+
+def test_skip_banned_mid(monkeypatch, tmp_path):
+    src_path = _build_source_db(tmp_path / "src.db", mid="M1723980")
+    target_url = f"sqlite:///{tmp_path}/target.db"
+    target_engine = create_engine(target_url, future=True)
+    Session = sessionmaker(bind=target_engine)
+    monkeypatch.setattr(import_simple_sqlite_data, "SessionLocal", Session)
+    import_simple_sqlite_data.main(str(src_path))
+    db = Session()
+    try:
+        assert db.query(models.Image).count() == 0
+        assert db.query(models.ImageVariant).count() == 0
     finally:
         db.close()
 

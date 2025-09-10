@@ -24,6 +24,7 @@ from .import_utils import (
 
 
 logger = logging.getLogger(__name__)
+BANNED_MIDS = {"M31984332", "M1723980", "M117776631", "M55041643"}
 
 
 def _stage_categories(src: Session, dst: Session, animal_table: Table) -> Dict[int | None, uuid.UUID]:
@@ -211,6 +212,8 @@ def _import_images(
     existing = {img.mid: img for img in dst.execute(select(models.Image)).scalars()}
     for row in img_rows:
         mid = row.get("mid")
+        if mid in BANNED_MIDS:
+            continue
         aid = animal_map.get(row.get("animal_art"))
         if not aid:
             continue
@@ -296,8 +299,8 @@ def _import_images(
     )
     for row in var_rows:
         mid = row.get("mid")
-        # Skip variants for images that were skipped earlier due to invalid metadata
-        if mid not in mid_to_animal:
+        # Skip variants for banned images or those skipped earlier due to invalid metadata
+        if mid in BANNED_MIDS or mid not in mid_to_animal:
             continue
         key = (mid, row.get("width"))
         if key in existing_vars:
