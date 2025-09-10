@@ -174,6 +174,7 @@ def get_animal_detail(
         name_de=animal.name_de,
         category=animal.category.name if animal.category else None,
         description_de=animal.description_de,
+        description_en=animal.description_en,
         iucn_conservation_status=animal.conservation_state,
         taxon_rank=animal.taxon_rank,
         default_image_url=animal.default_image_url,

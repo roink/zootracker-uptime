@@ -39,6 +39,20 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
+  // Choose localized name for current language
+  const animalName = useMemo(() => {
+    if (!animal) return '';
+    return lang === 'de' ? animal.name_de || animal.common_name : animal.common_name;
+  }, [animal, lang]);
+
+  // Choose description in the active language with fallback
+  const animalDesc = useMemo(() => {
+    if (!animal) return '';
+    return lang === 'de'
+      ? animal.description_de
+      : animal.description_en || animal.description_de;
+  }, [animal, lang]);
+
   useEffect(() => {
     const params = [];
     if (location) {
@@ -160,10 +174,10 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
   return (
     <div className="page-container">
       <Seo
-        title={animal ? animal.common_name : 'Animal'}
+        title={animal ? animalName : 'Animal'}
         description={
           animal
-            ? `Discover where to see ${animal.common_name} and log your sightings.`
+            ? `Discover where to see ${animalName} and log your sightings.`
             : 'Animal details on ZooTracker.'
         }
       />
@@ -179,7 +193,7 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
                 className="carousel slide h-100"
                 role="region"
                 aria-roledescription="carousel"
-                aria-label={`${animal.common_name} image gallery`}
+                aria-label={`${animalName} image gallery`}
                 data-bs-ride="false"
                 data-bs-interval="false"
                 data-bs-touch="true"
@@ -235,7 +249,7 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
                         {/* Clicking the image opens the attribution page */}
                         <Link
                           to={`${prefix}/images/${img.mid}`}
-                          state={{ name: animal.common_name }}
+                          state={{ name: animalName }}
                           className="d-block"
                         >
                           <img
@@ -245,7 +259,7 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
                             decoding="async"
                             loading={loadingAttr}
                             fetchpriority={fetchPri}
-                            alt={animal.common_name}
+                            alt={animalName}
                             className="img-fluid"
                           />
                         </Link>
@@ -280,7 +294,7 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
               animal.default_image_url && (
                 <img
                   src={animal.default_image_url}
-                  alt={animal.common_name}
+                  alt={animalName}
                   className="img-fluid w-100"
                   loading="lazy"
                 />
@@ -289,7 +303,7 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
           </div>
         </div>
         <div className="col-12 col-lg-6 order-lg-1">
-          <h2 className="mb-1">{animal.common_name}</h2>
+          <h2 className="mb-1">{animalName}</h2>
           {animal.scientific_name && (
             <div className="fst-italic">{animal.scientific_name}</div>
           )}
@@ -331,7 +345,7 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
               ))}
             </div>
           )}
-          {(lang === 'de' ? animal.description_de : animal.description_en) && (
+          {animalDesc && (
             <div className="card mt-3">
               <div className="card-body">
                 <h5 className="card-title">{t('zoo.description')}</h5>
@@ -339,9 +353,7 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
                   id="animal-description"
                   className={`card-text ${descOpen ? '' : 'line-clamp-6'}`}
                 >
-                  {lang === 'de'
-                    ? animal.description_de
-                    : animal.description_en || animal.description_de}
+                  {animalDesc}
                 </p>
                 <button
                   className="btn btn-link p-0"
@@ -365,10 +377,10 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
               <input
                 type="search"
                 className="form-control"
-                placeholder="City or zoo name"
+                placeholder={t('animal.filterPlaceholder')}
                 value={zooFilter}
                 onChange={(e) => setZooFilter(e.target.value)}
-                aria-label="Filter zoos by city or name"
+                aria-label={t('animal.filterAria')}
               />
             </div>
             <div className="btn-group btn-group-sm" role="group" aria-label="Sort zoos">
@@ -382,7 +394,7 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
                 className={`btn btn-outline-secondary ${sortBy === 'distance' ? 'active' : ''}`}
                 onClick={() => setSortBy('distance')}
                 disabled={!location}
-                title={!location ? 'Enable location to sort by distance' : undefined}
+                title={!location ? t('animal.enableLocationSort') : undefined}
               >
                 {t('actions.sortByDistance')}
               </button>
@@ -436,7 +448,7 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
           }
           setModalData({
             animalId: animal.id,
-            animalName: animal.common_name,
+            animalName: animalName,
             zooId: closestZoo ? closestZoo.id : undefined,
             zooName: closestZoo
               ? closestZoo.city

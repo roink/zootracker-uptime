@@ -208,6 +208,7 @@ class AnimalDetail(BaseModel):
     name_de: Optional[str] = None
     category: Optional[str] = None
     description_de: Optional[str] = None
+    description_en: Optional[str] = None
     iucn_conservation_status: Optional[str] = None
     taxon_rank: Optional[str] = None
     default_image_url: Optional[str] = None

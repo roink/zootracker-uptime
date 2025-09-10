@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { API } from '../api';
@@ -19,6 +19,11 @@ export default function ZooDetail({ zoo, token, userId, refresh, onLogged }) {
   const { t } = useTranslation();
   const authFetch = useAuthFetch(token);
   const [descExpanded, setDescExpanded] = useState(false); // track full description visibility
+  // Helper: pick animal name in current language
+  const getAnimalName = useCallback(
+    (a) => (lang === 'de' ? a.name_de || a.common_name : a.common_name),
+    [lang]
+  );
 
   // Load animals in this zoo (server already returns popularity order;
   // keep client-side sort as a fallback for robustness)
@@ -141,7 +146,7 @@ export default function ZooDetail({ zoo, token, userId, refresh, onLogged }) {
               }}
             >
               <td>
-                <div>{a.common_name}</div>
+                <div>{getAnimalName(a)}</div>
                 {a.scientific_name && (
                   <div className="fst-italic small">{a.scientific_name}</div>
                 )}
@@ -160,7 +165,7 @@ export default function ZooDetail({ zoo, token, userId, refresh, onLogged }) {
                       zooId: zoo.id,
                       zooName: zoo.name,
                       animalId: a.id,
-                      animalName: a.common_name,
+                      animalName: getAnimalName(a),
                     });
                   }}
                 >

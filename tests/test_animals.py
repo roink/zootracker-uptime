@@ -22,6 +22,13 @@ def test_get_animal_detail_includes_name_de(data):
     assert "name_de" in body
 
 
+def test_get_animal_detail_includes_description_en(data):
+    resp = client.get(f"/animals/{data['animal'].id}")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["description_en"] == "King of the jungle"
+
+
 def test_get_animal_detail_includes_images(data):
     resp = client.get(f"/animals/{data['animal'].id}")
     assert resp.status_code == 200
