@@ -21,13 +21,16 @@ def test_ensure_name_tables_creates_tables():
 def test_extract_names_parses_html():
     html = """
     <div id="navigation">
-        <a href="?klasse=1">Säugetiere</a>
-        <a href="?klasse=2">Vögel</a>
         <a href="?klasse=1&ordnung=101">Kloakentiere</a>
         <a href="?klasse=1&ordnung=102">Beuteltiere</a>
         <a href="?klasse=1&ordnung=102&familie=10201">Testfamilie &amp; Co</a>
         <a href="?klasse=1&ordnung=102&familie=10202">Haustierrassen &nbsp;&amp; Zuchtformen</a>
         <a href="?klasse=1&ordnung=102&action=login">ignore</a>
+    </div>
+    <!-- Class links live outside #navigation on the real site -->
+    <div id="classes">
+        <a href="?klasse=1">Säugetiere</a>
+        <a href="/?klasse=2">Vögel</a>
     </div>
     """
     classes, orders, families = extract_names(html)

@@ -64,8 +64,8 @@ def extract_names(html: str) -> tuple[Dict[int, str], Dict[int, str], Dict[int, 
     """Extract German names for classes, orders and families from *html*."""
 
     soup = BeautifulSoup(html, "html.parser")
-    nav = soup.find(id="navigation")
-    anchors = nav.find_all("a", href=True) if nav else soup.find_all("a", href=True)
+    # Class links are not within #navigation; scan all anchors in the document.
+    anchors = soup.find_all("a", href=True)
 
     classes: Dict[int, str] = {}
     orders: Dict[int, str] = {}
@@ -73,9 +73,13 @@ def extract_names(html: str) -> tuple[Dict[int, str], Dict[int, str], Dict[int, 
 
     for a in anchors:
         href = a["href"]
-        if not href.startswith("?"):
+        # Accept both "?..." and "/?..." forms
+        if href.startswith("?"):
+            qs = parse_qs(href[1:])
+        elif href.startswith("/?"):
+            qs = parse_qs(href[2:])
+        else:
             continue
-        qs = parse_qs(href[1:])
         keys = set(qs)
         try:
             if keys == {"klasse"}:
