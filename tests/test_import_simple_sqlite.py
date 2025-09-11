@@ -373,3 +373,31 @@ def test_import_simple_updates_existing_zoo(monkeypatch, tmp_path):
         assert zoo.description_de == "Neue DE"
     finally:
         db.close()
+
+
+def test_import_skips_animals_without_zoo(monkeypatch, tmp_path):
+    src_path = _build_source_db(tmp_path / "src.db")
+    engine = create_engine(f"sqlite:///{src_path}", future=True)
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO animal (art, klasse, ordnung, familie, latin_name, name_de) "
+                "VALUES ('Lonelyus testus',1,1,1,'Lonelyus testus','Lonelyus');"
+            )
+        )
+
+    target_url = f"sqlite:///{tmp_path}/target.db"
+    target_engine = create_engine(target_url, future=True)
+    Session = sessionmaker(bind=target_engine)
+    monkeypatch.setattr(import_simple_sqlite_data, "SessionLocal", Session)
+
+    import_simple_sqlite_data.main(str(src_path))
+
+    db = Session()
+    try:
+        assert db.query(models.Animal).filter_by(
+            scientific_name="Lonelyus testus"
+        ).first() is None
+        assert db.query(models.Animal).count() == 3
+    finally:
+        db.close()

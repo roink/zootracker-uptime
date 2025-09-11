@@ -5,7 +5,16 @@ import uuid
 from datetime import datetime, timezone
 from typing import Dict
 
-from sqlalchemy import MetaData, Table, create_engine, select, func, bindparam, inspect
+from sqlalchemy import (
+    MetaData,
+    Table,
+    create_engine,
+    select,
+    func,
+    bindparam,
+    inspect,
+    exists,
+)
 
 from app.db_extensions import ensure_pg_extensions
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -27,10 +36,33 @@ logger = logging.getLogger(__name__)
 BANNED_MIDS = {"M31984332", "M1723980", "M117776631", "M55041643"}
 
 
-def _stage_categories(src: Session, dst: Session, animal_table: Table) -> Dict[int | None, uuid.UUID]:
-    """Ensure a :class:`Category` exists for each distinct ``klasse`` value."""
+def _stage_categories(
+    src: Session,
+    dst: Session,
+    animal_table: Table,
+    link_table: Table,
+) -> Dict[int | None, uuid.UUID]:
+    """Ensure a :class:`Category` exists for each distinct ``klasse`` value.
 
-    klasses = [row["klasse"] for row in src.execute(select(animal_table.c.klasse).distinct()).mappings()]
+    Only categories for animals that appear in ``zoo_animal`` are created.
+    """
+
+    klasses_stmt = (
+        select(animal_table.c.klasse)
+        .where(
+            exists(
+                select(1)
+                .select_from(link_table)
+                .where(
+                    link_table.c.art == animal_table.c.art,
+                    link_table.c.art.isnot(None),
+                    link_table.c.art != "",
+                )
+            )
+        )
+        .distinct()
+    )
+    klasses = [row["klasse"] for row in src.execute(klasses_stmt).mappings()]
     existing = {
         row.name: row.id
         for row in dst.execute(select(models.Category.id, models.Category.name)).mappings()
@@ -55,6 +87,7 @@ def _import_animals(
     src: Session,
     dst: Session,
     animal_table: Table,
+    link_table: Table,
     cat_map: Dict[int | None, uuid.UUID],
     overwrite: bool = False,
 ) -> Dict[str, uuid.UUID]:
@@ -68,9 +101,29 @@ def _import_animals(
         for row in dst.execute(select(models.Animal.id, models.Animal.art)).mappings()
         if row.art is not None
     }
-    rows = list(src.execute(select(animal_table)).mappings())
+    rows_stmt = select(animal_table).where(
+        exists(
+            select(1)
+            .select_from(link_table)
+            .where(
+                link_table.c.art == animal_table.c.art,
+                link_table.c.art.isnot(None),
+                link_table.c.art != "",
+            )
+        )
+    )
+    n_total_animals_in_src = src.execute(
+        select(func.count()).select_from(animal_table)
+    ).scalar_one()
+    n_linked_animals = src.execute(
+        rows_stmt.with_only_columns(func.count())
+    ).scalar_one()
+    rows = src.execute(rows_stmt).mappings()
     animals = []
     id_map: Dict[str, uuid.UUID] = {}
+    n_inserted = 0
+    n_updated = 0
+    n_skipped = 0
     for row in rows:
         art = row.get("art")
         # only import explicit description_de; ignore legacy zootierliste_description
@@ -103,6 +156,9 @@ def _import_animals(
             assign("taxon_rank", taxon_rank)
             if changed:
                 dst.add(animal)
+                n_updated += 1
+            else:
+                n_skipped += 1
             id_map[art] = aid
             continue
         if not row.get("latin_name") or not row.get("name_de"):
@@ -128,8 +184,18 @@ def _import_animals(
             )
         )
         id_map[art] = aid
+        n_inserted += 1
     if animals:
         dst.bulk_save_objects(animals)
+    n_skipped = n_linked_animals - n_inserted - n_updated
+    logger.info(
+        "Animal import: total=%d linked=%d inserted=%d updated=%d skipped=%d",
+        n_total_animals_in_src,
+        n_linked_animals,
+        n_inserted,
+        n_updated,
+        n_skipped,
+    )
     return id_map
 
 
@@ -431,9 +497,9 @@ def main(source: str, dry_run: bool = False, overwrite: bool = False) -> None:
             variant_table = Table("image_variant", metadata, autoload_with=src_engine)
 
         with dst.begin() as trans:
-            cat_map = _stage_categories(src, dst, animal_table)
+            cat_map = _stage_categories(src, dst, animal_table, link_table)
             animal_map = _import_animals(
-                src, dst, animal_table, cat_map, overwrite=overwrite
+                src, dst, animal_table, link_table, cat_map, overwrite=overwrite
             )
             zoo_map = _import_zoos(src, dst, zoo_table)
             if image_table is not None and variant_table is not None:
