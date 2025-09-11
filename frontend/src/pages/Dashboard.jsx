@@ -35,7 +35,8 @@ export default function Dashboard({ token, userId, refresh, onUpdate }) {
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return r.json();
     },
-    staleTime: 'static',
+    staleTime: Infinity,
+    gcTime: 30 * 60 * 1000,
     placeholderData: keepPreviousData,
     select: (zoos) => Object.fromEntries(zoos.map((z) => [z.id, z])),
   });
@@ -47,7 +48,8 @@ export default function Dashboard({ token, userId, refresh, onUpdate }) {
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return r.json();
     },
-    staleTime: 'static',
+    staleTime: Infinity,
+    gcTime: 30 * 60 * 1000,
     placeholderData: keepPreviousData,
     select: (animals) => Object.fromEntries(animals.map((a) => [a.id, a])),
   });
@@ -64,6 +66,7 @@ export default function Dashboard({ token, userId, refresh, onUpdate }) {
     },
     enabled: !!token,
     placeholderData: keepPreviousData,
+    staleTime: 60 * 1000,
   });
 
   const {
@@ -79,6 +82,7 @@ export default function Dashboard({ token, userId, refresh, onUpdate }) {
     },
     enabled: !!token && !!uid,
     placeholderData: keepPreviousData,
+    staleTime: 60 * 1000,
   });
 
   const {
@@ -93,6 +97,7 @@ export default function Dashboard({ token, userId, refresh, onUpdate }) {
     },
     enabled: !!token,
     placeholderData: keepPreviousData,
+    staleTime: 60 * 1000,
   });
 
   const {
@@ -107,6 +112,7 @@ export default function Dashboard({ token, userId, refresh, onUpdate }) {
     },
     enabled: !!token && !!uid,
     placeholderData: keepPreviousData,
+    staleTime: 60 * 1000,
   });
 
   const zoos = useMemo(() => Object.values(zooMap), [zooMap]);
@@ -194,9 +200,9 @@ export default function Dashboard({ token, userId, refresh, onUpdate }) {
                 className="list-group-item d-flex justify-content-between align-items-center"
               >
                 <span>
-                  {t('dashboard.sawAtOn', {
+                  {t('dashboard.sighting', {
                     animal: displayAnimalName(s),
-                    zoo: s.zoo_name,
+                    zoo: s.zoo_name ?? s.zoo_id,
                     date: s.sighting_datetime.slice(0, 10),
                   })}
                 </span>

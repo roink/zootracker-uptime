@@ -176,13 +176,25 @@ def read_sighting(
     user: models.User = Depends(get_current_user),
 ):
     """Retrieve a single sighting owned by the current user."""
-    sighting = db.get(models.AnimalSighting, sighting_id)
+    sighting = (
+        db.query(models.AnimalSighting)
+        .options(
+            joinedload(models.AnimalSighting.animal),
+            joinedload(models.AnimalSighting.zoo),
+        )
+        .filter(models.AnimalSighting.id == sighting_id)
+        .first()
+    )
     if sighting is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail="Sighting not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Sighting not found",
+        )
     if sighting.user_id != user.id and not getattr(user, "is_admin", False):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                            detail="Not authorized to view this sighting")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to view this sighting",
+        )
     return sighting
 
 

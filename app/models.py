@@ -356,6 +356,12 @@ class AnimalSighting(Base):
     __tablename__ = "animal_sightings"
     __table_args__ = (
         Index("idx_animalsighting_user_animal", "user_id", "animal_id"),
+        Index(
+            "idx_sightings_user_day_created",
+            "user_id",
+            text("sighting_datetime DESC"),
+            text("created_at DESC"),
+        ),
     )
 
     id = Column(
