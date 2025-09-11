@@ -56,22 +56,22 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
   const className = useMemo(() => {
     if (!animal) return null;
     return lang === 'de'
-      ? animal.klasse_name_de || animal.klasse_name_en
-      : animal.klasse_name_en || animal.klasse_name_de;
+      ? animal.class_name_de || animal.class_name_en
+      : animal.class_name_en || animal.class_name_de;
   }, [animal, lang]);
 
   const orderName = useMemo(() => {
     if (!animal) return null;
     return lang === 'de'
-      ? animal.ordnung_name_de || animal.ordnung_name_en
-      : animal.ordnung_name_en || animal.ordnung_name_de;
+      ? animal.order_name_de || animal.order_name_en
+      : animal.order_name_en || animal.order_name_de;
   }, [animal, lang]);
 
   const familyName = useMemo(() => {
     if (!animal) return null;
     return lang === 'de'
-      ? animal.familie_name_de || animal.familie_name_en
-      : animal.familie_name_en || animal.familie_name_de;
+      ? animal.family_name_de || animal.family_name_en
+      : animal.family_name_en || animal.family_name_de;
   }, [animal, lang]);
 
   useEffect(() => {
@@ -339,23 +339,26 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
             </span>
           )}
           {(className || orderName || familyName) && (
-            <ul className="list-unstyled small mt-2 mb-0">
+            <dl className="small mt-2 mb-0">
               {className && (
-                <li>
-                  <strong>{t('animal.class')}:</strong> {className}
-                </li>
+                <>
+                  <dt className="fw-semibold">{t('animal.class')}</dt>
+                  <dd className="mb-0">{className}</dd>
+                </>
               )}
               {orderName && (
-                <li>
-                  <strong>{t('animal.order')}:</strong> {orderName}
-                </li>
+                <>
+                  <dt className="fw-semibold">{t('animal.order')}</dt>
+                  <dd className="mb-0">{orderName}</dd>
+                </>
               )}
               {familyName && (
-                <li>
-                  <strong>{t('animal.family')}:</strong> {familyName}
-                </li>
+                <>
+                  <dt className="fw-semibold">{t('animal.family')}</dt>
+                  <dd className="mb-0">{familyName}</dd>
+                </>
               )}
-            </ul>
+            </dl>
           )}
           <div className="spaced-top d-flex flex-wrap gap-2 align-items-center">
             <span className={`badge ${seen ? 'bg-success' : 'bg-secondary'}`}>

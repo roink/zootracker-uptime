@@ -212,12 +212,12 @@ class AnimalDetail(BaseModel):
     description_en: Optional[str] = None
     iucn_conservation_status: Optional[str] = None
     taxon_rank: Optional[str] = None
-    klasse_name_de: Optional[str] = None
-    klasse_name_en: Optional[str] = None
-    ordnung_name_de: Optional[str] = None
-    ordnung_name_en: Optional[str] = None
-    familie_name_de: Optional[str] = None
-    familie_name_en: Optional[str] = None
+    class_name_de: Optional[str] = None
+    class_name_en: Optional[str] = None
+    order_name_de: Optional[str] = None
+    order_name_en: Optional[str] = None
+    family_name_de: Optional[str] = None
+    family_name_en: Optional[str] = None
     default_image_url: Optional[str] = None
     images: list[ImageRead] = Field(default_factory=list)
     # include full zoo details with distance information

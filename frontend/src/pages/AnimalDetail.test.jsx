@@ -17,12 +17,12 @@ describe('AnimalDetailPage', () => {
     id: '1',
     name_en: 'Lion',
     name_de: 'Löwe',
-    klasse_name_en: 'Mammals',
-    klasse_name_de: 'Säugetiere',
-    ordnung_name_en: 'Carnivorans',
-    ordnung_name_de: 'Raubtiere',
-    familie_name_en: 'Cats',
-    familie_name_de: 'Katzen',
+    class_name_en: 'Mammals',
+    class_name_de: 'Säugetiere',
+    order_name_en: 'Carnivorans',
+    order_name_de: 'Raubtiere',
+    family_name_en: 'Cats',
+    family_name_de: 'Katzen',
     zoos: [],
   };
 
@@ -34,7 +34,7 @@ describe('AnimalDetailPage', () => {
     global.fetch = vi
       .fn()
       .mockResolvedValue({ ok: true, json: () => Promise.resolve(animal) });
-    render(
+    const { container } = render(
       <MemoryRouter initialEntries={['/en/animals/1']} future={routerFuture}>
         <Routes>
           <Route path="/:lang/animals/:id" element={<AnimalDetailPage />} />
@@ -44,6 +44,7 @@ describe('AnimalDetailPage', () => {
     await screen.findByText('Mammals');
     expect(screen.getByText('Carnivorans')).toBeInTheDocument();
     expect(screen.getByText('Cats')).toBeInTheDocument();
+    expect(container.querySelector('dl')).toBeInTheDocument();
   });
 
   it('shows classification names in German', async () => {
