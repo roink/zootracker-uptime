@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, event
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
 
@@ -139,6 +139,7 @@ def _build_source_db(path: Path, mid: str = "M1") -> Path:
         conn.execute(text("INSERT INTO zoo_animal (zoo_id, art) VALUES (1,'Aquila chrysaetos');"))
         conn.execute(text("INSERT INTO zoo_animal (zoo_id, art) VALUES (1,'Unknownus testus');"))
         conn.execute(text("INSERT INTO klasse_name (klasse, name_de, name_en) VALUES (1,'S\u00e4ugetiere','Mammals');"))
+        conn.execute(text("INSERT INTO klasse_name (klasse, name_de, name_en) VALUES (2,'V\u00f6gel','Birds');"))
         conn.execute(text("INSERT INTO ordnung_name (ordnung, name_de, name_en) VALUES (1,'Raubtiere','Carnivorans');"))
         conn.execute(text("INSERT INTO familie_name (familie, name_de, name_en) VALUES (1,'Katzen','Cats');"))
         conn.execute(
@@ -175,6 +176,7 @@ def test_import_simple_sqlite(monkeypatch, tmp_path):
     src_path = _build_source_db(tmp_path / "src.db")
     target_url = f"sqlite:///{tmp_path}/target.db"
     target_engine = create_engine(target_url, future=True)
+    event.listen(target_engine, "connect", lambda c, r: c.execute("PRAGMA foreign_keys=ON"))
     Session = sessionmaker(bind=target_engine)
     monkeypatch.setattr(import_simple_sqlite_data, "SessionLocal", Session)
 

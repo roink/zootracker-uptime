@@ -75,7 +75,8 @@ def _import_taxon_names(
                     name_en=row.get("name_en"),
                 )
             )
-
+    # Make sure inserted taxon names are written before dependent rows
+    dst.flush()
 
 def _stage_categories(
     src: Session,
@@ -546,6 +547,8 @@ def main(source: str, dry_run: bool = False, overwrite: bool = False) -> None:
 
         with dst.begin() as trans:
             _import_taxon_names(src, dst, klasse_table, ordnung_table, familie_table)
+            # Ensure FK parents exist before bulk inserting animals
+            dst.flush()
             cat_map = _stage_categories(src, dst, animal_table, link_table)
             animal_map = _import_animals(
                 src, dst, animal_table, link_table, cat_map, overwrite=overwrite
