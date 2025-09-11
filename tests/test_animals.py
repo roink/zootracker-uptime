@@ -29,6 +29,15 @@ def test_get_animal_detail_includes_description_en(data):
     assert body["description_en"] == "King of the jungle"
 
 
+def test_get_animal_detail_includes_taxon_names(data):
+    resp = client.get(f"/animals/{data['animal'].id}")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["klasse_name_en"] == "Mammals"
+    assert body["ordnung_name_de"] == "Raubtiere"
+    assert body["familie_name_en"] == "Cats"
+
+
 def test_get_animal_detail_includes_images(data):
     resp = client.get(f"/animals/{data['animal'].id}")
     assert resp.status_code == 200

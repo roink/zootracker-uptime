@@ -36,6 +36,47 @@ logger = logging.getLogger(__name__)
 BANNED_MIDS = {"M31984332", "M1723980", "M117776631", "M55041643"}
 
 
+def _import_taxon_names(
+    src: Session,
+    dst: Session,
+    klasse_table: Table | None,
+    ordnung_table: Table | None,
+    familie_table: Table | None,
+) -> None:
+    """Import class, order and family names if available."""
+
+    if klasse_table is not None:
+        rows = src.execute(select(klasse_table)).mappings()
+        for row in rows:
+            dst.merge(
+                models.ClassName(
+                    klasse=row.get("klasse"),
+                    name_de=row.get("name_de"),
+                    name_en=row.get("name_en"),
+                )
+            )
+    if ordnung_table is not None:
+        rows = src.execute(select(ordnung_table)).mappings()
+        for row in rows:
+            dst.merge(
+                models.OrderName(
+                    ordnung=row.get("ordnung"),
+                    name_de=row.get("name_de"),
+                    name_en=row.get("name_en"),
+                )
+            )
+    if familie_table is not None:
+        rows = src.execute(select(familie_table)).mappings()
+        for row in rows:
+            dst.merge(
+                models.FamilyName(
+                    familie=row.get("familie"),
+                    name_de=row.get("name_de"),
+                    name_en=row.get("name_en"),
+                )
+            )
+
+
 def _stage_categories(
     src: Session,
     dst: Session,
@@ -495,8 +536,16 @@ def main(source: str, dry_run: bool = False, overwrite: bool = False) -> None:
         if insp.has_table("image") and insp.has_table("image_variant"):
             image_table = Table("image", metadata, autoload_with=src_engine)
             variant_table = Table("image_variant", metadata, autoload_with=src_engine)
+        klasse_table = ordnung_table = familie_table = None
+        if insp.has_table("klasse_name"):
+            klasse_table = Table("klasse_name", metadata, autoload_with=src_engine)
+        if insp.has_table("ordnung_name"):
+            ordnung_table = Table("ordnung_name", metadata, autoload_with=src_engine)
+        if insp.has_table("familie_name"):
+            familie_table = Table("familie_name", metadata, autoload_with=src_engine)
 
         with dst.begin() as trans:
+            _import_taxon_names(src, dst, klasse_table, ordnung_table, familie_table)
             cat_map = _stage_categories(src, dst, animal_table, link_table)
             animal_map = _import_animals(
                 src, dst, animal_table, link_table, cat_map, overwrite=overwrite

@@ -103,6 +103,12 @@ def seed_data():
     db.commit()
     db.refresh(far_zoo)
 
+    cls = models.ClassName(klasse=1, name_de="Säugetiere", name_en="Mammals")
+    ordn = models.OrderName(ordnung=1, name_de="Raubtiere", name_en="Carnivorans")
+    fam = models.FamilyName(familie=1, name_de="Katzen", name_en="Cats")
+    db.add_all([cls, ordn, fam])
+    db.commit()
+
     animal = models.Animal(
         name_en="Lion",
         scientific_name="Panthera leo",
@@ -111,6 +117,9 @@ def seed_data():
         name_de="L\u00f6we",
         description_en="King of the jungle",
         description_de="K\u00f6nig der Tiere",
+        klasse=1,
+        ordnung=1,
+        familie=1,
     )
     tiger = models.Animal(
         name_en="Tiger",
