@@ -35,7 +35,8 @@ export default function Dashboard({ token, userId, refresh, onUpdate }) {
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return r.json();
     },
-    staleTime: 'static',
+    staleTime: Infinity,
+    gcTime: 30 * 60 * 1000,
     placeholderData: keepPreviousData,
     select: (zoos) => Object.fromEntries(zoos.map((z) => [z.id, z])),
   });
@@ -47,7 +48,8 @@ export default function Dashboard({ token, userId, refresh, onUpdate }) {
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return r.json();
     },
-    staleTime: 'static',
+    staleTime: Infinity,
+    gcTime: 30 * 60 * 1000,
     placeholderData: keepPreviousData,
     select: (animals) => Object.fromEntries(animals.map((a) => [a.id, a])),
   });
@@ -64,6 +66,7 @@ export default function Dashboard({ token, userId, refresh, onUpdate }) {
     },
     enabled: !!token,
     placeholderData: keepPreviousData,
+    staleTime: 60 * 1000,
   });
 
   const {
@@ -79,6 +82,7 @@ export default function Dashboard({ token, userId, refresh, onUpdate }) {
     },
     enabled: !!token && !!uid,
     placeholderData: keepPreviousData,
+    staleTime: 60 * 1000,
   });
 
   const {
@@ -93,6 +97,7 @@ export default function Dashboard({ token, userId, refresh, onUpdate }) {
     },
     enabled: !!token,
     placeholderData: keepPreviousData,
+    staleTime: 60 * 1000,
   });
 
   const {
@@ -107,17 +112,15 @@ export default function Dashboard({ token, userId, refresh, onUpdate }) {
     },
     enabled: !!token && !!uid,
     placeholderData: keepPreviousData,
+    staleTime: 60 * 1000,
   });
 
   const zoos = useMemo(() => Object.values(zooMap), [zooMap]);
   const animals = useMemo(() => Object.values(animalMap), [animalMap]);
-
-  const zooName = (id) => zooMap[id]?.name || id;
-  const animalName = (id) => {
-    const a = animalMap[id];
-    if (!a) return id;
-    return lang === 'de' ? a.name_de || a.name_en : a.name_en || a.name_de;
-  };
+  const displayAnimalName = (s) =>
+    lang === 'de'
+      ? s.animal_name_de || s.animal_name_en
+      : s.animal_name_en || s.animal_name_de;
 
   const refreshing =
     zoosFetching ||
@@ -155,9 +158,9 @@ export default function Dashboard({ token, userId, refresh, onUpdate }) {
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
     const yDay = yesterday.toISOString().slice(0, 10);
-    if (day === today) return 'Today';
-    if (day === yDay) return 'Yesterday';
-    return new Date(day).toLocaleDateString();
+    if (day === today) return t('dashboard.today');
+    if (day === yDay) return t('dashboard.yesterday');
+    return new Date(day).toLocaleDateString(lang === 'de' ? 'de-DE' : 'en-US');
   };
 
   // Distinct zoo count, derived from visits and sightings in case visit sync is missing
@@ -172,15 +175,21 @@ export default function Dashboard({ token, userId, refresh, onUpdate }) {
   return (
     <div className="container">
       <Seo
-        title="Dashboard"
-        description="View your zoo visits, animal sightings and badges."
+        title={t('nav.dashboard')}
+        description={t('dashboard.description')}
       />
       <div className={`row text-center mb-3 ${refreshing ? 'opacity-50' : ''}`}>
-        <div className="col">Zoos Visited: {visitedZooCount}</div>
-        <div className="col">Animals Seen: {seenCount}</div>
-        <div className="col">Badges: {badges.length}</div>
+        <div className="col">
+          {t('dashboard.zoosVisited', { count: visitedZooCount })}
+        </div>
+        <div className="col">
+          {t('dashboard.animalsSeen', { count: seenCount })}
+        </div>
+        <div className="col">
+          {t('dashboard.badges', { count: badges.length })}
+        </div>
       </div>
-      <h3>Activity Feed</h3>
+      <h3>{t('dashboard.activityFeed')}</h3>
       <ul className="list-group mb-3">
         {groupedSightings.map((g) => (
           <Fragment key={g.day}>
@@ -191,9 +200,11 @@ export default function Dashboard({ token, userId, refresh, onUpdate }) {
                 className="list-group-item d-flex justify-content-between align-items-center"
               >
                 <span>
-                  {`Saw ${
-                    s.animal_name_de ?? animalName(s.animal_id)
-                  } at ${zooName(s.zoo_id)} on ${s.sighting_datetime.slice(0, 10)}`}
+                  {t('dashboard.sighting', {
+                    animal: displayAnimalName(s),
+                    zoo: s.zoo_name ?? s.zoo_id,
+                    date: s.sighting_datetime.slice(0, 10),
+                  })}
                 </span>
                 <button
                   className="btn btn-sm btn-outline-secondary"
@@ -201,22 +212,24 @@ export default function Dashboard({ token, userId, refresh, onUpdate }) {
                     setModalData({
                       sightingId: s.id,
                       zooId: s.zoo_id,
-                      zooName: zooName(s.zoo_id),
+                      zooName: s.zoo_name,
                       animalId: s.animal_id,
-                      animalName: s.animal_name_de ?? animalName(s.animal_id),
+                      animalName: displayAnimalName(s),
                     })
                   }
                 >
-                  Edit
+                  {t('actions.edit')}
                 </button>
               </li>
             ))}
           </Fragment>
         ))}
       </ul>
-      <h3>Recent Badges</h3>
+      <h3>{t('dashboard.recentBadges')}</h3>
       <div className="d-flex overflow-auto mb-3">
-        {badges.length === 0 && <div className="p-2">No badges yet</div>}
+        {badges.length === 0 && (
+          <div className="p-2">{t('dashboard.noBadges')}</div>
+        )}
         {badges.map((b) => (
           <div key={b.id} className="me-2">{b.name}</div>
         ))}
