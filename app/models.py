@@ -232,6 +232,36 @@ SOURCE_ORDER = case(
 )
 
 
+class ClassName(Base):
+    """Taxonomic class name in German and English."""
+
+    __tablename__ = "klasse_names"
+
+    klasse = Column(Integer, primary_key=True)
+    name_de = Column(Text)
+    name_en = Column(Text)
+
+
+class OrderName(Base):
+    """Taxonomic order name in German and English."""
+
+    __tablename__ = "ordnung_names"
+
+    ordnung = Column(Integer, primary_key=True)
+    name_de = Column(Text)
+    name_en = Column(Text)
+
+
+class FamilyName(Base):
+    """Taxonomic family name in German and English."""
+
+    __tablename__ = "familie_names"
+
+    familie = Column(Integer, primary_key=True)
+    name_de = Column(Text)
+    name_en = Column(Text)
+
+
 class Animal(Base):
     """An animal that can belong to a category and appear in zoos."""
 
@@ -259,9 +289,9 @@ class Animal(Base):
     english_label = Column(Text)
     german_label = Column(Text)
     latin_name = Column(Text)
-    klasse = Column(Integer)
-    ordnung = Column(Integer)
-    familie = Column(Integer)
+    klasse = Column(Integer, ForeignKey("klasse_names.klasse"))
+    ordnung = Column(Integer, ForeignKey("ordnung_names.ordnung"))
+    familie = Column(Integer, ForeignKey("familie_names.familie"))
     taxon_rank = Column(Text)
     zoo_count = Column(Integer, nullable=False, default=0, server_default="0")
     default_image_url = Column(Text)
@@ -278,6 +308,9 @@ class Animal(Base):
     category = relationship("Category", back_populates="animals")
     zoos = relationship("ZooAnimal", back_populates="animal")
     sightings = relationship("AnimalSighting", back_populates="animal")
+    klasse_name = relationship("ClassName")
+    ordnung_name = relationship("OrderName")
+    familie_name = relationship("FamilyName")
     images = relationship(
         "Image",
         back_populates="animal",

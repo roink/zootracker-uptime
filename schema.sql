@@ -50,7 +50,26 @@ CREATE TABLE categories (
   name  VARCHAR(100) NOT NULL UNIQUE
 );
 
--- 4. Animals
+-- 4. Taxon names for classes, orders and families
+CREATE TABLE klasse_names (
+  klasse INTEGER PRIMARY KEY,
+  name_de TEXT,
+  name_en TEXT
+);
+
+CREATE TABLE ordnung_names (
+  ordnung INTEGER PRIMARY KEY,
+  name_de TEXT,
+  name_en TEXT
+);
+
+CREATE TABLE familie_names (
+  familie INTEGER PRIMARY KEY,
+  name_de TEXT,
+  name_en TEXT
+);
+
+-- 5. Animals
 CREATE TABLE animals (
   id                 UUID       PRIMARY KEY DEFAULT gen_random_uuid(),
   scientific_name    VARCHAR(255),
@@ -66,9 +85,9 @@ CREATE TABLE animals (
   english_label      TEXT,
   german_label       TEXT,
   latin_name         TEXT,
-  klasse             INTEGER,
-  ordnung            INTEGER,
-  familie            INTEGER,
+  klasse             INTEGER REFERENCES klasse_names(klasse),
+  ordnung            INTEGER REFERENCES ordnung_names(ordnung),
+  familie            INTEGER REFERENCES familie_names(familie),
   taxon_rank         TEXT,
   zoo_count          INTEGER NOT NULL DEFAULT 0 CHECK (zoo_count >= 0),
   default_image_url  TEXT,
@@ -78,7 +97,7 @@ CREATE TABLE animals (
 
 CREATE INDEX IF NOT EXISTS idx_animals_zoo_count ON animals (zoo_count DESC);
 
--- 5. Zoo ↔ Animal join table
+-- 6. Zoo ↔ Animal join table
 CREATE TABLE zoo_animals (
   zoo_id     UUID NOT NULL REFERENCES zoos(id) ON DELETE CASCADE,
   animal_id  UUID NOT NULL REFERENCES animals(id) ON DELETE CASCADE,
@@ -88,7 +107,7 @@ CREATE TABLE zoo_animals (
 CREATE INDEX IF NOT EXISTS idx_zooanimal_zoo_id ON zoo_animals(zoo_id);
 CREATE INDEX IF NOT EXISTS idx_zooanimal_animal_id ON zoo_animals(animal_id);
 
--- 6. Zoo Visits
+-- 7. Zoo Visits
 CREATE TABLE zoo_visits (
   id           UUID       PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id      UUID       NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -101,7 +120,7 @@ CREATE TABLE zoo_visits (
 -- Composite index to accelerate visit lookups by user and zoo
 CREATE INDEX IF NOT EXISTS idx_zoovisit_user_zoo ON zoo_visits (user_id, zoo_id);
 
--- 7. Animal Sightings
+-- 8. Animal Sightings
 CREATE TABLE animal_sightings (
   id                  UUID       PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id             UUID       NOT NULL REFERENCES users(id) ON DELETE CASCADE,

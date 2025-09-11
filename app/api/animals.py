@@ -127,6 +127,9 @@ def get_animal_detail(
         .options(
             joinedload(models.Animal.images).joinedload(models.Image.variants),
             joinedload(models.Animal.category),
+            joinedload(models.Animal.klasse_name),
+            joinedload(models.Animal.ordnung_name),
+            joinedload(models.Animal.familie_name),
         )
         .filter(models.Animal.id == animal_id)
         .first()
@@ -189,6 +192,12 @@ def get_animal_detail(
         description_en=animal.description_en,
         iucn_conservation_status=animal.conservation_state,
         taxon_rank=animal.taxon_rank,
+        class_name_de=animal.klasse_name.name_de if animal.klasse_name else None,
+        class_name_en=animal.klasse_name.name_en if animal.klasse_name else None,
+        order_name_de=animal.ordnung_name.name_de if animal.ordnung_name else None,
+        order_name_en=animal.ordnung_name.name_en if animal.ordnung_name else None,
+        family_name_de=animal.familie_name.name_de if animal.familie_name else None,
+        family_name_en=animal.familie_name.name_en if animal.familie_name else None,
         default_image_url=animal.default_image_url,
         images=images,
         zoos=zoos,

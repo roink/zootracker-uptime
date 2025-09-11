@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, event
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
 
@@ -96,6 +96,33 @@ def _build_source_db(path: Path, mid: str = "M1") -> Path:
             );
             """
         ))
+        conn.execute(text(
+            """
+            CREATE TABLE klasse_name (
+                klasse INTEGER PRIMARY KEY,
+                name_de TEXT,
+                name_en TEXT
+            );
+            """
+        ))
+        conn.execute(text(
+            """
+            CREATE TABLE ordnung_name (
+                ordnung INTEGER PRIMARY KEY,
+                name_de TEXT,
+                name_en TEXT
+            );
+            """
+        ))
+        conn.execute(text(
+            """
+            CREATE TABLE familie_name (
+                familie INTEGER PRIMARY KEY,
+                name_de TEXT,
+                name_en TEXT
+            );
+            """
+        ))
         conn.execute(
             text(
                 "INSERT INTO animal (art, klasse, ordnung, familie, latin_name, name_de, name_en, description_de, description_en, iucn_conservation_status, taxon_rank) VALUES ('Panthera leo',1,1,1,'Panthera leo','L\u00f6we','Lion','Deutsche Beschreibung','English description','VU','species');"
@@ -111,6 +138,10 @@ def _build_source_db(path: Path, mid: str = "M1") -> Path:
         conn.execute(text("INSERT INTO zoo_animal (zoo_id, art) VALUES (1,'Panthera leo');"))
         conn.execute(text("INSERT INTO zoo_animal (zoo_id, art) VALUES (1,'Aquila chrysaetos');"))
         conn.execute(text("INSERT INTO zoo_animal (zoo_id, art) VALUES (1,'Unknownus testus');"))
+        conn.execute(text("INSERT INTO klasse_name (klasse, name_de, name_en) VALUES (1,'S\u00e4ugetiere','Mammals');"))
+        conn.execute(text("INSERT INTO klasse_name (klasse, name_de, name_en) VALUES (2,'V\u00f6gel','Birds');"))
+        conn.execute(text("INSERT INTO ordnung_name (ordnung, name_de, name_en) VALUES (1,'Raubtiere','Carnivorans');"))
+        conn.execute(text("INSERT INTO familie_name (familie, name_de, name_en) VALUES (1,'Katzen','Cats');"))
         conn.execute(
             text(
                 """
@@ -145,6 +176,7 @@ def test_import_simple_sqlite(monkeypatch, tmp_path):
     src_path = _build_source_db(tmp_path / "src.db")
     target_url = f"sqlite:///{tmp_path}/target.db"
     target_engine = create_engine(target_url, future=True)
+    event.listen(target_engine, "connect", lambda c, r: c.execute("PRAGMA foreign_keys=ON"))
     Session = sessionmaker(bind=target_engine)
     monkeypatch.setattr(import_simple_sqlite_data, "SessionLocal", Session)
 
@@ -205,6 +237,12 @@ def test_import_simple_sqlite(monkeypatch, tmp_path):
         assert image.retrieved_at == datetime(2024, 1, 2, tzinfo=image.retrieved_at.tzinfo)
         unknown = db.query(models.Animal).filter_by(scientific_name="Unknownus testus").one()
         assert unknown.description_de is None
+        cls = db.query(models.ClassName).filter_by(klasse=1).one()
+        assert cls.name_en == "Mammals"
+        ordn = db.query(models.OrderName).filter_by(ordnung=1).one()
+        assert ordn.name_de == "Raubtiere"
+        fam = db.query(models.FamilyName).filter_by(familie=1).one()
+        assert fam.name_en == "Cats"
     finally:
         db.close()
 

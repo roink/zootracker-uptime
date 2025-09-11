@@ -53,6 +53,27 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
       : animal.description_en || animal.description_de;
   }, [animal, lang]);
 
+  const className = useMemo(() => {
+    if (!animal) return null;
+    return lang === 'de'
+      ? animal.class_name_de || animal.class_name_en
+      : animal.class_name_en || animal.class_name_de;
+  }, [animal, lang]);
+
+  const orderName = useMemo(() => {
+    if (!animal) return null;
+    return lang === 'de'
+      ? animal.order_name_de || animal.order_name_en
+      : animal.order_name_en || animal.order_name_de;
+  }, [animal, lang]);
+
+  const familyName = useMemo(() => {
+    if (!animal) return null;
+    return lang === 'de'
+      ? animal.family_name_de || animal.family_name_en
+      : animal.family_name_en || animal.family_name_de;
+  }, [animal, lang]);
+
   useEffect(() => {
     const params = [];
     if (location) {
@@ -316,6 +337,28 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
             <span className="category-badge">
               {animal.category}
             </span>
+          )}
+          {(className || orderName || familyName) && (
+            <dl className="small mt-2 mb-0">
+              {className && (
+                <>
+                  <dt className="fw-semibold">{t('animal.class')}</dt>
+                  <dd className="mb-0">{className}</dd>
+                </>
+              )}
+              {orderName && (
+                <>
+                  <dt className="fw-semibold">{t('animal.order')}</dt>
+                  <dd className="mb-0">{orderName}</dd>
+                </>
+              )}
+              {familyName && (
+                <>
+                  <dt className="fw-semibold">{t('animal.family')}</dt>
+                  <dd className="mb-0">{familyName}</dd>
+                </>
+              )}
+            </dl>
           )}
           <div className="spaced-top d-flex flex-wrap gap-2 align-items-center">
             <span className={`badge ${seen ? 'bg-success' : 'bg-secondary'}`}>
