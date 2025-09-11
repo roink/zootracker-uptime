@@ -1,0 +1,71 @@
+import React from 'react';
+import '@testing-library/jest-dom';
+import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { routerFuture } from '../test-utils/router.jsx';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import Dashboard from './Dashboard.jsx';
+import { loadLocale } from '../i18n.js';
+
+vi.mock('../hooks/useAuthFetch', () => ({ default: () => fetch }));
+vi.mock('../components/Seo', () => ({ default: () => null }));
+
+function renderDash(route) {
+  const client = new QueryClient();
+  return render(
+    <MemoryRouter initialEntries={[route]} future={routerFuture}>
+      <QueryClientProvider client={client}>
+        <Routes>
+          <Route path="/:lang" element={<Dashboard token="t" userId="u1" />} />
+        </Routes>
+      </QueryClientProvider>
+    </MemoryRouter>
+  );
+}
+
+describe('Dashboard', () => {
+  const sighting = {
+    id: 's1',
+    zoo_id: 'z1',
+    zoo_name: 'Berlin Zoo',
+    animal_id: 'a1',
+    animal_name_en: 'Lion',
+    animal_name_de: 'Löwe',
+    sighting_datetime: '2024-05-01T00:00:00Z',
+    created_at: '2024-05-01T00:00:00Z',
+  };
+
+  beforeEach(() => {
+    global.fetch = vi.fn(async (url) => {
+      if (url.endsWith('/zoos')) return { ok: true, json: () => Promise.resolve([]) };
+      if (url.endsWith('/animals')) return { ok: true, json: () => Promise.resolve([]) };
+      if (url.endsWith('/visits')) return { ok: true, json: () => Promise.resolve([]) };
+      if (url.includes('/animals/count'))
+        return { ok: true, json: () => Promise.resolve({ count: 0 }) };
+      if (url.endsWith('/sightings'))
+        return { ok: true, json: () => Promise.resolve([sighting]) };
+      if (url.endsWith('/achievements'))
+        return { ok: true, json: () => Promise.resolve([]) };
+      return { ok: true, json: () => Promise.resolve([]) };
+    });
+  });
+
+  it('shows English animal and zoo names', async () => {
+    await loadLocale('en');
+    renderDash('/en');
+    const text = await screen.findByText(
+      'Saw Lion at Berlin Zoo on 2024-05-01'
+    );
+    expect(text).toBeInTheDocument();
+  });
+
+  it('shows German animal and zoo names', async () => {
+    await loadLocale('de');
+    renderDash('/de');
+    const text = await screen.findByText(
+      'Sah Löwe im Berlin Zoo am 2024-05-01'
+    );
+    expect(text).toBeInTheDocument();
+  });
+});

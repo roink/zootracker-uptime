@@ -407,6 +407,20 @@ class AnimalSighting(Base):
             or self.animal.name_en
         )
 
+    @property
+    def animal_name_en(self):
+        """Return the English name for the sighted animal if available."""
+        if self.animal is None:
+            return None
+        return self.animal.name_en or self.animal.name_de
+
+    @property
+    def zoo_name(self):
+        """Return the name of the zoo where the sighting occurred."""
+        if self.zoo is None:
+            return None
+        return self.zoo.name
+
 
 class Achievement(Base):
     """An achievement that can be awarded to a user."""

@@ -230,7 +230,10 @@ def list_sightings(
     """Retrieve all animal sightings recorded by the current user."""
     return (
         db.query(models.AnimalSighting)
-        .options(joinedload(models.AnimalSighting.animal))
+        .options(
+            joinedload(models.AnimalSighting.animal),
+            joinedload(models.AnimalSighting.zoo),
+        )
         .filter_by(user_id=user.id)
         .order_by(
             cast(models.AnimalSighting.sighting_datetime, Date).desc(),

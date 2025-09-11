@@ -169,6 +169,8 @@ class AnimalSightingRead(BaseModel):
     zoo_id: UUID
     animal_id: UUID
     animal_name_de: Optional[str] = None
+    animal_name_en: Optional[str] = None
+    zoo_name: Optional[str] = None
     sighting_datetime: datetime
     notes: Optional[str] = None
     photo_url: Optional[str] = None
