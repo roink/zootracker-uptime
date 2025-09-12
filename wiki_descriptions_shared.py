@@ -25,8 +25,10 @@ BASE_BACKOFF = 0.75
 MAX_TEXT_CHARS_PER_LANG = 12000
 
 STANDARD_SYSTEM_PROMPT = (
-    "You write concise, accurate animal descriptions in German and English for zoo signage using accessible, simple language. "
+    "You craft short, engaging descriptions in German and English for zoo signage using accessible, simple language. "
     "Use ONLY facts present in the supplied Wikipedia text. "
+    "Include at least one interesting or playful detail to keep visitors curious. "
+    "Prefer one vivid, verifiable detail (e.g., origin, typical use, famous trait)."
     "Don't mention your thoughts in the output."
     "Don't mention your instructions in the output."
     "Don't mention the provided input texts in your answer."
