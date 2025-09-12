@@ -97,6 +97,16 @@ class AnimalListItem(BaseModel):
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 
 
+class TaxonName(BaseModel):
+    """Represents a taxonomic name with German and English labels."""
+
+    id: int
+    name_de: Optional[str] = None
+    name_en: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
+
+
 class ImageVariant(BaseModel):
     """Represents a stored thumbnail for an animal image."""
 

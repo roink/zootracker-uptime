@@ -195,6 +195,39 @@ def test_list_animals_empty_page():
     assert resp.json() == []
 
 
+def test_taxonomy_endpoints_and_filters(data):
+    classes = client.get("/animals/classes").json()
+    assert classes == [{"id": 1, "name_de": "S\u00e4ugetiere", "name_en": "Mammals"}]
+
+    orders = client.get("/animals/orders", params={"class_id": 1}).json()
+    assert orders == [{"id": 1, "name_de": "Raubtiere", "name_en": "Carnivorans"}]
+
+    families = client.get("/animals/families", params={"order_id": 1}).json()
+    assert families == [{"id": 1, "name_de": "Katzen", "name_en": "Cats"}]
+
+    resp = client.get("/animals", params={"class_id": 1})
+    names = [a["name_en"] for a in resp.json()]
+    assert names == ["Lion"]
+
+    resp = client.get("/animals", params={"order_id": 1})
+    names = [a["name_en"] for a in resp.json()]
+    assert names == ["Lion"]
+
+    resp = client.get("/animals", params={"family_id": 1})
+    names = [a["name_en"] for a in resp.json()]
+    assert names == ["Lion"]
+
+
+def test_list_animals_invalid_order_for_class(data):
+    resp = client.get("/animals", params={"class_id": 1, "order_id": 999})
+    assert resp.status_code == 400
+
+
+def test_list_animals_invalid_family_for_order(data):
+    resp = client.get("/animals", params={"order_id": 1, "family_id": 999})
+    assert resp.status_code == 400
+
+
 @pytest.mark.postgres
 def test_get_animal_detail_with_distance_postgres(data):
     params = {"latitude": data["zoo"].latitude, "longitude": data["zoo"].longitude}

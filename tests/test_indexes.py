@@ -13,3 +13,16 @@ def test_zoo_location_index_present():
     insp = inspect(engine)
     idx = {i['name'] for i in insp.get_indexes('zoos')}
     assert 'idx_zoos_location_gist' in idx
+
+
+def test_animal_taxonomy_indexes_present():
+    insp = inspect(engine)
+    idx = {i['name'] for i in insp.get_indexes('animals')}
+    expected = {
+        'idx_animals_klasse',
+        'idx_animals_ordnung',
+        'idx_animals_familie',
+        'idx_animals_klasse_ordnung',
+        'idx_animals_ordnung_familie',
+    }
+    assert expected.issubset(idx)
