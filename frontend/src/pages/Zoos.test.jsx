@@ -144,4 +144,32 @@ describe('ZoosPage', () => {
     });
     vi.useRealTimers();
   });
+
+  it('uses region and search params from URL when loading', async () => {
+    const fetchMock = vi.fn((url) => {
+      if (url.startsWith(`${API}/zoos/continents`))
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      if (url.startsWith(`${API}/zoos/countries`))
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      if (url.startsWith(`${API}/visits/ids`))
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      if (url.startsWith(`${API}/zoos?`))
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    });
+    global.fetch = fetchMock;
+
+    renderWithRouter(<ZoosPage token="t" />, {
+      route: '/?continent=1&country=2&q=bear',
+    });
+
+    await waitFor(() => {
+      const zooCall = fetchMock.mock.calls.find(([u]) =>
+        u.startsWith(`${API}/zoos?`)
+      );
+      expect(zooCall[0]).toContain('continent_id=1');
+      expect(zooCall[0]).toContain('country_id=2');
+      expect(zooCall[0]).toContain('q=bear');
+    });
+  });
 });

@@ -11,19 +11,23 @@ export default function ZoosPage({ token }) {
   const navigate = useNavigate();
   const { lang } = useParams();
   const prefix = `/${lang}`;
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialSearch = searchParams.get('q') || '';
+  const initialContinent = searchParams.get('continent') || '';
+  const initialCountry = searchParams.get('country') || '';
+  const initialVisit = searchParams.get('visit');
+
   const [zoos, setZoos] = useState([]);
   const [visitedIds, setVisitedIds] = useState([]);
-  const [search, setSearch] = useState('');
-  const [query, setQuery] = useState('');
+  const [search, setSearch] = useState(initialSearch);
+  const [query, setQuery] = useState(initialSearch);
   const [continents, setContinents] = useState([]);
   const [countries, setCountries] = useState([]);
-  const [continentId, setContinentId] = useState('');
-  const [countryId, setCountryId] = useState('');
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [visitFilter, setVisitFilter] = useState(() => {
-    const v = searchParams.get('visit');
-    return v === 'visited' || v === 'not' ? v : 'all';
-  }); // all | visited | not
+  const [continentId, setContinentId] = useState(initialContinent);
+  const [countryId, setCountryId] = useState(initialCountry);
+  const [visitFilter, setVisitFilter] = useState(() =>
+    initialVisit === 'visited' || initialVisit === 'not' ? initialVisit : 'all'
+  ); // all | visited | not
   const [visitedLoading, setVisitedLoading] = useState(true);
   const [location, setLocation] = useState(() => {
     const stored = sessionStorage.getItem('userLocation');
@@ -33,22 +37,12 @@ export default function ZoosPage({ token }) {
   const { t } = useTranslation();
 
   useEffect(() => {
-    const c = searchParams.get('continent') || '';
-    const co = searchParams.get('country') || '';
-    const qParam = searchParams.get('q') || '';
-    setContinentId(c);
-    setCountryId(co);
-    setSearch(qParam);
-    setQuery(qParam);
-  }, []);
-
-  useEffect(() => {
     const params = {};
     if (query) params.q = query;
     if (continentId) params.continent = continentId;
     if (countryId) params.country = countryId;
     if (visitFilter !== 'all') params.visit = visitFilter;
-    setSearchParams(params);
+    setSearchParams(params, { replace: false });
   }, [query, continentId, countryId, visitFilter, setSearchParams]);
 
   useEffect(() => {
@@ -124,10 +118,6 @@ export default function ZoosPage({ token }) {
 
   const updateVisitFilter = (v) => {
     setVisitFilter(v);
-    const params = new URLSearchParams(searchParams);
-    if (v === 'all') params.delete('visit');
-    else params.set('visit', v);
-    setSearchParams(params);
   };
 
   const filtered = useMemo(() => {
