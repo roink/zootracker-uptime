@@ -32,10 +32,29 @@ def _build_source_db(path: Path, mid: str = "M1") -> Path:
         ))
         conn.execute(text(
             """
+            CREATE TABLE continent_name (
+                id INTEGER PRIMARY KEY,
+                name_de TEXT NOT NULL UNIQUE,
+                name_en TEXT
+            );
+            """
+        ))
+        conn.execute(text(
+            """
+            CREATE TABLE country_name (
+                id INTEGER PRIMARY KEY,
+                name_de TEXT NOT NULL UNIQUE,
+                name_en TEXT,
+                continent_id INTEGER REFERENCES continent_name(id)
+            );
+            """
+        ))
+        conn.execute(text(
+            """
             CREATE TABLE zoo (
                 zoo_id INTEGER PRIMARY KEY,
-                continent TEXT,
-                country TEXT,
+                continent INTEGER REFERENCES continent_name(id),
+                country INTEGER REFERENCES country_name(id),
                 city TEXT,
                 name TEXT,
                 latitude REAL,
@@ -134,7 +153,9 @@ def _build_source_db(path: Path, mid: str = "M1") -> Path:
                 "INSERT INTO animal (art, latin_name, zootierliste_description) VALUES ('Unknownus testus','Unknownus testus','Legacy description');"
             )
         )
-        conn.execute(text("INSERT INTO zoo (zoo_id, continent, country, city, name, latitude, longitude, website, description_en, description_de) VALUES (1,'Europe','Germany','Berlin','Berlin Zoo',52.5,13.4,'http://example.org','English zoo','Deutscher Zoo');"))
+        conn.execute(text("INSERT INTO continent_name (id, name_de, name_en) VALUES (1,'Europa','Europe');"))
+        conn.execute(text("INSERT INTO country_name (id, name_de, name_en, continent_id) VALUES (1,'Deutschland','Germany',1);"))
+        conn.execute(text("INSERT INTO zoo (zoo_id, continent, country, city, name, latitude, longitude, website, description_en, description_de) VALUES (1,1,1,'Berlin','Berlin Zoo',52.5,13.4,'http://example.org','English zoo','Deutscher Zoo');"))
         conn.execute(text("INSERT INTO zoo_animal (zoo_id, art) VALUES (1,'Panthera leo');"))
         conn.execute(text("INSERT INTO zoo_animal (zoo_id, art) VALUES (1,'Aquila chrysaetos');"))
         conn.execute(text("INSERT INTO zoo_animal (zoo_id, art) VALUES (1,'Unknownus testus');"))
@@ -196,12 +217,17 @@ def test_import_simple_sqlite(monkeypatch, tmp_path):
     try:
         assert db.query(models.Animal).count() == 3
         assert db.query(models.Zoo).count() == 1
+        assert db.query(models.ContinentName).count() == 1
+        assert db.query(models.CountryName).count() == 1
         categories = db.query(models.Category).order_by(models.Category.name).all()
         assert [c.name for c in categories] == ["Klasse 1", "Klasse 2", "Uncategorized"]
         zoo = db.query(models.Zoo).first()
         assert zoo.animal_count == 3
         assert zoo.name == "Berlin Zoo"
-        assert zoo.country == "Germany"
+        assert zoo.country_id == 1
+        assert zoo.country.name_en == "Germany"
+        assert zoo.continent_id == 1
+        assert zoo.continent.name_en == "Europe"
         assert zoo.city == "Berlin"
         assert float(zoo.latitude) == 52.5
         assert float(zoo.longitude) == 13.4

@@ -63,6 +63,33 @@ class User(Base):
     achievements = relationship("UserAchievement", back_populates="user")
 
 
+class ContinentName(Base):
+    """Localized continent names."""
+
+    __tablename__ = "continent_names"
+
+    id = Column(Integer, primary_key=True)
+    name_de = Column(Text, unique=True, nullable=False)
+    name_en = Column(Text)
+
+    countries = relationship("CountryName", back_populates="continent")
+    zoos = relationship("Zoo", back_populates="continent")
+
+
+class CountryName(Base):
+    """Localized country names grouped by continent."""
+
+    __tablename__ = "country_names"
+
+    id = Column(Integer, primary_key=True)
+    name_de = Column(Text, unique=True, nullable=False)
+    name_en = Column(Text)
+    continent_id = Column(Integer, ForeignKey("continent_names.id"))
+
+    continent = relationship("ContinentName", back_populates="countries")
+    zoos = relationship("Zoo", back_populates="country")
+
+
 class Zoo(Base):
     """A zoo location that can be visited."""
 
@@ -82,6 +109,8 @@ class Zoo(Base):
             postgresql_using="gin",
             postgresql_ops={"city": "gin_trgm_ops"},
         ),
+        Index("idx_zoos_country_id", "country_id"),
+        Index("idx_zoos_continent_id", "continent_id"),
     )
 
     id = Column(
@@ -97,9 +126,9 @@ class Zoo(Base):
     # Keep the default `spatial_index=True` so GeoAlchemy2 creates a GiST
     # index automatically.
     location = Column(LocationType)
-    country = Column(Text)
+    continent_id = Column(Integer, ForeignKey("continent_names.id"))
+    country_id = Column(Integer, ForeignKey("country_names.id"))
     city = Column(Text)
-    continent = Column(Text)
     official_website = Column(Text)
     wikipedia_de = Column(Text)
     wikipedia_en = Column(Text)
@@ -120,6 +149,8 @@ class Zoo(Base):
     animals = relationship("ZooAnimal", back_populates="zoo")
     visits = relationship("ZooVisit", back_populates="zoo")
     sightings = relationship("AnimalSighting", back_populates="zoo")
+    continent = relationship("ContinentName", back_populates="zoos")
+    country = relationship("CountryName", back_populates="zoos")
 
     @validates("latitude", "longitude")
     def _sync_location(self, key, value):

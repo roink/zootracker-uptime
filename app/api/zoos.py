@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import or_, exists
 from sqlalchemy.orm import Session
 import uuid
@@ -14,18 +14,40 @@ router = APIRouter()
 @router.get("/zoos", response_model=list[schemas.ZooSearchResult])
 def search_zoos(
     q: str = "",
+    continent_id: int | None = None,
+    country_id: int | None = None,
     coords: tuple[float | None, float | None] = Depends(resolve_coords),
     db: Session = Depends(get_db),
 ):
-    """Search for zoos by name and optional distance from a point."""
+    """Search for zoos by name, region and optional distance."""
+
+    if continent_id is not None and country_id is not None:
+        exists_country = (
+            db.query(models.CountryName)
+            .filter(
+                models.CountryName.id == country_id,
+                models.CountryName.continent_id == continent_id,
+            )
+            .first()
+        )
+        if not exists_country:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="country_id does not belong to continent_id",
+            )
+
     query = db.query(models.Zoo)
     if q:
         pattern = f"%{q}%"
         query = query.filter(
             or_(models.Zoo.name.ilike(pattern), models.Zoo.city.ilike(pattern))
         )
+    if continent_id is not None:
+        query = query.filter(models.Zoo.continent_id == continent_id)
+    if country_id is not None:
+        query = query.filter(models.Zoo.country_id == country_id)
+
     latitude, longitude = coords
-    # Always return all zoos, ordering by distance when coordinates are provided
     results = query_zoos_with_distance(query, latitude, longitude)
     return [
         schemas.ZooSearchResult(
@@ -36,6 +58,41 @@ def search_zoos(
             distance_km=dist,
         )
         for z, dist in results
+    ]
+
+
+@router.get("/zoos/continents", response_model=list[schemas.TaxonName])
+def list_continents(db: Session = Depends(get_db)):
+    """Return continents that have zoos."""
+
+    continents = (
+        db.query(models.ContinentName)
+        .join(models.Zoo, models.Zoo.continent_id == models.ContinentName.id)
+        .distinct()
+        .order_by(models.ContinentName.name_en)
+        .all()
+    )
+    return [
+        schemas.TaxonName(id=c.id, name_de=c.name_de, name_en=c.name_en)
+        for c in continents
+    ]
+
+
+@router.get("/zoos/countries", response_model=list[schemas.TaxonName])
+def list_countries(continent_id: int, db: Session = Depends(get_db)):
+    """Return countries for a given continent that have zoos."""
+
+    countries = (
+        db.query(models.CountryName)
+        .join(models.Zoo, models.Zoo.country_id == models.CountryName.id)
+        .filter(models.CountryName.continent_id == continent_id)
+        .distinct()
+        .order_by(models.CountryName.name_en)
+        .all()
+    )
+    return [
+        schemas.TaxonName(id=c.id, name_de=c.name_de, name_en=c.name_en)
+        for c in countries
     ]
 
 @router.get("/zoos/{zoo_id}", response_model=schemas.ZooDetail)
