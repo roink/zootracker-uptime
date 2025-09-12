@@ -30,9 +30,12 @@ def list_animals(
     limit: int = 50,
     offset: int = 0,
     category: str | None = None,
+    class_id: int | None = None,
+    order_id: int | None = None,
+    family_id: int | None = None,
     db: Session = Depends(get_db),
 ):
-    """List animals filtered by search query, category and pagination."""
+    """List animals filtered by search query, taxonomy and pagination."""
 
     if limit < 1 or limit > 100:
         raise HTTPException(
@@ -44,6 +47,30 @@ def list_animals(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="offset must be >= 0",
         )
+
+    # Ensure hierarchical taxonomy parameters are consistent
+    if class_id is not None and order_id is not None:
+        exists = (
+            db.query(models.Animal)
+            .filter(models.Animal.klasse == class_id, models.Animal.ordnung == order_id)
+            .first()
+        )
+        if not exists:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="order_id does not belong to class_id",
+            )
+    if order_id is not None and family_id is not None:
+        exists = (
+            db.query(models.Animal)
+            .filter(models.Animal.ordnung == order_id, models.Animal.familie == family_id)
+            .first()
+        )
+        if not exists:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="family_id does not belong to order_id",
+            )
 
     query = (
         db.query(models.Animal)
@@ -62,6 +89,12 @@ def list_animals(
 
     if category:
         query = query.filter(models.Category.name == category)
+    if class_id is not None:
+        query = query.filter(models.Animal.klasse == class_id)
+    if order_id is not None:
+        query = query.filter(models.Animal.ordnung == order_id)
+    if family_id is not None:
+        query = query.filter(models.Animal.familie == family_id)
 
     animals = (
         query.order_by(models.Animal.name_en)
@@ -82,6 +115,59 @@ def list_animals(
             default_image_url=a.default_image_url,
         )
         for a in animals
+    ]
+
+
+@router.get("/animals/classes", response_model=list[schemas.TaxonName])
+def list_classes(db: Session = Depends(get_db)):
+    """Return all available classes that have animals."""
+
+    classes = (
+        db.query(models.ClassName)
+        .join(models.Animal, models.Animal.klasse == models.ClassName.klasse)
+        .distinct()
+        .order_by(models.ClassName.name_en)
+        .all()
+    )
+    return [
+        schemas.TaxonName(id=c.klasse, name_de=c.name_de, name_en=c.name_en)
+        for c in classes
+    ]
+
+
+@router.get("/animals/orders", response_model=list[schemas.TaxonName])
+def list_orders(class_id: int, db: Session = Depends(get_db)):
+    """Return orders available for a given class."""
+
+    orders = (
+        db.query(models.OrderName)
+        .join(models.Animal, models.Animal.ordnung == models.OrderName.ordnung)
+        .filter(models.Animal.klasse == class_id)
+        .distinct()
+        .order_by(models.OrderName.name_en)
+        .all()
+    )
+    return [
+        schemas.TaxonName(id=o.ordnung, name_de=o.name_de, name_en=o.name_en)
+        for o in orders
+    ]
+
+
+@router.get("/animals/families", response_model=list[schemas.TaxonName])
+def list_families(order_id: int, db: Session = Depends(get_db)):
+    """Return families available for a given order."""
+
+    families = (
+        db.query(models.FamilyName)
+        .join(models.Animal, models.Animal.familie == models.FamilyName.familie)
+        .filter(models.Animal.ordnung == order_id)
+        .distinct()
+        .order_by(models.FamilyName.name_en)
+        .all()
+    )
+    return [
+        schemas.TaxonName(id=f.familie, name_de=f.name_de, name_en=f.name_en)
+        for f in families
     ]
 
 @router.get("/search", response_model=schemas.SearchResults)

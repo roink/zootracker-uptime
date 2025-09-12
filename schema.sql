@@ -96,6 +96,11 @@ CREATE TABLE animals (
 );
 
 CREATE INDEX IF NOT EXISTS idx_animals_zoo_count ON animals (zoo_count DESC);
+CREATE INDEX IF NOT EXISTS idx_animals_klasse ON animals(klasse);
+CREATE INDEX IF NOT EXISTS idx_animals_ordnung ON animals(ordnung);
+CREATE INDEX IF NOT EXISTS idx_animals_familie ON animals(familie);
+CREATE INDEX IF NOT EXISTS idx_animals_klasse_ordnung ON animals(klasse, ordnung);
+CREATE INDEX IF NOT EXISTS idx_animals_ordnung_familie ON animals(ordnung, familie);
 
 -- 6. Zoo ↔ Animal join table
 CREATE TABLE zoo_animals (

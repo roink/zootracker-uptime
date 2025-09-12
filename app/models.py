@@ -266,7 +266,14 @@ class Animal(Base):
     """An animal that can belong to a category and appear in zoos."""
 
     __tablename__ = "animals"
-    __table_args__ = (CheckConstraint("zoo_count >= 0"),)
+    __table_args__ = (
+        CheckConstraint("zoo_count >= 0"),
+        Index("idx_animals_klasse", "klasse"),
+        Index("idx_animals_ordnung", "ordnung"),
+        Index("idx_animals_familie", "familie"),
+        Index("idx_animals_klasse_ordnung", "klasse", "ordnung"),
+        Index("idx_animals_ordnung_familie", "ordnung", "familie"),
+    )
 
     id = Column(
         UUID(as_uuid=True),
