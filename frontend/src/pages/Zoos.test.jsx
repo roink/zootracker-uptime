@@ -1,6 +1,7 @@
 import React from 'react';
 import '@testing-library/jest-dom';
 import { screen, waitFor, fireEvent } from '@testing-library/react';
+import { useLocation } from 'react-router-dom';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderWithRouter } from '../test-utils/router.jsx';
 
@@ -20,16 +21,22 @@ describe('ZoosPage', () => {
   it('loads visited zoo IDs and marks visited zoos', async () => {
     const zoos = [{ id: '1', name: 'A Zoo', address: '', city: '' }];
     const visited = ['1'];
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(zoos) })
-      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(visited) });
+    const fetchMock = vi.fn((url) => {
+      if (url.startsWith(`${API}/zoos/continents`))
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      if (url.startsWith(`${API}/zoos`))
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(zoos) });
+      if (url.startsWith(`${API}/visits/ids`))
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(visited) });
+      if (url.startsWith(`${API}/zoos/countries`))
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    });
     global.fetch = fetchMock;
 
     renderWithRouter(<ZoosPage token="t" />);
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(`${API}/zoos`));
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(`${API}/visits/ids`));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     const badges = await screen.findAllByText('Visited', { selector: 'span' });
     expect(badges[0]).toBeInTheDocument();
   });
@@ -40,10 +47,17 @@ describe('ZoosPage', () => {
       { id: '2', name: 'New Zoo', address: '', city: '' },
     ];
     const visited = ['1'];
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(zoos) })
-      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(visited) });
+    const fetchMock = vi.fn((url) => {
+      if (url.startsWith(`${API}/zoos/continents`))
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      if (url.startsWith(`${API}/zoos`))
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(zoos) });
+      if (url.startsWith(`${API}/visits/ids`))
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(visited) });
+      if (url.startsWith(`${API}/zoos/countries`))
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    });
     global.fetch = fetchMock;
 
     renderWithRouter(<ZoosPage token="t" />);
@@ -83,10 +97,17 @@ describe('ZoosPage', () => {
       { id: '2', name: 'New Zoo', address: '', city: '' },
     ];
     const visited = ['1'];
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(zoos) })
-      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(visited) });
+    const fetchMock = vi.fn((url) => {
+      if (url.startsWith(`${API}/zoos/continents`))
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      if (url.startsWith(`${API}/zoos`))
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(zoos) });
+      if (url.startsWith(`${API}/visits/ids`))
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(visited) });
+      if (url.startsWith(`${API}/zoos/countries`))
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    });
     global.fetch = fetchMock;
 
     renderWithRouter(<ZoosPage token="t" />, { route: '/?visit=visited' });
@@ -96,4 +117,71 @@ describe('ZoosPage', () => {
       expect(screen.getByLabelText('Visited')).toBeChecked()
     );
   });
+
+  it('syncs search query with URL params', async () => {
+    const zoos = [{ id: '1', name: 'A Zoo', address: '', city: '' }];
+    const fetchMock = vi.fn((url) => {
+      if (url.startsWith(`${API}/zoos/continents`))
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      if (url.startsWith(`${API}/zoos`))
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(zoos) });
+      if (url.startsWith(`${API}/visits/ids`))
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      if (url.startsWith(`${API}/zoos/countries`))
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    });
+    global.fetch = fetchMock;
+
+    let loc;
+    function LocWatcher() {
+      loc = useLocation();
+      return null;
+    }
+
+    renderWithRouter(
+      <>
+        <LocWatcher />
+        <ZoosPage token="t" />
+      </>,
+      { route: '/?q=start' }
+    );
+
+    const input = screen.getByPlaceholderText('Search');
+    expect(input).toHaveValue('start');
+
+    fireEvent.change(input, { target: { value: 'new' } });
+    await waitFor(() => {
+      expect(loc.search).toContain('q=new');
+    });
+  });
+
+  it('uses region and search params from URL when loading', async () => {
+    const fetchMock = vi.fn((url) => {
+      if (url.startsWith(`${API}/zoos/continents`))
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      if (url.startsWith(`${API}/zoos/countries`))
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      if (url.startsWith(`${API}/visits/ids`))
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      if (url.startsWith(`${API}/zoos?`))
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    });
+    global.fetch = fetchMock;
+
+    renderWithRouter(<ZoosPage token="t" />, {
+      route: '/?continent=1&country=2&q=bear',
+    });
+
+    await waitFor(() => {
+      const zooCall = fetchMock.mock.calls.find(([u]) =>
+        u.startsWith(`${API}/zoos?`)
+      );
+      expect(zooCall[0]).toContain('continent_id=1');
+      expect(zooCall[0]).toContain('country_id=2');
+      expect(zooCall[0]).toContain('q=bear');
+    });
+  });
+
 });

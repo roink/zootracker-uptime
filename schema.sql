@@ -16,7 +16,21 @@ CREATE TABLE users (
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- 2. Zoos
+-- 2. Region reference tables
+CREATE TABLE continent_names (
+  id       INTEGER PRIMARY KEY,
+  name_de  TEXT NOT NULL UNIQUE,
+  name_en  TEXT
+);
+
+CREATE TABLE country_names (
+  id            INTEGER PRIMARY KEY,
+  name_de       TEXT NOT NULL UNIQUE,
+  name_en       TEXT,
+  continent_id  INTEGER REFERENCES continent_names(id)
+);
+
+-- 3. Zoos
 CREATE TABLE zoos (
   id              UUID       PRIMARY KEY DEFAULT gen_random_uuid(),
   name            VARCHAR(255) NOT NULL,
@@ -24,9 +38,9 @@ CREATE TABLE zoos (
   latitude        DECIMAL(9,6),
   longitude       DECIMAL(9,6),
   location        GEOGRAPHY(POINT, 4326),
-  country         TEXT,
+  continent_id    INTEGER REFERENCES continent_names(id),
+  country_id      INTEGER REFERENCES country_names(id),
   city            TEXT,
-  continent       TEXT,
   official_website TEXT,
   wikipedia_de    TEXT,
   wikipedia_en    TEXT,
@@ -42,6 +56,8 @@ CREATE INDEX IF NOT EXISTS idx_zoos_name_trgm
   ON zoos USING gin (name gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_zoos_city_trgm
   ON zoos USING gin (city gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_zoos_country_id   ON zoos(country_id);
+CREATE INDEX IF NOT EXISTS idx_zoos_continent_id ON zoos(continent_id);
 
 
 -- 3. Categories (e.g., Mammal, Bird, Reptile)

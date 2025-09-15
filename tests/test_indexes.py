@@ -9,10 +9,15 @@ def test_zooanimal_indexes_present():
     assert 'idx_zooanimal_zoo_id' in idx
 
 
-def test_zoo_location_index_present():
+def test_zoo_indexes_present():
     insp = inspect(engine)
     idx = {i['name'] for i in insp.get_indexes('zoos')}
-    assert 'idx_zoos_location_gist' in idx
+    expected = {
+        'idx_zoos_location_gist',
+        'idx_zoos_country_id',
+        'idx_zoos_continent_id',
+    }
+    assert expected.issubset(idx)
 
 
 def test_animal_taxonomy_indexes_present():

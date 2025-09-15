@@ -53,6 +53,14 @@ def create_tables() -> None:
                     "CREATE INDEX IF NOT EXISTS idx_zoos_city_trgm ON zoos USING GIN (city gin_trgm_ops)"
                 )
             )
+        conn.execute(
+            text("CREATE INDEX IF NOT EXISTS idx_zoos_country_id ON zoos (country_id)")
+        )
+        conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS idx_zoos_continent_id ON zoos (continent_id)"
+            )
+        )
 
 
 if __name__ == "__main__":
