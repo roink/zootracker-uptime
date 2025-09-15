@@ -13,8 +13,9 @@ export default function AnimalsPage({ token, userId }) {
   const prefix = `/${lang}`;
   const [animals, setAnimals] = useState([]);
   const [seenAnimals, setSeenAnimals] = useState([]);
-  const [search, setSearch] = useState('');
-  const [query, setQuery] = useState('');
+  const initialQ = searchParams.get('q') || '';
+  const [search, setSearch] = useState(initialQ);
+  const [query, setQuery] = useState(initialQ);
   const [classes, setClasses] = useState([]);
   const [orders, setOrders] = useState([]);
   const [families, setFamilies] = useState([]);
@@ -29,14 +30,35 @@ export default function AnimalsPage({ token, userId }) {
   const limit = 20; // number of animals per page
   const { t } = useTranslation();
 
-  // Persist filter selections in the URL so they survive navigation
+  // Hydrate local state from the URL whenever search params change
   useEffect(() => {
-    const params = {};
-    if (classId) params.class = classId;
-    if (orderId) params.order = orderId;
-    if (familyId) params.family = familyId;
-    setSearchParams(params);
-  }, [classId, orderId, familyId, setSearchParams]);
+    const urlSearch = searchParams.get('q') || '';
+    const urlClass = searchParams.get('class') || '';
+    const urlOrder = searchParams.get('order') || '';
+    const urlFamily = searchParams.get('family') || '';
+    if (search !== urlSearch) {
+      setSearch(urlSearch);
+      setQuery(urlSearch);
+    }
+    if (classId !== urlClass) setClassId(urlClass);
+    if (orderId !== urlOrder) setOrderId(urlOrder);
+    if (familyId !== urlFamily) setFamilyId(urlFamily);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  // Persist search and filter selections in the URL
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (query) params.set('q', query);
+    if (classId) params.set('class', classId);
+    if (orderId) params.set('order', orderId);
+    if (familyId) params.set('family', familyId);
+    const next = params.toString();
+    if (next !== searchParams.toString()) {
+      setSearchParams(params, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, classId, orderId, familyId]);
 
   // Fetch list of classes on mount
   useEffect(() => {
