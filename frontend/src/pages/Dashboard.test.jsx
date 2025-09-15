@@ -7,6 +7,8 @@ import { routerFuture } from '../test-utils/router.jsx';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Dashboard from './Dashboard.jsx';
 import { loadLocale } from '../i18n.js';
+import { AuthProvider } from '../auth/AuthContext.jsx';
+import { createTestToken, setStoredAuth } from '../test-utils/auth.js';
 
 vi.mock('../hooks/useAuthFetch', () => ({ default: () => fetch }));
 vi.mock('../components/Seo', () => ({ default: () => null }));
@@ -17,14 +19,16 @@ function renderDash(route) {
     [
       {
         path: '/:lang',
-        element: <Dashboard token="t" userId="u1" />,
+        element: <Dashboard refresh={0} onUpdate={() => {}} />,
       },
     ],
     { initialEntries: [route], future: routerFuture }
   );
   const utils = render(
     <QueryClientProvider client={client}>
-      <RouterProvider router={router} />
+      <AuthProvider>
+        <RouterProvider router={router} />
+      </AuthProvider>
     </QueryClientProvider>
   );
   return { ...utils, router };
@@ -43,6 +47,8 @@ describe('Dashboard', () => {
   };
 
   beforeEach(() => {
+    const token = createTestToken();
+    setStoredAuth({ token, user: { id: 'u1', email: 'user@example.com' } });
     global.fetch = vi.fn(async (url) => {
       if (url.endsWith('/zoos')) return { ok: true, json: () => Promise.resolve([]) };
       if (url.endsWith('/animals')) return { ok: true, json: () => Promise.resolve([]) };

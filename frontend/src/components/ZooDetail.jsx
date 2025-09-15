@@ -5,10 +5,11 @@ import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
 import SightingModal from './SightingModal';
 import LazyMap from './LazyMap';
+import { useAuth } from '../auth/AuthContext.jsx';
 
 // Detailed view for a single zoo with a list of resident animals.
 // Used by the ZooDetailPage component.
-export default function ZooDetail({ zoo, token, userId, refresh, onLogged }) {
+export default function ZooDetail({ zoo, refresh, onLogged }) {
   const [animals, setAnimals] = useState([]);
   const [visited, setVisited] = useState(false);
   const [seenIds, setSeenIds] = useState(new Set());
@@ -17,7 +18,9 @@ export default function ZooDetail({ zoo, token, userId, refresh, onLogged }) {
   const { lang } = useParams();
   const prefix = `/${lang}`;
   const { t } = useTranslation();
-  const authFetch = useAuthFetch(token);
+  const authFetch = useAuthFetch();
+  const { isAuthenticated, user } = useAuth();
+  const userId = user?.id;
   const [descExpanded, setDescExpanded] = useState(false); // track full description visibility
   // Helper: pick animal name in current language
   const getAnimalName = useCallback(
@@ -43,25 +46,21 @@ export default function ZooDetail({ zoo, token, userId, refresh, onLogged }) {
 
   // Load whether user has visited this zoo
   useEffect(() => {
-    if (!token) return;
-    authFetch(`${API}/zoos/${zoo.id}/visited`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    if (!isAuthenticated) return;
+    authFetch(`${API}/zoos/${zoo.id}/visited`)
       .then((r) => (r.ok ? r.json() : { visited: false }))
       .then((d) => setVisited(Boolean(d.visited)))
       .catch(() => setVisited(false));
-  }, [token, authFetch, zoo.id, refresh]);
+  }, [isAuthenticated, authFetch, zoo.id, refresh]);
 
   // Load IDs of animals the user has seen
   useEffect(() => {
-    if (!token || !userId) return;
-    authFetch(`${API}/users/${userId}/animals/ids`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    if (!isAuthenticated || !userId) return;
+    authFetch(`${API}/users/${userId}/animals/ids`)
       .then((r) => (r.ok ? r.json() : []))
       .then((ids) => setSeenIds(new Set(ids)))
       .catch(() => setSeenIds(new Set()));
-  }, [token, userId, authFetch, refresh]);
+  }, [isAuthenticated, userId, authFetch, refresh]);
   // pick description based on current language with fallback to generic text
   const zooDescription =
     lang === 'de' ? zoo.description_de : zoo.description_en;
@@ -158,7 +157,7 @@ export default function ZooDetail({ zoo, token, userId, refresh, onLogged }) {
                   className="btn btn-sm btn-outline-secondary"
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (!token) {
+                    if (!isAuthenticated) {
                       navigate(`${prefix}/login`);
                       return;
                     }
@@ -179,7 +178,6 @@ export default function ZooDetail({ zoo, token, userId, refresh, onLogged }) {
       </table>
       {modalData && (
           <SightingModal
-            token={token}
             animals={animals}
             defaultZooId={modalData.zooId}
             defaultAnimalId={modalData.animalId}
@@ -195,17 +193,13 @@ export default function ZooDetail({ zoo, token, userId, refresh, onLogged }) {
                   );
                 })
                 .catch(() => setAnimals([]));
-              if (token) {
-                authFetch(`${API}/zoos/${zoo.id}/visited`, {
-                  headers: { Authorization: `Bearer ${token}` },
-                })
+              if (isAuthenticated) {
+                authFetch(`${API}/zoos/${zoo.id}/visited`)
                   .then((r) => (r.ok ? r.json() : { visited: false }))
                   .then((d) => setVisited(Boolean(d.visited)))
                   .catch(() => setVisited(false));
                 if (userId) {
-                  authFetch(`${API}/users/${userId}/animals/ids`, {
-                    headers: { Authorization: `Bearer ${token}` },
-                  })
+                  authFetch(`${API}/users/${userId}/animals/ids`)
                     .then((r) => (r.ok ? r.json() : []))
                     .then((ids) => setSeenIds(new Set(ids)))
                     .catch(() => setSeenIds(new Set()));

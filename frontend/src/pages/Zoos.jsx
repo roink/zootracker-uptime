@@ -4,10 +4,11 @@ import { useTranslation } from 'react-i18next';
 import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
 import Seo from '../components/Seo';
+import { useAuth } from '../auth/AuthContext.jsx';
 
 // Listing page showing all zoos with search, region filters and visit status.
 
-export default function ZoosPage({ token }) {
+export default function ZoosPage() {
   const navigate = useNavigate();
   const { lang } = useParams();
   const prefix = `/${lang}`;
@@ -33,7 +34,8 @@ export default function ZoosPage({ token }) {
     const stored = sessionStorage.getItem('userLocation');
     return stored ? JSON.parse(stored) : null;
   });
-  const authFetch = useAuthFetch(token);
+  const authFetch = useAuthFetch();
+  const { isAuthenticated } = useAuth();
   const { t } = useTranslation();
 
   // Keep local state in sync with URL (supports browser back/forward)
@@ -91,6 +93,7 @@ export default function ZoosPage({ token }) {
       .catch(() => setCountries([]));
   }, [continentId]);
 
+
   useEffect(() => {
     const id = setTimeout(() => setQuery(search), 500);
     return () => clearTimeout(id);
@@ -129,7 +132,7 @@ export default function ZoosPage({ token }) {
   }, []);
 
   useEffect(() => {
-    if (!token) {
+    if (!isAuthenticated) {
       setVisitedLoading(false);
       return;
     }
@@ -139,7 +142,7 @@ export default function ZoosPage({ token }) {
       .then(setVisitedIds)
       .catch(() => setVisitedIds([]))
       .finally(() => setVisitedLoading(false));
-  }, [token, authFetch]);
+  }, [isAuthenticated, authFetch]);
 
   const visitedSet = useMemo(() => new Set(visitedIds.map(String)), [visitedIds]);
 

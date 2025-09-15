@@ -7,7 +7,6 @@ import useAuthFetch from '../hooks/useAuthFetch';
 // Modal wrapper for creating or editing sightings. When a `sightingId`
 // is provided the existing entry is loaded and the form works in edit mode.
 export default function SightingModal({
-  token,
   sightingId = null,
   defaultZooId = '',
   defaultAnimalId = '',
@@ -24,7 +23,7 @@ export default function SightingModal({
   const [zoos, setZoos] = useState(propZoos || []);
   const [animals, setAnimals] = useState(propAnimals || []);
   const [sighting, setSighting] = useState(null);
-  const authFetch = useAuthFetch(token);
+  const authFetch = useAuthFetch();
   const { lang } = useParams();
   const getName = (a) =>
     lang === 'de' ? a.name_de || a.name_en : a.name_en || a.name_de;
@@ -91,7 +90,6 @@ export default function SightingModal({
     <div className="modal-overlay">
       <div className="modal-box">
         <LogSighting
-          token={token}
           zoos={zoos}
           animals={animals}
           defaultZooId={sighting ? sighting.zoo_id : defaultZooId}

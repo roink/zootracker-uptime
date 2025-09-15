@@ -1,23 +1,38 @@
-import { useNavigate, useParams } from 'react-router-dom';
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
+import { useAuth } from '../auth/AuthContext.jsx';
 
 // Hook returning a memoized fetch wrapper that automatically includes an
-// Authorization header and redirects to the login page on HTTP 401.
-export default function useAuthFetch(tokenFromProp) {
-  const navigate = useNavigate();
-  const { lang } = useParams();
-  const token = tokenFromProp ?? localStorage.getItem('token');
+// Authorization header and clears auth state on HTTP 401 responses.
+export default function useAuthFetch() {
+  const { token, tokenExpiresAt, logout } = useAuth();
+  const handling401 = useRef(false);
 
   return useCallback(
-    async (url, options = {}) => {
+    async (input, options = {}) => {
       const headers = new Headers(options.headers || {});
-      if (token) headers.set('Authorization', `Bearer ${token}`);
-      const resp = await fetch(url, { ...options, headers });
-      if (resp.status === 401) {
-        navigate(`/${lang}/login`);
+      const now = Date.now();
+      const hasValidToken = Boolean(token) && (!tokenExpiresAt || tokenExpiresAt > now);
+      if (hasValidToken && !headers.has('Authorization')) {
+        headers.set('Authorization', `Bearer ${token}`);
       }
-      return resp;
+
+      const response = await fetch(input, { ...options, headers });
+      if (response.status !== 401) {
+        return response;
+      }
+
+      if (handling401.current) {
+        return response;
+      }
+
+      handling401.current = true;
+      try {
+        await logout({ reason: '401' });
+      } finally {
+        handling401.current = false;
+      }
+      return response;
     },
-    [navigate, token, lang]
+    [token, tokenExpiresAt, logout]
   );
 }

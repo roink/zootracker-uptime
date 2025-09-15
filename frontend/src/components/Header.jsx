@@ -4,11 +4,12 @@ import { useTranslation } from 'react-i18next';
 import SearchSuggestions from './SearchSuggestions';
 import useSearchSuggestions from '../hooks/useSearchSuggestions';
 import LanguageSwitcher from './LanguageSwitcher';
+import { useAuth } from '../auth/AuthContext.jsx';
 
 // Navigation header shown on all pages. Includes a simple search
 // form and links that depend on authentication state.
 
-export default function Header({ token, onLogout }) {
+export default function Header() {
   const [query, setQuery] = useState('');
   const [focused, setFocused] = useState(false);
   // keep a ref for the blur timeout so we can cancel it if focus returns quickly
@@ -20,6 +21,7 @@ export default function Header({ token, onLogout }) {
   const { t } = useTranslation();
   const collapseRef = useRef(null);
   const toggleRef = useRef(null);
+  const { isAuthenticated, logout } = useAuth();
 
   // Close the mobile menu when the route changes
   useEffect(() => {
@@ -73,8 +75,11 @@ export default function Header({ token, onLogout }) {
 
   // Clear auth info and return to the home page when logging out
   const handleLogout = () => {
-    if (onLogout) onLogout();
-    navigate(prefix);
+    logout({ reason: 'manual' })
+      .catch(() => {})
+      .finally(() => {
+        navigate(prefix, { replace: true });
+      });
   };
 
   return (
@@ -104,7 +109,7 @@ export default function Header({ token, onLogout }) {
                 {t('nav.animals')}
               </Link>
             </li>
-            {token ? (
+            {isAuthenticated ? (
               <>
                 <li className="nav-item">
                   <Link className="nav-link" to={`${prefix}/home`}>
