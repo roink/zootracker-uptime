@@ -78,6 +78,38 @@ def _import_taxon_names(
     # Make sure inserted taxon names are written before dependent rows
     dst.flush()
 
+
+def _import_regions(
+    src: Session,
+    dst: Session,
+    continent_table: Table | None,
+    country_table: Table | None,
+) -> None:
+    """Import continent and country names."""
+
+    if continent_table is not None:
+        rows = src.execute(select(continent_table)).mappings()
+        for row in rows:
+            dst.merge(
+                models.ContinentName(
+                    id=row.get("id"),
+                    name_de=row.get("name_de"),
+                    name_en=row.get("name_en"),
+                )
+            )
+    if country_table is not None:
+        rows = src.execute(select(country_table)).mappings()
+        for row in rows:
+            dst.merge(
+                models.CountryName(
+                    id=row.get("id"),
+                    name_de=row.get("name_de"),
+                    name_en=row.get("name_en"),
+                    continent_id=row.get("continent_id"),
+                )
+            )
+    dst.flush()
+
 def _stage_categories(
     src: Session,
     dst: Session,
@@ -245,16 +277,16 @@ def _import_zoos(src: Session, dst: Session, zoo_table: Table) -> Dict[int, uuid
     """Insert zoos and build id mapping."""
 
     existing = {
-        (row.name, row.city, row.country): row.id
+        (row.name, row.city, row.country_id): row.id
         for row in dst.execute(
-            select(models.Zoo.id, models.Zoo.name, models.Zoo.city, models.Zoo.country)
+            select(models.Zoo.id, models.Zoo.name, models.Zoo.city, models.Zoo.country_id)
         ).mappings()
     }
     rows = list(src.execute(select(zoo_table)).mappings())
     zoos = []
     mapping: Dict[int, uuid.UUID] = {}
     for row in rows:
-        key: tuple[str, str, str] = (
+        key: tuple[str, str, int | None] = (
             row.get("name"),
             row.get("city"),
             row.get("country"),
@@ -289,7 +321,8 @@ def _import_zoos(src: Session, dst: Session, zoo_table: Table) -> Dict[int, uuid
             models.Zoo(
                 id=zid,
                 name=row.get("name"),
-                country=row.get("country"),
+                continent_id=row.get("continent"),
+                country_id=row.get("country"),
                 city=row.get("city"),
                 description_en=desc_en,
                 description_de=desc_de,
@@ -544,9 +577,15 @@ def main(source: str, dry_run: bool = False, overwrite: bool = False) -> None:
             ordnung_table = Table("ordnung_name", metadata, autoload_with=src_engine)
         if insp.has_table("familie_name"):
             familie_table = Table("familie_name", metadata, autoload_with=src_engine)
+        continent_table = country_table = None
+        if insp.has_table("continent_name"):
+            continent_table = Table("continent_name", metadata, autoload_with=src_engine)
+        if insp.has_table("country_name"):
+            country_table = Table("country_name", metadata, autoload_with=src_engine)
 
         with dst.begin() as trans:
             _import_taxon_names(src, dst, klasse_table, ordnung_table, familie_table)
+            _import_regions(src, dst, continent_table, country_table)
             # Ensure FK parents exist before bulk inserting animals
             dst.flush()
             cat_map = _stage_categories(src, dst, animal_table, link_table)
