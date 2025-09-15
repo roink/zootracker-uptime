@@ -15,6 +15,8 @@ import {
 } from "react-router-dom";
 import { routerFuture } from './routerFuture';
 import { loadLocale, DEFAULT_LANG } from './i18n';
+import { AuthProvider, useAuth } from './auth/AuthContext.jsx';
+import RequireAuth from './auth/RequireAuth.jsx';
 
 // Base URL of the FastAPI backend. When the frontend is served on a different
 // port (e.g. via `python -m http.server`), the API won't be on the same origin
@@ -59,111 +61,69 @@ const persistOptions = {
   buster: 'app@1.0.0',
 };
 
-function DashboardPage({ token, userId, refresh, onUpdate }) {
-  return (
-    <Dashboard
-      token={token}
-      userId={userId}
-      refresh={refresh}
-      onUpdate={onUpdate}
-    />
-  );
+function DashboardPage({ refresh, onUpdate }) {
+  return <Dashboard refresh={refresh} onUpdate={onUpdate} />;
 }
-
 
 function BadgesPage() {
   return <h2>Badges</h2>;
 }
 
-function ProfilePage({ email }) {
+function ProfilePage() {
+  const { user } = useAuth();
   return (
     <div>
       <h2>Profile</h2>
-      <p>{email}</p>
+      <p>{user?.email || '—'}</p>
     </div>
   );
 }
 
-
-function RequireAuth({ token, children }) {
-  const { lang } = useParams();
-  return token ? children : <Navigate to={`/${lang}/login`} replace />;
-}
-
-function AppRoutes({
-  token,
-  userId,
-  userEmail,
-  refreshCounter,
-  onSignedUp,
-  onLoggedIn,
-  onLoggedOut,
-  refreshSeen,
-}) {
+function AppRoutes({ refreshCounter, refreshSeen }) {
   const location = useLocation();
+  const { isAuthenticated } = useAuth();
   return (
     <div className="d-flex flex-column page-wrapper">
-      <Header token={token} onLogout={onLoggedOut} />
+      <Header />
       <main className="flex-grow-1 pb-5">
         <Routes location={location}>
           <Route
             index
             element={
-              token ? (
-                <DashboardPage
-                  token={token}
-                  userId={userId}
-                  refresh={refreshCounter}
-                  onUpdate={refreshSeen}
-                />
+              isAuthenticated ? (
+                <DashboardPage refresh={refreshCounter} onUpdate={refreshSeen} />
               ) : (
                 <Landing />
               )
             }
           />
           <Route path="landing" element={<Navigate to=".." replace />} />
-          <Route
-            path="home"
-            element={
-              <RequireAuth token={token}>
-                <DashboardPage
-                  token={token}
-                  userId={userId}
-                  refresh={refreshCounter}
-                  onUpdate={refreshSeen}
-                />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="login"
-            element={
-              <LoginPage
-                email={userEmail}
-                onLoggedIn={onLoggedIn}
-                onSignedUp={onSignedUp}
-              />
-            }
-          />
-          <Route path="zoos" element={<ZoosPage token={token} />} />
+          <Route element={<RequireAuth />}>
+            <Route
+              path="home"
+              element={
+                <DashboardPage refresh={refreshCounter} onUpdate={refreshSeen} />
+              }
+            />
+            <Route path="badges" element={<BadgesPage />} />
+            <Route path="profile" element={<ProfilePage />} />
+          </Route>
+          <Route path="login" element={<LoginPage />} />
+          <Route path="zoos" element={<ZoosPage />} />
           <Route
             path="zoos/:id"
             element={
               <ZooDetailPage
-                token={token}
-                userId={userId}
                 refresh={refreshCounter}
                 onLogged={refreshSeen}
               />
             }
           />
-          <Route path="animals" element={<AnimalsPage token={token} userId={userId} />} />
+          <Route path="animals" element={<AnimalsPage />} />
           <Route
             path="animals/:id"
             element={
               <AnimalDetailPage
-                token={token}
-                userId={userId}
                 refresh={refreshCounter}
                 onLogged={refreshSeen}
               />
@@ -171,22 +131,6 @@ function AppRoutes({
           />
           <Route path="images/:mid" element={<ImageAttributionPage />} />
           <Route path="search" element={<SearchPage />} />
-          <Route
-            path="badges"
-            element={
-              <RequireAuth token={token}>
-                <BadgesPage />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="profile"
-            element={
-              <RequireAuth token={token}>
-                <ProfilePage email={userEmail} />
-              </RequireAuth>
-            }
-          />
           <Route path="impress" element={<ImpressPage />} />
           <Route path="data-protection" element={<DataProtectionPage />} />
           <Route path="contact" element={<ContactPage />} />
@@ -197,13 +141,15 @@ function AppRoutes({
   );
 }
 
-function LangApp(props) {
+function LangApp({ refreshCounter, refreshSeen }) {
   const { lang } = useParams();
   useEffect(() => {
     loadLocale(lang);
     localStorage.setItem('lang', lang);
   }, [lang]);
-  return <AppRoutes {...props} />;
+  return (
+    <AppRoutes refreshCounter={refreshCounter} refreshSeen={refreshSeen} />
+  );
 }
 
 function RootRedirect() {
@@ -217,36 +163,7 @@ function RootRedirect() {
 }
 
 function App() {
-  const [token, setToken] = useState(localStorage.getItem('token'));
-  const [userId, setUserId] = useState(localStorage.getItem('userId'));
-  const [userEmail, setUserEmail] = useState(localStorage.getItem('userEmail'));
   const [refreshCounter, setRefreshCounter] = useState(0);
-
-  const handleSignedUp = (user, email) => {
-    setUserId(user.id);
-    setUserEmail(email);
-    localStorage.setItem('userId', user.id);
-    localStorage.setItem('userEmail', email);
-  };
-
-  const handleLoggedIn = (tok, uid, email) => {
-    setToken(tok);
-    setUserId(uid);
-    setUserEmail(email);
-    localStorage.setItem('token', tok);
-    localStorage.setItem('userId', uid);
-    localStorage.setItem('userEmail', email);
-  };
-
-  const handleLoggedOut = () => {
-    setToken(null);
-    setUserId(null);
-    setUserEmail(null);
-    localStorage.removeItem('token');
-    localStorage.removeItem('userId');
-    localStorage.removeItem('userEmail');
-    queryClient.removeQueries({ queryKey: ['user'] });
-  };
 
   const refreshSeen = () => {
     setRefreshCounter((c) => c + 1);
@@ -261,13 +178,7 @@ function App() {
           path="/:lang/*"
           element={
             <LangApp
-              token={token}
-              userId={userId}
-              userEmail={userEmail}
               refreshCounter={refreshCounter}
-              onSignedUp={handleSignedUp}
-              onLoggedIn={handleLoggedIn}
-              onLoggedOut={handleLoggedOut}
               refreshSeen={refreshSeen}
             />
           }
@@ -283,7 +194,9 @@ ReactDOM.createRoot(document.getElementById("root")).render(
   <HelmetProvider context={helmetContext}>
     <Helmet titleTemplate="%s - ZooTracker" defaultTitle="ZooTracker" />
     <PersistQueryClientProvider client={queryClient} persistOptions={persistOptions}>
-      <App />
+      <AuthProvider>
+        <App />
+      </AuthProvider>
     </PersistQueryClientProvider>
   </HelmetProvider>
 );

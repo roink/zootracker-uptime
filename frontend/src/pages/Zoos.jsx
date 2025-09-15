@@ -3,10 +3,11 @@ import { useNavigate, useSearchParams, useParams } from 'react-router-dom';
 import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
 import Seo from '../components/Seo';
+import { useAuth } from '../auth/AuthContext.jsx';
 
 // Listing page showing all zoos with filters for region, search query and visit status.
 
-export default function ZoosPage({ token }) {
+export default function ZoosPage() {
   const navigate = useNavigate();
   const { lang } = useParams();
   const prefix = `/${lang}`;
@@ -25,7 +26,8 @@ export default function ZoosPage({ token }) {
     const stored = sessionStorage.getItem('userLocation');
     return stored ? JSON.parse(stored) : null;
   });
-  const authFetch = useAuthFetch(token);
+  const authFetch = useAuthFetch();
+  const { isAuthenticated } = useAuth();
 
   // Fetch zoos sorted by distance when location is available
   useEffect(() => {
@@ -58,7 +60,7 @@ export default function ZoosPage({ token }) {
   }, []);
 
   useEffect(() => {
-    if (!token) {
+    if (!isAuthenticated) {
       setVisitedLoading(false);
       return;
     }
@@ -68,7 +70,7 @@ export default function ZoosPage({ token }) {
       .then(setVisitedIds)
       .catch(() => setVisitedIds([]))
       .finally(() => setVisitedLoading(false));
-  }, [token, authFetch]);
+  }, [isAuthenticated, authFetch]);
 
   const visitedSet = useMemo(
     () => new Set(visitedIds.map(String)),

@@ -5,6 +5,7 @@ import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
 import SightingModal from '../components/SightingModal';
 import Seo from '../components/Seo';
+import { useAuth } from '../auth/AuthContext.jsx';
 import '../styles/animal-detail.css';
 
 // Map IUCN codes to labels and bootstrap badge classes
@@ -22,12 +23,13 @@ const IUCN = {
 
 // Detailed page showing an animal along with nearby zoos and user sightings
 
-export default function AnimalDetailPage({ token, refresh, onLogged }) {
+export default function AnimalDetailPage({ refresh, onLogged }) {
   const { id, lang } = useParams();
   const navigate = useNavigate();
   const prefix = `/${lang}`;
   const { t } = useTranslation();
-  const authFetch = useAuthFetch(token);
+  const authFetch = useAuthFetch();
+  const { isAuthenticated } = useAuth();
   const [animal, setAnimal] = useState(null);
   const [sightings, setSightings] = useState([]);
   const [location, setLocation] = useState(null);
@@ -107,12 +109,12 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
   }, [id, location]);
 
   const loadSightings = useCallback(() => {
-    if (!token) return;
-    authFetch(`${API}/sightings`, { headers: { Authorization: `Bearer ${token}` } })
+    if (!isAuthenticated) return;
+    authFetch(`${API}/sightings`)
       .then((r) => (r.ok ? r.json() : []))
       .then(setSightings)
       .catch(() => setSightings([]));
-  }, [token, authFetch]);
+  }, [isAuthenticated, authFetch]);
 
   useEffect(() => {
     loadSightings();
@@ -485,7 +487,7 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
       </div>
       <button
         onClick={() => {
-          if (!token) {
+          if (!isAuthenticated) {
             navigate(`${prefix}/login`);
             return;
           }
@@ -506,7 +508,6 @@ export default function AnimalDetailPage({ token, refresh, onLogged }) {
       </button>
       {modalData && (
         <SightingModal
-          token={token}
           zoos={zoos}
           defaultZooId={modalData.zooId}
           defaultAnimalId={modalData.animalId}

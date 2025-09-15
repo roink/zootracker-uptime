@@ -4,9 +4,10 @@ import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
 import { useTranslation } from 'react-i18next';
 import Seo from '../components/Seo';
+import { useAuth } from '../auth/AuthContext.jsx';
 
 // Browse all animals with hierarchical taxonomy filters and pagination
-export default function AnimalsPage({ token, userId }) {
+export default function AnimalsPage() {
   const navigate = useNavigate();
   const { lang } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -25,7 +26,9 @@ export default function AnimalsPage({ token, userId }) {
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const authFetch = useAuthFetch(token);
+  const authFetch = useAuthFetch();
+  const { isAuthenticated, user } = useAuth();
+  const uid = user?.id;
   const limit = 20; // number of animals per page
   const { t } = useTranslation();
 
@@ -117,12 +120,12 @@ export default function AnimalsPage({ token, userId }) {
 
   // load animals seen by the current user
   useEffect(() => {
-    if (!token || !userId) return;
-    authFetch(`${API}/users/${userId}/animals`)
+    if (!isAuthenticated || !uid) return;
+    authFetch(`${API}/users/${uid}/animals`)
       .then((r) => (r.ok ? r.json() : []))
       .then(setSeenAnimals)
       .catch(() => setSeenAnimals([]));
-  }, [token, userId, authFetch]);
+  }, [isAuthenticated, uid, authFetch]);
 
   const seenIds = useMemo(() => new Set(seenAnimals.map((a) => a.id)), [seenAnimals]);
 

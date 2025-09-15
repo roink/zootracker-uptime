@@ -5,7 +5,7 @@ import { API } from '../api';
 import Seo from '../components/Seo';
 
 // Page that fetches a single zoo and renders the ZooDetail component
-export default function ZooDetailPage({ token, userId, refresh, onLogged }) {
+export default function ZooDetailPage({ refresh, onLogged }) {
   const { id } = useParams();
   const [zoo, setZoo] = useState(null);
 
@@ -28,8 +28,6 @@ export default function ZooDetailPage({ token, userId, refresh, onLogged }) {
       />
       <ZooDetail
         zoo={zoo}
-        token={token}
-        userId={userId}
         refresh={refresh}
         onLogged={onLogged}
       />

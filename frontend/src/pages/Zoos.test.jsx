@@ -9,12 +9,15 @@ vi.mock('../components/Seo', () => ({ default: () => null }));
 
 import ZoosPage from './Zoos.jsx';
 import { API } from '../api';
+import { createTestToken, setStoredAuth } from '../test-utils/auth.js';
 
 describe('ZoosPage', () => {
   beforeEach(() => {
     vi.stubGlobal('navigator', {
       geolocation: { getCurrentPosition: (_s, e) => e() },
     });
+    const token = createTestToken();
+    setStoredAuth({ token, user: { id: 'user-1', email: 'user@example.com' } });
   });
 
   it('loads visited zoo IDs and marks visited zoos', async () => {
@@ -26,7 +29,7 @@ describe('ZoosPage', () => {
       .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(visited) });
     global.fetch = fetchMock;
 
-    renderWithRouter(<ZoosPage token="t" />);
+    renderWithRouter(<ZoosPage />);
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(`${API}/zoos`));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(`${API}/visits/ids`));
@@ -46,7 +49,7 @@ describe('ZoosPage', () => {
       .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(visited) });
     global.fetch = fetchMock;
 
-    renderWithRouter(<ZoosPage token="t" />);
+    renderWithRouter(<ZoosPage />);
 
     // ensure items are rendered
     await screen.findByText('Visited Zoo');
@@ -89,7 +92,7 @@ describe('ZoosPage', () => {
       .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(visited) });
     global.fetch = fetchMock;
 
-    renderWithRouter(<ZoosPage token="t" />, { route: '/?visit=visited' });
+    renderWithRouter(<ZoosPage />, { route: '/?visit=visited' });
 
     await screen.findByText('Visited Zoo');
     await waitFor(() =>
