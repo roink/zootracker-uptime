@@ -1,6 +1,7 @@
 import React from 'react';
 import '@testing-library/jest-dom';
 import { screen, waitFor, fireEvent } from '@testing-library/react';
+import { useLocation } from 'react-router-dom';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderWithRouter } from '../test-utils/router.jsx';
 
@@ -118,7 +119,6 @@ describe('ZoosPage', () => {
   });
 
   it('syncs search query with URL params', async () => {
-    vi.useFakeTimers();
     const zoos = [{ id: '1', name: 'A Zoo', address: '', city: '' }];
     const fetchMock = vi.fn((url) => {
       if (url.startsWith(`${API}/zoos/continents`))
@@ -133,16 +133,27 @@ describe('ZoosPage', () => {
     });
     global.fetch = fetchMock;
 
-    renderWithRouter(<ZoosPage token="t" />, { route: '/?q=start' });
+    let loc;
+    function LocWatcher() {
+      loc = useLocation();
+      return null;
+    }
+
+    renderWithRouter(
+      <>
+        <LocWatcher />
+        <ZoosPage token="t" />
+      </>,
+      { route: '/?q=start' }
+    );
+
     const input = screen.getByPlaceholderText('Search');
     expect(input).toHaveValue('start');
 
     fireEvent.change(input, { target: { value: 'new' } });
-    vi.advanceTimersByTime(500);
     await waitFor(() => {
-      expect(window.location.search).toContain('q=new');
+      expect(loc.search).toContain('q=new');
     });
-    vi.useRealTimers();
   });
 
   it('uses region and search params from URL when loading', async () => {
@@ -172,4 +183,5 @@ describe('ZoosPage', () => {
       expect(zooCall[0]).toContain('q=bear');
     });
   });
+
 });

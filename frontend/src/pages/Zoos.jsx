@@ -36,14 +36,41 @@ export default function ZoosPage({ token }) {
   const authFetch = useAuthFetch(token);
   const { t } = useTranslation();
 
+  // Keep local state in sync with URL (supports browser back/forward)
   useEffect(() => {
-    const params = {};
-    if (query) params.q = query;
-    if (continentId) params.continent = continentId;
-    if (countryId) params.country = countryId;
-    if (visitFilter !== 'all') params.visit = visitFilter;
-    setSearchParams(params, { replace: false });
-  }, [query, continentId, countryId, visitFilter, setSearchParams]);
+    const spQ = searchParams.get('q') || '';
+    const spCont = searchParams.get('continent') || '';
+    const spCountry = searchParams.get('country') || '';
+    const spVisit = searchParams.get('visit');
+    const spVisitNorm =
+      spVisit === 'visited' || spVisit === 'not' ? spVisit : 'all';
+
+    if (spQ !== search) setSearch(spQ);
+    if (spQ !== query) setQuery(spQ);
+    if (spCont !== continentId) setContinentId(spCont);
+    if (spCountry !== countryId) setCountryId(spCountry);
+    if (spVisitNorm !== visitFilter) setVisitFilter(spVisitNorm);
+  }, [searchParams]);
+
+  useEffect(() => {
+    // State ➜ URL, but only if different (avoid loops & history spam)
+    const next = new URLSearchParams();
+    if (query) next.set('q', query);
+    if (continentId) next.set('continent', continentId);
+    if (countryId) next.set('country', countryId);
+    if (visitFilter !== 'all') next.set('visit', visitFilter);
+
+    if (next.toString() !== searchParams.toString()) {
+      setSearchParams(next, { replace: true });
+    }
+  }, [
+    query,
+    continentId,
+    countryId,
+    visitFilter,
+    searchParams,
+    setSearchParams,
+  ]);
 
   useEffect(() => {
     fetch(`${API}/zoos/continents`)
