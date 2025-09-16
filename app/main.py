@@ -190,7 +190,7 @@ def read_sighting(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Sighting not found",
         )
-    if sighting.user_id != user.id and not getattr(user, "is_admin", False):
+    if sighting.user_id != user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to view this sighting",
@@ -213,7 +213,7 @@ def update_sighting(
     sighting = db.get(models.AnimalSighting, sighting_id)
     if sighting is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sighting not found")
-    if sighting.user_id != user.id and not getattr(user, "is_admin", False):
+    if sighting.user_id != user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to update this sighting")
 
     data = sighting_in.model_dump(exclude_unset=True)
@@ -261,14 +261,12 @@ def delete_sighting(
     db: Session = Depends(get_db),
     user: models.User = Depends(get_current_user),
 ):
-    """Delete an animal sighting if owned by the user or the user is admin."""
+    """Delete an animal sighting if owned by the current user."""
     sighting = db.get(models.AnimalSighting, sighting_id)
     if sighting is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sighting not found")
 
-    admin_email = os.getenv("ADMIN_EMAIL")
-    is_admin = admin_email and user.email == admin_email
-    if sighting.user_id != user.id and not is_admin:
+    if sighting.user_id != user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to delete sighting")
 
     db.delete(sighting)
