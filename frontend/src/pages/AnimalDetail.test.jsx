@@ -2,9 +2,8 @@ import React from 'react';
 import '@testing-library/jest-dom';
 import { screen } from '@testing-library/react';
 import { describe, it, vi, beforeEach } from 'vitest';
-import { MemoryRouter, Routes, Route } from 'react-router-dom';
-import { render } from '@testing-library/react';
-import { routerFuture } from '../test-utils/router.jsx';
+import { Routes, Route } from 'react-router-dom';
+import { routerFuture, renderWithRouter } from '../test-utils/router.jsx';
 
 vi.mock('../hooks/useAuthFetch', () => ({ default: () => fetch }));
 vi.mock('../components/Seo', () => ({ default: () => null }));
@@ -34,12 +33,11 @@ describe('AnimalDetailPage', () => {
     global.fetch = vi
       .fn()
       .mockResolvedValue({ ok: true, json: () => Promise.resolve(animal) });
-    const { container } = render(
-      <MemoryRouter initialEntries={['/en/animals/1']} future={routerFuture}>
-        <Routes>
-          <Route path="/:lang/animals/:id" element={<AnimalDetailPage />} />
-        </Routes>
-      </MemoryRouter>
+    const { container } = renderWithRouter(
+      <Routes>
+        <Route path="/:lang/animals/:id" element={<AnimalDetailPage />} />
+      </Routes>,
+      { route: '/en/animals/1', future: routerFuture }
     );
     await screen.findByText('Mammals');
     expect(screen.getByText('Carnivorans')).toBeInTheDocument();
@@ -51,12 +49,11 @@ describe('AnimalDetailPage', () => {
     global.fetch = vi
       .fn()
       .mockResolvedValue({ ok: true, json: () => Promise.resolve(animal) });
-    render(
-      <MemoryRouter initialEntries={['/de/animals/1']} future={routerFuture}>
-        <Routes>
-          <Route path="/:lang/animals/:id" element={<AnimalDetailPage />} />
-        </Routes>
-      </MemoryRouter>
+    renderWithRouter(
+      <Routes>
+        <Route path="/:lang/animals/:id" element={<AnimalDetailPage />} />
+      </Routes>,
+      { route: '/de/animals/1', future: routerFuture }
     );
     await screen.findByText('Säugetiere');
     expect(screen.getByText('Raubtiere')).toBeInTheDocument();

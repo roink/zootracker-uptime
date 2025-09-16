@@ -2,15 +2,17 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { API } from '../api';
 import Seo from '../components/Seo';
+import { useAuth } from '../auth/AuthContext.jsx';
 
 // Combined authentication page with log in on top and sign up below.
-export default function LoginPage({ email, onLoggedIn, onSignedUp }) {
+export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { lang } = useParams();
   const prefix = `/${lang}`;
+  const { login } = useAuth();
   // State for the login form
-  const [inputEmail, setInputEmail] = useState(email || '');
+  const [inputEmail, setInputEmail] = useState('');
   const [password, setPassword] = useState('');
   // State for the sign up form
   const [name, setName] = useState('');
@@ -23,11 +25,6 @@ export default function LoginPage({ email, onLoggedIn, onSignedUp }) {
   // Prevent double submits while network requests are pending
   const [loggingIn, setLoggingIn] = useState(false);
   const [signingUp, setSigningUp] = useState(false);
-
-  // Update the login email field when the prop changes (e.g., after sign up)
-  useEffect(() => {
-    setInputEmail(email || '');
-  }, [email]);
 
   // Extract a one-time message from navigation state then clear it
   useEffect(() => {
@@ -64,12 +61,7 @@ export default function LoginPage({ email, onLoggedIn, onSignedUp }) {
       });
       if (resp.ok) {
         const data = await resp.json();
-        localStorage.setItem('token', data.access_token);
-        localStorage.setItem('userId', data.user_id);
-        localStorage.setItem('userEmail', cleanEmail);
-        if (onLoggedIn) {
-          onLoggedIn(data.access_token, data.user_id, cleanEmail);
-        }
+        login({ token: data.access_token, user: { id: data.user_id, email: cleanEmail } });
         navigate(prefix, { replace: true });
       } else {
         alert('Login failed');
@@ -103,8 +95,7 @@ export default function LoginPage({ email, onLoggedIn, onSignedUp }) {
         body: JSON.stringify({ name, email: cleanEmail, password: regPassword }),
       });
       if (resp.ok) {
-        const user = await resp.json();
-        onSignedUp && onSignedUp(user, cleanEmail);
+        await resp.json();
         setInputEmail(cleanEmail);
         setSuccessMessage('Signed up successfully, please log in.');
         setName('');

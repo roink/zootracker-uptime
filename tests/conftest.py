@@ -30,6 +30,10 @@ os.environ.setdefault("SMTP_HOST", "smtp.test")
 os.environ.setdefault("CONTACT_EMAIL", "contact@zootracker.app")
 os.environ.pop("SMTP_SSL", None)
 os.environ.setdefault("ALLOWED_ORIGINS", "http://allowed.example")
+os.environ.setdefault(
+    "SECRET_KEY",
+    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+)
 
 # ensure a fresh database for every test run when using sqlite
 if DATABASE_URL.startswith("sqlite") and os.path.exists("test.db"):
@@ -78,6 +82,16 @@ def seed_data():
     db.refresh(mammal)
     db.refresh(bird)
 
+    europe = models.ContinentName(id=1, name_de="Europa", name_en="Europe")
+    america = models.ContinentName(id=2, name_de="Nordamerika", name_en="North America")
+    db.add_all([europe, america])
+    db.commit()
+
+    germany = models.CountryName(id=1, name_de="Deutschland", name_en="Germany", continent_id=1)
+    usa = models.CountryName(id=2, name_de="USA", name_en="United States", continent_id=2)
+    db.add_all([germany, usa])
+    db.commit()
+
     zoo = models.Zoo(
         name="Central Zoo",
         address="123 Zoo St",
@@ -86,6 +100,8 @@ def seed_data():
         description_en="A fun place",
         description_de="Ein lustiger Ort",
         city="Metropolis",
+        continent_id=1,
+        country_id=1,
     )
     db.add(zoo)
     db.commit()
@@ -99,6 +115,8 @@ def seed_data():
         description_en="Too far away",
         description_de="Zu weit entfernt",
         city="Remoteville",
+        continent_id=2,
+        country_id=2,
     )
     db.add(far_zoo)
     db.commit()

@@ -6,27 +6,29 @@ import SightingModal from '../components/SightingModal';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import Seo from '../components/Seo';
+import { useAuth } from '../auth/AuthContext.jsx';
 
 // User dashboard showing recent visits, sightings and badges. Includes
 // buttons to open forms for logging additional activity.
-export default function Dashboard({ token, userId, refresh, onUpdate }) {
+export default function Dashboard({ refresh, onUpdate }) {
   const [modalData, setModalData] = useState(null);
   const navigate = useNavigate();
   const { lang } = useParams();
   const prefix = `/${lang}`;
-  const authFetch = useAuthFetch(token);
+  const authFetch = useAuthFetch();
   const queryClient = useQueryClient();
-  const uid = userId || localStorage.getItem('userId');
+  const { isAuthenticated, user } = useAuth();
+  const uid = user?.id;
   const { t } = useTranslation();
 
   // Refetch dashboard data when refresh counter changes
   useEffect(() => {
-    if (!token) return;
+    if (!isAuthenticated || !uid) return;
     queryClient.invalidateQueries({ queryKey: ['user', uid, 'visits'] });
     queryClient.invalidateQueries({ queryKey: ['user', uid, 'animalsSeen'] });
     queryClient.invalidateQueries({ queryKey: ['user', uid, 'sightings'] });
     queryClient.invalidateQueries({ queryKey: ['user', uid, 'achievements'] });
-  }, [refresh, uid, token, queryClient]);
+  }, [refresh, uid, isAuthenticated, queryClient]);
 
   const { data: zooMap = {}, isFetching: zoosFetching } = useQuery({
     queryKey: ['zoos'],
@@ -64,7 +66,7 @@ export default function Dashboard({ token, userId, refresh, onUpdate }) {
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return r.json();
     },
-    enabled: !!token,
+    enabled: isAuthenticated,
     placeholderData: keepPreviousData,
     staleTime: 60 * 1000,
   });
@@ -80,7 +82,7 @@ export default function Dashboard({ token, userId, refresh, onUpdate }) {
       const d = await r.json();
       return d.count ?? 0;
     },
-    enabled: !!token && !!uid,
+    enabled: isAuthenticated && !!uid,
     placeholderData: keepPreviousData,
     staleTime: 60 * 1000,
   });
@@ -95,7 +97,7 @@ export default function Dashboard({ token, userId, refresh, onUpdate }) {
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return r.json();
     },
-    enabled: !!token,
+    enabled: isAuthenticated,
     placeholderData: keepPreviousData,
     staleTime: 60 * 1000,
   });
@@ -110,7 +112,7 @@ export default function Dashboard({ token, userId, refresh, onUpdate }) {
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return r.json();
     },
-    enabled: !!token && !!uid,
+    enabled: isAuthenticated && !!uid,
     placeholderData: keepPreviousData,
     staleTime: 60 * 1000,
   });
@@ -238,7 +240,7 @@ export default function Dashboard({ token, userId, refresh, onUpdate }) {
         <button
           className="btn btn-secondary me-2"
           onClick={() => {
-            if (!token) {
+            if (!isAuthenticated) {
               navigate(`${prefix}/login`);
               return;
             }
@@ -250,7 +252,6 @@ export default function Dashboard({ token, userId, refresh, onUpdate }) {
       </div>
       {modalData && (
         <SightingModal
-          token={token}
           zoos={zoos}
           animals={animals}
           sightingId={modalData.sightingId}

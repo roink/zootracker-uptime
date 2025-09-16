@@ -66,3 +66,24 @@ def test_search_zoos_by_city(data):
     names = [z["name"] for z in resp.json()]
     assert "Central Zoo" in names
 
+
+def test_list_continents_and_countries():
+    resp = client.get("/zoos/continents")
+    assert resp.status_code == 200
+    continents = resp.json()
+    assert any(c["name_en"] == "Europe" for c in continents)
+    europe_id = next(c["id"] for c in continents if c["name_en"] == "Europe")
+
+    resp = client.get(f"/zoos/countries?continent_id={europe_id}")
+    assert resp.status_code == 200
+    countries = resp.json()
+    assert any(c["name_en"] == "Germany" for c in countries)
+
+
+def test_search_zoos_by_country(data):
+    resp = client.get("/zoos", params={"country_id": 1})
+    assert resp.status_code == 200
+    names = [z["name"] for z in resp.json()]
+    assert "Central Zoo" in names
+    assert "Far Zoo" not in names
+

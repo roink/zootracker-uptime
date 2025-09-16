@@ -4,6 +4,7 @@ import { API } from '../api';
 
 import useAuthFetch from '../hooks/useAuthFetch';
 import useSearchSuggestions from '../hooks/useSearchSuggestions';
+import { useAuth } from '../auth/AuthContext.jsx';
 
 // Reusable forms for logging sightings and zoo visits. These components are used
 // within the dashboard to submit data to the FastAPI backend.
@@ -12,8 +13,6 @@ import useSearchSuggestions from '../hooks/useSearchSuggestions';
 // provided, they are fetched from the API. `defaultAnimalId` and
 // `defaultZooId` pre‑select values but the user can search to change them.
 export function LogSighting({
-  token,
-  userId,
   animals: propAnimals = null,
   zoos: propZoos = null,
   defaultAnimalId = '',
@@ -42,7 +41,8 @@ export function LogSighting({
     animalFocused
   );
   // Wrapper for fetch that redirects to login on 401
-  const authFetch = useAuthFetch(token);
+  const authFetch = useAuthFetch();
+  const { user } = useAuth();
   const { lang } = useParams();
   const getName = useCallback(
     (a) => (lang === 'de' ? a.name_de || a.name_en : a.name_en || a.name_de),
@@ -90,7 +90,7 @@ export function LogSighting({
   // Send a new sighting to the API for the selected animal and zoo.
   const submit = async (e) => {
     e.preventDefault();
-    const uid = userId || localStorage.getItem('userId');
+    const uid = user?.id;
     if (!uid) {
       alert('User not available');
       return;
@@ -113,8 +113,7 @@ export function LogSighting({
     const resp = await authFetch(url, {
       method,
       headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify(sighting)
     });
@@ -129,8 +128,7 @@ export function LogSighting({
   const handleDelete = async () => {
     if (!sightingId) return;
     const resp = await authFetch(`${API}/sightings/${sightingId}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` }
+      method: 'DELETE'
     });
     if (resp.status === 401) return;
     if (resp.ok) {

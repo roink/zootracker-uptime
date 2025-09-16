@@ -52,6 +52,10 @@ Example:
 
 The script will display the generated **database password** and **SECRET\_KEY** at the end. You should store these securely.
 
+> **Important:** The backend refuses to start unless `SECRET_KEY` is present in `.env`. Generate a long, random value such as
+> `openssl rand -hex 32` (64 hex characters = 32 bytes) before launching the service, and rotate it regularly. Weak or short
+> secrets let attackers brute-force HS256 JWTs, so never rely on guessable placeholders.
+
 ## Customization
 
 * **REMOTE\_USER** and **SSH\_TARGET** are hardcoded in the script as `philipp@<REMOTE_IP>`. Modify if your server username or host differs.

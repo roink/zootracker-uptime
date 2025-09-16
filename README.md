@@ -167,16 +167,28 @@ python -m app.import_simple_sqlite_data path/to/data.db
 
 ## Production Security Notes
 
-The default connection string in `app/database.py` uses the credentials
-`postgres:postgres` and `app/main.py` falls back to the secret key `"secret"`.
-These are provided strictly for local development so the application works
-out of the box. **Change both values for any production deployment** by
-setting the `DATABASE_URL` and `SECRET_KEY` environment variables to strong
-unique values.
+The API now refuses to start unless `SECRET_KEY` is defined. Supply a long,
+random value before booting the service—`openssl rand -hex 32` is a convenient
+way to generate a 64-character (32-byte) hex string. Weak or short secrets make
+HS256 JWTs trivial to brute-force, so avoid anything guessable or reused.
 
 When running the API on the public internet remember to:
 
 - Serve all traffic over **HTTPS** to protect credentials and tokens.
 - Regularly apply operating system and dependency updates.
 - Enable rate limiting (for example via a reverse proxy) to prevent abuse.
+- Keep JWT verification pinned to the expected algorithm (`algorithms=["HS256"]`)
+  to avoid algorithm-confusion attacks.
+- Load environment variables through your process manager (for example,
+  `uvicorn app.main:app --reload --env-file .env` locally or `EnvironmentFile=/opt/zoo_tracker/.env`
+  in systemd) instead of calling `load_dotenv()` in application modules.
+
+### SECRET_KEY requirements
+
+- **Minimum:** 32 bytes for HS256 (per RFC 7518). That corresponds to at least
+  64 hexadecimal characters or roughly 43 URL-safe Base64 characters.
+- Preferred formats: hex (`openssl rand -hex 32`) or URL-safe Base64
+  (`python -c "import secrets; print(secrets.token_urlsafe(32))"`).
+- **Never reuse** the same key across environments (production, staging,
+  development). Generate a new one for each deployment.
 
