@@ -86,6 +86,8 @@ The frontend supports English and German. Routes are prefixed with the language 
 
 The `/auth/login` endpoint includes the authenticated user’s `user_id` in the
 JSON response so clients can identify the user without an extra lookup.
+Authorization checks on the sighting endpoints ensure each user may only read,
+update, or delete their own records without privileged overrides.
 
 ### Contact Form Email
 
