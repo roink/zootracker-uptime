@@ -22,7 +22,7 @@ from jose import jwt, JWTError
 from . import models, schemas
 from .database import get_db
 from .auth import get_current_user
-from .config import SECRET_KEY, ALGORITHM
+from .config import SECRET_KEY, ALGORITHM, ALLOWED_ORIGINS
 from .rate_limit import rate_limit, enforce_contact_rate_limit
 from .utils.network import get_client_ip
 
@@ -57,10 +57,10 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Zoo Tracker API", lifespan=lifespan)
 
-# allow all CORS origins/methods/headers for the API
+# configure CORS using a controlled list of allowed origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )

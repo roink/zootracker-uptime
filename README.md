@@ -114,6 +114,25 @@ for `SMTP_HOST` and `CONTACT_EMAIL` at startup and will refuse to run if either
 is missing. Rate-limited responses include `X-RateLimit-Remaining` and
 `Retry-After` headers to aid debugging.
 
+### CORS Origins
+
+The API only responds to cross-origin requests from whitelisted domains. Set
+the `ALLOWED_ORIGINS` environment variable to a comma separated list of allowed
+origins. For example, during local development:
+
+```
+ALLOWED_ORIGINS=http://localhost:5173
+```
+
+In production provide your public domains, such as:
+
+```
+ALLOWED_ORIGINS=https://zootracker.app,https://admin.zootracker.app
+```
+
+Requests from other origins will fail CORS preflight checks and browsers will
+block access to the API.
+
 ### Animals API
 
 `GET /animals` now returns detailed animal information including scientific
