@@ -139,6 +139,7 @@ def seed_data():
         klasse=1,
         ordnung=1,
         familie=1,
+        slug="lion",
     )
     tiger = models.Animal(
         name_en="Tiger",
@@ -146,6 +147,7 @@ def seed_data():
         category_id=mammal.id,
         default_image_url="http://example.com/tiger.jpg",
         name_de="Tiger",
+        slug="tiger",
     )
     eagle = models.Animal(
         name_en="Eagle",
@@ -153,6 +155,7 @@ def seed_data():
         category_id=bird.id,
         default_image_url="http://example.com/eagle.jpg",
         name_de="Adler",
+        slug="eagle",
     )
     db.add_all([animal, tiger, eagle])
     db.commit()

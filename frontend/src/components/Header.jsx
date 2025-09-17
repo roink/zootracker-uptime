@@ -63,13 +63,13 @@ export default function Header() {
     }
   };
 
-  const handleSelect = (type, id) => {
+  const handleSelect = (type, value) => {
     setQuery('');
     setFocused(false);
     if (type === 'zoo') {
-      navigate(`${prefix}/zoos/${id}`);
+      navigate(`${prefix}/zoos/${value}`);
     } else {
-      navigate(`${prefix}/animals/${id}`);
+      navigate(`${prefix}/animals/${value}`);
     }
   };
 

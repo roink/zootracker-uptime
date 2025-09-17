@@ -1,14 +1,13 @@
-import uuid
-
 import pytest
 
 from .conftest import client
 
 def test_get_animal_detail_success(data):
-    resp = client.get(f"/animals/{data['animal'].id}")
+    resp = client.get(f"/animals/{data['animal'].slug}")
     assert resp.status_code == 200
     body = resp.json()
     assert body["id"] == str(data["animal"].id)
+    assert body["slug"] == data["animal"].slug
     assert body["zoos"][0]["id"] == str(data["zoo"].id)
     # distance should be included but undefined without coordinates
     assert body["zoos"][0]["distance_km"] is None
@@ -16,21 +15,21 @@ def test_get_animal_detail_success(data):
 
 
 def test_get_animal_detail_includes_name_de(data):
-    resp = client.get(f"/animals/{data['animal'].id}")
+    resp = client.get(f"/animals/{data['animal'].slug}")
     assert resp.status_code == 200
     body = resp.json()
     assert "name_de" in body
 
 
 def test_get_animal_detail_includes_description_en(data):
-    resp = client.get(f"/animals/{data['animal'].id}")
+    resp = client.get(f"/animals/{data['animal'].slug}")
     assert resp.status_code == 200
     body = resp.json()
     assert body["description_en"] == "King of the jungle"
 
 
 def test_get_animal_detail_includes_taxon_names(data):
-    resp = client.get(f"/animals/{data['animal'].id}")
+    resp = client.get(f"/animals/{data['animal'].slug}")
     assert resp.status_code == 200
     body = resp.json()
     assert body["class_name_en"] == "Mammals"
@@ -39,7 +38,7 @@ def test_get_animal_detail_includes_taxon_names(data):
 
 
 def test_get_animal_detail_includes_images(data):
-    resp = client.get(f"/animals/{data['animal'].id}")
+    resp = client.get(f"/animals/{data['animal'].slug}")
     assert resp.status_code == 200
     body = resp.json()
     assert len(body["images"]) == 2
@@ -49,7 +48,7 @@ def test_get_animal_detail_includes_images(data):
 
 
 def test_get_animal_detail_variants_sorted(data):
-    resp = client.get(f"/animals/{data['animal'].id}")
+    resp = client.get(f"/animals/{data['animal'].slug}")
     assert resp.status_code == 200
     variants = resp.json()["images"][0]["variants"]
     widths = [v["width"] for v in variants]
@@ -63,11 +62,12 @@ def test_list_animals_includes_name_de(data):
     assert resp.status_code == 200
     body = resp.json()
     assert "name_de" in body[0]
+    assert "slug" in body[0]
 
 
 def test_get_animal_detail_with_distance(data):
     params = {"latitude": data["zoo"].latitude, "longitude": data["zoo"].longitude}
-    resp = client.get(f"/animals/{data['animal'].id}", params=params)
+    resp = client.get(f"/animals/{data['animal'].slug}", params=params)
     assert resp.status_code == 200
     body = resp.json()
     assert len(body["zoos"]) == 1
@@ -77,25 +77,25 @@ def test_get_animal_detail_with_distance(data):
 
 
 def test_get_animal_detail_invalid_params(data):
-    bad = client.get(f"/animals/{data['animal'].id}", params={"latitude": 200, "longitude": 0})
+    bad = client.get(f"/animals/{data['animal'].slug}", params={"latitude": 200, "longitude": 0})
     assert bad.status_code == 400
 
 
 def test_get_animal_detail_lon_invalid(data):
     resp = client.get(
-        f"/animals/{data['animal'].id}", params={"latitude": 0, "longitude": 200}
+        f"/animals/{data['animal'].slug}", params={"latitude": 0, "longitude": 200}
     )
     assert resp.status_code == 400
 
 
 def test_get_animal_detail_coords_must_be_pair(data):
-    resp = client.get(f"/animals/{data['animal'].id}", params={"latitude": 0})
+    resp = client.get(f"/animals/{data['animal'].slug}", params={"latitude": 0})
     assert resp.status_code == 400
-    resp = client.get(f"/animals/{data['animal'].id}", params={"longitude": 0})
+    resp = client.get(f"/animals/{data['animal'].slug}", params={"longitude": 0})
     assert resp.status_code == 400
 
 def test_get_animal_detail_not_found():
-    resp = client.get(f"/animals/{uuid.uuid4()}")
+    resp = client.get("/animals/not-found")
     assert resp.status_code == 404
 
 
@@ -104,7 +104,7 @@ def test_cf_headers_used(data):
         "cf-iplatitude": str(data["zoo"].latitude),
         "cf-iplongitude": str(data["zoo"].longitude),
     }
-    resp = client.get(f"/animals/{data['animal'].id}", headers=headers)
+    resp = client.get(f"/animals/{data['animal'].slug}", headers=headers)
     assert resp.status_code == 200
     body = resp.json()
     assert body["zoos"][0]["distance_km"] == 0
@@ -112,7 +112,7 @@ def test_cf_headers_used(data):
 
 def test_invalid_cf_headers_ignored(data):
     headers = {"cf-iplatitude": "not-a-number", "cf-iplongitude": "20"}
-    resp = client.get(f"/animals/{data['animal'].id}", headers=headers)
+    resp = client.get(f"/animals/{data['animal'].slug}", headers=headers)
     assert resp.status_code == 200
     body = resp.json()
     assert body["zoos"][0]["distance_km"] is None
@@ -125,7 +125,7 @@ def test_explicit_coords_override_cf_headers(data):
         "longitude": data["zoo"].longitude,
     }
     resp = client.get(
-        f"/animals/{data['animal'].id}", headers=headers, params=params
+        f"/animals/{data['animal'].slug}", headers=headers, params=params
     )
     assert resp.status_code == 200
     assert resp.json()["zoos"][0]["distance_km"] == 0
@@ -133,14 +133,14 @@ def test_explicit_coords_override_cf_headers(data):
 
 def test_only_one_cf_header_is_ignored(data):
     headers = {"cf-iplatitude": str(data["zoo"].latitude)}
-    resp = client.get(f"/animals/{data['animal'].id}", headers=headers)
+    resp = client.get(f"/animals/{data['animal'].slug}", headers=headers)
     assert resp.status_code == 200
     assert resp.json()["zoos"][0]["distance_km"] is None
 
 
 def test_out_of_range_cf_headers_ignored(data):
     headers = {"cf-iplatitude": "91", "cf-iplongitude": "0"}
-    resp = client.get(f"/animals/{data['animal'].id}", headers=headers)
+    resp = client.get(f"/animals/{data['animal'].slug}", headers=headers)
     assert resp.status_code == 200
     assert resp.json()["zoos"][0]["distance_km"] is None
 
@@ -156,12 +156,14 @@ def test_list_animals_returns_details_and_pagination(data):
     assert item["scientific_name"] == "Aquila chrysaetos"
     assert item["category"] == "Bird"
     assert item["default_image_url"].startswith("http://example.com/")
+    assert item["slug"]
 
     resp2 = client.get("/animals", params={"limit": 2, "offset": 2})
     assert resp2.status_code == 200
     body2 = resp2.json()
     assert len(body2) == 1
     assert body2[0]["scientific_name"] == "Panthera tigris"
+    assert body2[0]["slug"]
 
 
 def test_list_animals_invalid_pagination():
@@ -231,7 +233,7 @@ def test_list_animals_invalid_family_for_order(data):
 @pytest.mark.postgres
 def test_get_animal_detail_with_distance_postgres(data):
     params = {"latitude": data["zoo"].latitude, "longitude": data["zoo"].longitude}
-    resp = client.get(f"/animals/{data['animal'].id}", params=params)
+    resp = client.get(f"/animals/{data['animal'].slug}", params=params)
     assert resp.status_code == 200
     body = resp.json()
     assert body["zoos"][0]["distance_km"] == 0

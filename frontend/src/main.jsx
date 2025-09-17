@@ -121,7 +121,7 @@ function AppRoutes({ refreshCounter, refreshSeen }) {
           />
           <Route path="animals" element={<AnimalsPage />} />
           <Route
-            path="animals/:id"
+            path="animals/:slug"
             element={
               <AnimalDetailPage
                 refresh={refreshCounter}

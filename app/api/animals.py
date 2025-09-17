@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload, load_only
-import uuid
 
 from .. import schemas, models
 from ..database import get_db
@@ -106,6 +105,7 @@ def list_animals(
     return [
         schemas.AnimalListItem(
             id=a.id,
+            slug=a.slug,
             name_en=a.name_en,
             scientific_name=a.scientific_name,
             name_de=a.name_de,
@@ -196,9 +196,9 @@ def combined_search(q: str = "", limit: int = 5, db: Session = Depends(get_db)):
 
     return {"zoos": zoos, "animals": animals}
 
-@router.get("/animals/{animal_id}", response_model=schemas.AnimalDetail)
+@router.get("/animals/{animal_slug}", response_model=schemas.AnimalDetail)
 def get_animal_detail(
-    animal_id: uuid.UUID,
+    animal_slug: str,
     coords: tuple[float | None, float | None] = Depends(resolve_coords),
     db: Session = Depends(get_db),
 ):
@@ -217,12 +217,13 @@ def get_animal_detail(
             joinedload(models.Animal.ordnung_name),
             joinedload(models.Animal.familie_name),
         )
-        .filter(models.Animal.id == animal_id)
+        .filter(models.Animal.slug == animal_slug)
         .first()
     )
     if animal is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Animal not found")
 
+    animal_id = animal.id
     latitude, longitude = coords
 
     query = (
@@ -270,6 +271,7 @@ def get_animal_detail(
 
     return schemas.AnimalDetail(
         id=animal.id,
+        slug=animal.slug,
         name_en=animal.name_en,
         scientific_name=animal.scientific_name,
         name_de=animal.name_de,

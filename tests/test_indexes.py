@@ -29,5 +29,6 @@ def test_animal_taxonomy_indexes_present():
         'idx_animals_familie',
         'idx_animals_klasse_ordnung',
         'idx_animals_ordnung_familie',
+        'idx_animals_slug',
     }
     assert expected.issubset(idx)

@@ -14,6 +14,7 @@ import { API } from '../api';
 describe('AnimalDetailPage', () => {
   const animal = {
     id: '1',
+    slug: 'lion',
     name_en: 'Lion',
     name_de: 'Löwe',
     class_name_en: 'Mammals',
@@ -35,9 +36,9 @@ describe('AnimalDetailPage', () => {
       .mockResolvedValue({ ok: true, json: () => Promise.resolve(animal) });
     const { container } = renderWithRouter(
       <Routes>
-        <Route path="/:lang/animals/:id" element={<AnimalDetailPage />} />
+        <Route path="/:lang/animals/:slug" element={<AnimalDetailPage />} />
       </Routes>,
-      { route: '/en/animals/1', future: routerFuture }
+      { route: '/en/animals/lion', future: routerFuture }
     );
     await screen.findByText('Mammals');
     expect(screen.getByText('Carnivorans')).toBeInTheDocument();
@@ -51,9 +52,9 @@ describe('AnimalDetailPage', () => {
       .mockResolvedValue({ ok: true, json: () => Promise.resolve(animal) });
     renderWithRouter(
       <Routes>
-        <Route path="/:lang/animals/:id" element={<AnimalDetailPage />} />
+        <Route path="/:lang/animals/:slug" element={<AnimalDetailPage />} />
       </Routes>,
-      { route: '/de/animals/1', future: routerFuture }
+      { route: '/de/animals/lion', future: routerFuture }
     );
     await screen.findByText('Säugetiere');
     expect(screen.getByText('Raubtiere')).toBeInTheDocument();

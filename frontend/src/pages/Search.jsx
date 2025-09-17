@@ -47,8 +47,8 @@ export default function SearchPage() {
       <h3>Animals</h3>
       <ul>
         {animals.map((a) => (
-          <li key={a.id}>
-            <button onClick={() => navigate(`${prefix}/animals/${a.id}`)}>
+          <li key={a.slug || a.id}>
+            <button onClick={() => navigate(`${prefix}/animals/${a.slug || a.id}`)}>
               {lang === 'de' ? a.name_de || a.name_en : a.name_en || a.name_de}
             </button>
           </li>
