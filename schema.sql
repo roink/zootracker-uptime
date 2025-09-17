@@ -96,6 +96,7 @@ CREATE TABLE animals (
   conservation_state TEXT,
   name_fallback      TEXT,
   name_en            VARCHAR(255) NOT NULL,
+  slug               TEXT NOT NULL,
   name_de            TEXT,
   art                TEXT,
   english_label      TEXT,
@@ -112,6 +113,7 @@ CREATE TABLE animals (
 );
 
 CREATE INDEX IF NOT EXISTS idx_animals_zoo_count ON animals (zoo_count DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_animals_slug ON animals(slug);
 CREATE INDEX IF NOT EXISTS idx_animals_klasse ON animals(klasse);
 CREATE INDEX IF NOT EXISTS idx_animals_ordnung ON animals(ordnung);
 CREATE INDEX IF NOT EXISTS idx_animals_familie ON animals(familie);

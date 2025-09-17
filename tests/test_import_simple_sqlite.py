@@ -22,6 +22,7 @@ def _build_source_db(path: Path, mid: str = "M1") -> Path:
                 zootierliste_description TEXT,
                 name_de TEXT,
                 name_en TEXT,
+                slug TEXT UNIQUE,
                 zootierlexikon_link TEXT,
                 description_en TEXT,
                 description_de TEXT,
@@ -144,13 +145,17 @@ def _build_source_db(path: Path, mid: str = "M1") -> Path:
         ))
         conn.execute(
             text(
-                "INSERT INTO animal (art, klasse, ordnung, familie, latin_name, name_de, name_en, description_de, description_en, iucn_conservation_status, taxon_rank) VALUES ('Panthera leo',1,1,1,'Panthera leo','L\u00f6we','Lion','Deutsche Beschreibung','English description','VU','species');"
+                "INSERT INTO animal (art, klasse, ordnung, familie, latin_name, name_de, name_en, slug, description_de, description_en, iucn_conservation_status, taxon_rank) VALUES ('Panthera leo',1,1,1,'Panthera leo','L\u00f6we','Lion','lion','Deutsche Beschreibung','English description','VU','species');"
             )
         )
-        conn.execute(text("INSERT INTO animal (art, klasse, ordnung, familie, latin_name, name_de) VALUES ('Aquila chrysaetos',2,1,1,'Aquila chrysaetos','Adler');"))
         conn.execute(
             text(
-                "INSERT INTO animal (art, latin_name, zootierliste_description) VALUES ('Unknownus testus','Unknownus testus','Legacy description');"
+                "INSERT INTO animal (art, klasse, ordnung, familie, latin_name, name_de, slug) VALUES ('Aquila chrysaetos',2,1,1,'Aquila chrysaetos','Adler','golden-eagle');"
+            )
+        )
+        conn.execute(
+            text(
+                "INSERT INTO animal (art, latin_name, zootierliste_description, slug) VALUES ('Unknownus testus','Unknownus testus','Legacy description','unknownus-testus');"
             )
         )
         conn.execute(text("INSERT INTO continent_name (id, name_de, name_en) VALUES (1,'Europa','Europe');"))
@@ -240,6 +245,7 @@ def test_import_simple_sqlite(monkeypatch, tmp_path):
         assert lion.description_en == "English description"
         assert lion.conservation_state == "VU"
         assert lion.taxon_rank == "species"
+        assert lion.slug == "lion"
         assert db.query(models.Image).count() == 1
         assert db.query(models.ImageVariant).count() == 1
         assert lion.default_image_url == "http://example.com/lion.jpg"

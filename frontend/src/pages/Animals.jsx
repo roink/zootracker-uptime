@@ -237,7 +237,7 @@ export default function AnimalsPage() {
             key={a.id}
             type="button"
             className="animal-card"
-            onClick={() => navigate(`${prefix}/animals/${a.id}`)}
+            onClick={() => navigate(`${prefix}/animals/${a.slug || a.id}`)}
           >
             {a.default_image_url && (
               <img

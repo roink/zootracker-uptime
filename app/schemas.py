@@ -74,6 +74,7 @@ class ZooSearchResult(BaseModel):
 class AnimalRead(BaseModel):
     """Minimal representation of an animal."""
     id: UUID
+    slug: str
     name_en: str
     scientific_name: Optional[str] = None
     name_de: Optional[str] = None
@@ -86,6 +87,7 @@ class AnimalListItem(BaseModel):
     """Detailed fields returned by the animals list endpoint."""
 
     id: UUID
+    slug: str
     name_en: str
     scientific_name: Optional[str] = None
     name_de: Optional[str] = None
@@ -214,6 +216,7 @@ class AnimalDetail(BaseModel):
     """Detailed information about an animal including available zoos."""
 
     id: UUID
+    slug: str
     name_en: str
     scientific_name: Optional[str] = None
     name_de: Optional[str] = None

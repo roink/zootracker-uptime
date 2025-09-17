@@ -299,6 +299,7 @@ class Animal(Base):
     __tablename__ = "animals"
     __table_args__ = (
         CheckConstraint("zoo_count >= 0"),
+        Index("idx_animals_slug", "slug", unique=True),
         Index("idx_animals_klasse", "klasse"),
         Index("idx_animals_ordnung", "ordnung"),
         Index("idx_animals_familie", "familie"),
@@ -313,6 +314,7 @@ class Animal(Base):
         server_default=text("gen_random_uuid()"),
     )
     scientific_name = Column(String(255))
+    slug = Column(String(255), nullable=False)
     category_id = Column(
         UUID(as_uuid=True), ForeignKey("categories.id"), nullable=False
     )

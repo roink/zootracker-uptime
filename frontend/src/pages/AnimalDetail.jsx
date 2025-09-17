@@ -24,7 +24,7 @@ const IUCN = {
 // Detailed page showing an animal along with nearby zoos and user sightings
 
 export default function AnimalDetailPage({ refresh, onLogged }) {
-  const { id, lang } = useParams();
+  const { slug, lang } = useParams();
   const navigate = useNavigate();
   const prefix = `/${lang}`;
   const { t } = useTranslation();
@@ -87,7 +87,7 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
     setError(false);
     // fetch animal details and associated zoos (with distance when available)
     fetch(
-      `${API}/animals/${id}${params.length ? `?${params.join('&')}` : ''}`,
+      `${API}/animals/${slug}${params.length ? `?${params.join('&')}` : ''}`,
       { signal: controller.signal }
     )
       .then((r) => (r.ok ? r.json() : Promise.reject()))
@@ -106,7 +106,7 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
       });
 
     return () => controller.abort();
-  }, [id, location]);
+  }, [slug, location]);
 
   const loadSightings = useCallback(() => {
     if (!isAuthenticated) return;

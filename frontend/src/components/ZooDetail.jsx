@@ -136,12 +136,12 @@ export default function ZooDetail({ zoo, refresh, onLogged }) {
             <tr
               key={a.id}
               className="pointer-row"
-              onClick={() => navigate(`${prefix}/animals/${a.id}`)}
+              onClick={() => navigate(`${prefix}/animals/${a.slug || a.id}`)}
               tabIndex="0"
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
-                  navigate(`${prefix}/animals/${a.id}`);
+                  navigate(`${prefix}/animals/${a.slug || a.id}`);
                 }
               }}
             >

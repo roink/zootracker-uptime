@@ -207,6 +207,12 @@ def _import_animals(
         taxon_rank = row.get("taxon_rank")
         if taxon_rank:
             taxon_rank = taxon_rank.strip()
+        slug = row.get("slug")
+        if isinstance(slug, str):
+            slug = slug.strip() or None
+        if slug is None and isinstance(art, str):
+            fallback = re.sub(r"[^a-z0-9]+", "-", art.lower()).strip("-")
+            slug = fallback or None
         if art in existing:
             aid = existing[art]
             animal = dst.get(models.Animal, aid)
@@ -228,6 +234,8 @@ def _import_animals(
             assign("description_en", desc_en)
             assign("conservation_state", status)
             assign("taxon_rank", taxon_rank)
+            if slug is not None:
+                assign("slug", slug)
             if changed:
                 dst.add(animal)
                 n_updated += 1
@@ -238,11 +246,16 @@ def _import_animals(
         if not row.get("latin_name") or not row.get("name_de"):
             logger.warning("Animal %s missing latin or German name", art)
         name_en = row.get("name_en") or row.get("latin_name") or art
+        if slug is None:
+            logger.warning("Skipping animal %s due to missing slug", art)
+            n_skipped += 1
+            continue
         aid = uuid.uuid4()
         animals.append(
             models.Animal(
                 id=aid,
                 scientific_name=row.get("latin_name"),
+                slug=slug,
                 name_de=row.get("name_de"),
                 name_en=name_en,
                 latin_name=row.get("latin_name"),

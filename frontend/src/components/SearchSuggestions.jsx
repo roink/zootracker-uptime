@@ -5,7 +5,7 @@
 import { useParams } from 'react-router-dom';
 
 export default function SearchSuggestions({ results, onSelect }) {
-  const handleDown = (type, id) => onSelect(type, id);
+  const handleDown = (type, value) => onSelect(type, value);
   const { lang } = useParams();
   const getName = (a) =>
     lang === 'de' ? a.name_de || a.name_en : a.name_en || a.name_de;
@@ -24,11 +24,11 @@ export default function SearchSuggestions({ results, onSelect }) {
         </li>
       ))}
       {results.animals.map((a) => (
-        <li key={`a-${a.id}`} className="list-group-item">
+        <li key={`a-${a.slug || a.id}`} className="list-group-item">
           <button
             type="button"
             className="btn btn-link p-0"
-            onPointerDown={() => handleDown('animal', a.id)}
+            onPointerDown={() => handleDown('animal', a.slug || a.id)}
           >
             {getName(a)}
           </button>
