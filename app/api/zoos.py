@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import or_, exists
 from sqlalchemy.orm import Session
-import uuid
 
 from .. import schemas, models
 from ..database import get_db
@@ -52,6 +51,7 @@ def search_zoos(
     return [
         schemas.ZooSearchResult(
             id=z.id,
+            slug=z.slug,
             name=z.name,
             address=z.address,
             city=z.city,
@@ -95,44 +95,56 @@ def list_countries(continent_id: int, db: Session = Depends(get_db)):
         for c in countries
     ]
 
-@router.get("/zoos/{zoo_id}", response_model=schemas.ZooDetail)
-def get_zoo(zoo_id: uuid.UUID, db: Session = Depends(get_db)):
-    """Retrieve detailed information about a zoo."""
-    zoo = db.get(models.Zoo, zoo_id)
+def _get_zoo_or_404(zoo_slug: str, db: Session) -> models.Zoo:
+    """Return a zoo by slug or raise a 404 error."""
+
+    zoo = db.query(models.Zoo).filter(models.Zoo.slug == zoo_slug).first()
     if zoo is None:
         raise HTTPException(status_code=404, detail="Zoo not found")
     return zoo
 
 
-@router.get("/zoos/{zoo_id}/visited", response_model=schemas.Visited)
+@router.get("/zoos/{zoo_slug}", response_model=schemas.ZooDetail)
+def get_zoo(zoo_slug: str, db: Session = Depends(get_db)):
+    """Retrieve detailed information about a zoo."""
+
+    return _get_zoo_or_404(zoo_slug, db)
+
+
+@router.get("/zoos/{zoo_slug}/visited", response_model=schemas.Visited)
 def has_visited_zoo(
-    zoo_id: uuid.UUID,
+    zoo_slug: str,
     db: Session = Depends(get_db),
     user: models.User = Depends(get_current_user),
 ):
     """Return whether the authenticated user has visited a given zoo."""
+
+    zoo = _get_zoo_or_404(zoo_slug, db)
     visited = db.query(
         exists().where(
             models.ZooVisit.user_id == user.id,
-            models.ZooVisit.zoo_id == zoo_id,
+            models.ZooVisit.zoo_id == zoo.id,
         )
     ).scalar()
     if not visited:
         visited = db.query(
             exists().where(
                 models.AnimalSighting.user_id == user.id,
-                models.AnimalSighting.zoo_id == zoo_id,
+                models.AnimalSighting.zoo_id == zoo.id,
             )
         ).scalar()
     return {"visited": bool(visited)}
 
-@router.get("/zoos/{zoo_id}/animals", response_model=list[schemas.AnimalRead])
-def list_zoo_animals(zoo_id: uuid.UUID, db: Session = Depends(get_db)):
+
+@router.get("/zoos/{zoo_slug}/animals", response_model=list[schemas.AnimalRead])
+def list_zoo_animals(zoo_slug: str, db: Session = Depends(get_db)):
     """Return animals that are associated with a specific zoo."""
+
+    zoo = _get_zoo_or_404(zoo_slug, db)
     return (
         db.query(models.Animal)
         .join(models.ZooAnimal, models.Animal.id == models.ZooAnimal.animal_id)
-        .filter(models.ZooAnimal.zoo_id == zoo_id)
+        .filter(models.ZooAnimal.zoo_id == zoo.id)
         .order_by(models.Animal.zoo_count.desc())
         .all()
     )

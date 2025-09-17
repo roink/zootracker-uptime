@@ -9,6 +9,7 @@ def test_get_animal_detail_success(data):
     assert body["id"] == str(data["animal"].id)
     assert body["slug"] == data["animal"].slug
     assert body["zoos"][0]["id"] == str(data["zoo"].id)
+    assert body["zoos"][0]["slug"] == data["zoo"].slug
     # distance should be included but undefined without coordinates
     assert body["zoos"][0]["distance_km"] is None
     assert body["zoos"][0]["city"] == "Metropolis"
@@ -72,6 +73,7 @@ def test_get_animal_detail_with_distance(data):
     body = resp.json()
     assert len(body["zoos"]) == 1
     assert body["zoos"][0]["id"] == str(data["zoo"].id)
+    assert body["zoos"][0]["slug"] == data["zoo"].slug
     assert body["zoos"][0]["distance_km"] == 0
     assert body["zoos"][0]["city"] == "Metropolis"
 
@@ -107,6 +109,7 @@ def test_cf_headers_used(data):
     resp = client.get(f"/animals/{data['animal'].slug}", headers=headers)
     assert resp.status_code == 200
     body = resp.json()
+    assert body["zoos"][0]["slug"] == data["zoo"].slug
     assert body["zoos"][0]["distance_km"] == 0
 
 
@@ -115,6 +118,7 @@ def test_invalid_cf_headers_ignored(data):
     resp = client.get(f"/animals/{data['animal'].slug}", headers=headers)
     assert resp.status_code == 200
     body = resp.json()
+    assert body["zoos"][0]["slug"] == data["zoo"].slug
     assert body["zoos"][0]["distance_km"] is None
 
 

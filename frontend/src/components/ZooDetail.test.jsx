@@ -8,7 +8,7 @@ import { createTestToken, setStoredAuth } from '../test-utils/auth.js';
 vi.mock('./LazyMap', () => ({ default: () => <div data-testid="map" /> }));
 
 describe('ZooDetail component', () => {
-  const zoo = { id: 'z1', name: 'Test Zoo' };
+  const zoo = { id: 'z1', slug: 'test-zoo', name: 'Test Zoo' };
   const userId = 'u1';
   const animalId = 'a1';
 
@@ -16,13 +16,13 @@ describe('ZooDetail component', () => {
     const token = createTestToken();
     setStoredAuth({ token, user: { id: userId, email: 'user@example.com' } });
     global.fetch = vi.fn((url) => {
-      if (url.endsWith(`/zoos/${zoo.id}/animals`)) {
+      if (url.endsWith(`/zoos/${zoo.slug}/animals`)) {
         return Promise.resolve({
           ok: true,
           json: () => Promise.resolve([{ id: animalId, name_en: 'Lion' }]),
         });
       }
-      if (url.endsWith(`/zoos/${zoo.id}/visited`)) {
+      if (url.endsWith(`/zoos/${zoo.slug}/visited`)) {
         return Promise.resolve({
           ok: true,
           json: () => Promise.resolve({ visited: true }),
@@ -51,7 +51,7 @@ describe('ZooDetail component', () => {
     });
 
     expect(global.fetch).toHaveBeenCalledWith(
-      expect.stringMatching(`${API}/zoos/${zoo.id}/visited`),
+      expect.stringMatching(`${API}/zoos/${zoo.slug}/visited`),
       expect.any(Object)
     );
     expect(global.fetch).toHaveBeenCalledWith(

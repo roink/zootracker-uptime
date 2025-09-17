@@ -37,8 +37,8 @@ export default function SearchPage() {
       <h3>Zoos</h3>
       <ul>
         {zoos.map((z) => (
-          <li key={z.id}>
-            <button onClick={() => navigate(`${prefix}/zoos/${z.id}`)}>
+          <li key={z.slug || z.id}>
+            <button onClick={() => navigate(`${prefix}/zoos/${z.slug || z.id}`)}>
               {z.city ? `${z.city}: ${z.name}` : z.name}
             </button>
           </li>

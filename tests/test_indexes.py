@@ -16,6 +16,7 @@ def test_zoo_indexes_present():
         'idx_zoos_location_gist',
         'idx_zoos_country_id',
         'idx_zoos_continent_id',
+        'idx_zoos_slug',
     }
     assert expected.issubset(idx)
 

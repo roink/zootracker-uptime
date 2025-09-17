@@ -34,7 +34,8 @@ export default function ZooDetail({ zoo, refresh, onLogged }) {
   // Load animals in this zoo (server already returns popularity order;
   // keep client-side sort as a fallback for robustness)
   useEffect(() => {
-    fetch(`${API}/zoos/${zoo.id}/animals`)
+    if (!zoo?.slug) return;
+    fetch(`${API}/zoos/${zoo.slug}/animals`)
       .then((r) => r.json())
       .then((data) => {
         setAnimals(
@@ -42,16 +43,16 @@ export default function ZooDetail({ zoo, refresh, onLogged }) {
         );
       })
       .catch(() => setAnimals([]));
-  }, [zoo, refresh]);
+  }, [zoo?.slug, refresh]);
 
   // Load whether user has visited this zoo
   useEffect(() => {
-    if (!isAuthenticated) return;
-    authFetch(`${API}/zoos/${zoo.id}/visited`)
+    if (!isAuthenticated || !zoo?.slug) return;
+    authFetch(`${API}/zoos/${zoo.slug}/visited`)
       .then((r) => (r.ok ? r.json() : { visited: false }))
       .then((d) => setVisited(Boolean(d.visited)))
       .catch(() => setVisited(false));
-  }, [isAuthenticated, authFetch, zoo.id, refresh]);
+  }, [isAuthenticated, authFetch, zoo?.slug, refresh]);
 
   // Load IDs of animals the user has seen
   useEffect(() => {
@@ -184,8 +185,12 @@ export default function ZooDetail({ zoo, refresh, onLogged }) {
             defaultZooName={modalData.zooName}
             defaultAnimalName={modalData.animalName}
             onLogged={() => {
+              if (!zoo?.slug) {
+                onLogged && onLogged();
+                return;
+              }
               onLogged && onLogged();
-              fetch(`${API}/zoos/${zoo.id}/animals`)
+              fetch(`${API}/zoos/${zoo.slug}/animals`)
                 .then((r) => r.json())
                 .then((data) => {
                   setAnimals(
@@ -194,7 +199,7 @@ export default function ZooDetail({ zoo, refresh, onLogged }) {
                 })
                 .catch(() => setAnimals([]));
               if (isAuthenticated) {
-                authFetch(`${API}/zoos/${zoo.id}/visited`)
+                authFetch(`${API}/zoos/${zoo.slug}/visited`)
                   .then((r) => (r.ok ? r.json() : { visited: false }))
                   .then((d) => setVisited(Boolean(d.visited)))
                   .catch(() => setVisited(false));

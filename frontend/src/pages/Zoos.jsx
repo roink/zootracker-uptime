@@ -279,7 +279,7 @@ export default function ZoosPage() {
             key={z.id}
             type="button"
             className="list-group-item list-group-item-action text-start w-100"
-            onClick={() => navigate(`${prefix}/zoos/${z.id}`)}
+            onClick={() => navigate(`${prefix}/zoos/${z.slug || z.id}`)}
           >
             <div className="d-flex justify-content-between">
               <div>

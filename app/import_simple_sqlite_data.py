@@ -289,12 +289,40 @@ def _import_animals(
 def _import_zoos(src: Session, dst: Session, zoo_table: Table) -> Dict[int, uuid.UUID]:
     """Insert zoos and build id mapping."""
 
-    existing = {
-        (row.name, row.city, row.country_id): row.id
-        for row in dst.execute(
-            select(models.Zoo.id, models.Zoo.name, models.Zoo.city, models.Zoo.country_id)
+    existing_rows = list(
+        dst.execute(
+            select(
+                models.Zoo.id,
+                models.Zoo.name,
+                models.Zoo.city,
+                models.Zoo.country_id,
+                models.Zoo.slug,
+            )
         ).mappings()
-    }
+    )
+    existing_by_key: Dict[tuple[str, str, int | None], uuid.UUID] = {}
+    existing_by_slug: Dict[str, uuid.UUID] = {}
+    seen_slugs: set[str] = set()
+    for row in existing_rows:
+        key = (row["name"], row["city"], row["country_id"])
+        existing_by_key[key] = row["id"]
+        slug = row.get("slug")
+        if slug:
+            existing_by_slug[slug] = row["id"]
+            seen_slugs.add(slug)
+
+    def ensure_unique_slug(candidate: str) -> str:
+        """Ensure ``candidate`` slug is unique by appending a numeric suffix."""
+
+        base = candidate or "zoo"
+        slug = base
+        suffix = 2
+        while slug in seen_slugs:
+            slug = f"{base}-{suffix}"
+            suffix += 1
+        seen_slugs.add(slug)
+        return slug
+
     rows = list(src.execute(select(zoo_table)).mappings())
     zoos = []
     mapping: Dict[int, uuid.UUID] = {}
@@ -304,10 +332,23 @@ def _import_zoos(src: Session, dst: Session, zoo_table: Table) -> Dict[int, uuid
             row.get("city"),
             row.get("country"),
         )
+        slug = row.get("slug")
+        if isinstance(slug, str):
+            slug = slug.strip() or None
+        if not slug:
+            base_name = row.get("name") or ""
+            city = row.get("city") or ""
+            base = f"{base_name}-{city}" if city else base_name
+            if not base:
+                base = f"zoo-{row.get('zoo_id')}"
+            slug = re.sub(r"[^a-z0-9]+", "-", base.lower()).strip("-")
+            if not slug:
+                slug = f"zoo-{row.get('zoo_id')}"
+        slug = slug[:255]
         desc_en = _clean_text(row.get("description_en"))
         desc_de = _clean_text(row.get("description_de"))
-        if key in existing:
-            zid = existing[key]
+        zid = existing_by_slug.get(slug)
+        if zid is not None:
             if desc_en or desc_de:
                 z = dst.get(models.Zoo, zid)
                 changed = False
@@ -320,6 +361,35 @@ def _import_zoos(src: Session, dst: Session, zoo_table: Table) -> Dict[int, uuid
                 if changed:
                     dst.add(z)
             mapping[row["zoo_id"]] = zid
+            seen_slugs.add(slug)
+            existing_by_key[key] = zid
+            continue
+        if key in existing_by_key:
+            zid = existing_by_key[key]
+            z = dst.get(models.Zoo, zid)
+            changed = False
+            if desc_en or desc_de:
+                if desc_en and z.description_en != desc_en:
+                    z.description_en = desc_en
+                    changed = True
+                if desc_de and z.description_de != desc_de:
+                    z.description_de = desc_de
+                    changed = True
+            current_slug = z.slug
+            if current_slug and existing_by_slug.get(current_slug) == zid:
+                existing_by_slug.pop(current_slug, None)
+            if slug in seen_slugs:
+                new_slug = ensure_unique_slug(slug)
+            else:
+                new_slug = slug
+                seen_slugs.add(new_slug)
+            if z.slug != new_slug:
+                z.slug = new_slug
+                changed = True
+            existing_by_slug[new_slug] = zid
+            if changed:
+                dst.add(z)
+            mapping[row["zoo_id"]] = zid
             continue
         lat = row.get("latitude")
         lon = row.get("longitude")
@@ -330,10 +400,17 @@ def _import_zoos(src: Session, dst: Session, zoo_table: Table) -> Dict[int, uuid
             logger.warning("Zoo %s has invalid longitude %s", row.get("name"), lon)
             lon = None
         zid = uuid.uuid4()
+        if slug in seen_slugs:
+            unique_slug = ensure_unique_slug(slug)
+        else:
+            unique_slug = slug
+            seen_slugs.add(unique_slug)
+        existing_by_slug[unique_slug] = zid
         zoos.append(
             models.Zoo(
                 id=zid,
                 name=row.get("name"),
+                slug=unique_slug,
                 continent_id=row.get("continent"),
                 country_id=row.get("country"),
                 city=row.get("city"),
@@ -344,7 +421,7 @@ def _import_zoos(src: Session, dst: Session, zoo_table: Table) -> Dict[int, uuid
             )
         )
         mapping[row["zoo_id"]] = zid
-        existing[key] = zid
+        existing_by_key[key] = zid
     if zoos:
         dst.bulk_save_objects(zoos)
     return mapping

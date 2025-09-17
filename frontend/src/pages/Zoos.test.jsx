@@ -22,7 +22,7 @@ describe('ZoosPage', () => {
   });
 
   it('loads visited zoo IDs and marks visited zoos', async () => {
-    const zoos = [{ id: '1', name: 'A Zoo', address: '', city: '' }];
+    const zoos = [{ id: '1', slug: 'a-zoo', name: 'A Zoo', address: '', city: '' }];
     const visited = ['1'];
     const fetchMock = vi.fn((url) => {
       if (url.startsWith(`${API}/zoos/continents`))
@@ -46,8 +46,8 @@ describe('ZoosPage', () => {
 
   it('filters zoos by visit status', async () => {
     const zoos = [
-      { id: '1', name: 'Visited Zoo', address: '', city: '' },
-      { id: '2', name: 'New Zoo', address: '', city: '' },
+      { id: '1', slug: 'visited-zoo', name: 'Visited Zoo', address: '', city: '' },
+      { id: '2', slug: 'new-zoo', name: 'New Zoo', address: '', city: '' },
     ];
     const visited = ['1'];
     const fetchMock = vi.fn((url) => {
@@ -96,8 +96,8 @@ describe('ZoosPage', () => {
 
   it('reads visit filter from URL', async () => {
     const zoos = [
-      { id: '1', name: 'Visited Zoo', address: '', city: '' },
-      { id: '2', name: 'New Zoo', address: '', city: '' },
+      { id: '1', slug: 'visited-zoo', name: 'Visited Zoo', address: '', city: '' },
+      { id: '2', slug: 'new-zoo', name: 'New Zoo', address: '', city: '' },
     ];
     const visited = ['1'];
     const fetchMock = vi.fn((url) => {

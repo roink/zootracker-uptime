@@ -464,12 +464,12 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
                   className="pointer-row"
                   role="link"
                   aria-label={`Open ${z.city ? `${z.city}: ${z.name}` : z.name}`}
-                  onClick={() => navigate(`${prefix}/zoos/${z.id}`)}
+                  onClick={() => navigate(`${prefix}/zoos/${z.slug || z.id}`)}
                   tabIndex={0}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();
-                      navigate(`${prefix}/zoos/${z.id}`);
+                      navigate(`${prefix}/zoos/${z.slug || z.id}`);
                     }
                   }}
                 >

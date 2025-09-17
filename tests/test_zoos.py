@@ -1,25 +1,25 @@
-import uuid
 from .conftest import client
 
 def test_get_animals_for_zoo(data):
-    resp = client.get(f"/zoos/{data['zoo'].id}/animals")
+    resp = client.get(f"/zoos/{data['zoo'].slug}/animals")
     assert resp.status_code == 200
     animals = resp.json()
     assert len(animals) == 1
     assert animals[0]["id"] == str(data["animal"].id)
 
 def test_get_zoo_details(data):
-    resp = client.get(f"/zoos/{data['zoo'].id}")
+    resp = client.get(f"/zoos/{data['zoo'].slug}")
     assert resp.status_code == 200
     body = resp.json()
     assert body["id"] == str(data["zoo"].id)
+    assert body["slug"] == data["zoo"].slug
     assert body["address"] == "123 Zoo St"
     assert body["description_en"] == "A fun place"
     assert body["description_de"] == "Ein lustiger Ort"
     assert body["city"] == "Metropolis"
 
 def test_get_zoo_invalid_id():
-    resp = client.get(f"/zoos/{uuid.uuid4()}")
+    resp = client.get("/zoos/missing-zoo")
     assert resp.status_code == 404
 
 def test_search_zoos_with_radius_returns_all(data):
@@ -35,6 +35,7 @@ def test_search_zoos_with_radius_returns_all(data):
     ids = {z["id"] for z in body}
     assert str(data["zoo"].id) in ids
     assert str(data["far_zoo"].id) in ids
+    assert all("slug" in z for z in body)
     dists = [z["distance_km"] for z in body]
     assert dists == sorted(dists)
     assert any(z["city"] == "Metropolis" for z in body)
