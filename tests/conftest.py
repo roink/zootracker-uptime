@@ -94,6 +94,7 @@ def seed_data():
 
     zoo = models.Zoo(
         name="Central Zoo",
+        slug="central-zoo",
         address="123 Zoo St",
         latitude=10.0,
         longitude=20.0,
@@ -109,6 +110,7 @@ def seed_data():
 
     far_zoo = models.Zoo(
         name="Far Zoo",
+        slug="far-zoo",
         address="456 Distant Rd",
         latitude=50.0,
         longitude=60.0,

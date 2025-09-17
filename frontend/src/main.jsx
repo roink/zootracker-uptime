@@ -111,7 +111,7 @@ function AppRoutes({ refreshCounter, refreshSeen }) {
           <Route path="login" element={<LoginPage />} />
           <Route path="zoos" element={<ZoosPage />} />
           <Route
-            path="zoos/:id"
+            path="zoos/:slug"
             element={
               <ZooDetailPage
                 refresh={refreshCounter}

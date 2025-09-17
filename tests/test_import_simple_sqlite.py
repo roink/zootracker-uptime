@@ -58,6 +58,7 @@ def _build_source_db(path: Path, mid: str = "M1") -> Path:
                 country INTEGER REFERENCES country_name(id),
                 city TEXT,
                 name TEXT,
+                slug TEXT UNIQUE,
                 latitude REAL,
                 longitude REAL,
                 website TEXT,
@@ -160,7 +161,7 @@ def _build_source_db(path: Path, mid: str = "M1") -> Path:
         )
         conn.execute(text("INSERT INTO continent_name (id, name_de, name_en) VALUES (1,'Europa','Europe');"))
         conn.execute(text("INSERT INTO country_name (id, name_de, name_en, continent_id) VALUES (1,'Deutschland','Germany',1);"))
-        conn.execute(text("INSERT INTO zoo (zoo_id, continent, country, city, name, latitude, longitude, website, description_en, description_de) VALUES (1,1,1,'Berlin','Berlin Zoo',52.5,13.4,'http://example.org','English zoo','Deutscher Zoo');"))
+        conn.execute(text("INSERT INTO zoo (zoo_id, continent, country, city, name, slug, latitude, longitude, website, description_en, description_de) VALUES (1,1,1,'Berlin','Berlin Zoo','berlin-zoo',52.5,13.4,'http://example.org','English zoo','Deutscher Zoo');"))
         conn.execute(text("INSERT INTO zoo_animal (zoo_id, art) VALUES (1,'Panthera leo');"))
         conn.execute(text("INSERT INTO zoo_animal (zoo_id, art) VALUES (1,'Aquila chrysaetos');"))
         conn.execute(text("INSERT INTO zoo_animal (zoo_id, art) VALUES (1,'Unknownus testus');"))
@@ -229,6 +230,7 @@ def test_import_simple_sqlite(monkeypatch, tmp_path):
         zoo = db.query(models.Zoo).first()
         assert zoo.animal_count == 3
         assert zoo.name == "Berlin Zoo"
+        assert zoo.slug == "berlin-zoo"
         assert zoo.country_id == 1
         assert zoo.country.name_en == "Germany"
         assert zoo.continent_id == 1

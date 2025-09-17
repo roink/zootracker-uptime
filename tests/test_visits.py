@@ -184,10 +184,11 @@ def test_visit_ids_dedup_across_visits_and_sightings(data):
 def test_has_visited_endpoint_true(data):
     token, user_id = register_and_login()
     zoo_id = data["zoo"].id
+    zoo_slug = data["zoo"].slug
     animal_id = data["animal"].id
     create_sighting(token, user_id, zoo_id, animal_id)
     resp = client.get(
-        f"/zoos/{zoo_id}/visited",
+        f"/zoos/{zoo_slug}/visited",
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 200
@@ -197,8 +198,9 @@ def test_has_visited_endpoint_true(data):
 def test_has_visited_endpoint_false(data):
     token, _ = register_and_login()
     zoo_id = data["zoo"].id
+    zoo_slug = data["zoo"].slug
     resp = client.get(
-        f"/zoos/{zoo_id}/visited",
+        f"/zoos/{zoo_slug}/visited",
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 200
@@ -208,6 +210,7 @@ def test_has_visited_endpoint_false(data):
 def test_has_visited_without_zoo_visit(data):
     token, user_id = register_and_login()
     zoo_id = data["zoo"].id
+    zoo_slug = data["zoo"].slug
     animal_id = data["animal"].id
     create_sighting(token, user_id, zoo_id, animal_id)
     db = SessionLocal()
@@ -215,7 +218,7 @@ def test_has_visited_without_zoo_visit(data):
     db.commit()
     db.close()
     resp = client.get(
-        f"/zoos/{zoo_id}/visited",
+        f"/zoos/{zoo_slug}/visited",
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 200
@@ -223,6 +226,6 @@ def test_has_visited_without_zoo_visit(data):
 
 
 def test_has_visited_requires_auth(data):
-    zoo_id = data["zoo"].id
-    resp = client.get(f"/zoos/{zoo_id}/visited")
+    zoo_slug = data["zoo"].slug
+    resp = client.get(f"/zoos/{zoo_slug}/visited")
     assert resp.status_code == 401

@@ -34,6 +34,7 @@ CREATE TABLE country_names (
 CREATE TABLE zoos (
   id              UUID       PRIMARY KEY DEFAULT gen_random_uuid(),
   name            VARCHAR(255) NOT NULL,
+  slug            TEXT NOT NULL,
   address         TEXT,
   latitude        DECIMAL(9,6),
   longitude       DECIMAL(9,6),
@@ -58,6 +59,7 @@ CREATE INDEX IF NOT EXISTS idx_zoos_city_trgm
   ON zoos USING gin (city gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_zoos_country_id   ON zoos(country_id);
 CREATE INDEX IF NOT EXISTS idx_zoos_continent_id ON zoos(continent_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_zoos_slug ON zoos(slug);
 
 
 -- 3. Categories (e.g., Mammal, Bird, Reptile)

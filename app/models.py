@@ -97,6 +97,7 @@ class Zoo(Base):
     __table_args__ = (
         CheckConstraint("animal_count >= 0"),
         Index("idx_zoos_location_gist", "location", postgresql_using="gist"),
+        Index("idx_zoos_slug", "slug", unique=True),
         Index(
             "idx_zoos_name_trgm",
             "name",
@@ -120,6 +121,7 @@ class Zoo(Base):
         server_default=text("gen_random_uuid()"),
     )
     name = Column(String(255), nullable=False)
+    slug = Column(String(255), nullable=False)
     address = Column(Text)
     latitude = Column(DECIMAL(9, 6))
     longitude = Column(DECIMAL(9, 6))

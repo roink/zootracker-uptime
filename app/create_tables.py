@@ -61,6 +61,9 @@ def create_tables() -> None:
                 "CREATE INDEX IF NOT EXISTS idx_zoos_continent_id ON zoos (continent_id)"
             )
         )
+        conn.execute(
+            text("CREATE UNIQUE INDEX IF NOT EXISTS idx_zoos_slug ON zoos (slug)")
+        )
 
 
 if __name__ == "__main__":

@@ -11,6 +11,7 @@ from .deps import resolve_coords
 def to_zoodetail(z: models.Zoo, dist: float | None) -> schemas.ZooDetail:
     return schemas.ZooDetail(
         id=z.id,
+        slug=z.slug,
         name=z.name,
         address=z.address,
         city=z.city,
@@ -174,7 +175,7 @@ def list_families(order_id: int, db: Session = Depends(get_db)):
 def combined_search(q: str = "", limit: int = 5, db: Session = Depends(get_db)):
     """Return top zoos and animals matching the query."""
     zoo_q = db.query(models.Zoo).options(
-        load_only(models.Zoo.id, models.Zoo.name, models.Zoo.city)
+        load_only(models.Zoo.id, models.Zoo.slug, models.Zoo.name, models.Zoo.city)
     )
     if q:
         pattern = f"%{q}%"
@@ -231,6 +232,7 @@ def get_animal_detail(
         .options(
             load_only(
                 models.Zoo.id,
+                models.Zoo.slug,
                 models.Zoo.name,
                 models.Zoo.address,
                 models.Zoo.city,

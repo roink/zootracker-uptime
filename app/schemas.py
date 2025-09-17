@@ -38,6 +38,7 @@ class Token(BaseModel):
 class ZooRead(BaseModel):
     """Basic information about a zoo."""
     id: UUID
+    slug: str
     name: str
     address: Optional[str] = None
     city: Optional[str] = None
@@ -48,6 +49,7 @@ class ZooRead(BaseModel):
 class ZooDetail(BaseModel):
     """Full information about a zoo including location and description."""
     id: UUID
+    slug: str
     name: str
     address: Optional[str] = None
     city: Optional[str] = None
@@ -63,6 +65,7 @@ class ZooDetail(BaseModel):
 class ZooSearchResult(BaseModel):
     """Slim result item for zoo searches."""
     id: UUID
+    slug: str
     name: str
     address: Optional[str] = None
     city: Optional[str] = None

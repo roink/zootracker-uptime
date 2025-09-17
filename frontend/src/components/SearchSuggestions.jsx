@@ -13,11 +13,11 @@ export default function SearchSuggestions({ results, onSelect }) {
   return (
     <ul className="list-group position-absolute top-100 start-0 search-suggestions">
       {results.zoos.map((z) => (
-        <li key={`z-${z.id}`} className="list-group-item">
+        <li key={`z-${z.slug || z.id}`} className="list-group-item">
           <button
             type="button"
             className="btn btn-link p-0"
-            onPointerDown={() => handleDown('zoo', z.id)}
+            onPointerDown={() => handleDown('zoo', z.slug || z.id)}
           >
             {z.city ? `${z.city}: ${z.name}` : z.name}
           </button>
