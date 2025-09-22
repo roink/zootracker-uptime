@@ -68,30 +68,37 @@
   "dataProtectionPage": {
     "title": "Datenschutz",
     "seoDescription": "Erfahren Sie, wie ZooTracker DSGVO-Grundsätze umsetzt, Protokolle verarbeitet und Sichtungen speichert.",
+    "lastUpdated": "Zuletzt aktualisiert: 22. September 2025.",
     "intro": "Wir schützen Ihre personenbezogenen Daten und halten uns an die DSGVO. Auf dieser Seite erklären wir, welche Daten wir speichern, wie lange wir sie aufbewahren und zu welchem Zweck wir sie verarbeiten.",
     "controller": {
       "title": "Verantwortlicher & Kontakt",
-      "text": "Verantwortlich ist ZooTracker (Philipp Schlüter). Die Anbieterkennzeichnung (Impressum) finden Sie unter „Impressum“. Für Anfragen zum Datenschutz nutzen Sie bitte das Kontaktformular oder schreiben Sie an contact@zootracker.app."
+      "text": "Verantwortlicher: ZooTracker (Philipp Schlüter), Venloer Str. 720, 50827 Köln, Deutschland. Kontakt: <email>contact@zootracker.app</email>. Vollständige Angaben im <impressum>Impressum</impressum>."
+    },
+    "cookies": {
+      "title": "Cookies",
+      "text": "Wir setzen ausschließlich unbedingt erforderliche Cookies ein: ein Sitzungscookie (hält Sie angemeldet). Keine Analyse- oder Werbe-Cookies."
     },
     "logging": {
       "title": "Protokollierung und Aufbewahrung",
-      "raw": "Wir bewahren Rohprotokolle mit vollständigen IP-Adressen bis zu 30 Tage lang auf, um Missbrauch zu erkennen, Sicherheitsvorfälle zu untersuchen und gesetzlichen Pflichten nachzukommen.",
-      "anonymized": "Nach 30 Tagen bleiben nur anonymisierte Einträge erhalten. Wir speichern das maskierte /24- (IPv4) bzw. gekürzte IPv6-Präfix (z. B. /48) gemeinsam mit groben Anfrage-Metadaten, um Veränderungen unserer Nutzerschaft langfristig zu verstehen.",
-      "geolocation": "Geolokalisierungsdaten aus Netzwerk-Informationen runden wir VOR der Speicherung auf 0,1° (≈ 11 km in der Breite; die Länge variiert mit dem Breitengrad) und speichern nur aggregierte Auswertungen. Tages-Statistiken werden nur dauerhaft gespeichert, wenn ein Schwellenwert (k-Anonymität) erreicht ist.",
-      "justification": "So halten wir unsere Systeme sicher und besitzen dennoch langfristige, datenschutzfreundliche Analysen für Marketing-, Lokalisierungs- und Zoo-Schwerpunktentscheidungen."
+      "raw": "Rohprotokolle der Infrastruktur mit vollständigen IP-Adressen speichern wir <strong>bis zu 30 Tage</strong> lang zur Sicherstellung der Sicherheit und Missbrauchsabwehr.",
+      "anonymized": "Nach 30 Tagen behalten wir nur <strong>vergröberte</strong> Daten (IP-<strong>Präfix</strong> wie IPv4 /24 oder IPv6 /48; netzbasierte Geolokation auf ~0,1° gerundet)."
     },
     "legalBasis": {
       "title": "Rechtsgrundlage",
       "text": "Wir verarbeiten Daten auf folgenden Rechtsgrundlagen: (1) Betriebssicherheit & Missbrauchsabwehr: berechtigtes Interesse (Art. 6 Abs. 1 lit. f DSGVO) mit Widerspruchsrecht nach Art. 21 DSGVO; (2) Konto, Besuche & Sichtungen: Vertragserfüllung (Art. 6 Abs. 1 lit. b DSGVO)."
     },
+    "automated": {
+      "title": "Automatisierte Entscheidungen",
+      "text": "Wir setzen keine automatisierten Entscheidungen einschließlich Profiling ein, die rechtliche oder ähnlich erhebliche Wirkungen entfalten."
+    },
     "processors": {
       "title": "Empfänger & Auftragsverarbeiter",
       "hetzner": "Hosting bei Hetzner Online GmbH (Deutschland/EU).",
-      "cloudflare": "Content Delivery & WAF über Cloudflare, mit Datenverarbeitungsvereinbarung und Standardvertragsklauseln."
+      "cloudflare": "Content Delivery & WAF über Cloudflare mit Datenverarbeitungsvereinbarung, den EU-Standardvertragsklauseln 2021 und EU-US Data Privacy Framework-Zertifizierung."
     },
     "transfers": {
       "title": "Datenübermittlungen in Drittländer",
-      "text": "Bei Nutzung von Cloudflare kann es zu Übermittlungen außerhalb des EWR kommen. Diese sind durch EU-Standardvertragsklauseln abgesichert."
+      "text": "Wenn Cloudflare personenbezogene Daten verarbeitet, werden Übermittlungen außerhalb des EWR durch Cloudflares <strong>Data Processing Addendum</strong> mit den <strong>EU-Standardvertragsklauseln 2021</strong> abgesichert; Cloudflare ist zudem nach dem <strong>EU-US Data Privacy Framework</strong> zertifiziert. Wir folgen den Leitlinien des EDSA zu Transfer-Folgenabschätzungen und ergänzenden Maßnahmen."
     },
     "maps": {
       "title": "Karten & Drittanbieter-Inhalte",
@@ -120,6 +127,7 @@
     "loggedIn": {
       "title": "Wenn Sie ein Konto anlegen",
       "description": "Mit einem Konto speichern wir die Informationen, die wir für Ihr persönliches Dashboard und die geräteübergreifende Synchronisierung benötigen.",
+      "requirement": "Ihre E-Mail-Adresse und Ihr Passwort sind erforderlich, um Ihr Konto anzulegen und zu betreiben; ohne diese Angaben können wir keine Konto-Funktionen bereitstellen.",
       "items": {
         "account": "Ihren Namen, Ihre E-Mail-Adresse und ein gesalzenes, gehashtes Passwort, damit nur Sie auf Ihr Konto zugreifen können.",
         "security": "Anmeldeaktivitäten (Erfolgs- oder Fehlergrund, anonymisiertes IP-Präfix, Anfrage-ID), um verdächtige Versuche ohne Geheimnisse zu protokollieren.",
@@ -131,11 +139,11 @@
     },
     "optOut": {
       "title": "Widerspruch & Opt-out",
-      "text": "Sie können der Verarbeitung zu Zwecken berechtigter Interessen nach Art. 21 DSGVO widersprechen. Zudem respektieren wir „Do Not Track“ (DNT) und Global Privacy Control (GPC) Signale, indem wir keine langfristigen Analysedaten speichern, wenn ein solches Signal aktiv ist."
+      "text": "Sie können der Verarbeitung auf Grundlage berechtigter Interessen nach Art. 21 DSGVO widersprechen; kontaktieren Sie uns zur Ausübung dieses Rechts."
     },
     "rights": {
       "title": "Ihre Rechte",
-      "text": "Sie haben insbesondere das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung, Datenübertragbarkeit sowie Widerspruch (Art. 21 DSGVO). Sie können sich jederzeit an uns wenden (Kontakt/Impressum). Außerdem haben Sie das Recht, sich bei einer Aufsichtsbehörde zu beschweren, z. B. bei der LDI NRW."
+      "text": "Sie haben insbesondere das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung, Datenübertragbarkeit sowie Widerspruch (Art. 21 DSGVO). Sie können sich jederzeit an uns wenden (Kontakt/Impressum). Sie können sich bei jeder EU-Aufsichtsbehörde beschweren; vor Ort ist dies die <authority>Landesbeauftragte für Datenschutz und Informationsfreiheit NRW</authority>."
     }
   }
 }

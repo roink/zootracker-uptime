@@ -1,9 +1,14 @@
 import { Trans, useTranslation } from 'react-i18next';
+import { useParams } from 'react-router-dom';
 import Seo from '../components/Seo';
 
 // Detailed data protection information for the application.
 export default function DataProtectionPage() {
   const { t, i18n } = useTranslation();
+  const { lang } = useParams();
+  const locale = (lang ?? i18n.language ?? 'en');
+  const langSegment = locale.split('-')[0] || 'en';
+  const impressumHref = `/${langSegment}/impress`;
 
   return (
     <div className="container py-4">
@@ -12,38 +17,64 @@ export default function DataProtectionPage() {
         description={t('dataProtectionPage.seoDescription')}
       />
       <h2 className="text-2xl font-semibold">{t('dataProtectionPage.title')}</h2>
+      <p className="text-sm text-gray-600">{t('dataProtectionPage.lastUpdated')}</p>
       <p>{t('dataProtectionPage.intro')}</p>
 
       {/* Controller & Contact (no DPO) */}
       <section className="mt-4">
         <h4 className="font-semibold">{t('dataProtectionPage.controller.title')}</h4>
         <p>
-          {t('dataProtectionPage.controller.text')}{' '}
-          {i18n.language === 'de' ? (
-            <>
-              (<a href="/de/impress" className="underline" rel="noopener noreferrer">Impressum</a>,{' '}
-              <a href="/de/contact" className="underline" rel="noopener noreferrer">Kontakt</a>)
-            </>
-          ) : (
-            <>
-              (<a href="/de/impress" className="underline" rel="noopener noreferrer">Impressum</a>,{' '}
-              <a href="/de/contact" className="underline" rel="noopener noreferrer">Contact</a>)
-            </>
-          )}
+          <Trans
+            i18nKey="dataProtectionPage.controller.text"
+            components={{
+              email: (
+                <a
+                  href="mailto:contact@zootracker.app"
+                  className="underline"
+                  rel="noopener noreferrer"
+                />
+              ),
+              impressum: (
+                <a
+                  href={impressumHref}
+                  className="underline"
+                  rel="noopener noreferrer"
+                />
+              ),
+            }}
+          />
         </p>
       </section>
 
       <section className="mt-4">
+        <h4 className="font-semibold">{t('dataProtectionPage.cookies.title')}</h4>
+        <p>{t('dataProtectionPage.cookies.text')}</p>
+      </section>
+
+      <section className="mt-4">
         <h4>{t('dataProtectionPage.logging.title')}</h4>
-        <p>{t('dataProtectionPage.logging.raw')}</p>
-        <p>{t('dataProtectionPage.logging.anonymized')}</p>
-        <p>{t('dataProtectionPage.logging.geolocation')}</p>
-        <p>{t('dataProtectionPage.logging.justification')}</p>
+        <p>
+          <Trans
+            i18nKey="dataProtectionPage.logging.raw"
+            components={{ strong: <strong /> }}
+          />
+        </p>
+        <p>
+          <Trans
+            i18nKey="dataProtectionPage.logging.anonymized"
+            components={{ strong: <strong /> }}
+          />
+        </p>
       </section>
 
       <section className="mt-4">
         <h4>{t('dataProtectionPage.legalBasis.title')}</h4>
         <p>{t('dataProtectionPage.legalBasis.text')}</p>
+      </section>
+
+      <section className="mt-4">
+        <h4>{t('dataProtectionPage.automated.title')}</h4>
+        <p>{t('dataProtectionPage.automated.text')}</p>
       </section>
 
       {/* Processors & Transfers */}
@@ -64,7 +95,12 @@ export default function DataProtectionPage() {
 
       <section className="mt-4">
         <h4 className="font-semibold">{t('dataProtectionPage.transfers.title')}</h4>
-        <p>{t('dataProtectionPage.transfers.text')}</p>
+        <p>
+          <Trans
+            i18nKey="dataProtectionPage.transfers.text"
+            components={{ strong: <strong /> }}
+          />
+        </p>
       </section>
 
       {/* Maps / third-party */}
@@ -116,6 +152,7 @@ export default function DataProtectionPage() {
       <section className="mt-4">
         <h4>{t('dataProtectionPage.loggedIn.title')}</h4>
         <p>{t('dataProtectionPage.loggedIn.description')}</p>
+        <p>{t('dataProtectionPage.loggedIn.requirement')}</p>
         <ul>
           <li>{t('dataProtectionPage.loggedIn.items.account')}</li>
           <li>{t('dataProtectionPage.loggedIn.items.security')}</li>
@@ -129,20 +166,25 @@ export default function DataProtectionPage() {
       {/* Objection & Opt-out */}
       <section className="mt-4">
         <h4 className="font-semibold">{t('dataProtectionPage.optOut.title')}</h4>
-        <p>{t('dataProtectionPage.optOut.text')}{' '}
-          (<a href="https://globalprivacycontrol.org/" className="underline" target="_blank" rel="noopener noreferrer">GPC</a>)
-        </p>
+        <p>{t('dataProtectionPage.optOut.text')}</p>
       </section>
 
       <section className="mt-4">
         <h4>{t('dataProtectionPage.rights.title')}</h4>
         <p>
-          {t('dataProtectionPage.rights.text')}{' '}
-          {i18n.language === 'de' ? (
-            <a href="https://www.ldi.nrw.de/kontakt/ihre-beschwerde" className="underline" target="_blank" rel="noopener noreferrer">LDI&nbsp;NRW</a>
-          ) : (
-            <a href="https://www.edpb.europa.eu/about-edpb/about-edpb/members_en" className="underline" target="_blank" rel="noopener noreferrer">List of authorities (EDPB)</a>
-          )}
+          <Trans
+            i18nKey="dataProtectionPage.rights.text"
+            components={{
+              authority: (
+                <a
+                  href="https://www.ldi.nrw.de/kontakt/ihre-beschwerde"
+                  className="underline"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                />
+              ),
+            }}
+          />
         </p>
       </section>
     </div>
