@@ -1,5 +1,6 @@
 {
   "nav": {
+    "home": "Start",
     "zoos": "Zoos",
     "animals": "Tiere",
     "dashboard": "Dashboard",
@@ -68,16 +69,44 @@
     "title": "Datenschutz",
     "seoDescription": "Erfahren Sie, wie ZooTracker DSGVO-Grundsätze umsetzt, Protokolle verarbeitet und Sichtungen speichert.",
     "intro": "Wir schützen Ihre personenbezogenen Daten und halten uns an die DSGVO. Auf dieser Seite erklären wir, welche Daten wir speichern, wie lange wir sie aufbewahren und zu welchem Zweck wir sie verarbeiten.",
+    "controller": {
+      "title": "Verantwortlicher & Kontakt",
+      "text": "Verantwortlich ist ZooTracker (Philipp Schlüter). Die Anbieterkennzeichnung (Impressum) finden Sie unter „Impressum“. Für Anfragen zum Datenschutz nutzen Sie bitte das Kontaktformular oder schreiben Sie an contact@zootracker.app."
+    },
     "logging": {
       "title": "Protokollierung und Aufbewahrung",
       "raw": "Wir bewahren Rohprotokolle mit vollständigen IP-Adressen bis zu 30 Tage lang auf, um Missbrauch zu erkennen, Sicherheitsvorfälle zu untersuchen und gesetzlichen Pflichten nachzukommen.",
-      "anonymized": "Nach 30 Tagen bleiben nur anonymisierte Einträge erhalten. Wir speichern das maskierte /24- (IPv4) bzw. /64- (IPv6) Netz gemeinsam mit groben Anfrage-Metadaten, um Veränderungen unserer Nutzerschaft langfristig zu verstehen.",
-      "geolocation": "Geolokalisierungsdaten aus Netzwerk-Headern runden wir vor der Protokollierung auf 0,1° und behalten damit nur ungefähre Regionen statt exakter Koordinaten.",
+      "anonymized": "Nach 30 Tagen bleiben nur anonymisierte Einträge erhalten. Wir speichern das maskierte /24- (IPv4) bzw. gekürzte IPv6-Präfix (z. B. /48) gemeinsam mit groben Anfrage-Metadaten, um Veränderungen unserer Nutzerschaft langfristig zu verstehen.",
+      "geolocation": "Geolokalisierungsdaten aus Netzwerk-Informationen runden wir VOR der Speicherung auf 0,1° (≈ 11 km in der Breite; die Länge variiert mit dem Breitengrad) und speichern nur aggregierte Auswertungen. Tages-Statistiken werden nur dauerhaft gespeichert, wenn ein Schwellenwert (k-Anonymität) erreicht ist.",
       "justification": "So halten wir unsere Systeme sicher und besitzen dennoch langfristige, datenschutzfreundliche Analysen für Marketing-, Lokalisierungs- und Zoo-Schwerpunktentscheidungen."
     },
     "legalBasis": {
       "title": "Rechtsgrundlage",
-      "text": "Wir verarbeiten Protokolldaten und Kontoinformationen auf Grundlage unseres berechtigten Interesses, einen sicheren und zuverlässigen Dienst anzubieten (Art. 6 Abs. 1 lit. f DSGVO). Wir überprüfen regelmäßig, dass unsere Interessen Ihre Rechte und Freiheiten nicht überwiegen."
+      "text": "Wir verarbeiten Daten auf folgenden Rechtsgrundlagen: (1) Betriebssicherheit & Missbrauchsabwehr: berechtigtes Interesse (Art. 6 Abs. 1 lit. f DSGVO) mit Widerspruchsrecht nach Art. 21 DSGVO; (2) Konto, Besuche & Sichtungen: Vertragserfüllung (Art. 6 Abs. 1 lit. b DSGVO)."
+    },
+    "processors": {
+      "title": "Empfänger & Auftragsverarbeiter",
+      "hetzner": "Hosting bei Hetzner Online GmbH (Deutschland/EU).",
+      "cloudflare": "Content Delivery & WAF über Cloudflare, mit Datenverarbeitungsvereinbarung und Standardvertragsklauseln."
+    },
+    "transfers": {
+      "title": "Datenübermittlungen in Drittländer",
+      "text": "Bei Nutzung von Cloudflare kann es zu Übermittlungen außerhalb des EWR kommen. Diese sind durch EU-Standardvertragsklauseln abgesichert."
+    },
+    "maps": {
+      "title": "Karten & Drittanbieter-Inhalte",
+      "text": "Interaktive Karten werden mit MapLibre eingebunden; die Kacheln beziehen wir von OpenFreeMap (tiles.openfreemap.org). Beim Laden der Kacheln erhält dieser Anbieter Ihre IP-Adresse und Browser-Header. Details entnehmen Sie der Datenschutz-Seite von OpenFreeMap. Sie können Karten blockieren (z. B. durch Inhaltsblocker); die Kernfunktionen von ZooTracker bleiben nutzbar."
+    },
+    "retention": {
+      "title": "Speicherdauer nach Datenkategorien",
+      "headers": { "data": "Datenkategorie", "basis": "Rechtsgrundlage", "retention": "Speicherdauer" },
+      "rows": {
+        "rawLogs": { "data": "Rohprotokolle (volle IP)", "basis": "Berechtigtes Interesse (Sicherheit)", "retention": "30 Tage" },
+        "incident": { "data": "Sicherheitsvorfälle", "basis": "Berechtigtes Interesse / Rechtsverteidigung", "retention": "bis Abschluss der Untersuchung und ggf. gesetzlicher Fristen" },
+        "analytics": { "data": "Langfristige Analysen (gekürzte IP-Präfixe, grobe Geodaten)", "basis": "Berechtigtes Interesse", "retention": "längerfristig in aggregierter Form" },
+        "account": { "data": "Kontodaten", "basis": "Vertrag", "retention": "für die Dauer der Nutzung; danach Löschung bzw. Sperrung" },
+        "visits": { "data": "Besuche & Sichtungen", "basis": "Vertrag", "retention": "bis zur Löschung durch Sie oder Kontolöschung" }
+      }
     },
     "anonymous": {
       "title": "Wenn Sie ohne Anmeldung surfen",
@@ -100,9 +129,13 @@
       "visitsSaved": "Für jeden eingetragenen Zoobesuch speichern wir den Zoo, das Besuchsdatum und eine von Ihnen hinterlegte Notiz.",
       "sightingsSaved": "Für jede Tiersichtung speichern wir Zoo, Tier, Datum und Uhrzeit sowie optionale Notizen oder Foto-URLs."
     },
+    "optOut": {
+      "title": "Widerspruch & Opt-out",
+      "text": "Sie können der Verarbeitung zu Zwecken berechtigter Interessen nach Art. 21 DSGVO widersprechen. Zudem respektieren wir „Do Not Track“ (DNT) und Global Privacy Control (GPC) Signale, indem wir keine langfristigen Analysedaten speichern, wenn ein solches Signal aktiv ist."
+    },
     "rights": {
       "title": "Ihre Rechte",
-      "text": "Sie können jederzeit Auskunft, Berichtigung oder Löschung Ihrer Kontodaten verlangen. Kontaktieren Sie uns unter privacy@zootracker.example und wir reagieren innerhalb der DSGVO-Fristen."
+      "text": "Sie haben insbesondere das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung, Datenübertragbarkeit sowie Widerspruch (Art. 21 DSGVO). Sie können sich jederzeit an uns wenden (Kontakt/Impressum). Außerdem haben Sie das Recht, sich bei einer Aufsichtsbehörde zu beschweren, z. B. bei der LDI NRW."
     }
   }
 }

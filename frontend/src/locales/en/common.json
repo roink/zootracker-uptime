@@ -1,5 +1,6 @@
 {
   "nav": {
+    "home": "Home",
     "zoos": "Zoos",
     "animals": "Animals",
     "dashboard": "Dashboard",
@@ -68,16 +69,44 @@
     "title": "Data Protection",
     "seoDescription": "Learn how ZooTracker applies GDPR principles, handles logs, and stores user sightings.",
     "intro": "We protect your personal data and follow the GDPR. This page outlines what we store, how long we keep it, and why we process it.",
+    "controller": {
+      "title": "Controller & Contact",
+      "text": "The controller is ZooTracker (Philipp Schlüter). See our legal notice (Impressum) for details. For privacy requests, please use the contact form or email contact@zootracker.app."
+    },
     "logging": {
       "title": "Logging and retention",
       "raw": "We keep raw infrastructure logs with full client IP addresses for up to 30 days to detect abuse, investigate security incidents, and comply with legal obligations.",
-      "anonymized": "After 30 days only anonymized records remain. We store the masked /24 (IPv4) or /64 (IPv6) network together with coarse request metadata to understand how our user base evolves over time.",
-      "geolocation": "Any geolocation data derived from network headers is rounded to 0.1° before logging so we only retain approximate regions rather than precise coordinates.",
+      "anonymized": "After 30 days only anonymized records remain. We store a shortened IP prefix (e.g., IPv4 /24, IPv6 /48) together with coarse request metadata to understand how our user base evolves over time.",
+      "geolocation": "Any geolocation derived from network information is rounded BEFORE storage to 0.1° (~11 km latitude; longitude varies by latitude). We only keep aggregated statistics and persist daily bins only if a k-anonymity threshold is met.",
       "justification": "This balance lets us keep systems safe while holding long-term, privacy-aware analytics that guide marketing, localization, and zoo coverage decisions."
     },
     "legalBasis": {
       "title": "Legal basis",
-      "text": "We process log data and account information under our legitimate interest in providing a secure and reliable service (Art. 6(1)(f) GDPR). We review this regularly to ensure that our interests do not override your rights and freedoms."
+      "text": "We rely on: (1) legitimate interests for security & abuse prevention (Art. 6(1)(f) GDPR) with a right to object under Art. 21; and (2) contract (Art. 6(1)(b)) to provide your account, visit and sighting history."
+    },
+    "processors": {
+      "title": "Recipients & Processors",
+      "hetzner": "Hosting with Hetzner Online GmbH (Germany/EU).",
+      "cloudflare": "CDN & WAF via Cloudflare, under a Data Processing Addendum and the 2021 EU Standard Contractual Clauses."
+    },
+    "transfers": {
+      "title": "International transfers",
+      "text": "Use of Cloudflare may involve transfers outside the EEA. These transfers are protected by the EU Standard Contractual Clauses."
+    },
+    "maps": {
+      "title": "Maps & third-party content",
+      "text": "Interactive maps use MapLibre with tiles from OpenFreeMap (tiles.openfreemap.org). When tiles load, that provider receives your IP address and headers. See OpenFreeMap’s privacy policy for details. You can block map loading; ZooTracker’s core features remain available."
+    },
+    "retention": {
+      "title": "Retention by data category",
+      "headers": { "data": "Data category", "basis": "Legal basis", "retention": "Retention" },
+      "rows": {
+        "rawLogs": { "data": "Raw logs (full IP)", "basis": "Legitimate interests (security)", "retention": "30 days" },
+        "incident": { "data": "Security-incident records", "basis": "Legitimate interests / defence of claims", "retention": "until investigation concludes and any claims are resolved" },
+        "analytics": { "data": "Long-term analytics (short IP prefix, coarse geo)", "basis": "Legitimate interests", "retention": "longer-term in aggregated form" },
+        "account": { "data": "Account data", "basis": "Contract", "retention": "for the lifetime of the account; then deletion or blocking" },
+        "visits": { "data": "Visits & sightings", "basis": "Contract", "retention": "until you delete them or close the account" }
+      }
     },
     "anonymous": {
       "title": "When you browse without signing in",
@@ -100,9 +129,13 @@
       "visitsSaved": "For every logged zoo visit we store the zoo, the visit date, and any note you chose to add.",
       "sightingsSaved": "For every animal sighting we store the zoo, the animal, the date and time, plus any note or photo URL you provide."
     },
+    "optOut": {
+      "title": "Objection & Opt-out",
+      "text": "You may object to processing based on legitimate interests under Art. 21 GDPR. We also honor browser “Do Not Track” (DNT) and Global Privacy Control (GPC) signals by skipping long-term analytics storage when such a signal is present."
+    },
     "rights": {
       "title": "Your rights",
-      "text": "You can request access, correction, or deletion of your account data at any time. Contact privacy@zootracker.example and we will respond within the GDPR timelines."
+      "text": "You have the rights of access, rectification, erasure, restriction, portability, and to object (Art. 21 GDPR). You can contact us anytime (see Contact/Impressum). You also have the right to lodge a complaint with a supervisory authority, e.g., the NRW DPA."
     }
   }
 }
