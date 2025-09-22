@@ -115,8 +115,6 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                     "http_status_code": status_code,
                     "event_duration": duration_ns,
                     "client_ip": client_ip_logged,
-                    "client_ip_raw": client_ip_raw,
-                    "client_ip_anonymized": client_ip_anonymized,
                     "user_agent": user_agent,
                     "event_dataset": "zoo-tracker-api.access",
                 }

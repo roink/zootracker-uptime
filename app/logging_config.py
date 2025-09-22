@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from logging.handlers import WatchedFileHandler
 from typing import Any
+from urllib.parse import parse_qsl, urlencode
 
 from pythonjsonlogger import jsonlogger
 
@@ -133,14 +134,19 @@ SENSITIVE_KEYWORDS = {
     "apikey",
     "api_key",
     "set-cookie",
+    "x-api-key",
+    "proxy-authorization",
+    "x-csrf-token",
 }
-TOKEN_KEYWORDS = {"token", "authorization", "apikey", "api_key"}
+TOKEN_KEYWORDS = {"token", "authorization", "apikey", "api_key", "x-api-key"}
 MASKED_VALUE = "<redacted>"
 MAX_FIELD_LENGTH = 1024
 
 GEO_LAT_KEY_PATTERN = re.compile(r"(?:^|_)(lat|latitude)(?:$|_)")
 GEO_LON_KEY_PATTERN = re.compile(r"(?:^|_)(lon|longitude)(?:$|_)")
 GEO_PAIR_PATTERN = re.compile(r"^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$")
+
+QUERY_STRING_KEYS = {"url_query", "query_string"}
 
 
 def _mask_token(value: str) -> str:
@@ -197,13 +203,66 @@ def _coarsen_lat_lon_string(value: str) -> str:
     return f"{_round_coordinate(lat):.1f},{_round_coordinate(lon):.1f}"
 
 
+def _stringify_query_value(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, float):
+        return f"{value:.1f}"
+    return str(value)
+
+
+def _coarsen_query_parameter(key: str, value: str) -> str:
+    normalized = _normalize_key(key)
+
+    if GEO_LAT_KEY_PATTERN.search(normalized):
+        return _stringify_query_value(_coarsen_coordinate(value, -90.0, 90.0))
+    if GEO_LON_KEY_PATTERN.search(normalized):
+        return _stringify_query_value(_coarsen_coordinate(value, -180.0, 180.0))
+
+    if normalized.startswith("geo") or "geolocation" in normalized:
+        return _coarsen_lat_lon_string(value)
+
+    return _coarsen_lat_lon_string(value)
+
+
+def _sanitize_query_string(query: str) -> str:
+    try:
+        pairs = parse_qsl(query, keep_blank_values=True)
+    except ValueError:
+        return query
+
+    changed = False
+    sanitized: list[tuple[str, str]] = []
+
+    for key, value in pairs:
+        new_value = _coarsen_query_parameter(key, value)
+        if new_value != value:
+            changed = True
+        sanitized.append((key, new_value))
+
+    if not changed:
+        return query
+
+    return urlencode(sanitized, doseq=True)
+
+
 def _apply_geolocation_policy(key: str | None, value: Any) -> Any:
+    def _maybe_sanitize_query_string(raw: str) -> str:
+        if "=" in raw and ("&" in raw or raw.count("=") > 1):
+            return _sanitize_query_string(raw)
+        return _coarsen_lat_lon_string(raw)
+
     if key is None:
         if isinstance(value, str):
-            return _coarsen_lat_lon_string(value)
+            return _maybe_sanitize_query_string(value)
         return value
 
     normalized = _normalize_key(key)
+
+    if normalized in QUERY_STRING_KEYS:
+        if isinstance(value, str):
+            return _sanitize_query_string(value)
+        return value
 
     if GEO_LAT_KEY_PATTERN.search(normalized):
         return _coarsen_coordinate(value, -90.0, 90.0)
@@ -215,15 +274,21 @@ def _apply_geolocation_policy(key: str | None, value: Any) -> Any:
             return _coarsen_lat_lon_string(value)
 
     if isinstance(value, str):
-        return _coarsen_lat_lon_string(value)
+        return _maybe_sanitize_query_string(value)
     return value
 
 
-def _sanitize_value(key: str, value: Any) -> Any:
+def _sanitize_value(key: Any, value: Any) -> Any:
     """Redact sensitive information and limit field size."""
 
-    lowered = key.lower() if isinstance(key, str) else ""
-    value = _apply_geolocation_policy(key if isinstance(key, str) else None, value)
+    if isinstance(key, bytes):
+        key_text = key.decode("utf-8", "ignore")
+    elif isinstance(key, str):
+        key_text = key
+    else:
+        key_text = None
+    lowered = key_text.lower() if key_text is not None else ""
+    value = _apply_geolocation_policy(key_text, value)
     if isinstance(value, str):
         if any(keyword in lowered for keyword in SENSITIVE_KEYWORDS):
             if any(keyword in lowered for keyword in TOKEN_KEYWORDS):
@@ -274,12 +339,6 @@ class RequestContextFilter(logging.Filter):
         client_ip = client_ip_ctx_var.get(None)
         if client_ip:
             record.client_ip = client_ip
-        client_ip_raw = client_ip_raw_ctx_var.get(None)
-        if client_ip_raw:
-            record.client_ip_raw = client_ip_raw
-        client_ip_anonymized = client_ip_anonymized_ctx_var.get(None)
-        if client_ip_anonymized:
-            record.client_ip_anonymized = client_ip_anonymized
         return True
 
 
@@ -295,7 +354,7 @@ class IPOverrideFilter(logging.Filter):
 
     def filter(self, record: logging.LogRecord) -> bool:  # noqa: D401
         original = getattr(record, "client_ip", None)
-        raw_ip = getattr(record, "client_ip_raw", None)
+        raw_ip = getattr(record, "client_ip_raw", None) or client_ip_raw_ctx_var.get(None)
         if self.mode == "raw":
             if raw_ip:
                 record.client_ip = raw_ip
@@ -303,13 +362,19 @@ class IPOverrideFilter(logging.Filter):
                 record.client_ip = original
             return True
 
-        anonymized = getattr(record, "client_ip_anonymized", None)
+        anonymized = (
+            getattr(record, "client_ip_anonymized", None)
+            or client_ip_anonymized_ctx_var.get(None)
+        )
         if anonymized is None and raw_ip:
             anonymized = anonymize_ip(raw_ip, mode="anonymized")
         if anonymized is not None:
             record.client_ip = anonymized
         else:
             record.client_ip = original
+        for attr in ("client_ip_raw", "client_ip_anonymized"):
+            if hasattr(record, attr):
+                delattr(record, attr)
         return True
 
 
@@ -376,11 +441,12 @@ class ECSJsonFormatter(jsonlogger.JsonFormatter):
         log_record["service.name"] = service_name or self.service_name
 
         for attr, ecs_name in FIELD_MAP.items():
-            value = getattr(record, attr, None)
-            if value is None:
-                value = log_record.get(attr)
+            value = log_record.pop(attr, getattr(record, attr, None))
             if value is not None:
                 log_record[ecs_name] = value
+
+        for transient in {"client_ip_raw", "client_ip_anonymized"}:
+            log_record.pop(transient, None)
 
         # Convert exception info into ``error.stack`` if not already provided.
         if record.exc_info and "error.stack" not in log_record:
@@ -449,7 +515,7 @@ def configure_logging() -> None:
             "class": "logging.StreamHandler",
             "level": log_level,
             "formatter": formatter_name,
-            "filters": ["context", "privacy"],
+            "filters": ["context", "privacy", "ip_anonymized"],
             "stream": "ext://sys.stdout",
         }
     }
