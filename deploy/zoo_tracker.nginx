@@ -1,18 +1,58 @@
+# /etc/nginx/sites-available/zoo_tracker
 server {
-    listen 80;
-    server_name www.ZooTracker.app;
+    server_name zootracker.app www.zootracker.app;
 
     location /api/ {
         proxy_pass http://127.0.0.1:8000/;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        # Correct proxy headers
+        proxy_http_version 1.1;
+        proxy_set_header Host              $http_host;
+        proxy_set_header X-Real-IP         $remote_addr;          # now real client IP
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host  $host;
+        proxy_set_header Connection "";
+
+        # Reasonable limits/timeouts
+        client_max_body_size 10m;
+        client_body_timeout   10s;
+        send_timeout          10s;
+
+        proxy_connect_timeout 5s;
+        proxy_send_timeout   60s;
+        proxy_read_timeout   60s;
+
+        # Optional small buffering to smooth bursts
+        proxy_buffering on;
+        proxy_buffers 16 16k;
+        proxy_busy_buffers_size 24k;
     }
 
     location / {
         root /var/www/zootracker;
         try_files $uri /index.html;
     }
+
+    # --- Security headers (browser hardening) ---
+    # HSTS: enable only after you’re sure all subdomains are HTTPS.
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;  # add "; preload" later if you plan to preload
+    add_header X-Content-Type-Options "nosniff" always;  # OWASP rec.
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;  # OWASP rec.
+    add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;  # limit powerful APIs.
+    # (Optional, powerful) Start in report-only to avoid breaking the SPA until tuned:
+    add_header Content-Security-Policy-Report-Only "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https:; script-src 'self' https:;" always;  # tune per app
+
+    listen 443 ssl http2; # managed by Certbot
+    ssl_certificate /etc/letsencrypt/live/www.zootracker.app/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/www.zootracker.app/privkey.pem; # managed by Certbot
+    include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
+
+}
+server {
+    listen 80;
+    listen [::]:80;
+    server_name zootracker.app www.zootracker.app;
+    return 301 https://www.zootracker.app$request_uri;
 }
 
