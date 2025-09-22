@@ -63,5 +63,46 @@
     "allClasses": "Alle Klassen",
     "allOrders": "Alle Ordnungen",
     "allFamilies": "Alle Familien"
+  },
+  "dataProtectionPage": {
+    "title": "Datenschutz",
+    "seoDescription": "Erfahren Sie, wie ZooTracker DSGVO-Grundsätze umsetzt, Protokolle verarbeitet und Sichtungen speichert.",
+    "intro": "Wir schützen Ihre personenbezogenen Daten und halten uns an die DSGVO. Auf dieser Seite erklären wir, welche Daten wir speichern, wie lange wir sie aufbewahren und zu welchem Zweck wir sie verarbeiten.",
+    "logging": {
+      "title": "Protokollierung und Aufbewahrung",
+      "raw": "Wir bewahren Rohprotokolle mit vollständigen IP-Adressen bis zu 30 Tage lang auf, um Missbrauch zu erkennen, Sicherheitsvorfälle zu untersuchen und gesetzlichen Pflichten nachzukommen.",
+      "anonymized": "Nach 30 Tagen bleiben nur anonymisierte Einträge erhalten. Wir speichern das maskierte /24- (IPv4) bzw. /64- (IPv6) Netz gemeinsam mit groben Anfrage-Metadaten, um Veränderungen unserer Nutzerschaft langfristig zu verstehen.",
+      "geolocation": "Geolokalisierungsdaten aus Netzwerk-Headern runden wir vor der Protokollierung auf 0,1° und behalten damit nur ungefähre Regionen statt exakter Koordinaten.",
+      "justification": "So halten wir unsere Systeme sicher und besitzen dennoch langfristige, datenschutzfreundliche Analysen für Marketing-, Lokalisierungs- und Zoo-Schwerpunktentscheidungen."
+    },
+    "legalBasis": {
+      "title": "Rechtsgrundlage",
+      "text": "Wir verarbeiten Protokolldaten und Kontoinformationen auf Grundlage unseres berechtigten Interesses, einen sicheren und zuverlässigen Dienst anzubieten (Art. 6 Abs. 1 lit. f DSGVO). Wir überprüfen regelmäßig, dass unsere Interessen Ihre Rechte und Freiheiten nicht überwiegen."
+    },
+    "anonymous": {
+      "title": "Wenn Sie ohne Anmeldung surfen",
+      "description": "Ohne Anmeldung legen wir kein Nutzerprofil an. Wir behalten nur die oben beschriebenen technischen Protokolle.",
+      "items": {
+        "technical": "HTTP-Anfragedetails wie Methode, Pfad und Antwortstatus zur Sicherstellung des Betriebs.",
+        "security": "Eine temporäre Anfragen-ID und die vollständige IP-Adresse für bis zu 30 Tage, um bei Bedarf Missbrauch zu blockieren.",
+        "analytics": "Ein anonymisiertes IP-Präfix und grobe Geolokation für langfristige Analysen ohne Identifikation einzelner Personen."
+      }
+    },
+    "loggedIn": {
+      "title": "Wenn Sie ein Konto anlegen",
+      "description": "Mit einem Konto speichern wir die Informationen, die wir für Ihr persönliches Dashboard und die geräteübergreifende Synchronisierung benötigen.",
+      "items": {
+        "account": "Ihren Namen, Ihre E-Mail-Adresse und ein gesalzenes, gehashtes Passwort, damit nur Sie auf Ihr Konto zugreifen können.",
+        "security": "Anmeldeaktivitäten (Erfolgs- oder Fehlergrund, anonymisiertes IP-Präfix, Anfrage-ID), um verdächtige Versuche ohne Geheimnisse zu protokollieren.",
+        "history": "Ihre Zoobesuche, Tiersichtungen, optionale Notizen und Fotolinks, damit wir Ihr Protokoll anzeigen können."
+      },
+      "historyReason": "Diese Daten bewahren wir auf, um die Kernfunktion von ZooTracker zu erfüllen: Ihre Besuchs- und Sichtungshistorie jederzeit anzuzeigen.",
+      "visitsSaved": "Für jeden eingetragenen Zoobesuch speichern wir den Zoo, das Besuchsdatum und eine von Ihnen hinterlegte Notiz.",
+      "sightingsSaved": "Für jede Tiersichtung speichern wir Zoo, Tier, Datum und Uhrzeit sowie optionale Notizen oder Foto-URLs."
+    },
+    "rights": {
+      "title": "Ihre Rechte",
+      "text": "Sie können jederzeit Auskunft, Berichtigung oder Löschung Ihrer Kontodaten verlangen. Kontaktieren Sie uns unter privacy@zootracker.example und wir reagieren innerhalb der DSGVO-Fristen."
+    }
   }
 }

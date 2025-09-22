@@ -63,5 +63,46 @@
     "allClasses": "All classes",
     "allOrders": "All orders",
     "allFamilies": "All families"
+  },
+  "dataProtectionPage": {
+    "title": "Data Protection",
+    "seoDescription": "Learn how ZooTracker applies GDPR principles, handles logs, and stores user sightings.",
+    "intro": "We protect your personal data and follow the GDPR. This page outlines what we store, how long we keep it, and why we process it.",
+    "logging": {
+      "title": "Logging and retention",
+      "raw": "We keep raw infrastructure logs with full client IP addresses for up to 30 days to detect abuse, investigate security incidents, and comply with legal obligations.",
+      "anonymized": "After 30 days only anonymized records remain. We store the masked /24 (IPv4) or /64 (IPv6) network together with coarse request metadata to understand how our user base evolves over time.",
+      "geolocation": "Any geolocation data derived from network headers is rounded to 0.1° before logging so we only retain approximate regions rather than precise coordinates.",
+      "justification": "This balance lets us keep systems safe while holding long-term, privacy-aware analytics that guide marketing, localization, and zoo coverage decisions."
+    },
+    "legalBasis": {
+      "title": "Legal basis",
+      "text": "We process log data and account information under our legitimate interest in providing a secure and reliable service (Art. 6(1)(f) GDPR). We review this regularly to ensure that our interests do not override your rights and freedoms."
+    },
+    "anonymous": {
+      "title": "When you browse without signing in",
+      "description": "If you are not logged in we do not create a user profile. The only data we keep are technical logs described above.",
+      "items": {
+        "technical": "HTTP request details such as method, path, and response status to operate the service.",
+        "security": "A temporary request identifier and the raw client IP retained for up to 30 days to block abuse if required.",
+        "analytics": "An anonymized IP prefix and coarse geolocation stored long term so we can understand regional demand without identifying individuals."
+      }
+    },
+    "loggedIn": {
+      "title": "When you create an account",
+      "description": "Creating an account means we store the information needed to provide your personal dashboard and sync your activity across devices.",
+      "items": {
+        "account": "Your name, email address, and a salted, hashed password so only you can access your account.",
+        "security": "Login activity (success or failure reason, anonymized IP prefix, request ID) to detect suspicious attempts without storing secrets.",
+        "history": "Your zoo visits, animal sightings, optional notes, and photo links so we can show your historical log."
+      },
+      "historyReason": "We keep these records to fulfil the core feature of ZooTracker: presenting your visit and sighting history back to you whenever you sign in.",
+      "visitsSaved": "For every logged zoo visit we store the zoo, the visit date, and any note you chose to add.",
+      "sightingsSaved": "For every animal sighting we store the zoo, the animal, the date and time, plus any note or photo URL you provide."
+    },
+    "rights": {
+      "title": "Your rights",
+      "text": "You can request access, correction, or deletion of your account data at any time. Contact privacy@zootracker.example and we will respond within the GDPR timelines."
+    }
   }
 }

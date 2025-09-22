@@ -116,6 +116,49 @@ for `SMTP_HOST` and `CONTACT_EMAIL` at startup and will refuse to run if either
 is missing. Rate-limited responses include `X-RateLimit-Remaining` and
 `Retry-After` headers to aid debugging.
 
+### Structured Logging & Observability
+
+Backend logs are emitted in [ECS](https://www.elastic.co/guide/en/ecs/current/index.html)
+compatible JSON so they can be shipped directly into Elastic, Loki or other
+machine parsers. A single configuration drives Gunicorn, Uvicorn and the
+application loggers which means **all** events share the same structure and
+request identifiers. Key fields include `@timestamp`, `log.level`,
+`http.request.method`, `url.path`, `http.response.status_code`,
+`event.duration` (nanoseconds), `client.ip`, `user.id`, and `http.request.id`.
+Authentication and audit events add `authentication.method`,
+`authentication.outcome.reason` and `event.kind=audit` respectively.
+
+Configure logging behaviour with environment variables:
+
+| Variable | Description |
+| --- | --- |
+| `LOG_LEVEL` | Global log level (default `INFO`). |
+| `LOG_JSON` | Toggle JSON formatting (`true` by default). |
+| `LOG_FILE_ANON` | Optional anonymized log file path (ECS JSON, rewrites `client.ip` to `/24` or `/64`). |
+| `LOG_FILE_RAW` | Optional raw log file path that always retains the full client IP for security forensics. |
+| `LOG_FILE` | Legacy single-log fallback when you only need one file sink. |
+| `ACCESS_LOG_SAMPLE` | Fraction of 2xx/3xx requests to log (default `1.0`). |
+| `SLOW_REQUEST_MS` | Always log requests slower than this threshold (default `500`). |
+| `LOG_IP_MODE` | `full`, `anonymized` (/24 or /64) or `off` to drop client IPs. |
+
+Sensitive headers such as `Authorization` and `Cookie` are redacted automatically
+and long payloads are truncated to keep entries GDPR-friendly. When the service
+runs behind Nginx and Cloudflare the middleware trusts `request.client.host`
+(`real_ip_header CF-Connecting-IP`) and consults only the left-most value of
+`X-Forwarded-For` for connections that originate from private proxy ranges.
+Cloudflare-specific headers are intentionally ignored because Nginx already
+normalises the client address. Choose `LOG_IP_MODE=anonymized` in regions where
+full IP addresses are considered personal data; anonymized addresses are emitted
+as `/24` (IPv4) or `/64` (IPv6) network prefixes. When both `LOG_FILE_ANON` and
+`LOG_FILE_RAW` are configured the anonymized file honours those prefixes while
+the raw file keeps the exact IP regardless of `LOG_IP_MODE` so you can retain a
+short-lived forensic trail alongside long-term privacy-preserving analytics.
+
+All file sinks use a `WatchedFileHandler`, which plays nicely with system-wide
+rotation tools such as `logrotate`. The handler recreates files automatically
+after rotation and forces restrictive `0600` permissions so only the service
+user (and privileged administrators) can read historical logs.
+
 ### CORS Origins
 
 The API only responds to cross-origin requests from whitelisted domains. Set

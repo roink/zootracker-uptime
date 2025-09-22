@@ -1,48 +1,59 @@
+import { useTranslation } from 'react-i18next';
 import Seo from '../components/Seo';
 
 // Detailed data protection information for the application.
 export default function DataProtectionPage() {
+  const { t } = useTranslation();
+
   return (
     <div className="container py-4">
       <Seo
-        title="Data Protection"
-        description="Learn how ZooTracker stores and protects your data."
+        title={t('nav.dataProtection')}
+        description={t('dataProtectionPage.seoDescription')}
       />
-      <h2>Data Protection</h2>
-      <p>
-        We take the protection of your personal information seriously. This page
-        explains what data we collect and how it is used.
-      </p>
-      <h4 className="mt-3">Data We Store</h4>
-      <ul>
-        <li>Your name and e‑mail address for account management</li>
-        <li>
-          A salted and hashed version of your password so that only you can log
-          in
-        </li>
-        <li>
-          Records of your zoo visits and animal sightings including any notes or
-          uploaded photo URLs
-        </li>
-        <li>Your earned achievements within the application</li>
-      </ul>
-      <p>
-        All data is stored in a database hosted on a Hetzner server located in
-        Germany. We do not share your information with third parties.
-      </p>
-      <h4 className="mt-3">Map Tiles</h4>
-      <p>
-        Some pages embed an interactive map using the MapLibre library and tiles
-        served from <code>tiles.openfreemap.org</code> (OpenStreetMap data). When a
-        map loads, your browser requests map tiles directly from that server; this
-        request includes your IP address and typical browser headers. We do not
-        receive or store this connection data.
-      </p>
-      <p>
-        You can prevent map requests by disabling map loading in your browser or
-        using content blocking. Our application functionality remains available
-        without maps.
-      </p>
+      <h2>{t('dataProtectionPage.title')}</h2>
+      <p>{t('dataProtectionPage.intro')}</p>
+
+      <section className="mt-4">
+        <h4>{t('dataProtectionPage.logging.title')}</h4>
+        <p>{t('dataProtectionPage.logging.raw')}</p>
+        <p>{t('dataProtectionPage.logging.anonymized')}</p>
+        <p>{t('dataProtectionPage.logging.geolocation')}</p>
+        <p>{t('dataProtectionPage.logging.justification')}</p>
+      </section>
+
+      <section className="mt-4">
+        <h4>{t('dataProtectionPage.legalBasis.title')}</h4>
+        <p>{t('dataProtectionPage.legalBasis.text')}</p>
+      </section>
+
+      <section className="mt-4">
+        <h4>{t('dataProtectionPage.anonymous.title')}</h4>
+        <p>{t('dataProtectionPage.anonymous.description')}</p>
+        <ul>
+          <li>{t('dataProtectionPage.anonymous.items.technical')}</li>
+          <li>{t('dataProtectionPage.anonymous.items.security')}</li>
+          <li>{t('dataProtectionPage.anonymous.items.analytics')}</li>
+        </ul>
+      </section>
+
+      <section className="mt-4">
+        <h4>{t('dataProtectionPage.loggedIn.title')}</h4>
+        <p>{t('dataProtectionPage.loggedIn.description')}</p>
+        <ul>
+          <li>{t('dataProtectionPage.loggedIn.items.account')}</li>
+          <li>{t('dataProtectionPage.loggedIn.items.security')}</li>
+          <li>{t('dataProtectionPage.loggedIn.items.history')}</li>
+        </ul>
+        <p>{t('dataProtectionPage.loggedIn.historyReason')}</p>
+        <p>{t('dataProtectionPage.loggedIn.visitsSaved')}</p>
+        <p>{t('dataProtectionPage.loggedIn.sightingsSaved')}</p>
+      </section>
+
+      <section className="mt-4">
+        <h4>{t('dataProtectionPage.rights.title')}</h4>
+        <p>{t('dataProtectionPage.rights.text')}</p>
+      </section>
     </div>
   );
 }

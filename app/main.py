@@ -1,9 +1,9 @@
 """FastAPI application providing the Zoo Tracker API."""
 
-import os
-import uuid
 import logging
+import os
 import smtplib
+import uuid
 from email.message import EmailMessage
 
 from contextlib import asynccontextmanager
@@ -11,33 +11,28 @@ from contextlib import asynccontextmanager
 import bleach
 from dotenv import load_dotenv
 
-from fastapi import FastAPI, Depends, HTTPException, Request, status, BackgroundTasks
-from fastapi.responses import JSONResponse, Response
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import cast, Date
+from fastapi.responses import JSONResponse, Response
+from sqlalchemy import Date, cast
 from sqlalchemy.orm import Session, joinedload
-from jose import jwt, JWTError
 
 from . import models, schemas
-from .database import get_db
 from .auth import get_current_user
-from .config import SECRET_KEY, ALGORITHM, ALLOWED_ORIGINS
-from .rate_limit import rate_limit, enforce_contact_rate_limit
+from .config import ALLOWED_ORIGINS
+from .database import get_db
+from .logging_config import anonymize_ip, configure_logging
+from .middleware.logging import LoggingMiddleware
+from .rate_limit import enforce_contact_rate_limit, rate_limit
 from .utils.network import get_client_ip
 
 # load environment variables from .env if present
 load_dotenv()
+configure_logging()
 
-# configure application logging
-LOG_FILE = os.getenv("LOG_FILE", "app.log")
-LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
-logging.basicConfig(
-    level=LOG_LEVEL,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=[logging.FileHandler(LOG_FILE), logging.StreamHandler()],
-)
-logger = logging.getLogger("zoo_tracker")
+logger = logging.getLogger("app.main")
+audit_logger = logging.getLogger("app.audit")
 
 
 def _check_env_vars() -> None:
@@ -57,6 +52,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Zoo Tracker API", lifespan=lifespan)
 
+app.add_middleware(LoggingMiddleware)
+
 # configure CORS using a controlled list of allowed origins
 app.add_middleware(
     CORSMiddleware,
@@ -68,32 +65,10 @@ app.add_middleware(
 # register rate limiting middleware
 app.middleware("http")(rate_limit)
 
-
-def _get_user_id_from_request(request: Request) -> str:
-    """Return the user id from the auth token or ``anonymous``."""
-    auth = request.headers.get("Authorization")
-    if auth and auth.lower().startswith("bearer "):
-        token = auth.split(" ", 1)[1]
-        try:
-            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-            return payload.get("sub") or "unknown"
-        except JWTError:
-            return "unknown"
-    return "anonymous"
-
-
-@app.middleware("http")
-async def log_requests(request: Request, call_next):
-    """Log incoming requests and their response status."""
-    logger.info("%s %s", request.method, request.url.path)
-    response = await call_next(request)
-    logger.info(
-        "%s %s -> %s", request.method, request.url.path, response.status_code
-    )
-    if response.status_code == status.HTTP_400_BAD_REQUEST:
-        user_id = _get_user_id_from_request(request)
-        logger.warning("400 response for %s by %s", request.url.path, user_id)
-    return response
+def _set_request_id_header(response: Response, request: Request) -> None:
+    request_id = getattr(request.state, "request_id", None)
+    if request_id:
+        response.headers["X-Request-ID"] = request_id
 
 
 def require_json(request: Request) -> None:
@@ -104,31 +79,67 @@ def require_json(request: Request) -> None:
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     """Log validation errors and return the standard 422 response."""
-    user_id = _get_user_id_from_request(request)
+
+    errors = exc.errors()
+    error_types = sorted({err.get("type", "unknown") for err in errors})
     logger.warning(
-        "Validation error on %s by %s: %s",
-        request.url.path,
-        user_id,
-        exc.errors(),
+        "Request validation failed",
+        extra={
+            "event_dataset": "zoo-tracker-api.app",
+            "event_action": "validation_failed",
+            "http_status_code": status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "http_request_method": request.method,
+            "url_path": request.url.path,
+            "error_type": "RequestValidationError",
+            "error_message": ",".join(error_types)[:128],
+            "validation_error_count": len(errors),
+        },
     )
-    return JSONResponse(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content={"detail": exc.errors()})
+    response = JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content={"detail": errors}
+    )
+    _set_request_id_header(response, request)
+    return response
 
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler_logged(request: Request, exc: HTTPException):
     """Log HTTP exceptions with path and user information."""
-    user_id = _get_user_id_from_request(request)
-    logger.warning(
-        "Request to %s rejected for %s with status %s",
-        request.url.path,
-        user_id,
-        exc.status_code,
+
+    level = logging.ERROR if exc.status_code >= 500 else logging.WARNING
+    detail = exc.detail if isinstance(exc.detail, str) else str(exc.detail)
+    logger.log(
+        level,
+        "HTTP exception raised",
+        extra={
+            "event_dataset": "zoo-tracker-api.app",
+            "event_action": "http_exception",
+            "http_status_code": exc.status_code,
+            "http_request_method": request.method,
+            "url_path": request.url.path,
+            "error_type": type(exc).__name__,
+            "error_message": detail[:256],
+        },
     )
-    return JSONResponse(
+    response = JSONResponse(
         status_code=exc.status_code,
         content={"detail": exc.detail},
         headers=exc.headers,
     )
+    _set_request_id_header(response, request)
+    return response
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    """Ensure all responses include the request id header on failure."""
+
+    response = JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"detail": "Internal Server Error"},
+    )
+    _set_request_id_header(response, request)
+    return response
 
 
 @app.get("/")
@@ -166,6 +177,16 @@ def create_sighting(
     db.add(sighting)
     db.commit()
     db.refresh(sighting)
+    audit_logger.info(
+        "Sighting created",
+        extra={
+            "event_dataset": "zoo-tracker-api.audit",
+            "event_action": "created",
+            "event_kind": "audit",
+            "sighting_id": str(sighting.id),
+            "change_summary": ",".join(sorted(data.keys())),
+        },
+    )
     return sighting
 
 
@@ -231,6 +252,16 @@ def update_sighting(
     db.add(sighting)
     db.commit()
     db.refresh(sighting)
+    audit_logger.info(
+        "Sighting updated",
+        extra={
+            "event_dataset": "zoo-tracker-api.audit",
+            "event_action": "updated",
+            "event_kind": "audit",
+            "sighting_id": str(sighting.id),
+            "change_summary": ",".join(sorted(data.keys()) or ["no_changes"]),
+        },
+    )
     return sighting
 
 
@@ -271,6 +302,16 @@ def delete_sighting(
 
     db.delete(sighting)
     db.commit()
+    audit_logger.info(
+        "Sighting deleted",
+        extra={
+            "event_dataset": "zoo-tracker-api.audit",
+            "event_action": "deleted",
+            "event_kind": "audit",
+            "sighting_id": str(sighting_id),
+            "change_summary": "record_removed",
+        },
+    )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -293,7 +334,13 @@ def _send_contact_email(host, port, use_ssl, user, password, from_addr, to_addr,
                 server.login(user, password)
             server.send_message(email_msg)
     except Exception:
-        logger.exception("Failed to send contact email")
+        logger.exception(
+            "Failed to send contact email",
+            extra={
+                "event_dataset": "zoo-tracker-api.app",
+                "event_action": "contact_email_failed",
+            },
+        )
 
 
 @app.post(
@@ -307,7 +354,19 @@ def send_contact(message: schemas.ContactMessage, request: Request, background_t
     msg_text = bleach.clean(message.message, tags=[], strip=True)
     ip = get_client_ip(request)
     ua = request.headers.get("User-Agent", "unknown")
-    logger.info("Contact from %s <%s> ip=%s agent=%s: %s", name, message.email, ip, ua, msg_text)
+    safe_ip = getattr(request.state, "client_ip_logged", anonymize_ip(ip))
+    email_domain = message.email.split("@", 1)[1] if "@" in message.email else "unknown"
+    logger.info(
+        "Contact submission received",
+        extra={
+            "event_dataset": "zoo-tracker-api.app",
+            "event_action": "contact_submitted",
+            "client_ip": safe_ip,
+            "user_agent": ua,
+            "contact_email_domain": email_domain,
+            "contact_message_length": len(msg_text),
+        },
+    )
 
     host = os.getenv("SMTP_HOST")
     port = int(os.getenv("SMTP_PORT", "587"))
@@ -317,7 +376,14 @@ def send_contact(message: schemas.ContactMessage, request: Request, background_t
     from_addr = os.getenv("SMTP_FROM", "contact@zootracker.app")
     to_addr = os.getenv("CONTACT_EMAIL", "contact@zootracker.app")
     if not host or not to_addr:
-        logger.error("SMTP host or CONTACT_EMAIL missing")
+        logger.error(
+            "Email service misconfigured",
+            extra={
+                "event_dataset": "zoo-tracker-api.app",
+                "event_action": "contact_email_missing_config",
+                "http_status_code": status.HTTP_500_INTERNAL_SERVER_ERROR,
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Email service misconfigured",

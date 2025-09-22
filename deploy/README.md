@@ -62,6 +62,50 @@ The script will display the generated **database password** and **SECRET\_KEY** 
 * **APP\_DIR** (`/opt/zoo_tracker`) and **WEB\_ROOT** (`/var/www/zootracker`) can be changed in the script to suit your environment.
 * Edit `zoo_tracker.service` or `zoo_tracker.nginx` templates if you need extra configuration (logging paths, worker counts, SSL settings, etc.).
 
+### Dual logging streams & logrotate
+
+The drop-in `zootracker-service-logs.conf` sets two environment variables so the
+app writes ECS JSON to both an anonymized file (`LOG_FILE_ANON`) and a short-term
+raw file (`LOG_FILE_RAW`). Systemd creates `/var/log/zoo-tracker/anon` and
+`/var/log/zoo-tracker/raw` with `0750` permissions at start-up, allowing only the
+service account and administrators to read archived entries.
+
+To keep retention aligned with GDPR while preserving security evidence, install
+a logrotate policy under `/etc/logrotate.d/zootracker`:
+
+```conf
+# 1) RAW logs — delete after ~30 days
+/var/log/zoo-tracker/raw/*.log {
+    daily
+    dateext
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0640 www-data adm
+    rotate 30
+    maxage 30
+}
+
+# 2) ANONYMIZED logs — keep indefinitely (monitor disk usage)
+/var/log/zoo-tracker/anon/*.log {
+    weekly
+    dateext
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0640 www-data adm
+    rotate 9999
+}
+```
+
+Reload logrotate (`sudo systemctl reload logrotate`) after placing the snippet
+so new rotations take effect. Because the application uses `WatchedFileHandler`
+it will automatically reopen files after logrotate moves them aside; no service
+restart is required. Adjust the `create` owner/group to match the system user
+that runs Gunicorn (for the provided unit file this is `www-data`).
+
 ## Troubleshooting
 
 * **Systemd service fails**: Check `journalctl -u zoo_tracker -e` on the server.

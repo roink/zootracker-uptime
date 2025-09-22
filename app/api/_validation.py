@@ -49,6 +49,8 @@ def get_request_coords(
         return None, None
 
     logging.getLogger(__name__).debug(
-        "Using Cloudflare geolocation headers lat=%s lon=%s", lat, lon
+        "Using Cloudflare geolocation headers lat=%.1f lon=%.1f",
+        round(lat, 1),
+        round(lon, 1),
     )
     return lat, lon
