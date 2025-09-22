@@ -1,5 +1,6 @@
 {
   "nav": {
+    "home": "Home",
     "zoos": "Zoos",
     "animals": "Animals",
     "dashboard": "Dashboard",
@@ -63,5 +64,86 @@
     "allClasses": "All classes",
     "allOrders": "All orders",
     "allFamilies": "All families"
+  },
+  "dataProtectionPage": {
+    "title": "Data Protection",
+    "seoDescription": "Learn how ZooTracker applies GDPR principles, handles logs, and stores user sightings.",
+    "lastUpdated": "Last updated: 22 September 2025.",
+    "intro": "We protect your personal data and follow the GDPR. This page outlines what we store, how long we keep it, and why we process it.",
+    "controller": {
+      "title": "Controller & Contact",
+      "text": "Controller: ZooTracker (Philipp Schlüter), Venloer Str. 720, 50827 Köln, Germany. Contact: <email>contact@zootracker.app</email>. See the <impressum>Impressum</impressum> for full details."
+    },
+    "cookies": {
+      "title": "Cookies",
+      "text": "We use strictly-necessary cookies only: a session cookie (keeps you logged in). No analytics or advertising cookies."
+    },
+    "logging": {
+      "title": "Logging and retention",
+      "raw": "Raw infrastructure logs with full IPs are kept <strong>up to 30 days</strong> for security and abuse handling.",
+      "anonymized": "After 30 days, we retain <strong>coarsened</strong> data (IP <strong>prefix</strong> like IPv4 /24 or IPv6 /48; network-derived geolocation rounded to ~0.1°)."
+    },
+    "legalBasis": {
+      "title": "Legal basis",
+      "text": "We rely on: (1) legitimate interests for security & abuse prevention (Art. 6(1)(f) GDPR) with a right to object under Art. 21; and (2) contract (Art. 6(1)(b)) to provide your account, visit and sighting history."
+    },
+    "automated": {
+      "title": "Automated decision-making",
+      "text": "We do not use automated decision-making, including profiling, that produces legal or similarly significant effects."
+    },
+    "processors": {
+      "title": "Recipients & Processors",
+      "hetzner": "Hosting with Hetzner Online GmbH (Germany/EU).",
+      "cloudflare": "CDN & WAF via Cloudflare under a Data Processing Addendum, the 2021 EU Standard Contractual Clauses, and EU-US Data Privacy Framework certification."
+    },
+    "transfers": {
+      "title": "International transfers",
+      "text": "When Cloudflare processes personal data, transfers outside the EEA are covered by Cloudflare's <strong>Data Processing Addendum</strong> incorporating the <strong>2021 EU SCCs</strong>; Cloudflare is also <strong>EU-US Data Privacy Framework</strong> certified. We follow the EDPB's guidance on transfer risk assessments and supplementary measures."
+    },
+    "maps": {
+      "title": "Maps & third-party content",
+      "text": "Interactive maps use MapLibre with tiles from OpenFreeMap (tiles.openfreemap.org). When tiles load, that provider receives your IP address and headers. See OpenFreeMap’s privacy policy for details. You can block map loading; ZooTracker’s core features remain available."
+    },
+    "retention": {
+      "title": "Retention by data category",
+      "headers": { "data": "Data category", "basis": "Legal basis", "retention": "Retention" },
+      "rows": {
+        "rawLogs": { "data": "Raw logs (full IP)", "basis": "Legitimate interests (security)", "retention": "30 days" },
+        "incident": { "data": "Security-incident records", "basis": "Legitimate interests / defence of claims", "retention": "until investigation concludes and any claims are resolved" },
+        "analytics": { "data": "Long-term analytics (short IP prefix, coarse geo)", "basis": "Legitimate interests", "retention": "longer-term in aggregated form" },
+        "account": { "data": "Account data", "basis": "Contract", "retention": "for the lifetime of the account; then deletion or blocking" },
+        "visits": { "data": "Visits & sightings", "basis": "Contract", "retention": "until you delete them or close the account" }
+      }
+    },
+    "anonymous": {
+      "title": "When you browse without signing in",
+      "description": "If you are not logged in we do not create a user profile. The only data we keep are technical logs described above.",
+      "items": {
+        "technical": "HTTP request details such as method, path, and response status to operate the service.",
+        "security": "A temporary request identifier and the raw client IP retained for up to 30 days to block abuse if required.",
+        "analytics": "An anonymized IP prefix and coarse geolocation stored long term so we can understand regional demand without identifying individuals."
+      }
+    },
+    "loggedIn": {
+      "title": "When you create an account",
+      "description": "Creating an account means we store the information needed to provide your personal dashboard and sync your activity across devices.",
+      "requirement": "Providing your email and password is necessary to create and operate your account; without them we cannot provide account features.",
+      "items": {
+        "account": "Your name, email address, and a salted, hashed password so only you can access your account.",
+        "security": "Login activity (success or failure reason, anonymized IP prefix, request ID) to detect suspicious attempts without storing secrets.",
+        "history": "Your zoo visits, animal sightings, optional notes, and photo links so we can show your historical log."
+      },
+      "historyReason": "We keep these records to fulfil the core feature of ZooTracker: presenting your visit and sighting history back to you whenever you sign in.",
+      "visitsSaved": "For every logged zoo visit we store the zoo, the visit date, and any note you chose to add.",
+      "sightingsSaved": "For every animal sighting we store the zoo, the animal, the date and time, plus any note or photo URL you provide."
+    },
+    "optOut": {
+      "title": "Objection & Opt-out",
+      "text": "You may object to processing based on legitimate interests under Art. 21 GDPR; contact us to exercise this right."
+    },
+    "rights": {
+      "title": "Your rights",
+      "text": "You have the rights of access, rectification, erasure, restriction, portability, and to object (Art. 21 GDPR). You can contact us anytime (see Contact/Impressum). You can lodge a complaint with any EU supervisory authority; locally this is the <authority>Landesbeauftragte für Datenschutz und Informationsfreiheit NRW</authority>."
+    }
   }
 }

@@ -1,5 +1,6 @@
 {
   "nav": {
+    "home": "Start",
     "zoos": "Zoos",
     "animals": "Tiere",
     "dashboard": "Dashboard",
@@ -63,5 +64,86 @@
     "allClasses": "Alle Klassen",
     "allOrders": "Alle Ordnungen",
     "allFamilies": "Alle Familien"
+  },
+  "dataProtectionPage": {
+    "title": "Datenschutz",
+    "seoDescription": "Erfahren Sie, wie ZooTracker DSGVO-Grundsätze umsetzt, Protokolle verarbeitet und Sichtungen speichert.",
+    "lastUpdated": "Zuletzt aktualisiert: 22. September 2025.",
+    "intro": "Wir schützen Ihre personenbezogenen Daten und halten uns an die DSGVO. Auf dieser Seite erklären wir, welche Daten wir speichern, wie lange wir sie aufbewahren und zu welchem Zweck wir sie verarbeiten.",
+    "controller": {
+      "title": "Verantwortlicher & Kontakt",
+      "text": "Verantwortlicher: ZooTracker (Philipp Schlüter), Venloer Str. 720, 50827 Köln, Deutschland. Kontakt: <email>contact@zootracker.app</email>. Vollständige Angaben im <impressum>Impressum</impressum>."
+    },
+    "cookies": {
+      "title": "Cookies",
+      "text": "Wir setzen ausschließlich unbedingt erforderliche Cookies ein: ein Sitzungscookie (hält Sie angemeldet). Keine Analyse- oder Werbe-Cookies."
+    },
+    "logging": {
+      "title": "Protokollierung und Aufbewahrung",
+      "raw": "Rohprotokolle der Infrastruktur mit vollständigen IP-Adressen speichern wir <strong>bis zu 30 Tage</strong> lang zur Sicherstellung der Sicherheit und Missbrauchsabwehr.",
+      "anonymized": "Nach 30 Tagen behalten wir nur <strong>vergröberte</strong> Daten (IP-<strong>Präfix</strong> wie IPv4 /24 oder IPv6 /48; netzbasierte Geolokation auf ~0,1° gerundet)."
+    },
+    "legalBasis": {
+      "title": "Rechtsgrundlage",
+      "text": "Wir verarbeiten Daten auf folgenden Rechtsgrundlagen: (1) Betriebssicherheit & Missbrauchsabwehr: berechtigtes Interesse (Art. 6 Abs. 1 lit. f DSGVO) mit Widerspruchsrecht nach Art. 21 DSGVO; (2) Konto, Besuche & Sichtungen: Vertragserfüllung (Art. 6 Abs. 1 lit. b DSGVO)."
+    },
+    "automated": {
+      "title": "Automatisierte Entscheidungen",
+      "text": "Wir setzen keine automatisierten Entscheidungen einschließlich Profiling ein, die rechtliche oder ähnlich erhebliche Wirkungen entfalten."
+    },
+    "processors": {
+      "title": "Empfänger & Auftragsverarbeiter",
+      "hetzner": "Hosting bei Hetzner Online GmbH (Deutschland/EU).",
+      "cloudflare": "Content Delivery & WAF über Cloudflare mit Datenverarbeitungsvereinbarung, den EU-Standardvertragsklauseln 2021 und EU-US Data Privacy Framework-Zertifizierung."
+    },
+    "transfers": {
+      "title": "Datenübermittlungen in Drittländer",
+      "text": "Wenn Cloudflare personenbezogene Daten verarbeitet, werden Übermittlungen außerhalb des EWR durch Cloudflares <strong>Data Processing Addendum</strong> mit den <strong>EU-Standardvertragsklauseln 2021</strong> abgesichert; Cloudflare ist zudem nach dem <strong>EU-US Data Privacy Framework</strong> zertifiziert. Wir folgen den Leitlinien des EDSA zu Transfer-Folgenabschätzungen und ergänzenden Maßnahmen."
+    },
+    "maps": {
+      "title": "Karten & Drittanbieter-Inhalte",
+      "text": "Interaktive Karten werden mit MapLibre eingebunden; die Kacheln beziehen wir von OpenFreeMap (tiles.openfreemap.org). Beim Laden der Kacheln erhält dieser Anbieter Ihre IP-Adresse und Browser-Header. Details entnehmen Sie der Datenschutz-Seite von OpenFreeMap. Sie können Karten blockieren (z. B. durch Inhaltsblocker); die Kernfunktionen von ZooTracker bleiben nutzbar."
+    },
+    "retention": {
+      "title": "Speicherdauer nach Datenkategorien",
+      "headers": { "data": "Datenkategorie", "basis": "Rechtsgrundlage", "retention": "Speicherdauer" },
+      "rows": {
+        "rawLogs": { "data": "Rohprotokolle (volle IP)", "basis": "Berechtigtes Interesse (Sicherheit)", "retention": "30 Tage" },
+        "incident": { "data": "Sicherheitsvorfälle", "basis": "Berechtigtes Interesse / Rechtsverteidigung", "retention": "bis Abschluss der Untersuchung und ggf. gesetzlicher Fristen" },
+        "analytics": { "data": "Langfristige Analysen (gekürzte IP-Präfixe, grobe Geodaten)", "basis": "Berechtigtes Interesse", "retention": "längerfristig in aggregierter Form" },
+        "account": { "data": "Kontodaten", "basis": "Vertrag", "retention": "für die Dauer der Nutzung; danach Löschung bzw. Sperrung" },
+        "visits": { "data": "Besuche & Sichtungen", "basis": "Vertrag", "retention": "bis zur Löschung durch Sie oder Kontolöschung" }
+      }
+    },
+    "anonymous": {
+      "title": "Wenn Sie ohne Anmeldung surfen",
+      "description": "Ohne Anmeldung legen wir kein Nutzerprofil an. Wir behalten nur die oben beschriebenen technischen Protokolle.",
+      "items": {
+        "technical": "HTTP-Anfragedetails wie Methode, Pfad und Antwortstatus zur Sicherstellung des Betriebs.",
+        "security": "Eine temporäre Anfragen-ID und die vollständige IP-Adresse für bis zu 30 Tage, um bei Bedarf Missbrauch zu blockieren.",
+        "analytics": "Ein anonymisiertes IP-Präfix und grobe Geolokation für langfristige Analysen ohne Identifikation einzelner Personen."
+      }
+    },
+    "loggedIn": {
+      "title": "Wenn Sie ein Konto anlegen",
+      "description": "Mit einem Konto speichern wir die Informationen, die wir für Ihr persönliches Dashboard und die geräteübergreifende Synchronisierung benötigen.",
+      "requirement": "Ihre E-Mail-Adresse und Ihr Passwort sind erforderlich, um Ihr Konto anzulegen und zu betreiben; ohne diese Angaben können wir keine Konto-Funktionen bereitstellen.",
+      "items": {
+        "account": "Ihren Namen, Ihre E-Mail-Adresse und ein gesalzenes, gehashtes Passwort, damit nur Sie auf Ihr Konto zugreifen können.",
+        "security": "Anmeldeaktivitäten (Erfolgs- oder Fehlergrund, anonymisiertes IP-Präfix, Anfrage-ID), um verdächtige Versuche ohne Geheimnisse zu protokollieren.",
+        "history": "Ihre Zoobesuche, Tiersichtungen, optionale Notizen und Fotolinks, damit wir Ihr Protokoll anzeigen können."
+      },
+      "historyReason": "Diese Daten bewahren wir auf, um die Kernfunktion von ZooTracker zu erfüllen: Ihre Besuchs- und Sichtungshistorie jederzeit anzuzeigen.",
+      "visitsSaved": "Für jeden eingetragenen Zoobesuch speichern wir den Zoo, das Besuchsdatum und eine von Ihnen hinterlegte Notiz.",
+      "sightingsSaved": "Für jede Tiersichtung speichern wir Zoo, Tier, Datum und Uhrzeit sowie optionale Notizen oder Foto-URLs."
+    },
+    "optOut": {
+      "title": "Widerspruch & Opt-out",
+      "text": "Sie können der Verarbeitung auf Grundlage berechtigter Interessen nach Art. 21 DSGVO widersprechen; kontaktieren Sie uns zur Ausübung dieses Rechts."
+    },
+    "rights": {
+      "title": "Ihre Rechte",
+      "text": "Sie haben insbesondere das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung, Datenübertragbarkeit sowie Widerspruch (Art. 21 DSGVO). Sie können sich jederzeit an uns wenden (Kontakt/Impressum). Sie können sich bei jeder EU-Aufsichtsbehörde beschweren; vor Ort ist dies die <authority>Landesbeauftragte für Datenschutz und Informationsfreiheit NRW</authority>."
+    }
   }
 }

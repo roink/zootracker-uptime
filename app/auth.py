@@ -11,6 +11,7 @@ import bcrypt
 from . import models
 from .database import get_db
 from .config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
+from .middleware.logging import set_user_context
 
 # Ensure backward compatibility with passlib expecting bcrypt.__about__
 if not hasattr(bcrypt, "__about__"):
@@ -85,4 +86,5 @@ def get_current_user(
     user = db.get(models.User, uuid_val)
     if user is None:
         raise credentials_exception
+    set_user_context(str(user.id))
     return user
