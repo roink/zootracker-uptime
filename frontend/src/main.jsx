@@ -4,6 +4,7 @@ import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client
 import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
 import ReactDOM from "react-dom/client";
 import { Helmet, HelmetProvider } from 'react-helmet-async';
+import { useTranslation } from 'react-i18next';
 import {
   BrowserRouter,
   Routes,
@@ -14,7 +15,7 @@ import {
   useNavigate,
 } from "react-router-dom";
 import { routerFuture } from './routerFuture';
-import { loadLocale, DEFAULT_LANG } from './i18n';
+import i18n, { loadLocale, normalizeLang } from './i18n';
 import { AuthProvider, useAuth } from './auth/AuthContext.jsx';
 import RequireAuth from './auth/RequireAuth.jsx';
 
@@ -142,11 +143,48 @@ function AppRoutes({ refreshCounter, refreshSeen }) {
 }
 
 function LangApp({ refreshCounter, refreshSeen }) {
-  const { lang } = useParams();
+  const params = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const lang = params.lang;
+  const rest = params['*'] ?? '';
+  const { ready } = useTranslation();
+
   useEffect(() => {
-    loadLocale(lang);
-    localStorage.setItem('lang', lang);
-  }, [lang]);
+    let isActive = true;
+
+    const applyLocale = async () => {
+      try {
+        // Load the locale and redirect to a supported language if the URL
+        // contains an unknown lang segment (e.g. direct visits to /animals).
+        const activeLang = await loadLocale(lang);
+        if (!isActive) return;
+
+        localStorage.setItem('lang', activeLang);
+
+        if (activeLang !== lang) {
+          const suffix = rest ? `/${rest}` : '';
+          const search = location.search || '';
+          const hash = location.hash || '';
+          navigate(`/${activeLang}${suffix}${search}${hash}`, { replace: true });
+        }
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.error('Failed to load locale', error);
+      }
+    };
+
+    void applyLocale();
+
+    return () => {
+      isActive = false;
+    };
+  }, [lang, rest, navigate, location.search, location.hash]);
+
+  if (!ready) {
+    return null;
+  }
+
   return (
     <AppRoutes refreshCounter={refreshCounter} refreshSeen={refreshSeen} />
   );
@@ -155,9 +193,10 @@ function LangApp({ refreshCounter, refreshSeen }) {
 function RootRedirect() {
   const navigate = useNavigate();
   useEffect(() => {
-    const stored = localStorage.getItem('lang');
-    const browser = navigator.language.startsWith('de') ? 'de' : DEFAULT_LANG;
-    navigate(`/${stored || browser}`, { replace: true });
+    const detected = i18n.services?.languageDetector?.detect?.();
+    const candidate = Array.isArray(detected) ? detected[0] : detected;
+    const targetLang = normalizeLang(candidate);
+    navigate(`/${targetLang}`, { replace: true });
   }, [navigate]);
   return null;
 }
