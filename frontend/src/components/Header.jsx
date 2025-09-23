@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useId, useMemo, useCallback } from 'react';
 import { Link, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import SearchSuggestions from './SearchSuggestions';
@@ -12,8 +12,12 @@ import { useAuth } from '../auth/AuthContext.jsx';
 export default function Header() {
   const [query, setQuery] = useState('');
   const [focused, setFocused] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const [liveMessage, setLiveMessage] = useState('');
   // keep a ref for the blur timeout so we can cancel it if focus returns quickly
   const blurRef = useRef(null);
+  const liveRegionTimeout = useRef(null);
   const navigate = useNavigate();
   const location = useLocation();
   const { lang } = useParams();
@@ -22,6 +26,10 @@ export default function Header() {
   const collapseRef = useRef(null);
   const toggleRef = useRef(null);
   const { isAuthenticated, logout } = useAuth();
+  const searchId = useId();
+  const searchInputId = `header-search-${searchId.replace(/:/g, '')}`;
+  const searchLabelId = `${searchInputId}-label`;
+  const suggestionListId = `${searchInputId}-listbox`;
 
   // Close the mobile menu when the route changes
   useEffect(() => {
@@ -30,6 +38,7 @@ export default function Header() {
       const inst = window.bootstrap?.Collapse.getInstance(menu);
       if (inst) inst.hide();
       else menu.classList.remove('show');
+      setMenuOpen(false);
     }
   }, [location]);
 
@@ -46,10 +55,25 @@ export default function Header() {
         const inst = window.bootstrap?.Collapse.getInstance(menu);
         if (inst) inst.hide();
         else menu.classList.remove('show');
+        setMenuOpen(false);
       }
     };
     document.addEventListener('click', handle);
     return () => document.removeEventListener('click', handle);
+  }, []);
+
+  // Track collapse state to keep ARIA attributes in sync
+  useEffect(() => {
+    const menu = collapseRef.current;
+    if (!menu) return undefined;
+    const handleShown = () => setMenuOpen(true);
+    const handleHidden = () => setMenuOpen(false);
+    menu.addEventListener('shown.bs.collapse', handleShown);
+    menu.addEventListener('hidden.bs.collapse', handleHidden);
+    return () => {
+      menu.removeEventListener('shown.bs.collapse', handleShown);
+      menu.removeEventListener('hidden.bs.collapse', handleHidden);
+    };
   }, []);
 
   // Fetch suggestions with a small delay and shared cache
@@ -63,15 +87,16 @@ export default function Header() {
     }
   };
 
-  const handleSelect = (type, value) => {
+  const handleSelect = useCallback((type, value) => {
     setQuery('');
     setFocused(false);
+    setActiveIndex(-1);
     if (type === 'zoo') {
       navigate(`${prefix}/zoos/${value}`);
     } else {
       navigate(`${prefix}/animals/${value}`);
     }
-  };
+  }, [navigate, prefix]);
 
   // Clear auth info and return to the home page when logging out
   const handleLogout = () => {
@@ -81,6 +106,143 @@ export default function Header() {
         navigate(prefix, { replace: true });
       });
   };
+
+  const suggestionsOpen =
+    focused &&
+    query &&
+    (results.zoos.length || results.animals.length);
+
+  const getAnimalName = useCallback(
+    (animal) =>
+      lang === 'de'
+        ? animal.name_de || animal.name_en
+        : animal.name_en || animal.name_de,
+    [lang]
+  );
+
+  const options = useMemo(() => {
+    const zooOptions = results.zoos.map((zoo) => ({
+      id: `${suggestionListId}-z-${zoo.id ?? zoo.slug}`,
+      key: `z-${zoo.id ?? zoo.slug}`,
+      type: 'zoo',
+      value: zoo.slug || zoo.id,
+      label: zoo.city
+        ? t('nav.searchZooOptionWithCity', {
+            name: zoo.name,
+            city: zoo.city,
+          })
+        : t('nav.searchZooOption', { name: zoo.name }),
+    }));
+    const animalOptions = results.animals.map((animal) => ({
+      id: `${suggestionListId}-a-${animal.id ?? animal.slug}`,
+      key: `a-${animal.id ?? animal.slug}`,
+      type: 'animal',
+      value: animal.slug || animal.id,
+      label: t('nav.searchAnimalOption', { name: getAnimalName(animal) }),
+    }));
+    return [...zooOptions, ...animalOptions];
+  }, [results, suggestionListId, t, getAnimalName]);
+
+  const activeOptionId =
+    activeIndex >= 0 && activeIndex < options.length
+      ? options[activeIndex].id
+      : undefined;
+
+  useEffect(() => {
+    if (!suggestionsOpen) {
+      setActiveIndex(-1);
+    }
+  }, [suggestionsOpen]);
+
+  useEffect(() => {
+    if (activeIndex >= options.length) {
+      setActiveIndex(options.length - 1);
+    }
+  }, [activeIndex, options.length]);
+
+  useEffect(() => {
+    setActiveIndex(-1);
+  }, [query]);
+
+  useEffect(() => {
+    if (liveRegionTimeout.current) {
+      clearTimeout(liveRegionTimeout.current);
+    }
+    if (!query) {
+      setLiveMessage('');
+      return;
+    }
+    liveRegionTimeout.current = setTimeout(() => {
+      if (!query) return;
+      setLiveMessage(
+        options.length
+          ? t('nav.searchSuggestionCount', { count: options.length })
+          : t('nav.searchSuggestionEmpty')
+      );
+    }, 150);
+    return () => {
+      if (liveRegionTimeout.current) {
+        clearTimeout(liveRegionTimeout.current);
+      }
+    };
+  }, [options.length, query, t]);
+
+  useEffect(() => () => {
+    if (liveRegionTimeout.current) {
+      clearTimeout(liveRegionTimeout.current);
+    }
+  }, []);
+
+  const moveActive = useCallback(
+    (delta) => {
+      if (!options.length) return;
+      setActiveIndex((prev) => {
+        if (prev < 0) {
+          return delta > 0 ? 0 : options.length - 1;
+        }
+        const next = prev + delta;
+        if (next < 0) {
+          return options.length - 1;
+        }
+        if (next >= options.length) {
+          return 0;
+        }
+        return next;
+      });
+    },
+    [options.length]
+  );
+
+  const handleKeyDown = useCallback(
+    (event) => {
+      if (event.key === 'ArrowDown') {
+        if (!options.length) return;
+        event.preventDefault();
+        setFocused(true);
+        moveActive(1);
+      } else if (event.key === 'ArrowUp') {
+        if (!options.length) return;
+        event.preventDefault();
+        setFocused(true);
+        moveActive(-1);
+      } else if (event.key === 'Enter') {
+        if (!suggestionsOpen) return;
+        if (activeIndex < 0 || activeIndex >= options.length) return;
+        event.preventDefault();
+        const option = options[activeIndex];
+        handleSelect(option.type, option.value);
+      } else if (event.key === 'Escape') {
+        if (!suggestionsOpen) return;
+        event.preventDefault();
+        setFocused(false);
+        setActiveIndex(-1);
+      } else if (event.key === 'Tab') {
+        setActiveIndex(-1);
+        setFocused(false);
+      }
+    },
+    [activeIndex, handleSelect, moveActive, options, suggestionsOpen]
+  );
 
   return (
     <nav className="navbar navbar-expand-lg navbar-dark bg-success mb-3">
@@ -94,6 +256,9 @@ export default function Header() {
           data-bs-toggle="collapse"
           data-bs-target="#navbarContent"
           ref={toggleRef}
+          aria-label={t('nav.toggleMenu')}
+          aria-controls="navbarContent"
+          aria-expanded={menuOpen}
         >
           <span className="navbar-toggler-icon"></span>
         </button>
@@ -140,10 +305,17 @@ export default function Header() {
             </li>
           </ul>
           <form className="d-flex position-relative" onSubmit={handleSubmit}>
+            <label
+              htmlFor={searchInputId}
+              className="visually-hidden"
+              id={searchLabelId}
+            >
+              {t('nav.searchLabel')}
+            </label>
             <input
               className="form-control"
               type="search"
-              placeholder={t('nav.search')}
+              placeholder={t('nav.searchPlaceholder')}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onFocus={() => {
@@ -153,11 +325,33 @@ export default function Header() {
               }}
               onBlur={() => {
                 // delay hiding suggestions to allow clicks on them
-                blurRef.current = setTimeout(() => setFocused(false), 100);
+                blurRef.current = setTimeout(() => {
+                  setFocused(false);
+                  setActiveIndex(-1);
+                }, 100);
               }}
+              id={searchInputId}
+              role="combobox"
+              aria-autocomplete="list"
+              aria-haspopup="listbox"
+              aria-expanded={Boolean(suggestionsOpen)}
+              aria-controls={suggestionsOpen ? suggestionListId : undefined}
+              aria-activedescendant={suggestionsOpen ? activeOptionId : undefined}
+              autoComplete="off"
+              onKeyDown={handleKeyDown}
             />
-            {focused && query && (results.zoos.length || results.animals.length) ? (
-              <SearchSuggestions results={results} onSelect={handleSelect} />
+            <span className="visually-hidden" aria-live="polite" role="status">
+              {liveMessage}
+            </span>
+            {suggestionsOpen ? (
+              <SearchSuggestions
+                id={suggestionListId}
+                labelledBy={searchLabelId}
+                options={options}
+                activeIndex={activeIndex}
+                onSelect={handleSelect}
+                onActivate={(index) => setActiveIndex(index)}
+              />
             ) : null}
           </form>
         </div>
