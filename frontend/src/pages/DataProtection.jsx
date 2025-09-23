@@ -49,6 +49,49 @@ export default function DataProtectionPage() {
       </section>
 
       <section className="mt-4">
+        <h4 className="font-semibold">{t('dataProtectionPage.emailProcessing.title')}</h4>
+        <p>
+          <Trans
+            i18nKey="dataProtectionPage.emailProcessing.text"
+            components={{
+              strong: <strong />,
+            }}
+          />
+        </p>
+        <p>
+          <Trans
+            i18nKey="dataProtectionPage.emailProcessing.links"
+            components={{
+              privacy: (
+                <a
+                  href="https://www.zoho.com/privacy.html"
+                  className="underline"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                />
+              ),
+              gdpr: (
+                <a
+                  href="https://www.zoho.com/gdpr.html"
+                  className="underline"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                />
+              ),
+              subprocessors: (
+                <a
+                  href="https://www.zoho.com/privacy/sub-processors.html"
+                  className="underline"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                />
+              ),
+            }}
+          />
+        </p>
+      </section>
+
+      <section className="mt-4">
         <h4 className="font-semibold">{t('dataProtectionPage.cookies.title')}</h4>
         <p>{t('dataProtectionPage.cookies.text')}</p>
       </section>
@@ -91,6 +134,37 @@ export default function DataProtectionPage() {
             {t('dataProtectionPage.processors.cloudflare')}{' '}
             (<a href="https://www.cloudflare.com/cloudflare-customer-dpa/" className="underline" target="_blank" rel="noopener noreferrer">DPA</a>,{' '}
             <a href="https://www.cloudflare.com/cloudflare-customer-scc/" className="underline" target="_blank" rel="noopener noreferrer">SCCs</a>)
+          </li>
+          <li>
+            <Trans
+              i18nKey="dataProtectionPage.processors.zohoMail"
+              components={{
+                privacy: (
+                  <a
+                    href="https://www.zoho.com/privacy.html"
+                    className="underline"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  />
+                ),
+                gdpr: (
+                  <a
+                    href="https://www.zoho.com/gdpr.html"
+                    className="underline"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  />
+                ),
+                subprocessors: (
+                  <a
+                    href="https://www.zoho.com/privacy/sub-processors.html"
+                    className="underline"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  />
+                ),
+              }}
+            />
           </li>
         </ul>
       </section>
