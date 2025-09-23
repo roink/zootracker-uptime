@@ -224,7 +224,7 @@ export function LogSighting({
         {onCancel && (
           <button
             type="button"
-            className="btn btn-secondary me-2"
+            className="btn btn-outline-danger me-2"
             onClick={onCancel}
           >
             Cancel
