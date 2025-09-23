@@ -60,7 +60,8 @@ export default function LegalNoticePage() {
     country,
   ].filter((line) => typeof line === 'string' && line.trim().length > 0);
 
-  const anchorId = `legal-notice-${displayLang}`;
+  const sectionId = `legal-notice-${displayLang}`;
+  const headingId = `${sectionId}-title`;
 
   const orgJsonLd = {
     '@context': 'https://schema.org',
@@ -87,13 +88,17 @@ export default function LegalNoticePage() {
         description={t('legalNoticePage.seoDescription')}
         canonical={`${prefix}/legal-notice`}
       />
-      <h2>{t('legalNoticePage.title')}</h2>
+      <h1>{t('legalNoticePage.title')}</h1>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }}
       />
-      <section lang={displayLang} aria-labelledby={anchorId}>
-        <h3 id={anchorId}>{heading}</h3>
+      <section
+        id={sectionId}
+        lang={displayLang}
+        aria-labelledby={headingId}
+      >
+        <h2 id={headingId}>{heading}</h2>
         {legalReference ? <p>{legalReference}</p> : null}
         <address className="mb-2">
           {addressLines.map((line, index) => (
@@ -103,7 +108,7 @@ export default function LegalNoticePage() {
             </Fragment>
           ))}
         </address>
-        <h4>{contactTitle}</h4>
+        <h3>{contactTitle}</h3>
         <p className="mb-2">
           <Trans
             i18nKey={`${sectionKeyPrefix}.contactForm`}
@@ -118,7 +123,7 @@ export default function LegalNoticePage() {
             }}
           />
         </p>
-        <h4>{vatTitle}</h4>
+        <h3>{vatTitle}</h3>
         <dl className="mb-0">
           <dt>
             {vatLabelTitle ? (
