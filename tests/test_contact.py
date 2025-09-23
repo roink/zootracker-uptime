@@ -1,4 +1,9 @@
+import hashlib
+import hmac
+import os
 import smtplib
+import time
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
@@ -6,6 +11,76 @@ import pytest
 from app import rate_limit
 from app.rate_limit import RateLimiter
 from .conftest import client
+
+
+DEFAULT_USER_AGENT = "pytest-agent/1.0"
+CONTACT_SECRET = os.getenv("CONTACT_TOKEN_SECRET", "test-contact-secret")
+
+
+def _sign(rendered_at: int, user_agent: str, nonce: str) -> str:
+    payload = f"{rendered_at}|{user_agent}|{nonce}".encode("utf-8")
+    return hmac.new(CONTACT_SECRET.encode("utf-8"), payload, hashlib.sha256).hexdigest()
+
+
+def build_contact_payload(
+    name: str = "Alice",
+    email: str = "a@example.com",
+    message: str = "Hello world!",
+    *,
+    user_agent: str = DEFAULT_USER_AGENT,
+    rendered_at: int | None = None,
+    nonce: str | None = None,
+):
+    if rendered_at is None:
+        rendered_at = int(time.time() * 1000) - 5000
+    if nonce is None:
+        nonce = uuid.uuid4().hex
+    return {
+        "name": name,
+        "email": email,
+        "message": message,
+        "rendered_at": rendered_at,
+        "client_nonce": nonce,
+        "signature": _sign(rendered_at, user_agent, nonce),
+    }
+
+
+def post_contact(payload, *, user_agent: str = DEFAULT_USER_AGENT):
+    return client.post(
+        "/contact",
+        json=payload,
+        headers={"User-Agent": user_agent},
+    )
+
+
+def payload_missing_name():
+    payload = build_contact_payload()
+    payload.pop("name")
+    return payload
+
+
+def payload_missing_email():
+    payload = build_contact_payload()
+    payload.pop("email")
+    return payload
+
+
+def payload_invalid_email():
+    payload = build_contact_payload()
+    payload["email"] = "not-an-email"
+    return payload
+
+
+def payload_empty_message():
+    payload = build_contact_payload()
+    payload["message"] = ""
+    return payload
+
+
+def payload_missing_signature():
+    payload = build_contact_payload()
+    payload.pop("signature")
+    return payload
 
 
 def _dummy_smtp_factory(sent_messages):
@@ -42,10 +117,12 @@ def test_contact_sends_email_with_reply_to(monkeypatch):
     monkeypatch.delenv("SMTP_SSL", raising=False)
     monkeypatch.setattr(smtplib, "SMTP", _dummy_smtp_factory(sent))
 
-    resp = client.post(
-        "/contact",
-        json={"name": "Alice", "email": "a@example.com", "message": "Hello"},
+    payload = build_contact_payload(
+        name="Alice",
+        email="a@example.com",
+        message="Hello world!",
     )
+    resp = post_contact(payload)
     assert resp.status_code == 204
     assert sent[0]["Reply-To"] == "a@example.com"
     assert sent[0]["Subject"] == "Contact form – Alice"
@@ -62,14 +139,12 @@ def test_contact_strips_html(monkeypatch):
     monkeypatch.delenv("SMTP_SSL", raising=False)
     monkeypatch.setattr(smtplib, "SMTP", _dummy_smtp_factory(sent))
 
-    resp = client.post(
-        "/contact",
-        json={
-            "name": "Alice",
-            "email": "a@example.com",
-            "message": "<script>alert(1)</script>Hi<b>there</b>",
-        },
+    payload = build_contact_payload(
+        name="Alice",
+        email="a@example.com",
+        message="<script>alert(1)</script>Hi<b>there</b>",
     )
+    resp = post_contact(payload)
     assert resp.status_code == 204
     body = sent[0].get_content()
     assert "<script>" not in body and "<b>" not in body
@@ -92,10 +167,12 @@ def test_contact_uses_ssl_when_configured(monkeypatch):
 
     monkeypatch.setattr(smtplib, "SMTP", fail_smtp)
 
-    resp = client.post(
-        "/contact",
-        json={"name": "Alice", "email": "a@example.com", "message": "Hi"},
+    payload = build_contact_payload(
+        name="Alice",
+        email="a@example.com",
+        message="Hello friends!",
     )
+    resp = post_contact(payload)
     assert resp.status_code == 204
     assert sent[0]["Subject"] == "Contact form – Alice"
 
@@ -110,15 +187,14 @@ def test_contact_rate_limited(monkeypatch):
     monkeypatch.setenv("SMTP_FROM", "contact@zootracker.app")
     monkeypatch.setattr(smtplib, "SMTP", _dummy_smtp_factory(sent))
 
-    first = client.post(
-        "/contact",
-        json={"name": "Bob", "email": "b@example.com", "message": "Hi"},
+    payload = build_contact_payload(
+        name="Bob",
+        email="b@example.com",
+        message="Hello there!",
     )
+    first = post_contact(payload)
     assert first.status_code == 204
-    second = client.post(
-        "/contact",
-        json={"name": "Bob", "email": "b@example.com", "message": "Hi"},
-    )
+    second = post_contact(payload)
     assert second.status_code == 429
 
 
@@ -133,14 +209,13 @@ def test_contact_rate_limit_response_detail(monkeypatch):
     monkeypatch.setenv("CONTACT_EMAIL", "contact@zootracker.app")
     monkeypatch.setattr(smtplib, "SMTP", _dummy_smtp_factory(sent))
 
-    client.post(
-        "/contact",
-        json={"name": "Bob", "email": "b@example.com", "message": "Hi"},
+    payload = build_contact_payload(
+        name="Bob",
+        email="b@example.com",
+        message="Hello there!",
     )
-    resp = client.post(
-        "/contact",
-        json={"name": "Bob", "email": "b@example.com", "message": "Hi"},
-    )
+    post_contact(payload)
+    resp = post_contact(payload)
     assert resp.status_code == 429
     assert resp.json()["detail"] == "Too Many Requests"
     assert resp.headers.get("Retry-After") is not None
@@ -158,27 +233,46 @@ def test_contact_rate_limit_headers(monkeypatch):
     monkeypatch.setenv("CONTACT_EMAIL", "contact@zootracker.app")
     monkeypatch.setattr(smtplib, "SMTP", _dummy_smtp_factory(sent))
 
-    resp = client.post(
-        "/contact",
-        json={"name": "Eve", "email": "e@example.com", "message": "Hi"},
+    payload = build_contact_payload(
+        name="Eve",
+        email="e@example.com",
+        message="Hello there!",
     )
+    resp = post_contact(payload)
     assert resp.status_code == 204
     assert resp.headers.get("X-RateLimit-Remaining") == "1"
 
 
 @pytest.mark.parametrize(
-    "payload",
+    "payload_factory",
     [
-        {"email": "a@example.com", "message": "Hi"},
-        {"name": "Alice", "message": "Hi"},
-        {"name": "Alice", "email": "not-an-email", "message": "Hi"},
-        {"name": "Alice", "email": "a@example.com", "message": ""},
-        {"name": "Ali😀ce", "email": "a@example.com", "message": "Hi"},
+        payload_missing_email,
+        payload_missing_name,
+        payload_invalid_email,
+        payload_empty_message,
+        payload_missing_signature,
     ],
 )
-def test_contact_invalid_payload(monkeypatch, payload):
+def test_contact_invalid_payload(monkeypatch, payload_factory):
     monkeypatch.setattr(rate_limit, "contact_limiter", RateLimiter(100, 60))
-    resp = client.post("/contact", json=payload)
+    resp = post_contact(payload_factory())
+    assert resp.status_code == 422
+
+
+def test_contact_accepts_unicode_name(monkeypatch):
+    monkeypatch.setattr(rate_limit, "contact_limiter", RateLimiter(100, 60))
+    payload = build_contact_payload(
+        name="Ali😀ce",
+        message="Hello from the 🐾 team!",
+    )
+    resp = post_contact(payload)
+    assert resp.status_code == 204
+
+
+def test_contact_rejects_short_message(monkeypatch):
+    monkeypatch.setattr(rate_limit, "contact_limiter", RateLimiter(100, 60))
+    payload = build_contact_payload(message="Too short")
+    resp = post_contact(payload)
     assert resp.status_code == 422
 
 
@@ -193,10 +287,13 @@ def test_contact_rate_limit_concurrent(monkeypatch):
     monkeypatch.setenv("CONTACT_EMAIL", "contact@zootracker.app")
     monkeypatch.setattr(smtplib, "SMTP", _dummy_smtp_factory(sent))
 
-    payload = {"name": "Bob", "email": "b@example.com", "message": "Hi"}
-
     def do_post():
-        return client.post("/contact", json=payload)
+        payload = build_contact_payload(
+            name="Bob",
+            email="b@example.com",
+            message="Hello there!",
+        )
+        return post_contact(payload)
 
     with ThreadPoolExecutor(max_workers=2) as pool:
         res = list(pool.map(lambda _: do_post(), range(2)))

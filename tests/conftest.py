@@ -28,6 +28,7 @@ os.environ["AUTH_RATE_LIMIT"] = "1000"
 os.environ["GENERAL_RATE_LIMIT"] = "10000"
 os.environ.setdefault("SMTP_HOST", "smtp.test")
 os.environ.setdefault("CONTACT_EMAIL", "contact@zootracker.app")
+os.environ.setdefault("CONTACT_TOKEN_SECRET", "test-contact-secret")
 os.environ.pop("SMTP_SSL", None)
 os.environ.setdefault("ALLOWED_ORIGINS", "http://allowed.example")
 os.environ.setdefault(

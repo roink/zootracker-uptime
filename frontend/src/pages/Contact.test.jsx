@@ -1,0 +1,140 @@
+import React from 'react';
+import '@testing-library/jest-dom';
+import { screen, cleanup, waitFor } from '@testing-library/react';
+import { Routes, Route } from 'react-router-dom';
+import { describe, it, expect, vi } from 'vitest';
+import userEvent from '@testing-library/user-event';
+import { renderWithRouter } from '../test-utils/router.jsx';
+import { loadLocale } from '../i18n.js';
+import ContactPage from './Contact.jsx';
+
+vi.mock('../components/Seo', () => ({ default: () => null }));
+
+function renderContact(route) {
+  return renderWithRouter(
+    (
+      <Routes>
+        <Route path="/:lang/contact" element={<ContactPage />} />
+      </Routes>
+    ),
+    { route }
+  );
+}
+
+describe('ContactPage translations', () => {
+  it('renders localized headings and privacy notice links', async () => {
+    await loadLocale('en');
+    const english = renderContact('/en/contact');
+    const headingEn = await screen.findByRole('heading', {
+      level: 2,
+      name: 'Contact',
+    });
+    expect(headingEn).toBeInTheDocument();
+    const privacyEn = screen.getByRole('link', { name: 'Data Protection' });
+    expect(privacyEn).toHaveAttribute('href', '/en/data-protection');
+    const impressumEn = screen.getByRole('link', { name: 'Impressum' });
+    expect(impressumEn).toHaveAttribute('href', '/en/impress');
+    english.unmount();
+    cleanup();
+
+    await loadLocale('de');
+    const german = renderContact('/de/contact');
+    const headingDe = await screen.findByRole('heading', {
+      level: 2,
+      name: 'Kontakt',
+    });
+    expect(headingDe).toBeInTheDocument();
+    const privacyDe = screen.getByRole('link', { name: 'Datenschutz' });
+    expect(privacyDe).toHaveAttribute('href', '/de/data-protection');
+    const impressumDe = screen.getByRole('link', { name: 'Impressum' });
+    expect(impressumDe).toHaveAttribute('href', '/de/impress');
+    german.unmount();
+  });
+});
+
+describe('ContactPage form behavior', () => {
+  let nowSpy;
+
+  beforeEach(async () => {
+    nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => 0);
+    if (!globalThis.crypto?.subtle) {
+      const { webcrypto } = await import('node:crypto');
+      Object.defineProperty(globalThis, 'crypto', {
+        value: webcrypto,
+        configurable: true,
+      });
+      Object.defineProperty(window, 'crypto', {
+        value: webcrypto,
+        configurable: true,
+      });
+    }
+    await loadLocale('en');
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    cleanup();
+  });
+
+  it('focuses the status alert when the API reports validation errors', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 422,
+      json: () => Promise.resolve({ detail: 'invalid_signature' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderContact('/en/contact');
+    await waitFor(() => {
+      const signatureField = document.querySelector('input[name="signature"]');
+      expect(signatureField).not.toBeNull();
+      expect(signatureField.value).toMatch(/^[0-9a-f]{64}$/i);
+    });
+
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText('Name'), 'Alice Example');
+    await user.type(screen.getByLabelText('Email'), 'alice@example.com');
+    await user.type(screen.getByLabelText('Message'), 'Hello there friend!');
+    nowSpy.mockImplementation(() => 5000);
+    await user.click(screen.getByRole('button', { name: 'Send' }));
+
+    const alert = await screen.findByRole('status');
+    expect(alert).toHaveClass('alert', 'alert-danger');
+    expect(alert).toHaveAttribute('aria-live', 'polite');
+    expect(alert).toHaveTextContent('Please check the form and try again.');
+    expect(document.activeElement).toBe(alert);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [, options] = fetchMock.mock.calls[0];
+    const payload = JSON.parse(options.body);
+    expect(payload.rendered_at).toBeGreaterThanOrEqual(0);
+    expect(payload.client_nonce).toMatch(/[0-9a-f]{16,32}/i);
+    expect(payload.signature).toMatch(/^[0-9a-f]{64}$/i);
+  });
+
+  it('announces rate limiting with a warning alert that receives focus', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 429 });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderContact('/en/contact');
+    await waitFor(() => {
+      const signatureField = document.querySelector('input[name="signature"]');
+      expect(signatureField).not.toBeNull();
+      expect(signatureField.value).toMatch(/^[0-9a-f]{64}$/i);
+    });
+
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText('Name'), 'Alice Example');
+    await user.type(screen.getByLabelText('Email'), 'alice@example.com');
+    await user.type(screen.getByLabelText('Message'), 'Hello there friend!');
+    nowSpy.mockImplementation(() => 5000);
+    await user.click(screen.getByRole('button', { name: 'Send' }));
+
+    const alert = await screen.findByRole('status');
+    expect(alert).toHaveClass('alert', 'alert-warning');
+    expect(document.activeElement).toBe(alert);
+    expect(alert).toHaveAttribute('aria-live', 'polite');
+    expect(alert).toHaveTextContent('You are sending messages too fast. Please wait a minute and try again.');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});

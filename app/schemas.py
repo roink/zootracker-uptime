@@ -253,9 +253,13 @@ class SearchResults(BaseModel):
 
 class ContactMessage(BaseModel):
     """Input for a contact form submission."""
-    name: constr(min_length=1, max_length=100, pattern=r"^[A-Za-z\s-]+$")
+
+    name: constr(min_length=1, max_length=100)
     email: EmailStr
-    message: constr(min_length=1, max_length=2000)
+    message: constr(min_length=10, max_length=2000)
+    rendered_at: int = Field(..., ge=0)
+    client_nonce: constr(min_length=8, max_length=128)
+    signature: constr(min_length=32, max_length=128)
 
     model_config = ConfigDict(extra="forbid")
 

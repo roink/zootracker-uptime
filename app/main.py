@@ -1,10 +1,13 @@
 """FastAPI application providing the Zoo Tracker API."""
 
+import hashlib
+import hmac
 import logging
 import os
 import smtplib
 import uuid
 from email.message import EmailMessage
+import time
 
 from contextlib import asynccontextmanager
 
@@ -33,6 +36,9 @@ configure_logging()
 
 logger = logging.getLogger("app.main")
 audit_logger = logging.getLogger("app.audit")
+
+CONTACT_TOKEN_SECRET = os.getenv("CONTACT_TOKEN_SECRET", "dev-contact-secret")
+CONTACT_TOKEN_MIN_AGE_MS = int(os.getenv("CONTACT_TOKEN_MIN_AGE_MS", "3000"))
 
 
 def _check_env_vars() -> None:
@@ -75,6 +81,15 @@ def require_json(request: Request) -> None:
     """Ensure the request uses a JSON content-type."""
     if not request.headers.get("content-type", "").lower().startswith("application/json"):
         raise HTTPException(status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE)
+
+
+def _sign_contact_payload(rendered_at: int, user_agent: str, client_nonce: str) -> str:
+    """Create a deterministic signature for the contact form payload."""
+
+    payload = f"{rendered_at}|{user_agent}|{client_nonce}".encode("utf-8")
+    secret = CONTACT_TOKEN_SECRET.encode("utf-8")
+    digest = hmac.new(secret, payload, hashlib.sha256).hexdigest()
+    return digest
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
@@ -350,10 +365,24 @@ def _send_contact_email(host, port, use_ssl, user, password, from_addr, to_addr,
 )
 def send_contact(message: schemas.ContactMessage, request: Request, background_tasks: BackgroundTasks) -> Response:
     """Send a contact message via email and log the submission."""
+    ua = request.headers.get("User-Agent", "unknown")
+    expected_sig = _sign_contact_payload(message.rendered_at, ua, message.client_nonce)
+    if not hmac.compare_digest(expected_sig, message.signature):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="invalid_signature",
+        )
+
+    now_ms = int(time.time() * 1000)
+    if now_ms - message.rendered_at < CONTACT_TOKEN_MIN_AGE_MS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="too_fast",
+        )
+
     name = bleach.clean(message.name, tags=[], strip=True)
     msg_text = bleach.clean(message.message, tags=[], strip=True)
     ip = get_client_ip(request)
-    ua = request.headers.get("User-Agent", "unknown")
     safe_ip = getattr(request.state, "client_ip_logged", anonymize_ip(ip))
     email_domain = message.email.split("@", 1)[1] if "@" in message.email else "unknown"
     logger.info(

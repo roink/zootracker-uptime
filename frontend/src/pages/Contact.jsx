@@ -1,52 +1,220 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { Trans, useTranslation } from 'react-i18next';
 import { API } from '../api';
 import Seo from '../components/Seo';
+import useLang from '../hooks/useLang';
+
+function generateNonce() {
+  if (typeof window !== 'undefined' && window.crypto?.getRandomValues) {
+    const bytes = new Uint8Array(16);
+    window.crypto.getRandomValues(bytes);
+    return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  }
+  return Math.random().toString(36).slice(2, 18);
+}
+
+async function createSignature(secret, renderedAt, userAgent, nonce) {
+  if (typeof window === 'undefined' || !window.crypto?.subtle) {
+    return '';
+  }
+  const encoder = new TextEncoder();
+  const key = await window.crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  const signatureBuffer = await window.crypto.subtle.sign(
+    'HMAC',
+    key,
+    encoder.encode(`${renderedAt}|${userAgent}|${nonce}`),
+  );
+  return Array.from(new Uint8Array(signatureBuffer))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
 
 // Contact form where users can send a name, email and message.
 export default function ContactPage() {
+  const { t } = useTranslation();
+  const lang = useLang();
+  const langPrefix = `/${lang}`;
+  const maxMessageLength = 2000;
+  const minMessageLength = 10;
+  const minSubmissionTimeMs = 3000;
+  const counterId = 'contactMessageHelp';
+  const shortHintId = 'contactMessageTooShort';
+  const honeypotId = 'contactWebsite';
+  const formStartRef = useRef(Date.now());
+  const statusRef = useRef(null);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState('');
-  const [status, setStatus] = useState(null);
+  const [messageTouched, setMessageTouched] = useState(false);
+  const [honeypot, setHoneypot] = useState('');
+  const [statusKey, setStatusKey] = useState(null);
   const [sending, setSending] = useState(false);
+  const [renderedAt, setRenderedAt] = useState(() => Date.now());
+  const [clientNonce, setClientNonce] = useState(() => generateNonce());
+  const [signature, setSignature] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    const secret = import.meta.env.VITE_CONTACT_TOKEN_SECRET || 'dev-contact-secret';
+    const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown';
+    createSignature(secret, renderedAt, userAgent, clientNonce)
+      .then((value) => {
+        if (active) {
+          setSignature(value);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setSignature('');
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [renderedAt, clientNonce]);
+
+  useEffect(() => {
+    if (!statusKey || statusKey === 'contactPage.status.success') {
+      return;
+    }
+    if (statusRef.current) {
+      statusRef.current.focus();
+    }
+  }, [statusKey]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (sending) return;
+    setMessageTouched(true);
+    setStatusKey(null);
+
+    const trimmedLength = message.trim().length;
+    if (trimmedLength < minMessageLength) {
+      setStatusKey('contactPage.status.validation');
+      return;
+    }
+
+    if (honeypot) {
+      setStatusKey('contactPage.status.validation');
+      return;
+    }
+
+    if (Date.now() - formStartRef.current < minSubmissionTimeMs) {
+      setStatusKey('contactPage.status.tooFast');
+      return;
+    }
+
+    if (!signature) {
+      setStatusKey('contactPage.status.validation');
+      return;
+    }
+
     setSending(true);
     try {
       const resp = await fetch(`${API}/contact`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         // Send the form values to the API
-        body: JSON.stringify({ name, email, message }),
+        body: JSON.stringify({
+          name,
+          email,
+          message,
+          rendered_at: renderedAt,
+          client_nonce: clientNonce,
+          signature,
+        }),
       });
       if (resp.ok) {
-        setStatus('Thank you for contacting us!');
+        setStatusKey('contactPage.status.success');
         setName('');
         setEmail('');
         setMessage('');
+        setMessageTouched(false);
+        setHoneypot('');
+        const nextStart = Date.now();
+        formStartRef.current = nextStart;
+        setSignature('');
+        setRenderedAt(nextStart);
+        setClientNonce(generateNonce());
       } else if (resp.status === 429) {
         // Show specific guidance when the rate limit is hit
-        setStatus('You are sending messages too fast. Please wait a minute and try again.');
+        setStatusKey('contactPage.status.rateLimit');
+      } else if (resp.status === 422) {
+        let detailPayload = null;
+        try {
+          detailPayload = await resp.json();
+        } catch (error) {
+          detailPayload = null;
+        }
+        const detailValue =
+          detailPayload && typeof detailPayload.detail === 'string'
+            ? detailPayload.detail
+            : null;
+        if (detailValue === 'too_fast') {
+          setStatusKey('contactPage.status.tooFast');
+        } else {
+          setStatusKey('contactPage.status.validation');
+        }
       } else {
-        setStatus('Oops, something went wrong.');
+        setStatusKey('contactPage.status.error');
       }
     } catch {
-      setStatus('Oops, something went wrong.');
+      setStatusKey('contactPage.status.error');
     } finally {
       setSending(false);
     }
   };
 
+  const messageLength = message.length;
+  const trimmedMessageLength = message.trim().length;
+  const messageTooShort = messageTouched && trimmedMessageLength < minMessageLength;
+  const messageDescribedBy = messageTooShort
+    ? `${counterId} ${shortHintId}`
+    : counterId;
+
+  const statusTone = statusKey ? statusKey.split('.').pop() : null;
+  const statusClassMap = {
+    success: 'alert-success',
+    rateLimit: 'alert-warning',
+    validation: 'alert-danger',
+    error: 'alert-danger',
+    tooFast: 'alert-info',
+  };
+  const statusClassName = statusTone ? statusClassMap[statusTone] || 'alert-info' : 'alert-info';
+
+  const dataProtectionHref = `${langPrefix}/data-protection`;
+  const impressumHref = `${langPrefix}/impress`;
+
   return (
     <div className="container py-4">
-      <Seo title="Contact" description="Get in touch with the ZooTracker team." />
-      <h2>Contact</h2>
-      <form onSubmit={handleSubmit} className="mt-3">
+      <Seo title={t('contactPage.title')} description={t('contactPage.seoDescription')} />
+      <h2>{t('contactPage.title')}</h2>
+      {statusKey && (
+        <div
+          ref={statusRef}
+          className={`alert ${statusClassName}`}
+          role="status"
+          aria-live="polite"
+          tabIndex={-1}
+        >
+          {t(statusKey)}
+        </div>
+      )}
+      <form
+        onSubmit={handleSubmit}
+        className="mt-3"
+        aria-busy={sending}
+      >
         <div className="mb-3">
           <label htmlFor="contactName" className="form-label">
-            Name
+            {t('contactPage.nameLabel')}
           </label>
           <input
             id="contactName"
@@ -54,15 +222,14 @@ export default function ContactPage() {
             className="form-control"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            pattern="[A-Za-z\s-]+"
-            title="Name can only contain letters, spaces and hyphens"
             maxLength="100"
+            autoComplete="name"
             required
           />
         </div>
         <div className="mb-3">
           <label htmlFor="contactEmail" className="form-label">
-            Email
+            {t('contactPage.emailLabel')}
           </label>
           <input
             id="contactEmail"
@@ -70,28 +237,66 @@ export default function ContactPage() {
             className="form-control"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            autoComplete="email"
+            inputMode="email"
             required
           />
         </div>
         <div className="mb-3">
           <label htmlFor="contactMessage" className="form-label">
-            Message
+            {t('contactPage.messageLabel')}
           </label>
           <textarea
             id="contactMessage"
             className="form-control"
             rows="4"
-            maxLength="2000"
+            maxLength={maxMessageLength}
             value={message}
             onChange={(e) => setMessage(e.target.value)}
+            onBlur={() => setMessageTouched(true)}
+            onInvalid={() => setMessageTouched(true)}
+            minLength={minMessageLength}
+            aria-describedby={messageDescribedBy}
+            aria-errormessage={messageTooShort ? shortHintId : undefined}
+            aria-invalid={messageTooShort ? 'true' : undefined}
             required
           />
-          <div className="form-text text-end">{message.length}/2000</div>
+          <div id={counterId} className="form-text text-end">
+            {t('contactPage.messageHelp', { count: messageLength, max: maxMessageLength })}
+          </div>
+          {messageTooShort && (
+            <div id={shortHintId} className="text-danger small mt-1">
+              {t('contactPage.messageTooShort', { min: minMessageLength })}
+            </div>
+          )}
         </div>
-        {status && <div className="alert alert-info">{status}</div>}
+        <div className="visually-hidden" aria-hidden="true">
+          <label htmlFor={honeypotId}>Website</label>
+          <input
+            id={honeypotId}
+            type="text"
+            tabIndex={-1}
+            autoComplete="off"
+            aria-hidden="true"
+            value={honeypot}
+            onChange={(e) => setHoneypot(e.target.value)}
+          />
+        </div>
+        <input type="hidden" name="rendered_at" value={renderedAt} readOnly />
+        <input type="hidden" name="client_nonce" value={clientNonce} readOnly />
+        <input type="hidden" name="signature" value={signature} readOnly />
         <button type="submit" className="btn btn-success" disabled={sending}>
-          {sending ? 'Sending…' : 'Send'}
+          {sending ? t('contactPage.submitting') : t('contactPage.submit')}
         </button>
+        <p className="form-text mt-3">
+          <Trans
+            i18nKey="contactPage.privacyNotice"
+            components={{
+              dataProtection: <Link to={dataProtectionHref} className="link-underline" />,
+              impressum: <Link to={impressumHref} className="link-underline" />,
+            }}
+          />
+        </p>
       </form>
     </div>
   );
