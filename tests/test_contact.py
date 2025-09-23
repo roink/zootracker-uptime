@@ -256,6 +256,29 @@ def test_contact_strips_header_injection(monkeypatch):
     assert msg["Subject"] == "Contact form – AliceBcc: attacker@example.com"
 
 
+def test_contact_uses_starttls_when_ssl_backend_missing(monkeypatch):
+    sent = []
+    monkeypatch.setenv("SMTP_HOST", "127.0.0.1")
+    monkeypatch.setenv("SMTP_PORT", "587")
+    monkeypatch.setenv("SMTP_USER", "user")
+    monkeypatch.setenv("SMTP_PASSWORD", "pass")
+    monkeypatch.setenv("SMTP_FROM", "contact@zootracker.app")
+    monkeypatch.setenv("CONTACT_EMAIL", "contact@zootracker.app")
+    monkeypatch.setenv("SMTP_SSL", "true")
+    monkeypatch.setattr(smtplib, "SMTP", _dummy_smtp_factory(sent))
+
+    payload = build_contact_payload(
+        name="Fallback Test",
+        email="fallback@example.com",
+        message="Hello there!",
+    )
+
+    resp = post_contact(payload)
+    assert resp.status_code == 204
+    assert sent, "Expected email to be queued via STARTTLS fallback"
+    assert sent[0]["Subject"] == "Contact form – Fallback Test"
+
+
 def test_send_contact_email_sanitizes_reply_to(monkeypatch):
     sent = []
 
