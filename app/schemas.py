@@ -251,6 +251,32 @@ class SearchResults(BaseModel):
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 
 
+class SiteSummary(BaseModel):
+    """Aggregate counters shown on the public landing page."""
+
+    species: int = 0
+    zoos: int = 0
+    countries: int = 0
+    sightings: int = 0
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class PopularAnimal(BaseModel):
+    """Preview entry for a popular animal on the landing page."""
+
+    id: UUID
+    slug: str
+    name_en: str
+    name_de: Optional[str] = None
+    scientific_name: Optional[str] = None
+    zoo_count: Optional[int] = None
+    iucn_conservation_status: Optional[str] = None
+    default_image_url: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
+
+
 class ContactMessage(BaseModel):
     """Input for a contact form submission."""
 
