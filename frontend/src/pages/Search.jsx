@@ -1,20 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { API } from '../api';
 import Seo from '../components/Seo';
 
-// Global search results page
-
-function useQuery() {
-  return new URLSearchParams(useLocation().search);
-}
-
 export default function SearchPage() {
-  const navigate = useNavigate();
   const { lang } = useParams();
   const prefix = `/${lang}`;
-  const query = useQuery().get('q') || '';
+  const [searchParams] = useSearchParams();
+  const query = searchParams.get('q') || '';
   const [zoos, setZoos] = useState([]);
   const [animals, setAnimals] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -34,9 +28,13 @@ export default function SearchPage() {
       return;
     }
 
+    const controller = new AbortController();
+
     setIsLoading(true);
     setHasError(false);
-    fetch(`${API}/search?q=${encodeURIComponent(normalizedQuery)}&limit=50`)
+    fetch(`${API}/search?q=${encodeURIComponent(normalizedQuery)}&limit=50`, {
+      signal: controller.signal,
+    })
       .then((r) => {
         if (!r.ok) {
           throw new Error('Failed to load search results');
@@ -47,12 +45,16 @@ export default function SearchPage() {
         setZoos(res.zoos || []);
         setAnimals(res.animals || []);
       })
-      .catch(() => {
-        setZoos([]);
-        setAnimals([]);
-        setHasError(true);
+      .catch((err) => {
+        if (err.name !== 'AbortError') {
+          setZoos([]);
+          setAnimals([]);
+          setHasError(true);
+        }
       })
       .finally(() => setIsLoading(false));
+
+    return () => controller.abort();
   }, [hasQuery, normalizedQuery]);
 
   // Helper to display the localized animal name consistently
@@ -100,7 +102,10 @@ export default function SearchPage() {
       <div className="row g-4">
         <div className="col-lg-5">
           <div className="card h-100">
-            <div className="card-body">
+            <div
+              className="card-body"
+              aria-busy={hasQuery && isLoading ? 'true' : 'false'}
+            >
               <h3 className="h5 mb-3">{t('searchPage.zoosHeading')}</h3>
               {!hasQuery && (
                 <p className="text-muted mb-0">
@@ -115,30 +120,36 @@ export default function SearchPage() {
                 <p className="text-muted mb-0">{t('searchPage.noZoos')}</p>
               )}
               {hasQuery && !isLoading && !hasError && zoos.length > 0 && (
-                <div className="list-group">
+                <ul className="list-group">
                   {zoos.map((z) => (
-                    <button
+                    <li
                       key={z.slug || z.id}
-                      type="button"
-                      className="list-group-item list-group-item-action text-start w-100"
-                      onClick={() => navigate(`${prefix}/zoos/${z.slug || z.id}`)}
+                      className="list-group-item p-0 border-0"
                     >
-                      <div className="fw-bold">
-                        {z.city ? `${z.city}: ${z.name}` : z.name}
-                      </div>
-                      {z.city && (
-                        <div className="text-muted small">{z.city}</div>
-                      )}
-                    </button>
+                      <Link
+                        to={`${prefix}/zoos/${z.slug || z.id}`}
+                        className="list-group-item list-group-item-action text-start w-100 border-0"
+                      >
+                        <div className="fw-bold">
+                          {z.city ? `${z.city}: ${z.name}` : z.name}
+                        </div>
+                        {z.city && (
+                          <div className="text-muted small">{z.city}</div>
+                        )}
+                      </Link>
+                    </li>
                   ))}
-                </div>
+                </ul>
               )}
             </div>
           </div>
         </div>
         <div className="col-lg-7">
           <div className="card h-100">
-            <div className="card-body">
+            <div
+              className="card-body"
+              aria-busy={hasQuery && isLoading ? 'true' : 'false'}
+            >
               <h3 className="h5 mb-3">{t('searchPage.animalsHeading')}</h3>
               {!hasQuery && (
                 <p className="text-muted mb-0">
@@ -153,33 +164,37 @@ export default function SearchPage() {
                 <p className="text-muted mb-0">{t('searchPage.noAnimals')}</p>
               )}
               {hasQuery && !isLoading && !hasError && animals.length > 0 && (
-                <div className="d-flex flex-wrap gap-2">
+                <ul className="list-group list-group-horizontal flex-wrap gap-2 border-0">
                   {animals.map((a) => (
-                    <button
+                    <li
                       key={a.slug || a.id}
-                      type="button"
-                      className="animal-card"
-                      onClick={() => navigate(`${prefix}/animals/${a.slug || a.id}`)}
+                      className="list-group-item border-0 p-0"
                     >
-                      {a.default_image_url && (
-                        <img
-                          src={a.default_image_url}
-                          alt={localizedAnimalName(a)}
-                          className="card-img"
-                        />
-                      )}
-                      <div className="fw-bold">{localizedAnimalName(a)}</div>
-                      {a.scientific_name && (
-                        <div className="fst-italic small">{a.scientific_name}</div>
-                      )}
-                      {typeof a.zoo_count === 'number' && a.zoo_count > 0 && (
-                        <div className="small text-muted">
-                          {t('searchPage.foundInZoos', { count: a.zoo_count })}
-                        </div>
-                      )}
-                    </button>
+                      <Link
+                        to={`${prefix}/animals/${a.slug || a.id}`}
+                        className="animal-card d-block text-decoration-none text-reset"
+                      >
+                        {a.default_image_url && (
+                          <img
+                            src={a.default_image_url}
+                            alt={localizedAnimalName(a)}
+                            className="card-img"
+                            loading="lazy"
+                          />
+                        )}
+                        <div className="fw-bold">{localizedAnimalName(a)}</div>
+                        {a.scientific_name && (
+                          <div className="fst-italic small">{a.scientific_name}</div>
+                        )}
+                        {typeof a.zoo_count === 'number' && a.zoo_count > 0 && (
+                          <div className="small text-muted">
+                            {t('searchPage.foundInZoos', { count: a.zoo_count })}
+                          </div>
+                        )}
+                      </Link>
+                    </li>
                   ))}
-                </div>
+                </ul>
               )}
             </div>
           </div>
