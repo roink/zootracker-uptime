@@ -168,6 +168,12 @@
   text-align: left;
 }
 
+.animal-card:focus-visible,
+.list-group-item-action:focus-visible {
+  outline: 3px solid rgba(25, 135, 84, 0.65);
+  outline-offset: 2px;
+}
+
 .modal-overlay {
   /* Fixed full-screen background for modal dialogs */
   position: fixed;
