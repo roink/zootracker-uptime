@@ -1,5 +1,68 @@
 /* Shared custom styles for the React frontend. */
 
+:root {
+  /* Primary green palette to align Bootstrap defaults with the header/footer */
+  --zt-primary: #198754;
+  --zt-primary-dark: #146c43;
+  --zt-primary-darker: #0f5132;
+  --zt-primary-rgb: 25, 135, 84;
+  --bs-primary: var(--zt-primary);
+  --bs-primary-rgb: var(--zt-primary-rgb);
+  --bs-link-color: var(--zt-primary);
+  --bs-link-color-rgb: var(--zt-primary-rgb);
+  --bs-link-hover-color: var(--zt-primary-dark);
+  --bs-link-hover-color-rgb: 20, 108, 67;
+  --bs-focus-ring-color: rgba(var(--zt-primary-rgb), 0.25);
+  --bs-form-control-focus-border-color: #75b798;
+  --bs-form-control-focus-box-shadow: 0 0 0 0.25rem rgba(var(--zt-primary-rgb), 0.25);
+  --bs-form-select-focus-border-color: #75b798;
+  --bs-form-select-focus-box-shadow: 0 0 0 0.25rem rgba(var(--zt-primary-rgb), 0.25);
+  --bs-primary-bg-subtle: #d1e7dd;
+  --bs-primary-border-subtle: #95d1b4;
+}
+
+.btn-primary {
+  --bs-btn-bg: var(--zt-primary);
+  --bs-btn-border-color: var(--zt-primary);
+  --bs-btn-hover-bg: var(--zt-primary-dark);
+  --bs-btn-hover-border-color: var(--zt-primary-dark);
+  --bs-btn-focus-shadow-rgb: var(--zt-primary-rgb);
+  --bs-btn-active-bg: var(--zt-primary-darker);
+  --bs-btn-active-border-color: var(--zt-primary-darker);
+  --bs-btn-disabled-bg: var(--zt-primary);
+  --bs-btn-disabled-border-color: var(--zt-primary);
+}
+
+.btn-outline-primary {
+  --bs-btn-color: var(--zt-primary);
+  --bs-btn-border-color: var(--zt-primary);
+  --bs-btn-hover-color: #fff;
+  --bs-btn-hover-bg: var(--zt-primary);
+  --bs-btn-hover-border-color: var(--zt-primary);
+  --bs-btn-focus-shadow-rgb: var(--zt-primary-rgb);
+  --bs-btn-active-color: #fff;
+  --bs-btn-active-bg: var(--zt-primary-dark);
+  --bs-btn-active-border-color: var(--zt-primary-dark);
+  --bs-btn-disabled-color: var(--zt-primary);
+  --bs-btn-disabled-border-color: var(--zt-primary);
+}
+
+.form-control:focus,
+.form-select:focus {
+  border-color: #75b798;
+  box-shadow: 0 0 0 0.25rem rgba(var(--zt-primary-rgb), 0.25);
+}
+
+.form-check-input:focus {
+  border-color: #75b798;
+  box-shadow: 0 0 0 0.25rem rgba(var(--zt-primary-rgb), 0.25);
+}
+
+.form-check-input:checked {
+  background-color: var(--zt-primary);
+  border-color: var(--zt-primary);
+}
+
 .full-width-button {
   width: 100%;
 }
@@ -135,13 +198,14 @@ body {
 }
 
 .filter-button.active {
-  background: #1976d2;
+  background: var(--zt-primary);
+  border-color: var(--zt-primary);
   color: white;
 }
 
 .category-badge {
   display: inline-block;
-  background: #1976d2;
+  background: var(--zt-primary);
   color: white;
   padding: 2px 6px;
   border-radius: 4px;
