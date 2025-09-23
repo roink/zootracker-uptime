@@ -32,7 +32,7 @@ import ImageAttributionPage from "./pages/ImageAttribution";
 import Header from "./components/Header";
 import SearchPage from "./pages/Search";
 import ZooDetailPage from "./pages/ZooDetail";
-import ImpressPage from "./pages/Impress";
+import LegalNoticePage from "./pages/LegalNotice";
 import DataProtectionPage from "./pages/DataProtection";
 import ContactPage from "./pages/Contact";
 import Footer from "./components/Footer";
@@ -132,7 +132,8 @@ function AppRoutes({ refreshCounter, refreshSeen }) {
           />
           <Route path="images/:mid" element={<ImageAttributionPage />} />
           <Route path="search" element={<SearchPage />} />
-          <Route path="impress" element={<ImpressPage />} />
+          <Route path="legal-notice" element={<LegalNoticePage />} />
+          <Route path="impress" element={<Navigate to="../legal-notice" replace />} />
           <Route path="data-protection" element={<DataProtectionPage />} />
           <Route path="contact" element={<ContactPage />} />
         </Routes>

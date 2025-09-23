@@ -9,8 +9,8 @@ export default function Footer() {
   return (
     <footer className="navbar navbar-dark bg-success mt-auto py-3">
       <div className="container-fluid justify-content-center">
-        <Link className="nav-link footer-link" to={`${prefix}/impress`}>
-          {t('nav.impress')}
+        <Link className="nav-link footer-link" to={`${prefix}/legal-notice`}>
+          {t('nav.legalNotice')}
         </Link>
         <span className="text-white mx-2">|</span>
         <Link className="nav-link footer-link" to={`${prefix}/data-protection`}>
