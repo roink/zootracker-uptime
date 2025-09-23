@@ -1,6 +1,7 @@
 import { Trans, useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import Seo from '../components/Seo';
+import { ORG } from '../config/org';
 
 // Detailed data protection information for the application.
 export default function DataProtectionPage() {
@@ -8,7 +9,7 @@ export default function DataProtectionPage() {
   const { lang } = useParams();
   const locale = (lang ?? i18n.language ?? 'en');
   const langSegment = locale.split('-')[0] || 'en';
-  const impressumHref = `/${langSegment}/impress`;
+  const legalNoticeHref = `/${langSegment}/legal-notice`;
 
   return (
     <div className="container py-4">
@@ -26,17 +27,18 @@ export default function DataProtectionPage() {
         <p>
           <Trans
             i18nKey="dataProtectionPage.controller.text"
+            values={{ email: ORG.email }}
             components={{
               email: (
                 <a
-                  href="mailto:contact@zootracker.app"
+                  href={`mailto:${ORG.email}`}
                   className="underline"
                   rel="noopener noreferrer"
                 />
               ),
-              impressum: (
+              legalNotice: (
                 <a
-                  href={impressumHref}
+                  href={legalNoticeHref}
                   className="underline"
                   rel="noopener noreferrer"
                 />
