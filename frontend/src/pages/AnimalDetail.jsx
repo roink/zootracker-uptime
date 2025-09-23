@@ -179,6 +179,7 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
       ).toLocaleDateString()
     : null;
   const gallery = userSightings.filter((s) => s.photo_url);
+  const hasGallery = animal.images && animal.images.length > 0;
 
   const closestZoo = zoos[0];
 
@@ -208,9 +209,9 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
       <div className="row g-3">
         <div className="col-12 col-lg-6 order-lg-2 sticky-lg-top" style={{ top: '1rem' }}>
           {/* Stable image stage: fixed aspect ratio, no jumping controls */}
-          <div className="animal-media" style={{ '--ar': aspect }}>
-            {animal.images && animal.images.length > 0 ? (
-              // Render image gallery using Bootstrap carousel
+          {hasGallery ? (
+            <div className="animal-media" style={{ '--ar': aspect }}>
+              {/* Render image gallery using Bootstrap carousel */}
               <div
                 id="animalCarousel"
                 className="carousel slide h-100"
@@ -230,7 +231,7 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
                         data-bs-target="#animalCarousel"
                         data-bs-slide-to={i}
                         className={i === 0 ? 'active' : ''}
-                        aria-label={`Slide ${i + 1}`}
+                        aria-label={`Slide ${i + 1} of ${animal.images.length}`}
                       />
                     ))}
                   </div>
@@ -283,7 +284,7 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
                             loading={loadingAttr}
                             fetchpriority={fetchPri}
                             alt={animalName}
-                            className="img-fluid"
+                            draggable="false"
                           />
                         </Link>
                       </div>
@@ -313,17 +314,20 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
                   </>
                 )}
               </div>
-            ) : (
-              animal.default_image_url && (
+            </div>
+          ) : (
+            animal.default_image_url && (
+              <div className="animal-media" style={{ '--ar': aspect }}>
                 <img
                   src={animal.default_image_url}
                   alt={animalName}
-                  className="img-fluid w-100"
+                  decoding="async"
                   loading="lazy"
+                  draggable="false"
                 />
-              )
-            )}
-          </div>
+              </div>
+            )
+          )}
         </div>
         <div className="col-12 col-lg-6 order-lg-1">
           <h2 className="mb-1">{animalName}</h2>
