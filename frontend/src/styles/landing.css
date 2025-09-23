@@ -1,0 +1,164 @@
+/* Styles dedicated to the public landing page layout. */
+
+.landing-hero {
+  background: linear-gradient(135deg, rgba(25, 135, 84, 0.08) 0%, #ffffff 60%);
+}
+
+.landing-hero .lead {
+  max-width: 32rem;
+}
+
+.landing-search .input-group-text {
+  background-color: #fff;
+  border-right: 0;
+}
+
+.landing-search .form-control {
+  border-left: 0;
+  padding-left: 0.5rem;
+}
+
+.landing-search .btn {
+  min-width: 7.5rem;
+}
+
+.landing-suggestions {
+  z-index: 1080;
+  margin-top: 0.25rem;
+  max-height: 18rem;
+  overflow-y: auto;
+  border-radius: 0 0 0.75rem 0.75rem;
+}
+
+.landing-suggestion-item {
+  cursor: pointer;
+}
+
+.landing-suggestion-group {
+  letter-spacing: 0.08em;
+}
+
+.landing-suggestion-name {
+  font-weight: 600;
+}
+
+.landing-recents .btn {
+  border-radius: 999px;
+}
+
+.landing-map {
+  border: 0;
+  border-radius: 1rem;
+  overflow: hidden;
+}
+
+.landing-map-preview .map-container {
+  height: 260px;
+  border-radius: 0;
+}
+
+@media (min-width: 992px) {
+  .landing-map-preview .map-container {
+    height: 320px;
+  }
+}
+
+.landing-card-icon {
+  font-size: 2rem;
+  margin-bottom: 0.75rem;
+}
+
+.landing-metric-card {
+  background: #fff;
+  border-radius: 0.85rem;
+  padding: 1.5rem;
+  box-shadow: 0 0.5rem 1.5rem rgba(25, 135, 84, 0.08);
+}
+
+.landing-metric-value {
+  font-weight: 600;
+}
+
+.landing-about-tile {
+  background: #f8f9fa;
+  border-radius: 0.85rem;
+  padding: 1.5rem;
+}
+
+.landing-about-icon {
+  font-size: 2rem;
+  margin-bottom: 0.75rem;
+}
+
+.landing-popular-scroll {
+  scrollbar-width: thin;
+}
+
+.landing-popular-card {
+  min-width: 220px;
+  border: 0;
+  border-radius: 0.85rem;
+  box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.08);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.landing-popular-card:hover,
+.landing-popular-card:focus {
+  transform: translateY(-4px);
+  box-shadow: 0 0.75rem 1.75rem rgba(0, 0, 0, 0.12);
+}
+
+.landing-popular-image {
+  height: 140px;
+  object-fit: cover;
+  border-radius: 0.85rem 0.85rem 0 0;
+}
+
+.landing-how-card {
+  background: #fff;
+  border-radius: 0.85rem;
+  padding: 2rem 1.5rem;
+  box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.05);
+}
+
+.landing-how-step {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.landing-how-number {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  background: var(--bs-primary-bg-subtle);
+  color: var(--bs-primary-text-emphasis);
+  font-weight: 600;
+}
+
+.landing-how-icon {
+  font-size: 1.75rem;
+}
+
+.landing-final-cta {
+  background: linear-gradient(
+    135deg,
+    rgba(25, 135, 84, 0.15) 0%,
+    rgba(25, 135, 84, 0.08) 60%,
+    #ffffff 100%
+  );
+}
+
+@media (max-width: 575.98px) {
+  .landing-popular-card {
+    min-width: 180px;
+  }
+
+  .landing-map-preview .map-container {
+    height: 220px;
+  }
+}

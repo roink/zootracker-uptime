@@ -6,6 +6,7 @@ from .zoos import router as zoos_router
 from .animals import router as animals_router
 from .images import router as images_router
 from .visits import router as visits_router
+from .site import router as site_router
 
 __all__ = [
     "auth_router",
@@ -14,4 +15,5 @@ __all__ = [
     "animals_router",
     "images_router",
     "visits_router",
+    "site_router",
 ]

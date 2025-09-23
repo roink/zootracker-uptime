@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef, useId, useMemo, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import SearchSuggestions from './SearchSuggestions';
 import useSearchSuggestions from '../hooks/useSearchSuggestions';
 import LanguageSwitcher from './LanguageSwitcher';
 import { useAuth } from '../auth/AuthContext.jsx';
+import { API } from '../api';
 
 // Navigation header shown on all pages. Includes a simple search
 // form and links that depend on authentication state.
@@ -26,6 +28,7 @@ export default function Header() {
   const collapseRef = useRef(null);
   const toggleRef = useRef(null);
   const { isAuthenticated, logout } = useAuth();
+  const queryClient = useQueryClient();
   const searchId = useId();
   const searchInputId = `header-search-${searchId.replace(/:/g, '')}`;
   const searchLabelId = `${searchInputId}-label`;
@@ -87,14 +90,14 @@ export default function Header() {
     }
   };
 
-  const handleSelect = useCallback((type, value) => {
+  const handleSelect = useCallback((option) => {
     setQuery('');
     setFocused(false);
     setActiveIndex(-1);
-    if (type === 'zoo') {
-      navigate(`${prefix}/zoos/${value}`);
+    if (option.type === 'zoo') {
+      navigate(`${prefix}/zoos/${option.value}`);
     } else {
-      navigate(`${prefix}/animals/${value}`);
+      navigate(`${prefix}/animals/${option.value}`);
     }
   }, [navigate, prefix]);
 
@@ -121,26 +124,47 @@ export default function Header() {
   );
 
   const options = useMemo(() => {
-    const zooOptions = results.zoos.map((zoo) => ({
-      id: `${suggestionListId}-z-${zoo.id ?? zoo.slug}`,
-      key: `z-${zoo.id ?? zoo.slug}`,
-      type: 'zoo',
-      value: zoo.slug || zoo.id,
-      label: zoo.city
-        ? t('nav.searchZooOptionWithCity', {
-            name: zoo.name,
-            city: zoo.city,
-          })
-        : t('nav.searchZooOption', { name: zoo.name }),
-    }));
-    const animalOptions = results.animals.map((animal) => ({
-      id: `${suggestionListId}-a-${animal.id ?? animal.slug}`,
-      key: `a-${animal.id ?? animal.slug}`,
-      type: 'animal',
-      value: animal.slug || animal.id,
-      label: t('nav.searchAnimalOption', { name: getAnimalName(animal) }),
-    }));
-    return [...zooOptions, ...animalOptions];
+    const list = [];
+    if (results.animals.length) {
+      const groupLabel = t('nav.searchGroupAnimals');
+      results.animals.forEach((animal, index) => {
+        const identifier = animal.id ?? animal.slug;
+        list.push({
+          id: `${suggestionListId}-a-${identifier}`,
+          key: `a-${identifier}`,
+          type: 'animal',
+          value: animal.slug || animal.id,
+          label: t('nav.searchAnimalOption', { name: getAnimalName(animal) }),
+          secondary: animal.scientific_name || '',
+          groupKey: 'animals',
+          groupLabel,
+          firstInGroup: index === 0,
+        });
+      });
+    }
+    if (results.zoos.length) {
+      const groupLabel = t('nav.searchGroupZoos');
+      results.zoos.forEach((zoo, index) => {
+        const identifier = zoo.id ?? zoo.slug;
+        list.push({
+          id: `${suggestionListId}-z-${identifier}`,
+          key: `z-${identifier}`,
+          type: 'zoo',
+          value: zoo.slug || zoo.id,
+          label: zoo.city
+            ? t('nav.searchZooOptionWithCity', {
+                name: zoo.name,
+                city: zoo.city,
+              })
+            : t('nav.searchZooOption', { name: zoo.name }),
+          secondary: zoo.city || '',
+          groupKey: 'zoos',
+          groupLabel,
+          firstInGroup: index === 0,
+        });
+      });
+    }
+    return list;
   }, [results, suggestionListId, t, getAnimalName]);
 
   const activeOptionId =
@@ -230,7 +254,7 @@ export default function Header() {
         if (activeIndex < 0 || activeIndex >= options.length) return;
         event.preventDefault();
         const option = options[activeIndex];
-        handleSelect(option.type, option.value);
+        handleSelect(option);
       } else if (event.key === 'Escape') {
         if (!suggestionsOpen) return;
         event.preventDefault();
@@ -244,10 +268,40 @@ export default function Header() {
     [activeIndex, handleSelect, moveActive, options, suggestionsOpen]
   );
 
+  const prefetchLandingData = useCallback(() => {
+    queryClient.prefetchQuery({
+      queryKey: ['site', 'summary'],
+      queryFn: async () => {
+        const response = await fetch(`${API}/site/summary`);
+        if (!response.ok) {
+          throw new Error('Failed to load site summary');
+        }
+        return response.json();
+      },
+      staleTime: 5 * 60 * 1000,
+    });
+    queryClient.prefetchQuery({
+      queryKey: ['site', 'popular-animals', 8],
+      queryFn: async () => {
+        const response = await fetch(`${API}/site/popular-animals?limit=8`);
+        if (!response.ok) {
+          throw new Error('Failed to load popular animals');
+        }
+        return response.json();
+      },
+      staleTime: 3 * 60 * 1000,
+    });
+  }, [queryClient]);
+
   return (
     <nav className="navbar navbar-expand-lg navbar-dark bg-success mb-3">
       <div className="container-fluid">
-        <Link className="navbar-brand" to={prefix}>
+        <Link
+          className="navbar-brand"
+          to={prefix}
+          onMouseEnter={prefetchLandingData}
+          onFocus={prefetchLandingData}
+        >
           ZooTracker
         </Link>
         <button
