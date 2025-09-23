@@ -1,26 +1,56 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
+import { useTranslation } from 'react-i18next';
 import { MAP_STYLE_URL } from './MapView.jsx';
 
 // Interactive map showing multiple zoos with clickable markers.
 const DEFAULT_ZOOM = 5;
 const FOCUS_ZOOM = 8;
 
-export default function ZoosMap({ zoos, center, onSelect }) {
+export default function ZoosMap({ zoos, center, onSelect, resizeToken }) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const maplibreRef = useRef(null);
   const markersRef = useRef([]);
+  const pendingResizeRef = useRef(false);
+  const resizeCleanupsRef = useRef([]);
+  const { t } = useTranslation();
+  const [mapReady, setMapReady] = useState(false);
 
   const centerLat = center?.lat;
   const centerLon = center?.lon;
 
-  const fallbackZoo = useMemo(
+  const normalizedZoos = useMemo(
     () =>
-      zoos.find(
-        (z) => Number.isFinite(z.latitude) && Number.isFinite(z.longitude)
-      ),
+      (zoos || [])
+        .map((zoo) => {
+          const rawLat = zoo.latitude;
+          const rawLon = zoo.longitude;
+          if (
+            rawLat === null ||
+            rawLat === undefined ||
+            rawLat === '' ||
+            rawLon === null ||
+            rawLon === undefined ||
+            rawLon === ''
+          ) {
+            return null;
+          }
+
+          const latitude = Number(rawLat);
+          const longitude = Number(rawLon);
+          if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+            return null;
+          }
+          return { ...zoo, latitude, longitude };
+        })
+        .filter(Boolean),
     [zoos]
+  );
+
+  const fallbackZoo = useMemo(
+    () => (normalizedZoos.length > 0 ? normalizedZoos[0] : null),
+    [normalizedZoos]
   );
 
   const initialState = useMemo(() => {
@@ -50,6 +80,29 @@ export default function ZoosMap({ zoos, center, onSelect }) {
     markersRef.current = [];
   };
 
+  const scheduleResize = useCallback(() => {
+    if (!mapRef.current) return () => {};
+    mapRef.current.resize();
+    if (typeof window === 'undefined') {
+      return () => {};
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      mapRef.current?.resize();
+    });
+    const timeout = window.setTimeout(() => {
+      mapRef.current?.resize();
+    }, 150);
+
+    const cleanup = () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timeout);
+    };
+
+    resizeCleanupsRef.current.push(cleanup);
+    return cleanup;
+  }, []);
+
   // Initialize the map when we have a target center.
   useEffect(() => {
     if (mapRef.current) return;
@@ -70,16 +123,29 @@ export default function ZoosMap({ zoos, center, onSelect }) {
         zoom: initialState.zoom,
         attributionControl: true,
       });
+
+      setMapReady(true);
+
+      if (pendingResizeRef.current || typeof window !== 'undefined') {
+        pendingResizeRef.current = false;
+        if (mapRef.current?.once) {
+          mapRef.current.once('load', scheduleResize);
+        } else {
+          scheduleResize();
+        }
+      }
     })();
 
     return () => {
       cancelled = true;
+      resizeCleanupsRef.current.forEach((cleanup) => cleanup());
+      resizeCleanupsRef.current = [];
       clearMarkers();
       mapRef.current?.remove();
       mapRef.current = null;
       maplibreRef.current = null;
     };
-  }, [initialState]);
+  }, [initialState, scheduleResize]);
 
   // Keep the map centered on the user/estimated location when it becomes available.
   useEffect(() => {
@@ -96,17 +162,14 @@ export default function ZoosMap({ zoos, center, onSelect }) {
   // Render markers for the filtered zoos and wire up click navigation.
   useEffect(() => {
     if (!mapRef.current) return;
+    if (!mapReady) return;
     if (!maplibreRef.current) return;
 
     clearMarkers();
 
     const validPositions = [];
 
-    zoos.forEach((zoo) => {
-      if (!Number.isFinite(zoo.latitude) || !Number.isFinite(zoo.longitude)) {
-        return;
-      }
-
+    normalizedZoos.forEach((zoo) => {
       validPositions.push([zoo.longitude, zoo.latitude]);
 
       const marker = new maplibreRef.current.Marker({ color: '#0d6efd' })
@@ -118,18 +181,25 @@ export default function ZoosMap({ zoos, center, onSelect }) {
       };
 
       const handleKeyDown = (event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
+        if (
+          event.key === 'Enter' ||
+          event.key === ' ' ||
+          event.key === 'Spacebar'
+        ) {
           event.preventDefault();
           if (onSelect) onSelect(zoo);
         }
       };
 
       const element = marker.getElement();
-      element.setAttribute('role', 'button');
+      element.setAttribute('role', 'link');
       element.setAttribute('tabindex', '0');
       if (zoo.name) {
         element.setAttribute('title', zoo.name);
-        element.setAttribute('aria-label', zoo.name);
+        element.setAttribute(
+          'aria-label',
+          t('zoo.openDetail', { name: zoo.name })
+        );
       }
       element.addEventListener('click', handleClick);
       element.addEventListener('keydown', handleKeyDown);
@@ -152,14 +222,31 @@ export default function ZoosMap({ zoos, center, onSelect }) {
         duration: 500,
       });
     }
-  }, [zoos, onSelect, centerLat, centerLon]);
+  }, [normalizedZoos, onSelect, centerLat, centerLon, t, mapReady]);
+
+  useEffect(() => {
+    if (!mapRef.current) {
+      pendingResizeRef.current = true;
+      return undefined;
+    }
+
+    pendingResizeRef.current = false;
+    const map = mapRef.current;
+    const cleanup = scheduleResize();
+    return () => {
+      cleanup();
+      resizeCleanupsRef.current = resizeCleanupsRef.current.filter(
+        (fn) => fn !== cleanup
+      );
+    };
+  }, [resizeToken, scheduleResize]);
 
   return (
     <div
       ref={containerRef}
       className="map-container zoos-map"
       role="region"
-      aria-label="Map showing zoos that match the current filters"
+      aria-label={t('zoo.mapAriaLabel')}
     />
   );
 }
@@ -179,11 +266,13 @@ ZoosMap.propTypes = {
     lon: PropTypes.number,
   }),
   onSelect: PropTypes.func,
+  resizeToken: PropTypes.number,
 };
 
 ZoosMap.defaultProps = {
   zoos: [],
   center: null,
   onSelect: undefined,
+  resizeToken: 0,
 };
 

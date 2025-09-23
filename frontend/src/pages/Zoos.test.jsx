@@ -187,4 +187,80 @@ describe('ZoosPage', () => {
     });
   });
 
+  it('fetches location estimate once and includes coordinates in zoo search', async () => {
+    const zoos = [];
+    const fetchMock = vi.fn((url) => {
+      if (url.startsWith(`${API}/zoos/continents`))
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      if (url.startsWith(`${API}/zoos/countries`))
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      if (url.startsWith(`${API}/visits/ids`))
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      if (url.startsWith(`${API}/location/estimate`))
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ latitude: 50.5, longitude: 8.6 }),
+        });
+      if (url.startsWith(`${API}/zoos`))
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(zoos) });
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    });
+    global.fetch = fetchMock;
+
+    renderWithRouter(<ZoosPage />, { route: '/?view=map' });
+
+    await waitFor(() => {
+      const estimateCalls = fetchMock.mock.calls.filter(([u]) =>
+        u.startsWith(`${API}/location/estimate`)
+      );
+      expect(estimateCalls).toHaveLength(1);
+    });
+
+    await waitFor(() => {
+      const zooCall = fetchMock.mock.calls.find(([u]) =>
+        u.startsWith(`${API}/zoos?`)
+      );
+      expect(zooCall).toBeDefined();
+      expect(zooCall[0]).toContain('latitude=50.5');
+      expect(zooCall[0]).toContain('longitude=8.6');
+    });
+  });
+
+  it('shows a helper message when map view has no coordinates', async () => {
+    const zoos = [
+      {
+        id: '1',
+        slug: 'no-map-zoo',
+        name: 'No Map Zoo',
+        address: '',
+        city: '',
+        latitude: null,
+        longitude: null,
+      },
+    ];
+    const fetchMock = vi.fn((url) => {
+      if (url.startsWith(`${API}/zoos/continents`))
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      if (url.startsWith(`${API}/zoos/countries`))
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      if (url.startsWith(`${API}/visits/ids`))
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      if (url.startsWith(`${API}/location/estimate`))
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ latitude: 40.1, longitude: -73.9 }),
+        });
+      if (url.startsWith(`${API}/zoos`))
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(zoos) });
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    });
+    global.fetch = fetchMock;
+
+    renderWithRouter(<ZoosPage />, { route: '/?view=map' });
+
+    const message = await screen.findByText(
+      'No map coordinates are available for these zoos yet. Switch back to the list view to explore them.'
+    );
+    expect(message).toBeInTheDocument();
+  });
 });

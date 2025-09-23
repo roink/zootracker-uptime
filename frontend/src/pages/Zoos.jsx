@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Link, useSearchParams, useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { API } from '../api';
@@ -6,6 +6,47 @@ import useAuthFetch from '../hooks/useAuthFetch';
 import Seo from '../components/Seo';
 import { useAuth } from '../auth/AuthContext.jsx';
 import ZoosMap from '../components/ZoosMap.jsx';
+
+const LOCATION_STORAGE_KEY = 'userLocation';
+
+// Safely read a previously stored location from sessionStorage.
+function readStoredLocation() {
+  if (typeof window === 'undefined') return null;
+  try {
+    const stored = window.sessionStorage?.getItem(LOCATION_STORAGE_KEY);
+    if (!stored) return null;
+    const parsed = JSON.parse(stored);
+    const lat = Number(parsed?.lat);
+    const lon = Number(parsed?.lon);
+    if (Number.isFinite(lat) && Number.isFinite(lon)) {
+      return { lat, lon };
+    }
+  } catch (error) {
+    // Ignore storage errors (e.g. private browsing) and treat as unset.
+  }
+  return null;
+}
+
+// Attempt to persist the latest location while tolerating storage errors.
+function writeStoredLocation(value) {
+  if (typeof window === 'undefined') return;
+  try {
+    if (
+      value &&
+      Number.isFinite(value.lat) &&
+      Number.isFinite(value.lon)
+    ) {
+      window.sessionStorage?.setItem(
+        LOCATION_STORAGE_KEY,
+        JSON.stringify({ lat: value.lat, lon: value.lon })
+      );
+    } else {
+      window.sessionStorage?.removeItem(LOCATION_STORAGE_KEY);
+    }
+  } catch (error) {
+    // Ignore storage errors silently so the UI keeps working.
+  }
+}
 
 // Listing page showing all zoos with search, region filters and visit status.
 
@@ -32,15 +73,14 @@ export default function ZoosPage() {
   ); // all | visited | not
   const [visitedLoading, setVisitedLoading] = useState(true);
   const [estimatedLocation, setEstimatedLocation] = useState(null);
-  const [location, setLocation] = useState(() => {
-    const stored = sessionStorage.getItem('userLocation');
-    return stored ? JSON.parse(stored) : null;
-  });
+  const [location, setLocation] = useState(() => readStoredLocation());
   const authFetch = useAuthFetch();
   const { isAuthenticated } = useAuth();
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [viewMode, setViewMode] = useState(initialView);
+  const [mapResizeToken, setMapResizeToken] = useState(0);
+  const estimateAttemptedRef = useRef(false);
 
   // Keep local state in sync with URL (supports browser back/forward)
   useEffect(() => {
@@ -81,6 +121,12 @@ export default function ZoosPage() {
     searchParams,
     setSearchParams,
   ]);
+
+  useEffect(() => {
+    if (viewMode === 'map') {
+      setMapResizeToken((token) => token + 1);
+    }
+  }, [viewMode]);
 
   useEffect(() => {
     fetch(`${API}/zoos/continents`)
@@ -134,17 +180,18 @@ export default function ZoosPage() {
   ]);
 
   useEffect(() => {
+    if (estimateAttemptedRef.current) return;
+    estimateAttemptedRef.current = true;
+
     let cancelled = false;
     fetch(`${API}/location/estimate`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (cancelled) return;
-        if (
-          data &&
-          Number.isFinite(data.latitude) &&
-          Number.isFinite(data.longitude)
-        ) {
-          setEstimatedLocation({ lat: data.latitude, lon: data.longitude });
+        const lat = Number(data?.latitude);
+        const lon = Number(data?.longitude);
+        if (Number.isFinite(lat) && Number.isFinite(lon)) {
+          setEstimatedLocation({ lat, lon });
         } else {
           setEstimatedLocation(null);
         }
@@ -159,20 +206,39 @@ export default function ZoosPage() {
   }, []);
 
   useEffect(() => {
-    if (navigator.geolocation) {
+    if (!navigator?.geolocation) return;
+
+    let cancelled = false;
+    try {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          const loc = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-          setLocation(loc);
-          sessionStorage.setItem('userLocation', JSON.stringify(loc));
+          if (cancelled) return;
+          const lat = Number(pos.coords.latitude);
+          const lon = Number(pos.coords.longitude);
+          if (Number.isFinite(lat) && Number.isFinite(lon)) {
+            const loc = { lat, lon };
+            setLocation(loc);
+            writeStoredLocation(loc);
+          } else {
+            setLocation(null);
+            writeStoredLocation(null);
+          }
         },
         () => {
+          if (cancelled) return;
           setLocation(null);
-          sessionStorage.removeItem('userLocation');
+          writeStoredLocation(null);
         },
         { enableHighAccuracy: false, timeout: 3000, maximumAge: 600000 }
       );
+    } catch (error) {
+      setLocation(null);
+      writeStoredLocation(null);
     }
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -201,6 +267,34 @@ export default function ZoosPage() {
       return true;
     });
   }, [zoos, visitFilter, visitedSet]);
+
+  const zoosWithCoordinates = useMemo(
+    () =>
+      filtered
+        .map((zoo) => {
+          const rawLat = zoo.latitude;
+          const rawLon = zoo.longitude;
+          if (
+            rawLat === null ||
+            rawLat === undefined ||
+            rawLat === '' ||
+            rawLon === null ||
+            rawLon === undefined ||
+            rawLon === ''
+          ) {
+            return null;
+          }
+
+          const latitude = Number(rawLat);
+          const longitude = Number(rawLon);
+          if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+            return null;
+          }
+          return { ...zoo, latitude, longitude };
+        })
+        .filter(Boolean),
+    [filtered]
+  );
 
   const localizedName = (item) =>
     lang === 'de' ? item.name_de || item.name_en : item.name_en || item.name_de;
@@ -326,7 +420,8 @@ export default function ZoosPage() {
         </div>
       </div>
       <div className="d-flex justify-content-end flex-wrap gap-2 mb-3">
-        <div className="btn-group" role="group" aria-label={t('zoo.viewMode')}>
+        <fieldset className="btn-group" role="group" aria-label={t('zoo.viewToggle')}>
+          <legend className="visually-hidden">{t('zoo.viewToggle')}</legend>
           <input
             type="radio"
             className="btn-check"
@@ -352,7 +447,7 @@ export default function ZoosPage() {
           <label className="btn btn-outline-primary" htmlFor="zoo-view-map">
             {t('zoo.viewMap')}
           </label>
-        </div>
+        </fieldset>
       </div>
       {viewMode === 'list' ? (
         <div className="list-group">
@@ -390,15 +485,20 @@ export default function ZoosPage() {
             </div>
           )}
         </div>
-      ) : filtered.length > 0 ? (
+      ) : filtered.length === 0 ? (
+        <div className="alert alert-info" role="status">
+          {t('zoo.noResults')}
+        </div>
+      ) : zoosWithCoordinates.length > 0 ? (
         <ZoosMap
-          zoos={filtered}
+          zoos={zoosWithCoordinates}
           center={activeLocation}
           onSelect={handleSelectZoo}
+          resizeToken={mapResizeToken}
         />
       ) : (
         <div className="alert alert-info" role="status">
-          {t('zoo.noResults')}
+          {t('zoo.noMapResults')}
         </div>
       )}
     </div>
