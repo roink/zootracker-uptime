@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 
 // Reusable map centered on given coordinates using MapLibre and OpenFreeMap tiles.
-const STYLE_URL =
+export const MAP_STYLE_URL =
   import.meta.env.VITE_MAP_STYLE_URL ||
   'https://tiles.openfreemap.org/styles/liberty';
 
@@ -25,7 +25,7 @@ export default function MapView({ latitude, longitude, zoom = 14 }) {
 
       mapRef.current = new maplibregl.Map({
         container: containerRef.current,
-        style: STYLE_URL,
+        style: MAP_STYLE_URL,
         center: [longitude, latitude],
         zoom,
         attributionControl: true,

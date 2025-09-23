@@ -341,6 +341,20 @@ body {
   }
 }
 
+.map-container.zoos-map {
+  height: 320px;
+}
+@media (min-width: 768px) {
+  .map-container.zoos-map {
+    height: 420px;
+  }
+}
+@media (min-width: 1200px) {
+  .map-container.zoos-map {
+    height: 520px;
+  }
+}
+
 .card-img {
   width: 100%;
   height: 100px;
