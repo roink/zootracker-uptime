@@ -6,6 +6,7 @@ import useAuthFetch from '../hooks/useAuthFetch';
 import Seo from '../components/Seo';
 import { useAuth } from '../auth/AuthContext.jsx';
 import ZoosMap from '../components/ZoosMap.jsx';
+import { normalizeCoordinates } from '../utils/coordinates.js';
 
 const LOCATION_STORAGE_KEY = 'userLocation';
 
@@ -272,29 +273,25 @@ export default function ZoosPage() {
     () =>
       filtered
         .map((zoo) => {
-          const rawLat = zoo.latitude;
-          const rawLon = zoo.longitude;
-          if (
-            rawLat === null ||
-            rawLat === undefined ||
-            rawLat === '' ||
-            rawLon === null ||
-            rawLon === undefined ||
-            rawLon === ''
-          ) {
+          const coords = normalizeCoordinates(zoo);
+          if (!coords) {
             return null;
           }
-
-          const latitude = Number(rawLat);
-          const longitude = Number(rawLon);
-          if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-            return null;
-          }
-          return { ...zoo, latitude, longitude };
+          return { ...zoo, ...coords };
         })
         .filter(Boolean),
     [filtered]
   );
+
+  useEffect(() => {
+    if (import.meta.env.DEV && filtered.length > 0 && zoosWithCoordinates.length === 0) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        'ZoosPage: no coordinate fields found on items. Example keys:',
+        Object.keys(filtered[0] || {})
+      );
+    }
+  }, [filtered, zoosWithCoordinates]);
 
   const localizedName = (item) =>
     lang === 'de' ? item.name_de || item.name_en : item.name_en || item.name_de;

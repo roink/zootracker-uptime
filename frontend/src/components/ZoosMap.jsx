@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import { useTranslation } from 'react-i18next';
+import { normalizeCoordinates } from '../utils/coordinates.js';
 import { MAP_STYLE_URL } from './MapView.jsx';
 
 // Interactive map showing multiple zoos with clickable markers.
@@ -24,25 +25,11 @@ export default function ZoosMap({ zoos, center, onSelect, resizeToken }) {
     () =>
       (zoos || [])
         .map((zoo) => {
-          const rawLat = zoo.latitude;
-          const rawLon = zoo.longitude;
-          if (
-            rawLat === null ||
-            rawLat === undefined ||
-            rawLat === '' ||
-            rawLon === null ||
-            rawLon === undefined ||
-            rawLon === ''
-          ) {
+          const coords = normalizeCoordinates(zoo);
+          if (!coords) {
             return null;
           }
-
-          const latitude = Number(rawLat);
-          const longitude = Number(rawLon);
-          if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-            return null;
-          }
-          return { ...zoo, latitude, longitude };
+          return { ...zoo, ...coords };
         })
         .filter(Boolean),
     [zoos]
@@ -259,6 +246,16 @@ ZoosMap.propTypes = {
       slug: PropTypes.string,
       latitude: PropTypes.number,
       longitude: PropTypes.number,
+      lat: PropTypes.number,
+      lon: PropTypes.number,
+      lng: PropTypes.number,
+      location: PropTypes.shape({
+        latitude: PropTypes.number,
+        longitude: PropTypes.number,
+        lat: PropTypes.number,
+        lon: PropTypes.number,
+        lng: PropTypes.number,
+      }),
     })
   ),
   center: PropTypes.shape({

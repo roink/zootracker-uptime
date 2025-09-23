@@ -115,4 +115,28 @@ describe('ZoosMap', () => {
       expect.objectContaining({ id: '1', name: 'Test Zoo' })
     );
   });
+
+  it('accepts zoos with lat/lon keys', async () => {
+    const onSelect = vi.fn();
+    render(
+      <ZoosMap
+        zoos={[
+          {
+            id: '2',
+            name: 'Alt Keys Zoo',
+            lat: 10.1,
+            lon: 20.2,
+          },
+        ]}
+        center={{ lat: 0, lon: 0 }}
+        onSelect={onSelect}
+      />
+    );
+
+    const marker = await screen.findByRole('link', {
+      name: 'Open details for Alt Keys Zoo',
+    });
+
+    expect(marker).toBeInTheDocument();
+  });
 });
