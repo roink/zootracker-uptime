@@ -34,6 +34,9 @@ This directory contains all the files and configuration templates needed to depl
    * Ubuntu 22.04 LTS.
    * A non-root user with `sudo` privileges (default user: `philipp`).
    * Port 22 open for SSH, ports 80/443 for HTTP/HTTPS.
+   * Cloudflare's **Add visitor location headers** Managed Transform enabled for the
+     zone so the API receives `cf-iplatitude`/`cf-iplongitude` headers used by the
+     `/location/estimate` endpoint.
 
 ## Usage
 

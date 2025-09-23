@@ -435,6 +435,7 @@ from .api import (  # noqa: E402
     animals_router,
     images_router,
     visits_router,
+    location_router,
     site_router,
 )
 
@@ -444,4 +445,5 @@ app.include_router(zoos_router)
 app.include_router(animals_router)
 app.include_router(images_router)
 app.include_router(visits_router)
+app.include_router(location_router)
 app.include_router(site_router)

@@ -6,6 +6,9 @@ import ipaddress
 
 from fastapi import Request
 
+_CF_LATITUDE_HEADER = "cf-iplatitude"
+_CF_LONGITUDE_HEADER = "cf-iplongitude"
+
 _TRUSTED_PROXY_RANGES = (
     ipaddress.ip_network("127.0.0.0/8"),
     ipaddress.ip_network("10.0.0.0/8"),
@@ -60,3 +63,44 @@ def get_client_ip(request: Request) -> str:
         return host_ip
 
     return "unknown"
+
+
+def _header_to_float(
+    request: Request,
+    header: str,
+    *,
+    min_value: float,
+    max_value: float,
+) -> float | None:
+    """Return the float value for a header if it falls within a valid range."""
+
+    raw_value = request.headers.get(header)
+    if raw_value is None:
+        return None
+    try:
+        value = float(raw_value)
+    except (TypeError, ValueError):
+        return None
+    if not (min_value <= value <= max_value):
+        return None
+    return value
+
+
+def get_cloudflare_location(request: Request) -> tuple[float | None, float | None]:
+    """Extract latitude/longitude estimates from Cloudflare geolocation headers."""
+
+    latitude = _header_to_float(
+        request,
+        _CF_LATITUDE_HEADER,
+        min_value=-90.0,
+        max_value=90.0,
+    )
+    longitude = _header_to_float(
+        request,
+        _CF_LONGITUDE_HEADER,
+        min_value=-180.0,
+        max_value=180.0,
+    )
+    if latitude is None or longitude is None:
+        return None, None
+    return latitude, longitude

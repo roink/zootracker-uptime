@@ -301,3 +301,12 @@ class Visited(BaseModel):
     visited: bool
 
     model_config = ConfigDict(extra="forbid")
+
+
+class LocationEstimate(BaseModel):
+    """Estimated geographic coordinates derived from network information."""
+
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+
+    model_config = ConfigDict(extra="forbid")
