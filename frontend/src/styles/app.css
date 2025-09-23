@@ -8,6 +8,10 @@
   --zt-primary-rgb: 25, 135, 84;
   --zt-secondary: #157347;
   --zt-secondary-rgb: 21, 115, 71;
+  /* Focus indicator tokens tuned for the dark green brand surfaces */
+  --zt-focus-on-brand: #ffffff;
+  --zt-focus-on-brand-shadow: rgba(255, 255, 255, 0.65);
+  --zt-focus-on-brand-soft: #d1e7dd;
   --bs-primary: var(--zt-primary);
   --bs-primary-rgb: var(--zt-primary-rgb);
   --bs-link-color: var(--zt-primary);
@@ -111,6 +115,57 @@
   box-shadow: 0 0 0 0.25rem var(--bs-focus-ring-color);
 }
 
+/* High-contrast focus styles for navigation content on the green header/footer */
+.navbar.bg-success {
+  --bs-focus-ring-color: var(--zt-focus-on-brand-shadow);
+}
+
+.navbar.bg-success .navbar-brand:focus-visible,
+.navbar.bg-success .nav-link:focus-visible,
+.navbar.bg-success .btn-link.nav-link:focus-visible,
+.navbar.bg-success .navbar-toggler:focus-visible {
+  color: #fff;
+  background-color: rgba(255, 255, 255, 0.18);
+  box-shadow: 0 0 0 0.25rem var(--zt-focus-on-brand-soft);
+  border-radius: 0.375rem;
+  outline: none;
+}
+
+.navbar.bg-success .navbar-brand:focus:not(:focus-visible),
+.navbar.bg-success .nav-link:focus:not(:focus-visible),
+.navbar.bg-success .btn-link.nav-link:focus:not(:focus-visible),
+.navbar.bg-success .navbar-toggler:focus:not(:focus-visible) {
+  outline: none;
+  box-shadow: none;
+}
+
+.navbar.bg-success .form-control:focus {
+  border-color: var(--zt-focus-on-brand);
+  box-shadow: 0 0 0 0.25rem var(--zt-focus-on-brand-shadow);
+}
+
+/* Footer links need a strong outline against the green background */
+.footer-link:focus-visible {
+  outline: 2px solid var(--zt-focus-on-brand);
+  outline-offset: 2px;
+  border-radius: 0.375rem;
+}
+
+/* Ensure focus indicators remain visible for users in forced colors modes */
+@media (forced-colors: active) {
+  .navbar.bg-success .nav-link:focus-visible,
+  .navbar.bg-success .navbar-brand:focus-visible,
+  .navbar.bg-success .btn-link.nav-link:focus-visible,
+  .navbar.bg-success .navbar-toggler:focus-visible,
+  .footer-link:focus-visible,
+  .navbar.bg-success .form-control:focus {
+    outline: 2px solid CanvasText;
+    outline-offset: 2px;
+    box-shadow: none;
+    background: transparent;
+  }
+}
+
 .page-item.active .page-link {
   background-color: var(--zt-primary);
   border-color: var(--zt-primary);
@@ -166,6 +221,12 @@
   background: #fff;
   border-radius: 4px;
   text-align: left;
+}
+
+.animal-card:focus-visible,
+.list-group-item-action:focus-visible {
+  outline: 3px solid rgba(25, 135, 84, 0.65);
+  outline-offset: 2px;
 }
 
 .modal-overlay {

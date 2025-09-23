@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
 import { useTranslation } from 'react-i18next';
@@ -8,7 +8,6 @@ import { useAuth } from '../auth/AuthContext.jsx';
 
 // Browse all animals with hierarchical taxonomy filters and pagination
 export default function AnimalsPage() {
-  const navigate = useNavigate();
   const { lang } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const prefix = `/${lang}`;
@@ -233,11 +232,10 @@ export default function AnimalsPage() {
       )}
       <div className="d-flex flex-wrap gap-2">
         {animals.map((a) => (
-          <button
+          <Link
             key={a.id}
-            type="button"
-            className="animal-card"
-            onClick={() => navigate(`${prefix}/animals/${a.slug || a.id}`)}
+            className="animal-card d-block text-decoration-none text-reset"
+            to={`${prefix}/animals/${a.slug || a.id}`}
           >
             {a.default_image_url && (
               <img
@@ -256,7 +254,7 @@ export default function AnimalsPage() {
             {seenIds.has(a.id) && (
               <span className="seen-badge">{t('animal.seen')}</span>
             )}
-          </button>
+          </Link>
         ))}
       </div>
       {hasMore && (
