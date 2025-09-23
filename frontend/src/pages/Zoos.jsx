@@ -448,34 +448,45 @@ export default function ZoosPage() {
       </div>
       {viewMode === 'list' ? (
         <div className="list-group">
-          {filtered.map((z) => (
-            <Link
-              key={z.id}
-              className="list-group-item list-group-item-action text-start w-100 text-decoration-none text-reset"
-              to={`${prefix}/zoos/${z.slug || z.id}`}
-            >
-              <div className="d-flex justify-content-between">
-                <div>
-                  <div className="fw-bold">
-                    {z.city ? `${z.city}: ${z.name}` : z.name}
-                  </div>
-                  <div className="text-muted">📍 {z.address}</div>
-                </div>
-                <div className="text-end">
-                  {z.distance_km != null && (
-                    <div className="small text-muted">
-                      {z.distance_km.toFixed(1)} km
+          {filtered.map((z) => {
+            const coords = normalizeCoordinates(z);
+            return (
+              <Link
+                key={z.id}
+                className="list-group-item list-group-item-action text-start w-100 text-decoration-none text-reset"
+                to={`${prefix}/zoos/${z.slug || z.id}`}
+              >
+                <div className="d-flex justify-content-between">
+                  <div>
+                    <div className="fw-bold">
+                      {z.city ? `${z.city}: ${z.name}` : z.name}
                     </div>
-                  )}
-                  {visitedSet.has(String(z.id)) && (
-                    <span className="badge bg-success mt-1">
-                      {t('zoo.visitedOnly')}
-                    </span>
-                  )}
+                    {coords && (
+                      <div className="text-muted">
+                        🧭
+                        {` ${t('zoo.coordinates', {
+                          lat: coords.latitude.toFixed(3),
+                          lon: coords.longitude.toFixed(3),
+                        })}`}
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-end">
+                    {z.distance_km != null && (
+                      <div className="small text-muted">
+                        {z.distance_km.toFixed(1)} km
+                      </div>
+                    )}
+                    {visitedSet.has(String(z.id)) && (
+                      <span className="badge bg-success mt-1">
+                        {t('zoo.visitedOnly')}
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </Link>
-          ))}
+              </Link>
+            );
+          })}
           {filtered.length === 0 && (
             <div className="list-group-item text-muted" role="status">
               {t('zoo.noResults')}

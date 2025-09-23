@@ -64,11 +64,13 @@ class ZooDetail(BaseModel):
 
 class ZooSearchResult(BaseModel):
     """Slim result item for zoo searches."""
+
     id: UUID
     slug: str
     name: str
-    address: Optional[str] = None
     city: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     distance_km: Optional[float] = None
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")

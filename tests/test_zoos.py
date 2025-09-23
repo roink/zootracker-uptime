@@ -1,3 +1,5 @@
+import pytest
+
 from .conftest import client
 
 def test_get_animals_for_zoo(data):
@@ -36,6 +38,12 @@ def test_search_zoos_with_radius_returns_all(data):
     assert str(data["zoo"].id) in ids
     assert str(data["far_zoo"].id) in ids
     assert all("slug" in z for z in body)
+    assert all("latitude" in z and "longitude" in z for z in body)
+    assert any(
+        pytest.approx(float(data["zoo"].latitude)) == z["latitude"]
+        and pytest.approx(float(data["zoo"].longitude)) == z["longitude"]
+        for z in body
+    )
     dists = [z["distance_km"] for z in body]
     assert dists == sorted(dists)
     assert any(z["city"] == "Metropolis" for z in body)
@@ -49,9 +57,11 @@ def test_search_zoos_without_radius_returns_all(data):
     }
     resp = client.get("/zoos", params=params)
     assert resp.status_code == 200
-    ids = {z["id"] for z in resp.json()}
+    body = resp.json()
+    ids = {z["id"] for z in body}
     assert str(data["zoo"].id) in ids
     assert str(data["far_zoo"].id) in ids
+    assert all("latitude" in z and "longitude" in z for z in body)
 
 def test_search_zoos_name_only(data):
     """Name search should work without location parameters."""
