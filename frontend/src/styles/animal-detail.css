@@ -37,12 +37,12 @@
   height: 100%;
 }
 
-/* Fill the stage in at least one dimension */
+/* Fit the entire image inside the frame without cropping */
 .animal-media img,
 .animal-media .carousel-item > a img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   object-position: center;
   display: block;
   user-select: none;
