@@ -53,8 +53,9 @@ def search_zoos(
             id=z.id,
             slug=z.slug,
             name=z.name,
-            address=z.address,
             city=z.city,
+            latitude=float(z.latitude) if z.latitude is not None else None,
+            longitude=float(z.longitude) if z.longitude is not None else None,
             distance_km=dist,
         )
         for z, dist in results

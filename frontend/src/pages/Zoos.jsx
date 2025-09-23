@@ -1,10 +1,53 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Link, useSearchParams, useParams } from 'react-router-dom';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { Link, useSearchParams, useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
 import Seo from '../components/Seo';
 import { useAuth } from '../auth/AuthContext.jsx';
+import ZoosMap from '../components/ZoosMap.jsx';
+import { normalizeCoordinates } from '../utils/coordinates.js';
+
+const LOCATION_STORAGE_KEY = 'userLocation';
+
+// Safely read a previously stored location from sessionStorage.
+function readStoredLocation() {
+  if (typeof window === 'undefined') return null;
+  try {
+    const stored = window.sessionStorage?.getItem(LOCATION_STORAGE_KEY);
+    if (!stored) return null;
+    const parsed = JSON.parse(stored);
+    const lat = Number(parsed?.lat);
+    const lon = Number(parsed?.lon);
+    if (Number.isFinite(lat) && Number.isFinite(lon)) {
+      return { lat, lon };
+    }
+  } catch (error) {
+    // Ignore storage errors (e.g. private browsing) and treat as unset.
+  }
+  return null;
+}
+
+// Attempt to persist the latest location while tolerating storage errors.
+function writeStoredLocation(value) {
+  if (typeof window === 'undefined') return;
+  try {
+    if (
+      value &&
+      Number.isFinite(value.lat) &&
+      Number.isFinite(value.lon)
+    ) {
+      window.sessionStorage?.setItem(
+        LOCATION_STORAGE_KEY,
+        JSON.stringify({ lat: value.lat, lon: value.lon })
+      );
+    } else {
+      window.sessionStorage?.removeItem(LOCATION_STORAGE_KEY);
+    }
+  } catch (error) {
+    // Ignore storage errors silently so the UI keeps working.
+  }
+}
 
 // Listing page showing all zoos with search, region filters and visit status.
 
@@ -16,6 +59,7 @@ export default function ZoosPage() {
   const initialContinent = searchParams.get('continent') || '';
   const initialCountry = searchParams.get('country') || '';
   const initialVisit = searchParams.get('visit');
+  const initialView = searchParams.get('view') === 'map' ? 'map' : 'list';
 
   const [zoos, setZoos] = useState([]);
   const [visitedIds, setVisitedIds] = useState([]);
@@ -29,13 +73,15 @@ export default function ZoosPage() {
     initialVisit === 'visited' || initialVisit === 'not' ? initialVisit : 'all'
   ); // all | visited | not
   const [visitedLoading, setVisitedLoading] = useState(true);
-  const [location, setLocation] = useState(() => {
-    const stored = sessionStorage.getItem('userLocation');
-    return stored ? JSON.parse(stored) : null;
-  });
+  const [estimatedLocation, setEstimatedLocation] = useState(null);
+  const [location, setLocation] = useState(() => readStoredLocation());
   const authFetch = useAuthFetch();
   const { isAuthenticated } = useAuth();
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  const [viewMode, setViewMode] = useState(initialView);
+  const [mapResizeToken, setMapResizeToken] = useState(0);
+  const estimateAttemptedRef = useRef(false);
 
   // Keep local state in sync with URL (supports browser back/forward)
   useEffect(() => {
@@ -45,12 +91,14 @@ export default function ZoosPage() {
     const spVisit = searchParams.get('visit');
     const spVisitNorm =
       spVisit === 'visited' || spVisit === 'not' ? spVisit : 'all';
+    const spView = searchParams.get('view') === 'map' ? 'map' : 'list';
 
     if (spQ !== search) setSearch(spQ);
     if (spQ !== query) setQuery(spQ);
     if (spCont !== continentId) setContinentId(spCont);
     if (spCountry !== countryId) setCountryId(spCountry);
     if (spVisitNorm !== visitFilter) setVisitFilter(spVisitNorm);
+    if (spView !== viewMode) setViewMode(spView);
   }, [searchParams]);
 
   useEffect(() => {
@@ -60,6 +108,7 @@ export default function ZoosPage() {
     if (continentId) next.set('continent', continentId);
     if (countryId) next.set('country', countryId);
     if (visitFilter !== 'all') next.set('visit', visitFilter);
+    if (viewMode === 'map') next.set('view', 'map');
 
     if (next.toString() !== searchParams.toString()) {
       setSearchParams(next, { replace: true });
@@ -69,9 +118,16 @@ export default function ZoosPage() {
     continentId,
     countryId,
     visitFilter,
+    viewMode,
     searchParams,
     setSearchParams,
   ]);
+
+  useEffect(() => {
+    if (viewMode === 'map') {
+      setMapResizeToken((token) => token + 1);
+    }
+  }, [viewMode]);
 
   useEffect(() => {
     fetch(`${API}/zoos/continents`)
@@ -98,11 +154,16 @@ export default function ZoosPage() {
     return () => clearTimeout(id);
   }, [search]);
 
+  const activeLocation = useMemo(
+    () => location || estimatedLocation,
+    [location, estimatedLocation]
+  );
+
   useEffect(() => {
     const params = new URLSearchParams();
-    if (location) {
-      params.set('latitude', location.lat);
-      params.set('longitude', location.lon);
+    if (activeLocation) {
+      params.set('latitude', activeLocation.lat);
+      params.set('longitude', activeLocation.lon);
     }
     if (query) params.set('q', query);
     if (continentId) params.set('continent_id', continentId);
@@ -111,23 +172,74 @@ export default function ZoosPage() {
       .then((r) => (r.ok ? r.json() : []))
       .then(setZoos)
       .catch(() => setZoos([]));
-  }, [location, query, continentId, countryId]);
+  }, [
+    activeLocation?.lat,
+    activeLocation?.lon,
+    query,
+    continentId,
+    countryId,
+  ]);
 
   useEffect(() => {
-    if (navigator.geolocation) {
+    if (estimateAttemptedRef.current) return;
+    estimateAttemptedRef.current = true;
+
+    let cancelled = false;
+    fetch(`${API}/location/estimate`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled) return;
+        const lat = Number(data?.latitude);
+        const lon = Number(data?.longitude);
+        if (Number.isFinite(lat) && Number.isFinite(lon)) {
+          setEstimatedLocation({ lat, lon });
+        } else {
+          setEstimatedLocation(null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setEstimatedLocation(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!navigator?.geolocation) return;
+
+    let cancelled = false;
+    try {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          const loc = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-          setLocation(loc);
-          sessionStorage.setItem('userLocation', JSON.stringify(loc));
+          if (cancelled) return;
+          const lat = Number(pos.coords.latitude);
+          const lon = Number(pos.coords.longitude);
+          if (Number.isFinite(lat) && Number.isFinite(lon)) {
+            const loc = { lat, lon };
+            setLocation(loc);
+            writeStoredLocation(loc);
+          } else {
+            setLocation(null);
+            writeStoredLocation(null);
+          }
         },
         () => {
+          if (cancelled) return;
           setLocation(null);
-          sessionStorage.removeItem('userLocation');
+          writeStoredLocation(null);
         },
         { enableHighAccuracy: false, timeout: 3000, maximumAge: 600000 }
       );
+    } catch (error) {
+      setLocation(null);
+      writeStoredLocation(null);
     }
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -157,8 +269,40 @@ export default function ZoosPage() {
     });
   }, [zoos, visitFilter, visitedSet]);
 
+  const zoosWithCoordinates = useMemo(
+    () =>
+      filtered
+        .map((zoo) => {
+          const coords = normalizeCoordinates(zoo);
+          if (!coords) {
+            return null;
+          }
+          return { ...zoo, ...coords };
+        })
+        .filter(Boolean),
+    [filtered]
+  );
+
+  useEffect(() => {
+    if (import.meta.env.DEV && filtered.length > 0 && zoosWithCoordinates.length === 0) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        'ZoosPage: no coordinate fields found on items. Example keys:',
+        Object.keys(filtered[0] || {})
+      );
+    }
+  }, [filtered, zoosWithCoordinates]);
+
   const localizedName = (item) =>
     lang === 'de' ? item.name_de || item.name_en : item.name_en || item.name_de;
+
+  const handleViewChange = (mode) => {
+    setViewMode(mode);
+  };
+
+  const handleSelectZoo = (zoo) => {
+    navigate(`${prefix}/zoos/${zoo.slug || zoo.id}`);
+  };
 
   return (
     <div className="container">
@@ -272,36 +416,99 @@ export default function ZoosPage() {
           )}
         </div>
       </div>
-      <div className="list-group">
-        {filtered.map((z) => (
-          <Link
-            key={z.id}
-            className="list-group-item list-group-item-action text-start w-100 text-decoration-none text-reset"
-            to={`${prefix}/zoos/${z.slug || z.id}`}
-          >
-            <div className="d-flex justify-content-between">
-              <div>
-                <div className="fw-bold">
-                  {z.city ? `${z.city}: ${z.name}` : z.name}
-                </div>
-                <div className="text-muted">📍 {z.address}</div>
-              </div>
-              <div className="text-end">
-                {z.distance_km != null && (
-                  <div className="small text-muted">
-                    {z.distance_km.toFixed(1)} km
-                  </div>
-                )}
-                {visitedSet.has(String(z.id)) && (
-                  <span className="badge bg-success mt-1">
-                    {t('zoo.visitedOnly')}
-                  </span>
-                )}
-              </div>
-            </div>
-          </Link>
-        ))}
+      <div className="d-flex justify-content-end flex-wrap gap-2 mb-3">
+        <fieldset className="btn-group" role="group" aria-label={t('zoo.viewToggle')}>
+          <legend className="visually-hidden">{t('zoo.viewToggle')}</legend>
+          <input
+            type="radio"
+            className="btn-check"
+            name="zoo-view-mode"
+            id="zoo-view-list"
+            autoComplete="off"
+            checked={viewMode === 'list'}
+            onChange={() => handleViewChange('list')}
+          />
+          <label className="btn btn-outline-primary" htmlFor="zoo-view-list">
+            {t('zoo.viewList')}
+          </label>
+
+          <input
+            type="radio"
+            className="btn-check"
+            name="zoo-view-mode"
+            id="zoo-view-map"
+            autoComplete="off"
+            checked={viewMode === 'map'}
+            onChange={() => handleViewChange('map')}
+          />
+          <label className="btn btn-outline-primary" htmlFor="zoo-view-map">
+            {t('zoo.viewMap')}
+          </label>
+        </fieldset>
       </div>
+      {viewMode === 'list' ? (
+        <div className="list-group">
+          {filtered.map((z) => {
+            const coords = normalizeCoordinates(z);
+            return (
+              <Link
+                key={z.id}
+                className="list-group-item list-group-item-action text-start w-100 text-decoration-none text-reset"
+                to={`${prefix}/zoos/${z.slug || z.id}`}
+              >
+                <div className="d-flex justify-content-between">
+                  <div>
+                    <div className="fw-bold">
+                      {z.city ? `${z.city}: ${z.name}` : z.name}
+                    </div>
+                    {coords && (
+                      <div className="text-muted">
+                        🧭
+                        {` ${t('zoo.coordinates', {
+                          lat: coords.latitude.toFixed(3),
+                          lon: coords.longitude.toFixed(3),
+                        })}`}
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-end">
+                    {z.distance_km != null && (
+                      <div className="small text-muted">
+                        {z.distance_km.toFixed(1)} km
+                      </div>
+                    )}
+                    {visitedSet.has(String(z.id)) && (
+                      <span className="badge bg-success mt-1">
+                        {t('zoo.visitedOnly')}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </Link>
+            );
+          })}
+          {filtered.length === 0 && (
+            <div className="list-group-item text-muted" role="status">
+              {t('zoo.noResults')}
+            </div>
+          )}
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="alert alert-info" role="status">
+          {t('zoo.noResults')}
+        </div>
+      ) : zoosWithCoordinates.length > 0 ? (
+        <ZoosMap
+          zoos={zoosWithCoordinates}
+          center={activeLocation}
+          onSelect={handleSelectZoo}
+          resizeToken={mapResizeToken}
+        />
+      ) : (
+        <div className="alert alert-info" role="status">
+          {t('zoo.noMapResults')}
+        </div>
+      )}
     </div>
   );
 }
