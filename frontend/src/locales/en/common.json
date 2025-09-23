@@ -7,7 +7,7 @@
     "login": "Log In / Sign Up",
     "logout": "Log out",
     "search": "Search",
-    "impress": "Impress",
+    "legalNotice": "Legal Notice",
     "dataProtection": "Data Protection",
     "contact": "Contact"
   },
@@ -72,7 +72,7 @@
     "intro": "We protect your personal data and follow the GDPR. This page outlines what we store, how long we keep it, and why we process it.",
     "controller": {
       "title": "Controller & Contact",
-      "text": "Controller: ZooTracker (Philipp Schlüter), Venloer Str. 720, 50827 Köln, Germany. Contact: <email>contact@zootracker.app</email>. See the <impressum>Impressum</impressum> for full details."
+      "text": "Controller: ZooTracker (Philipp Schlüter), Venloer Str. 720, 50827 Köln, Germany. Contact: <email>{{email}}</email>. See the <legalNotice>Legal Notice</legalNotice> for full details."
     },
     "cookies": {
       "title": "Cookies",
@@ -106,13 +106,37 @@
     },
     "retention": {
       "title": "Retention by data category",
-      "headers": { "data": "Data category", "basis": "Legal basis", "retention": "Retention" },
+      "headers": {
+        "data": "Data category",
+        "basis": "Legal basis",
+        "retention": "Retention"
+      },
       "rows": {
-        "rawLogs": { "data": "Raw logs (full IP)", "basis": "Legitimate interests (security)", "retention": "30 days" },
-        "incident": { "data": "Security-incident records", "basis": "Legitimate interests / defence of claims", "retention": "until investigation concludes and any claims are resolved" },
-        "analytics": { "data": "Long-term analytics (short IP prefix, coarse geo)", "basis": "Legitimate interests", "retention": "longer-term in aggregated form" },
-        "account": { "data": "Account data", "basis": "Contract", "retention": "for the lifetime of the account; then deletion or blocking" },
-        "visits": { "data": "Visits & sightings", "basis": "Contract", "retention": "until you delete them or close the account" }
+        "rawLogs": {
+          "data": "Raw logs (full IP)",
+          "basis": "Legitimate interests (security)",
+          "retention": "30 days"
+        },
+        "incident": {
+          "data": "Security-incident records",
+          "basis": "Legitimate interests / defence of claims",
+          "retention": "until investigation concludes and any claims are resolved"
+        },
+        "analytics": {
+          "data": "Long-term analytics (short IP prefix, coarse geo)",
+          "basis": "Legitimate interests",
+          "retention": "longer-term in aggregated form"
+        },
+        "account": {
+          "data": "Account data",
+          "basis": "Contract",
+          "retention": "for the lifetime of the account; then deletion or blocking"
+        },
+        "visits": {
+          "data": "Visits & sightings",
+          "basis": "Contract",
+          "retention": "until you delete them or close the account"
+        }
       }
     },
     "anonymous": {
@@ -143,7 +167,42 @@
     },
     "rights": {
       "title": "Your rights",
-      "text": "You have the rights of access, rectification, erasure, restriction, portability, and to object (Art. 21 GDPR). You can contact us anytime (see Contact/Impressum). You can lodge a complaint with any EU supervisory authority; locally this is the <authority>Landesbeauftragte für Datenschutz und Informationsfreiheit NRW</authority>."
+      "text": "You have the rights of access, rectification, erasure, restriction, portability, and to object (Art. 21 GDPR). You can contact us anytime (see Contact/Legal Notice). You can lodge a complaint with any EU supervisory authority; locally this is the <authority>Landesbeauftragte für Datenschutz und Informationsfreiheit NRW</authority>."
+    }
+  },
+  "legalNoticePage": {
+    "title": "Impressum / Legal Notice",
+    "seoTitle": "Impressum / Legal Notice",
+    "seoDescription": "Provider identification for ZooTracker under German law (§ 5 DDG and § 18(1) MStV).",
+    "sections": {
+      "de": {
+        "heading": "Impressum",
+        "legalReference": "Angaben gemäß § 5 DDG und § 18 Abs. 1 MStV",
+        "city": "Köln",
+        "country": "Deutschland",
+        "postalLocalityLine": "{{postalCode}} {{city}}",
+        "representativeLine": "{{representative}}",
+        "contactTitle": "Kontakt",
+        "contactForm": "Kontaktformular: <link>über die Website (Menüpunkt „Kontakt“)</link>",
+        "contactEmail": "E-Mail: <email>{{email}}</email>",
+        "vatTitle": "Umsatzsteuer-ID",
+        "vatLabel": "USt-IdNr.",
+        "vatLabelTitle": "Umsatzsteuer-Identifikationsnummer"
+      },
+      "en": {
+        "heading": "Legal Notice",
+        "legalReference": "Provider identification pursuant to § 5 DDG and § 18(1) MStV",
+        "city": "Cologne",
+        "country": "Germany",
+        "postalLocalityLine": "{{postalCode}} {{city}}",
+        "representativeLine": "{{representative}}",
+        "contactTitle": "Contact",
+        "contactForm": "Contact form: <link>via the website (“Contact”)</link>",
+        "contactEmail": "Email: <email>{{email}}</email>",
+        "vatTitle": "VAT ID",
+        "vatLabel": "VAT ID",
+        "vatLabelTitle": "Value added tax identification number"
+      }
     }
   },
   "contactPage": {
