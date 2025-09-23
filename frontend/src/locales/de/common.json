@@ -18,11 +18,11 @@
     "toggleMenu": "Menü ein- und ausblenden",
     "dataProtection": "Datenschutz",
     "contact": "Kontakt",
-    "legalNotice": "Impressum"
+    "legalNotice": "Impressum",
+    "searchGroupZoos": "Zoos",
+    "searchGroupAnimals": "Arten"
   },
   "landing": {
-    "seoTitle": "ZooTracker – Entdecke Zoos und Tierbestände",
-    "seoDescription": "Entdecke, welche Zoos welche Tiere halten, suche Arten und stöbere in Sammlungen weltweit.",
     "hero": {
       "headline": "Entdecke, welche Zoos welche Tiere halten – in deiner Nähe und weltweit.",
       "subline": "Suche Arten, stöbere in Zoos und entdecke eine interaktive Karte aktueller Tierbestände.",
@@ -34,10 +34,6 @@
       "submit": "Suchen"
     },
     "search": {
-      "groups": {
-        "animals": "Arten",
-        "zoos": "Zoos"
-      },
       "noResults": "Keine Treffer – versuche einen anderen Namen."
     },
     "map": {
@@ -70,11 +66,14 @@
     },
     "metrics": {
       "title": "Unsere Daten wachsen stetig",
-      "species": "{{count}} erfasste Arten",
-      "zoos": "{{count}} erfasste Zoos",
-      "countries": "{{count}} vertretene Länder",
-      "sightings": "{{count}} eingetragene Sichtungen",
-      "error": "Die aktuellen Gesamtzahlen konnten nicht geladen werden."
+      "error": "Die aktuellen Gesamtzahlen konnten nicht geladen werden.",
+      "labels": {
+        "species": "Erfasste Arten",
+        "zoos": "Kartierte Zoos",
+        "countries": "Vertretene Länder",
+        "sightings": "Erfasste Beobachtungen"
+      },
+      "loading": "Lade Kennzahlen…"
     },
     "about": {
       "title": "Was ist ZooTracker?",
@@ -122,6 +121,10 @@
       "subtitle": "Starte mit der Karte oder suche direkt nach deinen Lieblingstieren.",
       "primaryCta": "Karte öffnen",
       "secondaryCta": "Tiere suchen"
+    },
+    "seo": {
+      "title": "ZooTracker – Entdecke Zoos und Tierbestände",
+      "description": "Entdecke, welche Zoos welche Tiere halten, suche Arten und stöbere in Sammlungen weltweit."
     }
   },
   "zoo": {

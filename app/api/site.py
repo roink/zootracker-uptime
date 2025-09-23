@@ -1,6 +1,6 @@
 """Public endpoints that power the marketing landing page."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -11,7 +11,9 @@ router = APIRouter()
 
 
 @router.get("/site/summary", response_model=schemas.SiteSummary)
-def get_site_summary(db: Session = Depends(get_db)) -> schemas.SiteSummary:
+def get_site_summary(
+    response: Response, db: Session = Depends(get_db)
+) -> schemas.SiteSummary:
     """Return aggregate counts for species, zoos, countries and sightings."""
 
     species_count = db.query(func.count(models.Animal.id)).scalar() or 0
@@ -23,6 +25,10 @@ def get_site_summary(db: Session = Depends(get_db)) -> schemas.SiteSummary:
         or 0
     )
     sighting_count = db.query(func.count(models.AnimalSighting.id)).scalar() or 0
+
+    response.headers[
+        "Cache-Control"
+    ] = "public, max-age=300, stale-while-revalidate=600"
 
     return schemas.SiteSummary(
         species=species_count,

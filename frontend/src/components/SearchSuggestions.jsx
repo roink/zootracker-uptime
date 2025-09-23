@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 
 // Dropdown list showing search suggestions below the header search field.
 // Listbox options follow the ARIA pattern so screen readers announce
@@ -10,6 +11,48 @@ export default function SearchSuggestions({
   onSelect,
   onActivate,
 }) {
+  const items = useMemo(() => {
+    const rendered = [];
+    options.forEach((option, index) => {
+      if (option.firstInGroup && option.groupLabel) {
+        rendered.push(
+          <li
+            role="presentation"
+            className="list-group-item search-suggestions-group"
+            key={`${option.groupKey}-heading`}
+          >
+            {option.groupLabel}
+          </li>
+        );
+      }
+      const isActive = index === activeIndex;
+      rendered.push(
+        <li
+          key={option.key}
+          id={option.id}
+          role="option"
+          aria-selected={isActive ? 'true' : 'false'}
+          className={`list-group-item${isActive ? ' active' : ''}`}
+          onPointerDown={(event) => {
+            event.preventDefault();
+            onSelect(option);
+          }}
+          onMouseEnter={() => onActivate?.(index)}
+          onMouseMove={() => onActivate?.(index)}
+          onClick={() => onSelect(option)}
+        >
+          <div className="search-suggestion-primary">{option.label}</div>
+          {option.secondary ? (
+            <div className="search-suggestion-secondary text-muted small">
+              {option.secondary}
+            </div>
+          ) : null}
+        </li>
+      );
+    });
+    return rendered;
+  }, [options, activeIndex, onSelect, onActivate]);
+
   return (
     <ul
       className="list-group position-absolute top-100 start-0 search-suggestions"
@@ -17,26 +60,7 @@ export default function SearchSuggestions({
       id={id}
       aria-labelledby={labelledBy}
     >
-      {options.map((option, index) => {
-        const isActive = index === activeIndex;
-        return (
-          <li
-            key={option.key}
-            id={option.id}
-            role="option"
-            aria-selected={isActive ? 'true' : 'false'}
-            className={`list-group-item${isActive ? ' active' : ''}`}
-            onPointerDown={(event) => {
-              event.preventDefault();
-              onSelect(option.type, option.value);
-            }}
-            onMouseEnter={() => onActivate?.(index)}
-            onMouseMove={() => onActivate?.(index)}
-          >
-            {option.label}
-          </li>
-        );
-      })}
+      {items}
     </ul>
   );
 }
