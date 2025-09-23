@@ -335,11 +335,6 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
               <span className="badge bg-light text-muted border">{animal.taxon_rank}</span>
             </div>
           )}
-          {animal.category && (
-            <span className="category-badge">
-              {animal.category}
-            </span>
-          )}
           {(className || orderName || familyName) && (
             <dl className="small mt-2 mb-0">
               {className && (
