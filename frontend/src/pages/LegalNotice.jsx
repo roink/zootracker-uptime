@@ -88,7 +88,6 @@ export default function LegalNoticePage() {
         description={t('legalNoticePage.seoDescription')}
         canonical={`${prefix}/legal-notice`}
       />
-      <h1>{t('legalNoticePage.title')}</h1>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }}
