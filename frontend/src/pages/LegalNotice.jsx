@@ -3,64 +3,64 @@ import { Link, useParams } from 'react-router-dom';
 import { Trans, useTranslation } from 'react-i18next';
 import Seo from '../components/Seo';
 import { ORG } from '../config/org';
+import { DEFAULT_LANG, normalizeLang } from '../i18n';
 
 // Legal notice page showing German and English provider identification.
 export default function LegalNoticePage() {
   const { lang } = useParams();
   const { t } = useTranslation();
-  const langSegment = typeof lang === 'string' && lang.length > 0 ? lang : 'en';
-  const prefix = `/${langSegment}`;
+  const langSegment =
+    typeof lang === 'string' && lang.length > 0 ? lang : DEFAULT_LANG;
+  const normalizedLang = normalizeLang(langSegment);
+  const prefix = `/${normalizedLang}`;
 
-  const orderedSections = ['de', 'en']
-    .map((code) => {
-      const keyPrefix = `legalNoticePage.sections.${code}`;
-      const base = t(keyPrefix, { returnObjects: true });
-      if (!base || typeof base !== 'object') {
-        return null;
-      }
+  const sections = t('legalNoticePage.sections', { returnObjects: true }) || {};
+  const hasActiveSection =
+    sections && Object.prototype.hasOwnProperty.call(sections, normalizedLang);
+  const displayLang = hasActiveSection ? normalizedLang : DEFAULT_LANG;
+  const sectionKeyPrefix = `legalNoticePage.sections.${displayLang}`;
+  const sectionContent = sections[displayLang] || {};
+  const {
+    heading = '',
+    legalReference,
+    contactTitle = '',
+    vatTitle = '',
+    vatLabel = '',
+    vatLabelTitle,
+  } = sectionContent;
 
-      const representativeLine = t(`${keyPrefix}.representativeLine`, {
-        representative: ORG.representative,
-        defaultValue: ORG.representative,
-      });
+  const representativeLine = t(`${sectionKeyPrefix}.representativeLine`, {
+    representative: ORG.representative,
+    defaultValue: ORG.representative,
+  });
 
-      const city =
-        typeof base.city === 'string' && base.city.trim().length > 0
-          ? base.city
-          : ORG.address.addressLocality;
+  const city =
+    typeof sectionContent.city === 'string' &&
+    sectionContent.city.trim().length > 0
+      ? sectionContent.city
+      : ORG.address.addressLocality;
 
-      const postalLocalityLine = t(`${keyPrefix}.postalLocalityLine`, {
-        postalCode: ORG.address.postalCode,
-        city,
-        defaultValue: `${ORG.address.postalCode} ${city}`,
-      });
+  const postalLocalityLine = t(`${sectionKeyPrefix}.postalLocalityLine`, {
+    postalCode: ORG.address.postalCode,
+    city,
+    defaultValue: `${ORG.address.postalCode} ${city}`,
+  });
 
-      const country =
-        typeof base.country === 'string' && base.country.trim().length > 0
-          ? base.country
-          : ORG.address.addressCountry;
+  const country =
+    typeof sectionContent.country === 'string' &&
+    sectionContent.country.trim().length > 0
+      ? sectionContent.country
+      : ORG.address.addressCountry;
 
-      const addressLines = [
-        ORG.legalName,
-        representativeLine,
-        ORG.address.streetAddress,
-        postalLocalityLine,
-        country,
-      ].filter((line) => typeof line === 'string' && line.trim().length > 0);
+  const addressLines = [
+    ORG.legalName,
+    representativeLine,
+    ORG.address.streetAddress,
+    postalLocalityLine,
+    country,
+  ].filter((line) => typeof line === 'string' && line.trim().length > 0);
 
-      return {
-        code,
-        keyPrefix,
-        heading: base.heading,
-        legalReference: base.legalReference,
-        contactTitle: base.contactTitle,
-        vatTitle: base.vatTitle,
-        vatLabel: base.vatLabel,
-        vatLabelTitle: base.vatLabelTitle,
-        addressLines,
-      };
-    })
-    .filter(Boolean);
+  const anchorId = `legal-notice-${displayLang}`;
 
   const orgJsonLd = {
     '@context': 'https://schema.org',
@@ -92,55 +92,46 @@ export default function LegalNoticePage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }}
       />
-      <div className="row">
-        {orderedSections.map((section) => {
-          const anchorId = `legal-notice-${section.code}`;
-          return (
-            <div className="col-md-6 mb-4" key={section.code}>
-              <section lang={section.code} aria-labelledby={anchorId}>
-                <h3 id={anchorId}>{section.heading}</h3>
-                {section.legalReference ? <p>{section.legalReference}</p> : null}
-                <address className="mb-2">
-                  {section.addressLines.map((line, index) => (
-                    <Fragment key={`${line}-${index}`}>
-                      {index === 0 ? <strong>{line}</strong> : line}
-                      {index < section.addressLines.length - 1 ? <br /> : null}
-                    </Fragment>
-                  ))}
-                </address>
-                <h4>{section.contactTitle}</h4>
-                <p className="mb-2">
-                  <Trans
-                    i18nKey={`${section.keyPrefix}.contactForm`}
-                    components={{ link: <Link to={`${prefix}/contact`} /> }}
-                  />
-                  <br />
-                  <Trans
-                    i18nKey={`${section.keyPrefix}.contactEmail`}
-                    values={{ email: ORG.email }}
-                    components={{
-                      email: (
-                        <a href={`mailto:${ORG.email}`}>{ORG.email}</a>
-                      ),
-                    }}
-                  />
-                </p>
-                <h4>{section.vatTitle}</h4>
-                <dl className="mb-0">
-                  <dt>
-                    {section.vatLabelTitle ? (
-                      <abbr title={section.vatLabelTitle}>{section.vatLabel}</abbr>
-                    ) : (
-                      section.vatLabel
-                    )}
-                  </dt>
-                  <dd className="mb-0">{ORG.vatID}</dd>
-                </dl>
-              </section>
-            </div>
-          );
-        })}
-      </div>
+      <section lang={displayLang} aria-labelledby={anchorId}>
+        <h3 id={anchorId}>{heading}</h3>
+        {legalReference ? <p>{legalReference}</p> : null}
+        <address className="mb-2">
+          {addressLines.map((line, index) => (
+            <Fragment key={`${line}-${index}`}>
+              {index === 0 ? <strong>{line}</strong> : line}
+              {index < addressLines.length - 1 ? <br /> : null}
+            </Fragment>
+          ))}
+        </address>
+        <h4>{contactTitle}</h4>
+        <p className="mb-2">
+          <Trans
+            i18nKey={`${sectionKeyPrefix}.contactForm`}
+            components={{ link: <Link to={`${prefix}/contact`} /> }}
+          />
+          <br />
+          <Trans
+            i18nKey={`${sectionKeyPrefix}.contactEmail`}
+            values={{ email: ORG.email }}
+            components={{
+              email: <a href={`mailto:${ORG.email}`}>{ORG.email}</a>,
+            }}
+          />
+        </p>
+        <h4>{vatTitle}</h4>
+        <dl className="mb-0">
+          <dt>
+            {vatLabelTitle ? (
+              <abbr title={vatLabelTitle}>
+                {vatLabel}
+              </abbr>
+            ) : (
+              vatLabel
+            )}
+          </dt>
+          <dd className="mb-0">{ORG.vatID}</dd>
+        </dl>
+      </section>
     </div>
   );
 }
