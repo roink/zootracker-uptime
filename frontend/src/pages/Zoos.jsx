@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate, useSearchParams, useParams } from 'react-router-dom';
+import { Link, useSearchParams, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
@@ -9,7 +9,6 @@ import { useAuth } from '../auth/AuthContext.jsx';
 // Listing page showing all zoos with search, region filters and visit status.
 
 export default function ZoosPage() {
-  const navigate = useNavigate();
   const { lang } = useParams();
   const prefix = `/${lang}`;
   const [searchParams, setSearchParams] = useSearchParams();
@@ -275,11 +274,10 @@ export default function ZoosPage() {
       </div>
       <div className="list-group">
         {filtered.map((z) => (
-          <button
+          <Link
             key={z.id}
-            type="button"
-            className="list-group-item list-group-item-action text-start w-100"
-            onClick={() => navigate(`${prefix}/zoos/${z.slug || z.id}`)}
+            className="list-group-item list-group-item-action text-start w-100 text-decoration-none text-reset"
+            to={`${prefix}/zoos/${z.slug || z.id}`}
           >
             <div className="d-flex justify-content-between">
               <div>
@@ -301,7 +299,7 @@ export default function ZoosPage() {
                 )}
               </div>
             </div>
-          </button>
+          </Link>
         ))}
       </div>
     </div>
