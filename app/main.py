@@ -3,6 +3,7 @@
 import logging
 import os
 import smtplib
+import ssl
 import uuid
 from email.message import EmailMessage
 
@@ -59,7 +60,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 # register rate limiting middleware
@@ -75,6 +76,12 @@ def require_json(request: Request) -> None:
     """Ensure the request uses a JSON content-type."""
     if not request.headers.get("content-type", "").lower().startswith("application/json"):
         raise HTTPException(status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE)
+
+
+def _strip_crlf(value: str) -> str:
+    """Remove CR/LF characters from header values."""
+
+    return value.replace("\r", "").replace("\n", "")
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
@@ -319,20 +326,30 @@ def delete_sighting(
 
 def _send_contact_email(host, port, use_ssl, user, password, from_addr, to_addr, reply_to, name, msg_text):
     """Send the contact email synchronously in a background task."""
+    context = ssl.create_default_context()
+    safe_name = _strip_crlf(name)
+    safe_reply_to = _strip_crlf(reply_to)
     email_msg = EmailMessage()
-    email_msg["Subject"] = f"Contact form – {name}"
+    email_msg["Subject"] = f"Contact form – {safe_name}"
     email_msg["From"] = from_addr
     email_msg["To"] = to_addr
-    email_msg["Reply-To"] = reply_to
-    email_msg.set_content(f"From: {name} <{reply_to}>\n\n{msg_text}")
+    email_msg["Reply-To"] = safe_reply_to
+    email_msg.set_content(f"From: {safe_name} <{safe_reply_to}>\n\n{msg_text}")
     try:
-        server_cls = smtplib.SMTP_SSL if use_ssl else smtplib.SMTP
-        with server_cls(host, port) as server:
-            if not use_ssl:
-                server.starttls()
-            if user and password:
-                server.login(user, password)
-            server.send_message(email_msg)
+        if use_ssl:
+            with smtplib.SMTP_SSL(host, port, context=context, timeout=10) as server:
+                server.ehlo()
+                if user and password:
+                    server.login(user, password)
+                server.send_message(email_msg)
+        else:
+            with smtplib.SMTP(host, port, timeout=10) as server:
+                server.ehlo()
+                server.starttls(context=context)
+                server.ehlo()
+                if user and password:
+                    server.login(user, password)
+                server.send_message(email_msg)
     except Exception:
         logger.exception(
             "Failed to send contact email",
@@ -350,10 +367,10 @@ def _send_contact_email(host, port, use_ssl, user, password, from_addr, to_addr,
 )
 def send_contact(message: schemas.ContactMessage, request: Request, background_tasks: BackgroundTasks) -> Response:
     """Send a contact message via email and log the submission."""
+    ua = request.headers.get("User-Agent", "unknown")
     name = bleach.clean(message.name, tags=[], strip=True)
     msg_text = bleach.clean(message.message, tags=[], strip=True)
     ip = get_client_ip(request)
-    ua = request.headers.get("User-Agent", "unknown")
     safe_ip = getattr(request.state, "client_ip_logged", anonymize_ip(ip))
     email_domain = message.email.split("@", 1)[1] if "@" in message.email else "unknown"
     logger.info(
@@ -407,6 +424,7 @@ def send_contact(message: schemas.ContactMessage, request: Request, background_t
     remaining = getattr(request.state, "rate_limit_remaining", None)
     if remaining is not None:
         response.headers["X-RateLimit-Remaining"] = str(remaining)
+    _set_request_id_header(response, request)
     return response
 
 
