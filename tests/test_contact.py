@@ -1,9 +1,5 @@
-import hashlib
-import hmac
 import os
 import smtplib
-import time
-import uuid
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
@@ -14,34 +10,17 @@ from .conftest import client
 
 
 DEFAULT_USER_AGENT = "pytest-agent/1.0"
-CONTACT_SECRET = os.getenv("CONTACT_TOKEN_SECRET", "test-contact-secret")
-
-
-def _sign(rendered_at: int, user_agent: str, nonce: str) -> str:
-    payload = f"{rendered_at}|{user_agent}|{nonce}".encode("utf-8")
-    return hmac.new(CONTACT_SECRET.encode("utf-8"), payload, hashlib.sha256).hexdigest()
 
 
 def build_contact_payload(
     name: str = "Alice",
     email: str = "a@example.com",
     message: str = "Hello world!",
-    *,
-    user_agent: str = DEFAULT_USER_AGENT,
-    rendered_at: int | None = None,
-    nonce: str | None = None,
 ):
-    if rendered_at is None:
-        rendered_at = int(time.time() * 1000) - 5000
-    if nonce is None:
-        nonce = uuid.uuid4().hex
     return {
         "name": name,
         "email": email,
         "message": message,
-        "rendered_at": rendered_at,
-        "client_nonce": nonce,
-        "signature": _sign(rendered_at, user_agent, nonce),
     }
 
 
@@ -77,18 +56,12 @@ def payload_empty_message():
     return payload
 
 
-def payload_missing_signature():
-    payload = build_contact_payload()
-    payload.pop("signature")
-    return payload
-
-
 def _dummy_smtp_factory(sent_messages):
     class DummySMTP:
         def __init__(self, *args, **kwargs):
             pass
 
-        def starttls(self):
+        def starttls(self, *args, **kwargs):
             pass
 
         def login(self, user, password):
@@ -96,6 +69,9 @@ def _dummy_smtp_factory(sent_messages):
 
         def send_message(self, msg):
             sent_messages.append(msg)
+
+        def ehlo(self):
+            pass
 
         def __enter__(self):
             return self
@@ -250,13 +226,82 @@ def test_contact_rate_limit_headers(monkeypatch):
         payload_missing_name,
         payload_invalid_email,
         payload_empty_message,
-        payload_missing_signature,
     ],
 )
 def test_contact_invalid_payload(monkeypatch, payload_factory):
     monkeypatch.setattr(rate_limit, "contact_limiter", RateLimiter(100, 60))
     resp = post_contact(payload_factory())
     assert resp.status_code == 422
+
+
+def test_contact_strips_header_injection(monkeypatch):
+    sent = []
+    monkeypatch.setenv("SMTP_HOST", "smtp.test")
+    monkeypatch.setenv("SMTP_PORT", "587")
+    monkeypatch.setenv("SMTP_USER", "user")
+    monkeypatch.setenv("SMTP_PASSWORD", "pass")
+    monkeypatch.setenv("SMTP_FROM", "contact@zootracker.app")
+    monkeypatch.setenv("CONTACT_EMAIL", "contact@zootracker.app")
+    monkeypatch.setattr(smtplib, "SMTP", _dummy_smtp_factory(sent))
+
+    payload = build_contact_payload(
+        name="Alice\r\nBcc: attacker@example.com",
+        email="a@example.com",
+        message="Hello there!",
+    )
+    resp = post_contact(payload)
+    assert resp.status_code == 204
+    msg = sent[0]
+    assert msg["Reply-To"] == "a@example.com"
+    assert msg["Subject"] == "Contact form – AliceBcc: attacker@example.com"
+
+
+def test_send_contact_email_sanitizes_reply_to(monkeypatch):
+    sent = []
+
+    def smtp_factory(*args, **kwargs):
+        return _dummy_smtp_factory(sent)(*args, **kwargs)
+
+    monkeypatch.setattr(smtplib, "SMTP", smtp_factory)
+    monkeypatch.setattr(smtplib, "SMTP_SSL", smtp_factory)
+
+    from app.main import _send_contact_email
+
+    _send_contact_email(
+        host="smtp.test",
+        port=587,
+        use_ssl=False,
+        user="",
+        password="",
+        from_addr="contact@zootracker.app",
+        to_addr="contact@zootracker.app",
+        reply_to="a@example.com\r\nBcc: attacker@example.com",
+        name="Alice",
+        msg_text="Hello there!",
+    )
+
+    assert sent, "Expected email to be queued"
+    msg = sent[0]
+    header_value = msg["Reply-To"]
+    assert "\r" not in header_value and "\n" not in header_value
+    assert header_value.startswith("a@example.com")
+    assert "attacker@example.com" not in header_value
+    assert msg["Subject"] == "Contact form – Alice"
+
+
+def test_contact_sets_request_id_header(monkeypatch):
+    sent = []
+    monkeypatch.setenv("SMTP_HOST", "smtp.test")
+    monkeypatch.setenv("SMTP_PORT", "587")
+    monkeypatch.setenv("SMTP_USER", "user")
+    monkeypatch.setenv("SMTP_PASSWORD", "pass")
+    monkeypatch.setenv("SMTP_FROM", "contact@zootracker.app")
+    monkeypatch.setenv("CONTACT_EMAIL", "contact@zootracker.app")
+    monkeypatch.setattr(smtplib, "SMTP", _dummy_smtp_factory(sent))
+
+    resp = post_contact(build_contact_payload())
+    assert resp.status_code == 204
+    assert "X-Request-ID" in resp.headers
 
 
 def test_contact_accepts_unicode_name(monkeypatch):

@@ -5,37 +5,6 @@ import { API } from '../api';
 import Seo from '../components/Seo';
 import useLang from '../hooks/useLang';
 
-function generateNonce() {
-  if (typeof window !== 'undefined' && window.crypto?.getRandomValues) {
-    const bytes = new Uint8Array(16);
-    window.crypto.getRandomValues(bytes);
-    return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
-  }
-  return Math.random().toString(36).slice(2, 18);
-}
-
-async function createSignature(secret, renderedAt, userAgent, nonce) {
-  if (typeof window === 'undefined' || !window.crypto?.subtle) {
-    return '';
-  }
-  const encoder = new TextEncoder();
-  const key = await window.crypto.subtle.importKey(
-    'raw',
-    encoder.encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign'],
-  );
-  const signatureBuffer = await window.crypto.subtle.sign(
-    'HMAC',
-    key,
-    encoder.encode(`${renderedAt}|${userAgent}|${nonce}`),
-  );
-  return Array.from(new Uint8Array(signatureBuffer))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
-}
-
 // Contact form where users can send a name, email and message.
 export default function ContactPage() {
   const { t } = useTranslation();
@@ -56,29 +25,6 @@ export default function ContactPage() {
   const [honeypot, setHoneypot] = useState('');
   const [statusKey, setStatusKey] = useState(null);
   const [sending, setSending] = useState(false);
-  const [renderedAt, setRenderedAt] = useState(() => Date.now());
-  const [clientNonce, setClientNonce] = useState(() => generateNonce());
-  const [signature, setSignature] = useState('');
-
-  useEffect(() => {
-    let active = true;
-    const secret = import.meta.env.VITE_CONTACT_TOKEN_SECRET || 'dev-contact-secret';
-    const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown';
-    createSignature(secret, renderedAt, userAgent, clientNonce)
-      .then((value) => {
-        if (active) {
-          setSignature(value);
-        }
-      })
-      .catch(() => {
-        if (active) {
-          setSignature('');
-        }
-      });
-    return () => {
-      active = false;
-    };
-  }, [renderedAt, clientNonce]);
 
   useEffect(() => {
     if (!statusKey || statusKey === 'contactPage.status.success') {
@@ -111,11 +57,6 @@ export default function ContactPage() {
       return;
     }
 
-    if (!signature) {
-      setStatusKey('contactPage.status.validation');
-      return;
-    }
-
     setSending(true);
     try {
       const resp = await fetch(`${API}/contact`, {
@@ -126,9 +67,6 @@ export default function ContactPage() {
           name,
           email,
           message,
-          rendered_at: renderedAt,
-          client_nonce: clientNonce,
-          signature,
         }),
       });
       if (resp.ok) {
@@ -140,9 +78,6 @@ export default function ContactPage() {
         setHoneypot('');
         const nextStart = Date.now();
         formStartRef.current = nextStart;
-        setSignature('');
-        setRenderedAt(nextStart);
-        setClientNonce(generateNonce());
       } else if (resp.status === 429) {
         // Show specific guidance when the rate limit is hit
         setStatusKey('contactPage.status.rateLimit');
@@ -282,9 +217,6 @@ export default function ContactPage() {
             onChange={(e) => setHoneypot(e.target.value)}
           />
         </div>
-        <input type="hidden" name="rendered_at" value={renderedAt} readOnly />
-        <input type="hidden" name="client_nonce" value={clientNonce} readOnly />
-        <input type="hidden" name="signature" value={signature} readOnly />
         <button type="submit" className="btn btn-success" disabled={sending}>
           {sending ? t('contactPage.submitting') : t('contactPage.submit')}
         </button>

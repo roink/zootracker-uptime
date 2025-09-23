@@ -1,13 +1,11 @@
 """FastAPI application providing the Zoo Tracker API."""
 
-import hashlib
-import hmac
 import logging
 import os
 import smtplib
+import ssl
 import uuid
 from email.message import EmailMessage
-import time
 
 from contextlib import asynccontextmanager
 
@@ -37,9 +35,6 @@ configure_logging()
 logger = logging.getLogger("app.main")
 audit_logger = logging.getLogger("app.audit")
 
-CONTACT_TOKEN_SECRET = os.getenv("CONTACT_TOKEN_SECRET", "dev-contact-secret")
-CONTACT_TOKEN_MIN_AGE_MS = int(os.getenv("CONTACT_TOKEN_MIN_AGE_MS", "3000"))
-
 
 def _check_env_vars() -> None:
     """Fail fast if required environment variables are missing."""
@@ -65,7 +60,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 # register rate limiting middleware
@@ -83,13 +78,10 @@ def require_json(request: Request) -> None:
         raise HTTPException(status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE)
 
 
-def _sign_contact_payload(rendered_at: int, user_agent: str, client_nonce: str) -> str:
-    """Create a deterministic signature for the contact form payload."""
+def _strip_crlf(value: str) -> str:
+    """Remove CR/LF characters from header values."""
 
-    payload = f"{rendered_at}|{user_agent}|{client_nonce}".encode("utf-8")
-    secret = CONTACT_TOKEN_SECRET.encode("utf-8")
-    digest = hmac.new(secret, payload, hashlib.sha256).hexdigest()
-    return digest
+    return value.replace("\r", "").replace("\n", "")
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
@@ -334,20 +326,30 @@ def delete_sighting(
 
 def _send_contact_email(host, port, use_ssl, user, password, from_addr, to_addr, reply_to, name, msg_text):
     """Send the contact email synchronously in a background task."""
+    context = ssl.create_default_context()
+    safe_name = _strip_crlf(name)
+    safe_reply_to = _strip_crlf(reply_to)
     email_msg = EmailMessage()
-    email_msg["Subject"] = f"Contact form – {name}"
+    email_msg["Subject"] = f"Contact form – {safe_name}"
     email_msg["From"] = from_addr
     email_msg["To"] = to_addr
-    email_msg["Reply-To"] = reply_to
-    email_msg.set_content(f"From: {name} <{reply_to}>\n\n{msg_text}")
+    email_msg["Reply-To"] = safe_reply_to
+    email_msg.set_content(f"From: {safe_name} <{safe_reply_to}>\n\n{msg_text}")
     try:
-        server_cls = smtplib.SMTP_SSL if use_ssl else smtplib.SMTP
-        with server_cls(host, port) as server:
-            if not use_ssl:
-                server.starttls()
-            if user and password:
-                server.login(user, password)
-            server.send_message(email_msg)
+        if use_ssl:
+            with smtplib.SMTP_SSL(host, port, context=context, timeout=10) as server:
+                server.ehlo()
+                if user and password:
+                    server.login(user, password)
+                server.send_message(email_msg)
+        else:
+            with smtplib.SMTP(host, port, timeout=10) as server:
+                server.ehlo()
+                server.starttls(context=context)
+                server.ehlo()
+                if user and password:
+                    server.login(user, password)
+                server.send_message(email_msg)
     except Exception:
         logger.exception(
             "Failed to send contact email",
@@ -366,20 +368,6 @@ def _send_contact_email(host, port, use_ssl, user, password, from_addr, to_addr,
 def send_contact(message: schemas.ContactMessage, request: Request, background_tasks: BackgroundTasks) -> Response:
     """Send a contact message via email and log the submission."""
     ua = request.headers.get("User-Agent", "unknown")
-    expected_sig = _sign_contact_payload(message.rendered_at, ua, message.client_nonce)
-    if not hmac.compare_digest(expected_sig, message.signature):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="invalid_signature",
-        )
-
-    now_ms = int(time.time() * 1000)
-    if now_ms - message.rendered_at < CONTACT_TOKEN_MIN_AGE_MS:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="too_fast",
-        )
-
     name = bleach.clean(message.name, tags=[], strip=True)
     msg_text = bleach.clean(message.message, tags=[], strip=True)
     ip = get_client_ip(request)
@@ -436,6 +424,7 @@ def send_contact(message: schemas.ContactMessage, request: Request, background_t
     remaining = getattr(request.state, "rate_limit_remaining", None)
     if remaining is not None:
         response.headers["X-RateLimit-Remaining"] = str(remaining)
+    _set_request_id_header(response, request)
     return response
 
 

@@ -1,6 +1,6 @@
 import React from 'react';
 import '@testing-library/jest-dom';
-import { screen, cleanup, waitFor } from '@testing-library/react';
+import { screen, cleanup } from '@testing-library/react';
 import { Routes, Route } from 'react-router-dom';
 import { describe, it, expect, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
@@ -57,17 +57,6 @@ describe('ContactPage form behavior', () => {
 
   beforeEach(async () => {
     nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => 0);
-    if (!globalThis.crypto?.subtle) {
-      const { webcrypto } = await import('node:crypto');
-      Object.defineProperty(globalThis, 'crypto', {
-        value: webcrypto,
-        configurable: true,
-      });
-      Object.defineProperty(window, 'crypto', {
-        value: webcrypto,
-        configurable: true,
-      });
-    }
     await loadLocale('en');
   });
 
@@ -81,16 +70,11 @@ describe('ContactPage form behavior', () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: false,
       status: 422,
-      json: () => Promise.resolve({ detail: 'invalid_signature' }),
+      json: () => Promise.resolve({ detail: 'validation_error' }),
     });
     vi.stubGlobal('fetch', fetchMock);
 
     renderContact('/en/contact');
-    await waitFor(() => {
-      const signatureField = document.querySelector('input[name="signature"]');
-      expect(signatureField).not.toBeNull();
-      expect(signatureField.value).toMatch(/^[0-9a-f]{64}$/i);
-    });
 
     const user = userEvent.setup();
     await user.type(screen.getByLabelText('Name'), 'Alice Example');
@@ -107,9 +91,11 @@ describe('ContactPage form behavior', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [, options] = fetchMock.mock.calls[0];
     const payload = JSON.parse(options.body);
-    expect(payload.rendered_at).toBeGreaterThanOrEqual(0);
-    expect(payload.client_nonce).toMatch(/[0-9a-f]{16,32}/i);
-    expect(payload.signature).toMatch(/^[0-9a-f]{64}$/i);
+    expect(payload).toEqual({
+      name: 'Alice Example',
+      email: 'alice@example.com',
+      message: 'Hello there friend!',
+    });
   });
 
   it('announces rate limiting with a warning alert that receives focus', async () => {
@@ -117,11 +103,6 @@ describe('ContactPage form behavior', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     renderContact('/en/contact');
-    await waitFor(() => {
-      const signatureField = document.querySelector('input[name="signature"]');
-      expect(signatureField).not.toBeNull();
-      expect(signatureField.value).toMatch(/^[0-9a-f]{64}$/i);
-    });
 
     const user = userEvent.setup();
     await user.type(screen.getByLabelText('Name'), 'Alice Example');
