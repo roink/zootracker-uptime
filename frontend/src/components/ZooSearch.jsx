@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { API } from '../api';
+import { getZooDisplayName } from '../utils/zooDisplayName.js';
 
 // Simple search component used by the legacy zoos page
 export default function ZooSearch({ onSelectZoo }) {
@@ -31,7 +32,7 @@ export default function ZooSearch({ onSelectZoo }) {
         {zoos.map((z) => (
           <li key={z.id} className="list-group-item">
             <button className="btn btn-link" onClick={() => onSelectZoo(z)}>
-              {z.city ? `${z.city}: ${z.name}` : z.name}
+              {getZooDisplayName(z)}
             </button>
           </li>
         ))}

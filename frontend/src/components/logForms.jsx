@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useId, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { API } from '../api';
+import { getZooDisplayName } from '../utils/zooDisplayName.js';
 
 import useAuthFetch from '../hooks/useAuthFetch';
 import useSearchSuggestions from '../hooks/useSearchSuggestions';
@@ -101,7 +102,7 @@ export function LogSighting({
 
   useEffect(() => {
     const z = zoos.find(z => z.id === (zooId || defaultZooId));
-    if (z) setZooInput(z.name);
+    if (z) setZooInput(getZooDisplayName(z));
   }, [zoos, zooId, defaultZooId]);
 
   useEffect(() => {
@@ -131,7 +132,7 @@ export function LogSighting({
       zooBlurTimeout.current = null;
     }
     setZooId(z.id);
-    setZooInput(z.name);
+    setZooInput(getZooDisplayName(z));
     setZooFocused(false);
     setZooActiveIndex(-1);
   }, []);
@@ -358,7 +359,7 @@ export function LogSighting({
                   onMouseEnter={() => setZooActiveIndex(index)}
                   onMouseMove={() => setZooActiveIndex(index)}
                 >
-                  {z.name}
+                  {getZooDisplayName(z)}
                 </li>
               );
             })}

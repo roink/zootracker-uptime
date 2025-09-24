@@ -3,6 +3,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { API } from '../api';
 import Seo from '../components/Seo';
+import { getZooDisplayName } from '../utils/zooDisplayName.js';
 
 export default function SearchPage() {
   const { lang } = useParams();
@@ -121,7 +122,9 @@ export default function SearchPage() {
               )}
               {hasQuery && !isLoading && !hasError && zoos.length > 0 && (
                 <ul className="list-group">
-                  {zoos.map((z) => (
+                  {zoos.map((z) => {
+                    const displayName = getZooDisplayName(z);
+                    return (
                     <li
                       key={z.slug || z.id}
                       className="list-group-item p-0 border-0"
@@ -131,14 +134,15 @@ export default function SearchPage() {
                         className="list-group-item list-group-item-action text-start w-100 border-0"
                       >
                         <div className="fw-bold">
-                          {z.city ? `${z.city}: ${z.name}` : z.name}
+                          {displayName}
                         </div>
                         {z.city && (
                           <div className="text-muted small">{z.city}</div>
                         )}
                       </Link>
                     </li>
-                  ))}
+                  );
+                  })}
                 </ul>
               )}
             </div>

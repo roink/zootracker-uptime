@@ -7,6 +7,7 @@ import Seo from '../components/Seo';
 import { useAuth } from '../auth/AuthContext.jsx';
 import ZoosMap from '../components/ZoosMap.jsx';
 import { normalizeCoordinates } from '../utils/coordinates.js';
+import { getZooDisplayName } from '../utils/zooDisplayName.js';
 
 const LOCATION_STORAGE_KEY = 'userLocation';
 
@@ -459,7 +460,7 @@ export default function ZoosPage() {
                 <div className="d-flex justify-content-between">
                   <div>
                     <div className="fw-bold">
-                      {z.city ? `${z.city}: ${z.name}` : z.name}
+                      {getZooDisplayName(z)}
                     </div>
                     {coords && (
                       <div className="text-muted">

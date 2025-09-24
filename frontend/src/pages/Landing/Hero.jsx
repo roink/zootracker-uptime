@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom';
 import LazyMap from '../../components/LazyMap';
 import useSearchSuggestions from '../../hooks/useSearchSuggestions';
+import { getZooDisplayName } from '../../utils/zooDisplayName.js';
 import LandingSuggestionList from './SuggestionList';
 
 // Hero section with search, CTAs and a live map preview.
@@ -78,7 +79,7 @@ export default function Hero({
       const groupLabel = t('nav.searchGroupZoos');
       results.zoos.forEach((zoo, index) => {
         const identifier = zoo.id ?? zoo.slug;
-        const displayName = zoo.city ? `${zoo.city}: ${zoo.name}` : zoo.name;
+        const displayName = getZooDisplayName(zoo);
         list.push({
           id: `${suggestionListId}-zoo-${identifier}`,
           key: `zoo-${identifier}`,

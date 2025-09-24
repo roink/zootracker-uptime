@@ -6,10 +6,17 @@ import useAuthFetch from '../hooks/useAuthFetch';
 import SightingModal from './SightingModal';
 import LazyMap from './LazyMap';
 import { useAuth } from '../auth/AuthContext.jsx';
+import { getZooDisplayName } from '../utils/zooDisplayName.js';
 
 // Detailed view for a single zoo with a list of resident animals.
 // Used by the ZooDetailPage component.
-export default function ZooDetail({ zoo, refresh, onLogged }) {
+export default function ZooDetail({
+  zoo,
+  displayName,
+  headingLevel = 'h2',
+  refresh,
+  onLogged,
+}) {
   const [animals, setAnimals] = useState([]);
   const [visited, setVisited] = useState(false);
   const [seenIds, setSeenIds] = useState(new Set());
@@ -68,16 +75,16 @@ export default function ZooDetail({ zoo, refresh, onLogged }) {
   const MAX_DESC = 400; // collapse threshold
   const needsCollapse = zooDescription && zooDescription.length > MAX_DESC;
 
+  // Build the heading text by prefixing the city when available
+  const zooDisplayName = displayName || getZooDisplayName(zoo);
+  const allowedHeadingLevels = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
+  const HeadingTag = allowedHeadingLevels.includes(headingLevel)
+    ? headingLevel
+    : 'h2';
+
   return (
     <div className="p-3">
-      {zoo.image_url && (
-        <img
-          src={zoo.image_url}
-          alt={zoo.name}
-          className="img-fluid mb-2 cover-image"
-        />
-      )}
-      <h3>{zoo.name}</h3>
+      <HeadingTag className="h3">{zooDisplayName}</HeadingTag>
       {zoo.address && <div className="text-muted">📍 {zoo.address}</div>}
       {Number.isFinite(zoo.latitude) && Number.isFinite(zoo.longitude) && (
         <div className="mt-1">
@@ -164,7 +171,7 @@ export default function ZooDetail({ zoo, refresh, onLogged }) {
                     }
                     setModalData({
                       zooId: zoo.id,
-                      zooName: zoo.name,
+                      zooName: zooDisplayName,
                       animalId: a.id,
                       animalName: getAnimalName(a),
                     });

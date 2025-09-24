@@ -7,6 +7,7 @@ import useSearchSuggestions from '../hooks/useSearchSuggestions';
 import LanguageSwitcher from './LanguageSwitcher';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { API } from '../api';
+import { getZooDisplayName } from '../utils/zooDisplayName.js';
 
 // Navigation header shown on all pages. Includes a simple search
 // form and links that depend on authentication state.
@@ -146,6 +147,7 @@ export default function Header() {
       const groupLabel = t('nav.searchGroupZoos');
       results.zoos.forEach((zoo, index) => {
         const identifier = zoo.id ?? zoo.slug;
+        const displayName = getZooDisplayName(zoo);
         list.push({
           id: `${suggestionListId}-z-${identifier}`,
           key: `z-${identifier}`,
@@ -161,6 +163,7 @@ export default function Header() {
           groupKey: 'zoos',
           groupLabel,
           firstInGroup: index === 0,
+          displayName,
         });
       });
     }
