@@ -30,6 +30,8 @@ describe('ZoosPage', () => {
         city: '',
         latitude: 10.123,
         longitude: 20.456,
+        country_name_en: 'Germany',
+        country_name_de: 'Deutschland',
       },
     ];
     const visited = ['1'];
@@ -51,6 +53,7 @@ describe('ZoosPage', () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     const badges = await screen.findAllByText('Visited', { selector: 'span' });
     expect(badges[0]).toBeInTheDocument();
+    expect(await screen.findByText(/Country: Germany/)).toBeInTheDocument();
   });
 
   it('filters zoos by visit status', async () => {
@@ -62,6 +65,8 @@ describe('ZoosPage', () => {
         city: '',
         latitude: 50.0,
         longitude: 7.0,
+        country_name_en: 'Germany',
+        country_name_de: 'Deutschland',
       },
       {
         id: '2',
@@ -70,6 +75,8 @@ describe('ZoosPage', () => {
         city: '',
         latitude: 51.0,
         longitude: 8.0,
+        country_name_en: 'United States',
+        country_name_de: 'USA',
       },
     ];
     const visited = ['1'];
@@ -126,6 +133,8 @@ describe('ZoosPage', () => {
         city: '',
         latitude: 50.0,
         longitude: 7.0,
+        country_name_en: 'Germany',
+        country_name_de: 'Deutschland',
       },
       {
         id: '2',
@@ -134,6 +143,8 @@ describe('ZoosPage', () => {
         city: '',
         latitude: 51.0,
         longitude: 8.0,
+        country_name_en: 'United States',
+        country_name_de: 'USA',
       },
     ];
     const visited = ['1'];
@@ -160,7 +171,15 @@ describe('ZoosPage', () => {
 
   it('syncs search query with URL params', async () => {
     const zoos = [
-      { id: '1', name: 'A Zoo', city: '', latitude: 1.5, longitude: 2.5 },
+      {
+        id: '1',
+        name: 'A Zoo',
+        city: '',
+        latitude: 1.5,
+        longitude: 2.5,
+        country_name_en: 'Germany',
+        country_name_de: 'Deutschland',
+      },
     ];
     const fetchMock = vi.fn((url) => {
       if (url.startsWith(`${API}/zoos/continents`))

@@ -39,6 +39,8 @@ def test_search_zoos_with_radius_returns_all(data):
     assert str(data["far_zoo"].id) in ids
     assert all("slug" in z for z in body)
     assert all("latitude" in z and "longitude" in z for z in body)
+    assert all("country_name_en" in z for z in body)
+    assert all("country_name_de" in z for z in body)
     assert any(
         pytest.approx(float(data["zoo"].latitude)) == z["latitude"]
         and pytest.approx(float(data["zoo"].longitude)) == z["longitude"]
@@ -62,6 +64,8 @@ def test_search_zoos_without_radius_returns_all(data):
     assert str(data["zoo"].id) in ids
     assert str(data["far_zoo"].id) in ids
     assert all("latitude" in z and "longitude" in z for z in body)
+    assert any(z["country_name_en"] == "Germany" for z in body)
+    assert any(z["country_name_de"] == "Deutschland" for z in body)
 
 def test_search_zoos_name_only(data):
     """Name search should work without location parameters."""

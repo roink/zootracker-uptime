@@ -69,6 +69,8 @@ class ZooSearchResult(BaseModel):
     slug: str
     name: str
     city: Optional[str] = None
+    country_name_de: Optional[str] = None
+    country_name_en: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     distance_km: Optional[float] = None

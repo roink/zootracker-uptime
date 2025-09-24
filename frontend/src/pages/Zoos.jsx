@@ -296,6 +296,11 @@ export default function ZoosPage() {
   const localizedName = (item) =>
     lang === 'de' ? item.name_de || item.name_en : item.name_en || item.name_de;
 
+  const localizedCountry = (item) =>
+    lang === 'de'
+      ? item.country_name_de || item.country_name_en
+      : item.country_name_en || item.country_name_de;
+
   const handleViewChange = (mode) => {
     setViewMode(mode);
   };
@@ -449,7 +454,7 @@ export default function ZoosPage() {
       {viewMode === 'list' ? (
         <div className="list-group">
           {filtered.map((z) => {
-            const coords = normalizeCoordinates(z);
+            const countryName = localizedCountry(z);
             return (
               <Link
                 key={z.id}
@@ -461,13 +466,9 @@ export default function ZoosPage() {
                     <div className="fw-bold">
                       {z.city ? `${z.city}: ${z.name}` : z.name}
                     </div>
-                    {coords && (
+                    {countryName && (
                       <div className="text-muted">
-                        🧭
-                        {` ${t('zoo.coordinates', {
-                          lat: coords.latitude.toFixed(3),
-                          lon: coords.longitude.toFixed(3),
-                        })}`}
+                        🌍 {t('zoo.countryLabel', { country: countryName })}
                       </div>
                     )}
                   </div>
