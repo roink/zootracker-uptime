@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
@@ -22,14 +22,28 @@ export default function AnimalsPage() {
   const [classId, setClassId] = useState(searchParams.get('class') || '');
   const [orderId, setOrderId] = useState(searchParams.get('order') || '');
   const [familyId, setFamilyId] = useState(searchParams.get('family') || '');
-  const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  // Track pagination state without triggering renders on every increment
+  const offsetRef = useRef(0);
+  const sentinelRef = useRef(null);
+  const requestIdRef = useRef(0);
+  const loadingRef = useRef(false);
+  const controllerRef = useRef(null);
   const authFetch = useAuthFetch();
   const { isAuthenticated, user } = useAuth();
   const uid = user?.id;
   const limit = 20; // number of animals per page
+  const [statusMessage, setStatusMessage] = useState('');
+  const [prefersManualLoading, setPrefersManualLoading] = useState(false);
+  const [supportsIntersectionObserver] = useState(
+    () => typeof window !== 'undefined' && 'IntersectionObserver' in window
+  );
+  const autoLoadingEnabled = useMemo(
+    () => supportsIntersectionObserver && !prefersManualLoading,
+    [prefersManualLoading, supportsIntersectionObserver]
+  );
   const { t } = useTranslation();
 
   // Hydrate local state from the URL whenever search params change
@@ -105,39 +119,131 @@ export default function AnimalsPage() {
     return () => clearTimeout(id);
   }, [search]);
 
-  // Fetch a page of animals from the API
-  const loadAnimals = (reset = false) => {
-    const currentOffset = reset ? 0 : offset;
-    if (reset) setHasMore(false); // hide button until the first page loads
-    setLoading(true);
-    setError('');
-    const params = new URLSearchParams({
-      limit,
-      offset: currentOffset,
-      q: query,
-    });
-    if (classId) params.append('class_id', classId);
-    if (orderId) params.append('order_id', orderId);
-    if (familyId) params.append('family_id', familyId);
-    fetch(`${API}/animals?${params.toString()}`)
-      .then((r) => {
-        if (!r.ok) throw new Error('Failed to load');
-        return r.json();
-      })
-      .then((data) => {
-        setAnimals((prev) => (reset ? data : [...prev, ...data]));
-        setOffset(currentOffset + data.length);
-        setHasMore(data.length === limit);
-      })
-      .catch(() => setError('Failed to load animals'))
-      .finally(() => setLoading(false));
-  };
+  // Fetch a page of animals from the API with deterministic pagination
+  const loadAnimals = useCallback(
+    (reset = false) => {
+      if (loadingRef.current && !reset) {
+        return controllerRef.current;
+      }
+
+      if (reset) {
+        controllerRef.current?.abort();
+      }
+
+      const fetchId = requestIdRef.current + 1;
+      requestIdRef.current = fetchId;
+      const currentOffset = reset ? 0 : offsetRef.current;
+
+      if (reset) {
+        offsetRef.current = 0;
+        setAnimals([]);
+        setHasMore(false);
+      }
+
+      const controller = new AbortController();
+      controllerRef.current = controller;
+
+      loadingRef.current = true;
+      setLoading(true);
+      setError('');
+      setStatusMessage(t('animal.loadingMore'));
+
+      const params = new URLSearchParams({
+        limit,
+        offset: currentOffset,
+        q: query,
+      });
+      if (classId) params.append('class_id', classId);
+      if (orderId) params.append('order_id', orderId);
+      if (familyId) params.append('family_id', familyId);
+
+      const url = `${API}/animals?${params.toString()}`;
+
+      (async () => {
+        try {
+          const response = await fetch(url, { signal: controller.signal });
+          if (!response.ok) {
+            throw new Error('Failed to load');
+          }
+          const data = await response.json();
+          if (fetchId !== requestIdRef.current) {
+            return;
+          }
+          setAnimals((prev) => (reset ? data : [...prev, ...data]));
+          offsetRef.current = currentOffset + data.length;
+          setHasMore(data.length === limit);
+          if (data.length > 0) {
+            const loadedText = t('animal.loadedMore', { count: data.length });
+            if (data.length < limit) {
+              setStatusMessage(
+                `${loadedText} ${t('animal.noMoreAnimals')}`
+              );
+            } else {
+              setStatusMessage(loadedText);
+            }
+          } else {
+            setStatusMessage(t('animal.noMoreAnimals'));
+          }
+        } catch (err) {
+          if (controller.signal.aborted || err.name === 'AbortError') {
+            return;
+          }
+          if (fetchId === requestIdRef.current) {
+            setError('Failed to load animals');
+            setHasMore(false);
+            setStatusMessage(t('animal.loadingError'));
+          }
+        } finally {
+          if (fetchId === requestIdRef.current) {
+            loadingRef.current = false;
+            setLoading(false);
+            if (controllerRef.current === controller) {
+              controllerRef.current = null;
+            }
+          }
+        }
+      })();
+
+      return controller;
+    },
+    [classId, familyId, limit, orderId, query, t]
+  );
 
   // Initial load and reset when search or filters change
   useEffect(() => {
-    loadAnimals(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, classId, orderId, familyId]);
+    const controller = loadAnimals(true);
+    return () => {
+      controller?.abort();
+    };
+  }, [loadAnimals]);
+
+  useEffect(() => () => {
+    controllerRef.current?.abort();
+  }, []);
+
+  // Observe when the user nears the end of the list and fetch the next page
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel || !hasMore || !autoLoadingEnabled) {
+      return undefined;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry.isIntersecting) {
+          loadAnimals(false);
+        }
+      },
+      { rootMargin: '200px' }
+    );
+
+    observer.observe(sentinel);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [autoLoadingEnabled, hasMore, loadAnimals]);
 
   // load animals seen by the current user
   useEffect(() => {
@@ -168,7 +274,7 @@ export default function AnimalsPage() {
             onChange={(e) => {
               setSearch(e.target.value);
               setAnimals([]);
-              setOffset(0);
+              offsetRef.current = 0;
               setHasMore(false);
             }}
           />
@@ -230,7 +336,11 @@ export default function AnimalsPage() {
           {error}
         </div>
       )}
-      <div className="d-flex flex-wrap gap-2">
+      <div
+        className="d-flex flex-wrap gap-2"
+        aria-describedby="animals-status"
+        aria-busy={loading}
+      >
         {animals.map((a) => (
           <Link
             key={a.id}
@@ -251,22 +361,68 @@ export default function AnimalsPage() {
             {a.scientific_name && (
               <div className="fst-italic small">{a.scientific_name}</div>
             )}
+            {/* Display the number of zoos to explain the sort order */}
+            <div className="small text-muted">
+              {t('animal.keptInZoos', { count: a.zoo_count ?? 0 })}
+            </div>
             {seenIds.has(a.id) && (
               <span className="seen-badge">{t('animal.seen')}</span>
             )}
           </Link>
         ))}
       </div>
-      {hasMore && (
+      <div
+        id="animals-status"
+        role="status"
+        aria-live="polite"
+        className="visually-hidden"
+      >
+        {statusMessage}
+      </div>
+      <div
+        ref={sentinelRef}
+        className="infinite-scroll-sentinel"
+        aria-hidden="true"
+      />
+      {hasMore && supportsIntersectionObserver && !prefersManualLoading && (
         <div className="text-center my-3">
           <button
             type="button"
-            className="btn btn-secondary"
+            className="btn btn-link btn-sm"
+            onClick={() => setPrefersManualLoading(true)}
+          >
+            {t('animal.useManualLoading')}
+          </button>
+        </div>
+      )}
+      {hasMore && (!supportsIntersectionObserver || prefersManualLoading) && (
+        <div className="text-center my-3">
+          <button
+            type="button"
+            className="btn btn-outline-primary"
             onClick={() => loadAnimals(false)}
             disabled={loading}
           >
             {loading ? t('actions.loading') : t('actions.loadMore')}
           </button>
+        </div>
+      )}
+      {prefersManualLoading && supportsIntersectionObserver && (
+        <div className="text-center mb-3">
+          <button
+            type="button"
+            className="btn btn-link btn-sm"
+            onClick={() => setPrefersManualLoading(false)}
+            disabled={loading}
+          >
+            {t('animal.enableAutoLoading')}
+          </button>
+        </div>
+      )}
+      {loading && (
+        <div className="text-center my-3">
+          <div className="spinner-border" role="status" aria-hidden="true" />
+          <span className="visually-hidden">{t('actions.loading')}</span>
         </div>
       )}
     </div>

@@ -102,6 +102,7 @@ class AnimalListItem(BaseModel):
     description_de: Optional[str] = None
     iucn_conservation_status: Optional[str] = None
     default_image_url: Optional[str] = None
+    zoo_count: int = 0
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 

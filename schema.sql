@@ -115,6 +115,8 @@ CREATE TABLE animals (
 );
 
 CREATE INDEX IF NOT EXISTS idx_animals_zoo_count ON animals (zoo_count DESC);
+CREATE INDEX IF NOT EXISTS idx_animal_popularity
+    ON animals (zoo_count DESC, name_en ASC, id ASC);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_animals_slug ON animals(slug);
 CREATE INDEX IF NOT EXISTS idx_animals_klasse ON animals(klasse);
 CREATE INDEX IF NOT EXISTS idx_animals_ordnung ON animals(ordnung);

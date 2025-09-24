@@ -1,4 +1,9 @@
+import uuid
+
 import pytest
+
+from app import models
+from app.database import SessionLocal
 
 from .conftest import client
 
@@ -155,12 +160,17 @@ def test_list_animals_returns_details_and_pagination(data):
     resp = client.get("/animals", params={"limit": 2, "offset": 0})
     assert resp.status_code == 200
     body = resp.json()
-    assert [a["name_en"] for a in body] == ["Eagle", "Lion"]
-    item = body[0]
-    assert item["scientific_name"] == "Aquila chrysaetos"
-    assert item["category"] == "Bird"
-    assert item["default_image_url"].startswith("http://example.com/")
-    assert item["slug"]
+    assert [a["slug"] for a in body] == [data["animal"].slug, data["eagle"].slug]
+    lion = body[0]
+    assert lion["zoo_count"] == 1
+    assert lion["slug"]
+
+    eagle = body[1]
+    assert eagle["zoo_count"] == 0
+    assert eagle["scientific_name"] == "Aquila chrysaetos"
+    assert eagle["category"] == "Bird"
+    assert eagle["default_image_url"].startswith("http://example.com/")
+    assert eagle["slug"]
 
     resp2 = client.get("/animals", params={"limit": 2, "offset": 2})
     assert resp2.status_code == 200
@@ -168,6 +178,49 @@ def test_list_animals_returns_details_and_pagination(data):
     assert len(body2) == 1
     assert body2[0]["scientific_name"] == "Panthera tigris"
     assert body2[0]["slug"]
+    assert body2[0]["zoo_count"] == 0
+
+
+def test_list_animals_tiebreaker_uses_id_when_names_match(data):
+    session = SessionLocal()
+    try:
+        base_category = data["animal"].category_id
+        first_id = uuid.UUID("00000000-0000-0000-0000-000000000010")
+        second_id = uuid.UUID("00000000-0000-0000-0000-000000000011")
+        first = models.Animal(
+            id=first_id,
+            name_en="Aardwolf",
+            name_de="Aardwolf",
+            slug="aardwolf-alpha",
+            category_id=base_category,
+            zoo_count=0,
+        )
+        second = models.Animal(
+            id=second_id,
+            name_en="Aardwolf",
+            name_de="Aardwolf",
+            slug="aardwolf-beta",
+            category_id=base_category,
+            zoo_count=0,
+        )
+        session.add_all([first, second])
+        session.commit()
+
+        resp = client.get("/animals", params={"limit": 5, "offset": 0})
+        assert resp.status_code == 200
+        body = resp.json()
+        slugs = [a["slug"] for a in body]
+        first_index = slugs.index("aardwolf-alpha")
+        second_index = slugs.index("aardwolf-beta")
+        assert second_index == first_index + 1
+    finally:
+        (
+            session.query(models.Animal)
+            .filter(models.Animal.slug.in_(["aardwolf-alpha", "aardwolf-beta"]))
+            .delete(synchronize_session=False)
+        )
+        session.commit()
+        session.close()
 
 
 def test_list_animals_invalid_pagination():
