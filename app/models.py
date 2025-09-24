@@ -348,6 +348,14 @@ class Animal(Base):
     )
 
 
+Index(
+    "idx_animal_popularity",
+    text("zoo_count DESC"),
+    text("name_en ASC"),
+    text("id ASC"),
+)
+
+
 class ZooAnimal(Base):
     """Association table linking animals to zoos."""
 

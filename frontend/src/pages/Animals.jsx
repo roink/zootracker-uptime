@@ -30,10 +30,20 @@ export default function AnimalsPage() {
   const sentinelRef = useRef(null);
   const requestIdRef = useRef(0);
   const loadingRef = useRef(false);
+  const controllerRef = useRef(null);
   const authFetch = useAuthFetch();
   const { isAuthenticated, user } = useAuth();
   const uid = user?.id;
   const limit = 20; // number of animals per page
+  const [statusMessage, setStatusMessage] = useState('');
+  const [prefersManualLoading, setPrefersManualLoading] = useState(false);
+  const [supportsIntersectionObserver] = useState(
+    () => typeof window !== 'undefined' && 'IntersectionObserver' in window
+  );
+  const autoLoadingEnabled = useMemo(
+    () => supportsIntersectionObserver && !prefersManualLoading,
+    [prefersManualLoading, supportsIntersectionObserver]
+  );
   const { t } = useTranslation();
 
   // Hydrate local state from the URL whenever search params change
@@ -111,9 +121,13 @@ export default function AnimalsPage() {
 
   // Fetch a page of animals from the API with deterministic pagination
   const loadAnimals = useCallback(
-    async (reset = false) => {
+    (reset = false) => {
       if (loadingRef.current && !reset) {
-        return;
+        return controllerRef.current;
+      }
+
+      if (reset) {
+        controllerRef.current?.abort();
       }
 
       const fetchId = requestIdRef.current + 1;
@@ -126,9 +140,13 @@ export default function AnimalsPage() {
         setHasMore(false);
       }
 
+      const controller = new AbortController();
+      controllerRef.current = controller;
+
       loadingRef.current = true;
       setLoading(true);
       setError('');
+      setStatusMessage(t('animal.loadingMore'));
 
       const params = new URLSearchParams({
         limit,
@@ -139,42 +157,74 @@ export default function AnimalsPage() {
       if (orderId) params.append('order_id', orderId);
       if (familyId) params.append('family_id', familyId);
 
-      try {
-        const response = await fetch(`${API}/animals?${params.toString()}`);
-        if (!response.ok) {
-          throw new Error('Failed to load');
+      const url = `${API}/animals?${params.toString()}`;
+
+      (async () => {
+        try {
+          const response = await fetch(url, { signal: controller.signal });
+          if (!response.ok) {
+            throw new Error('Failed to load');
+          }
+          const data = await response.json();
+          if (fetchId !== requestIdRef.current) {
+            return;
+          }
+          setAnimals((prev) => (reset ? data : [...prev, ...data]));
+          offsetRef.current = currentOffset + data.length;
+          setHasMore(data.length === limit);
+          if (data.length > 0) {
+            const loadedText = t('animal.loadedMore', { count: data.length });
+            if (data.length < limit) {
+              setStatusMessage(
+                `${loadedText} ${t('animal.noMoreAnimals')}`
+              );
+            } else {
+              setStatusMessage(loadedText);
+            }
+          } else {
+            setStatusMessage(t('animal.noMoreAnimals'));
+          }
+        } catch (err) {
+          if (controller.signal.aborted || err.name === 'AbortError') {
+            return;
+          }
+          if (fetchId === requestIdRef.current) {
+            setError('Failed to load animals');
+            setHasMore(false);
+            setStatusMessage(t('animal.loadingError'));
+          }
+        } finally {
+          if (fetchId === requestIdRef.current) {
+            loadingRef.current = false;
+            setLoading(false);
+            if (controllerRef.current === controller) {
+              controllerRef.current = null;
+            }
+          }
         }
-        const data = await response.json();
-        if (fetchId !== requestIdRef.current) {
-          return;
-        }
-        setAnimals((prev) => (reset ? data : [...prev, ...data]));
-        offsetRef.current = currentOffset + data.length;
-        setHasMore(data.length === limit);
-      } catch (err) {
-        if (fetchId === requestIdRef.current) {
-          setError('Failed to load animals');
-          setHasMore(false);
-        }
-      } finally {
-        if (fetchId === requestIdRef.current) {
-          loadingRef.current = false;
-          setLoading(false);
-        }
-      }
+      })();
+
+      return controller;
     },
-    [classId, familyId, limit, orderId, query]
+    [classId, familyId, limit, orderId, query, t]
   );
 
   // Initial load and reset when search or filters change
   useEffect(() => {
-    loadAnimals(true);
+    const controller = loadAnimals(true);
+    return () => {
+      controller?.abort();
+    };
   }, [loadAnimals]);
+
+  useEffect(() => () => {
+    controllerRef.current?.abort();
+  }, []);
 
   // Observe when the user nears the end of the list and fetch the next page
   useEffect(() => {
     const sentinel = sentinelRef.current;
-    if (!sentinel || !hasMore) {
+    if (!sentinel || !hasMore || !autoLoadingEnabled) {
       return undefined;
     }
 
@@ -193,7 +243,7 @@ export default function AnimalsPage() {
     return () => {
       observer.disconnect();
     };
-  }, [hasMore, loadAnimals]);
+  }, [autoLoadingEnabled, hasMore, loadAnimals]);
 
   // load animals seen by the current user
   useEffect(() => {
@@ -286,7 +336,11 @@ export default function AnimalsPage() {
           {error}
         </div>
       )}
-      <div className="d-flex flex-wrap gap-2">
+      <div
+        className="d-flex flex-wrap gap-2"
+        aria-describedby="animals-status"
+        aria-busy={loading}
+      >
         {animals.map((a) => (
           <Link
             key={a.id}
@@ -318,13 +372,57 @@ export default function AnimalsPage() {
         ))}
       </div>
       <div
+        id="animals-status"
+        role="status"
+        aria-live="polite"
+        className="visually-hidden"
+      >
+        {statusMessage}
+      </div>
+      <div
         ref={sentinelRef}
         className="infinite-scroll-sentinel"
         aria-hidden="true"
       />
+      {hasMore && supportsIntersectionObserver && !prefersManualLoading && (
+        <div className="text-center my-3">
+          <button
+            type="button"
+            className="btn btn-link btn-sm"
+            onClick={() => setPrefersManualLoading(true)}
+          >
+            {t('animal.useManualLoading')}
+          </button>
+        </div>
+      )}
+      {hasMore && (!supportsIntersectionObserver || prefersManualLoading) && (
+        <div className="text-center my-3">
+          <button
+            type="button"
+            className="btn btn-outline-primary"
+            onClick={() => loadAnimals(false)}
+            disabled={loading}
+          >
+            {loading ? t('actions.loading') : t('actions.loadMore')}
+          </button>
+        </div>
+      )}
+      {prefersManualLoading && supportsIntersectionObserver && (
+        <div className="text-center mb-3">
+          <button
+            type="button"
+            className="btn btn-link btn-sm"
+            onClick={() => setPrefersManualLoading(false)}
+            disabled={loading}
+          >
+            {t('animal.enableAutoLoading')}
+          </button>
+        </div>
+      )}
       {loading && (
-        <div className="text-center my-3 text-muted small">
-          {t('actions.loading')}
+        <div className="text-center my-3">
+          <div className="spinner-border" role="status" aria-hidden="true" />
+          <span className="visually-hidden">{t('actions.loading')}</span>
         </div>
       )}
     </div>
