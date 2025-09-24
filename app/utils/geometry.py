@@ -39,61 +39,39 @@ def query_zoos_with_distance(
     """
 
     if latitude is not None and longitude is not None:
-        if query.session.bind.dialect.name == "postgresql":
-            # keep user point as geometry and cast zoo location when needed
-            user_point = func.ST_SetSRID(func.ST_MakePoint(longitude, latitude), 4326)
-            geom_loc = cast(models.Zoo.location, Geometry("POINT", 4326))
-            q = query
-            if not include_no_coords:
-                q = q.filter(models.Zoo.location.is_not(None))
-            if radius_km is not None:
-                user_point_geo = cast(user_point, Geography)
-                if include_no_coords:
-                    q = q.filter(
-                        or_(
-                            models.Zoo.location.is_(None),
-                            func.ST_DWithin(
-                                models.Zoo.location, user_point_geo, radius_km * 1000
-                            ),
-                        )
-                    )
-                else:
-                    q = q.filter(
+        if query.session.bind.dialect.name != "postgresql":  # pragma: no cover - guardrail
+            raise RuntimeError("PostgreSQL/PostGIS is required")
+        # keep user point as geometry and cast zoo location when needed
+        user_point = func.ST_SetSRID(func.ST_MakePoint(longitude, latitude), 4326)
+        geom_loc = cast(models.Zoo.location, Geometry("POINT", 4326))
+        q = query
+        if not include_no_coords:
+            q = q.filter(models.Zoo.location.is_not(None))
+        if radius_km is not None:
+            user_point_geo = cast(user_point, Geography)
+            if include_no_coords:
+                q = q.filter(
+                    or_(
+                        models.Zoo.location.is_(None),
                         func.ST_DWithin(
                             models.Zoo.location, user_point_geo, radius_km * 1000
-                        )
+                        ),
                     )
-            order_expr = geom_loc.op("<->")(user_point)
-            precise_m = func.ST_DistanceSphere(geom_loc, user_point)
-            rows = (
-                q.with_entities(models.Zoo, precise_m.label("distance_m"))
-                .order_by(order_expr.nulls_last(), models.Zoo.name)
-                .all()
-            )
-            return [(z, d / 1000 if d is not None else None) for z, d in rows]
-        else:
-            zoos = query.all()
-            results: list[tuple[models.Zoo, Optional[float]]] = []
-            for z in zoos:
-                if z.latitude is None or z.longitude is None:
-                    if include_no_coords:
-                        results.append((z, None))
-                    continue
-                dist = distance_km(
-                    float(latitude),
-                    float(longitude),
-                    float(z.latitude),
-                    float(z.longitude),
                 )
-                if radius_km is None or dist <= radius_km:
-                    results.append((z, dist))
-            results.sort(
-                key=lambda item: (
-                    item[1] if item[1] is not None else float("inf"),
-                    item[0].name,
+            else:
+                q = q.filter(
+                    func.ST_DWithin(
+                        models.Zoo.location, user_point_geo, radius_km * 1000
+                    )
                 )
-            )
-            return results
+        order_expr = geom_loc.op("<->")(user_point)
+        precise_m = func.ST_DistanceSphere(geom_loc, user_point)
+        rows = (
+            q.with_entities(models.Zoo, precise_m.label("distance_m"))
+            .order_by(order_expr.nulls_last(), models.Zoo.name)
+            .all()
+        )
+        return [(z, d / 1000 if d is not None else None) for z, d in rows]
 
     # no coordinates supplied – return zoos without distance ordered by name
     return [(z, None) for z in query.order_by(models.Zoo.name).all()]

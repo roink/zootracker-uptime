@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 
 
 def pytest_addoption(parser):
-    parser.addoption("--pg", action="store_true", help="run tests that require Postgres")
+    parser.addoption("--pg", action="store_true", help="legacy option; no longer required")
 
 
 def pytest_configure(config):
@@ -13,16 +13,20 @@ def pytest_configure(config):
 
 
 def pytest_collection_modifyitems(config, items):
-    if config.getoption("--pg"):
-        return
-    skip_pg = pytest.mark.skip(reason="need --pg option to run")
-    for item in items:
-        if "postgres" in item.keywords:
-            item.add_marker(skip_pg)
+    """Legacy hook retained for compatibility with the old --pg option."""
+    # The test suite now always runs against PostgreSQL, so the collection phase
+    # no longer needs to skip any tests. Keeping the hook avoids breaking users
+    # that still pass --pg out of habit while making the flag a no-op.
+    config.getoption("--pg", default=False)
 
 
 # set up database url before importing app
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./test.db")
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://postgres:postgres@localhost:5432/postgres",
+)
+if not DATABASE_URL.startswith("postgresql"):
+    raise RuntimeError("Tests require a PostgreSQL database")
 os.environ["DATABASE_URL"] = DATABASE_URL
 os.environ["AUTH_RATE_LIMIT"] = "1000"
 os.environ["GENERAL_RATE_LIMIT"] = "10000"
@@ -34,10 +38,6 @@ os.environ.setdefault(
     "SECRET_KEY",
     "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 )
-
-# ensure a fresh database for every test run when using sqlite
-if DATABASE_URL.startswith("sqlite") and os.path.exists("test.db"):
-    os.remove("test.db")
 
 from app.database import Base, engine, SessionLocal  # noqa: E402
 from app import models  # noqa: E402

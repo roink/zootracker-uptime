@@ -18,7 +18,6 @@ from sqlalchemy import (
 
 from app.db_extensions import ensure_pg_extensions
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
 from .database import SessionLocal, Base
@@ -579,11 +578,7 @@ def _import_links(
     animal_map: Dict[str, uuid.UUID],
 ) -> None:
     rows = src.execute(select(link_table)).mappings()
-    # use dialect-appropriate "ignore duplicates" syntax
-    if dst.get_bind().dialect.name == "postgresql":
-        stmt = pg_insert(models.ZooAnimal.__table__).on_conflict_do_nothing()
-    else:
-        stmt = sqlite_insert(models.ZooAnimal.__table__).on_conflict_do_nothing()
+    stmt = pg_insert(models.ZooAnimal.__table__).on_conflict_do_nothing()
     batch: list[dict] = []
     batch_size = 1000
     processed = 0

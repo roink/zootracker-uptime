@@ -1,11 +1,55 @@
 from pathlib import Path
 
-from sqlalchemy import create_engine, text, event
-from sqlalchemy.orm import sessionmaker
 from datetime import datetime
+import uuid
+
+import pytest
+from sqlalchemy import MetaData, create_engine, text, event
+from sqlalchemy.orm import sessionmaker
 
 from app import import_simple_sqlite_data
 from app import models
+from app.database import Base, engine as app_engine
+from app.db_extensions import ensure_pg_extensions
+from app.triggers import create_triggers
+
+
+pytestmark = pytest.mark.postgres
+
+
+@pytest.fixture
+def session_factory(monkeypatch):
+    schema = f"import_test_{uuid.uuid4().hex}"
+    with app_engine.begin() as conn:
+        conn.execute(text(f'CREATE SCHEMA "{schema}"'))
+    engine = create_engine(
+        app_engine.url.render_as_string(hide_password=False),
+        future=True,
+        connect_args={"options": f"-c search_path={schema},public"},
+    )
+
+    @event.listens_for(engine, "connect")
+    def _set_search_path(dbapi_connection, connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute(f'SET search_path TO "{schema}", public')
+        cursor.close()
+
+    Session = sessionmaker(
+        bind=engine, autocommit=False, autoflush=False, expire_on_commit=False
+    )
+    monkeypatch.setattr(import_simple_sqlite_data, "SessionLocal", Session)
+
+    ensure_pg_extensions(engine)
+
+    metadata = MetaData()
+    for table in Base.metadata.tables.values():
+        table.to_metadata(metadata, schema=schema)
+    metadata.create_all(bind=engine, checkfirst=False)
+    create_triggers(engine)
+    yield Session
+    engine.dispose()
+    with app_engine.begin() as conn:
+        conn.execute(text(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
 
 
 def _build_source_db(path: Path, mid: str = "M1") -> Path:
@@ -199,28 +243,19 @@ def _build_source_db(path: Path, mid: str = "M1") -> Path:
     return path
 
 
-def test_import_simple_sqlite(monkeypatch, tmp_path):
+def test_import_simple_sqlite(tmp_path, session_factory):
     src_path = _build_source_db(tmp_path / "src.db")
-    target_url = f"sqlite:///{tmp_path}/target.db"
-    target_engine = create_engine(target_url, future=True)
-    event.listen(target_engine, "connect", lambda c, r: c.execute("PRAGMA foreign_keys=ON"))
-    Session = sessionmaker(bind=target_engine)
-    monkeypatch.setattr(import_simple_sqlite_data, "SessionLocal", Session)
 
     # dry run should not write anything
     import_simple_sqlite_data.main(str(src_path), dry_run=True)
-    db = Session()
-    try:
+    with session_factory() as db:
         assert db.query(models.Animal).count() == 0
         assert db.query(models.Zoo).count() == 0
-    finally:
-        db.close()
 
     # real import
     import_simple_sqlite_data.main(str(src_path))
 
-    db = Session()
-    try:
+    with session_factory() as db:
         assert db.query(models.Animal).count() == 3
         assert db.query(models.Zoo).count() == 1
         assert db.query(models.ContinentName).count() == 1
@@ -277,42 +312,25 @@ def test_import_simple_sqlite(monkeypatch, tmp_path):
         assert ordn.name_de == "Raubtiere"
         fam = db.query(models.FamilyName).filter_by(familie=1).one()
         assert fam.name_en == "Cats"
-    finally:
-        db.close()
 
     # idempotent re-run
     import_simple_sqlite_data.main(str(src_path))
-    db = Session()
-    try:
+    with session_factory() as db:
         assert db.query(models.Animal).count() == 3
         assert db.query(models.Zoo).count() == 1
         assert db.query(models.ZooAnimal).count() == 3
-    finally:
-        db.close()
 
 
-def test_skip_banned_mid(monkeypatch, tmp_path):
+def test_skip_banned_mid(tmp_path, session_factory):
     src_path = _build_source_db(tmp_path / "src.db", mid="M1723980")
-    target_url = f"sqlite:///{tmp_path}/target.db"
-    target_engine = create_engine(target_url, future=True)
-    Session = sessionmaker(bind=target_engine)
-    monkeypatch.setattr(import_simple_sqlite_data, "SessionLocal", Session)
     import_simple_sqlite_data.main(str(src_path))
-    db = Session()
-    try:
+    with session_factory() as db:
         assert db.query(models.Image).count() == 0
         assert db.query(models.ImageVariant).count() == 0
-    finally:
-        db.close()
 
 
-def test_import_simple_updates_existing_animals(monkeypatch, tmp_path):
+def test_import_simple_updates_existing_animals(tmp_path, session_factory):
     src_path = _build_source_db(tmp_path / "src.db")
-    target_url = f"sqlite:///{tmp_path}/target.db"
-    target_engine = create_engine(target_url, future=True)
-    Session = sessionmaker(bind=target_engine)
-    monkeypatch.setattr(import_simple_sqlite_data, "SessionLocal", Session)
-
     import_simple_sqlite_data.main(str(src_path))
 
     # build new source with extra metadata for the eagle
@@ -328,24 +346,16 @@ def test_import_simple_updates_existing_animals(monkeypatch, tmp_path):
 
     import_simple_sqlite_data.main(str(src2_path))
 
-    db = Session()
-    try:
+    with session_factory() as db:
         eagle = db.query(models.Animal).filter_by(scientific_name="Aquila chrysaetos").one()
         assert eagle.description_de == "Neue Beschreibung"
         assert eagle.description_en == "New description"
         assert eagle.conservation_state == "EN"
         assert eagle.taxon_rank == "species"
-    finally:
-        db.close()
 
 
-def test_import_simple_overwrites_when_requested(monkeypatch, tmp_path):
+def test_import_simple_overwrites_when_requested(tmp_path, session_factory):
     src_path = _build_source_db(tmp_path / "src.db")
-    target_url = f"sqlite:///{tmp_path}/target.db"
-    target_engine = create_engine(target_url, future=True)
-    Session = sessionmaker(bind=target_engine)
-    monkeypatch.setattr(import_simple_sqlite_data, "SessionLocal", Session)
-
     import_simple_sqlite_data.main(str(src_path))
 
     src2_path = _build_source_db(tmp_path / "src2.db")
@@ -359,22 +369,14 @@ def test_import_simple_overwrites_when_requested(monkeypatch, tmp_path):
 
     import_simple_sqlite_data.main(str(src2_path), overwrite=True)
 
-    db = Session()
-    try:
+    with session_factory() as db:
         lion = db.query(models.Animal).filter_by(scientific_name="Panthera leo").one()
         assert lion.description_de == "Neue Beschreibung"
-    finally:
-        db.close()
 
 
-def test_import_simple_clear_fields_with_overwrite(monkeypatch, tmp_path):
+def test_import_simple_clear_fields_with_overwrite(tmp_path, session_factory):
     """Overwriting with missing values should clear existing text."""
     src_path = _build_source_db(tmp_path / "src.db")
-    target_url = f"sqlite:///{tmp_path}/target.db"
-    target_engine = create_engine(target_url, future=True)
-    Session = sessionmaker(bind=target_engine)
-    monkeypatch.setattr(import_simple_sqlite_data, "SessionLocal", Session)
-
     import_simple_sqlite_data.main(str(src_path))
 
     # new source where the lion has no description_de
@@ -389,21 +391,13 @@ def test_import_simple_clear_fields_with_overwrite(monkeypatch, tmp_path):
 
     import_simple_sqlite_data.main(str(src2_path), overwrite=True)
 
-    db = Session()
-    try:
+    with session_factory() as db:
         lion = db.query(models.Animal).filter_by(scientific_name="Panthera leo").one()
         assert lion.description_de is None
-    finally:
-        db.close()
 
 
-def test_import_simple_updates_existing_zoo(monkeypatch, tmp_path):
+def test_import_simple_updates_existing_zoo(tmp_path, session_factory):
     src_path = _build_source_db(tmp_path / "src.db")
-    target_url = f"sqlite:///{tmp_path}/target.db"
-    target_engine = create_engine(target_url, future=True)
-    Session = sessionmaker(bind=target_engine)
-    monkeypatch.setattr(import_simple_sqlite_data, "SessionLocal", Session)
-
     import_simple_sqlite_data.main(str(src_path))
 
     src2_path = _build_source_db(tmp_path / "src2.db")
@@ -418,13 +412,10 @@ def test_import_simple_updates_existing_zoo(monkeypatch, tmp_path):
 
     import_simple_sqlite_data.main(str(src2_path))
 
-    db = Session()
-    try:
+    with session_factory() as db:
         zoo = db.query(models.Zoo).one()
         assert zoo.description_en == "New EN"
         assert zoo.description_de == "Neue DE"
-    finally:
-        db.close()
 
     # incoming empty descriptions should not overwrite existing text
     src3_path = _build_source_db(tmp_path / "src3.db")
@@ -438,16 +429,13 @@ def test_import_simple_updates_existing_zoo(monkeypatch, tmp_path):
         )
     import_simple_sqlite_data.main(str(src3_path))
 
-    db = Session()
-    try:
+    with session_factory() as db:
         zoo = db.query(models.Zoo).one()
         assert zoo.description_en == "New EN"
         assert zoo.description_de == "Neue DE"
-    finally:
-        db.close()
 
 
-def test_import_skips_animals_without_zoo(monkeypatch, tmp_path):
+def test_import_skips_animals_without_zoo(tmp_path, session_factory):
     src_path = _build_source_db(tmp_path / "src.db")
     engine = create_engine(f"sqlite:///{src_path}", future=True)
     with engine.begin() as conn:
@@ -458,18 +446,13 @@ def test_import_skips_animals_without_zoo(monkeypatch, tmp_path):
             )
         )
 
-    target_url = f"sqlite:///{tmp_path}/target.db"
-    target_engine = create_engine(target_url, future=True)
-    Session = sessionmaker(bind=target_engine)
-    monkeypatch.setattr(import_simple_sqlite_data, "SessionLocal", Session)
-
     import_simple_sqlite_data.main(str(src_path))
 
-    db = Session()
-    try:
-        assert db.query(models.Animal).filter_by(
-            scientific_name="Lonelyus testus"
-        ).first() is None
+    with session_factory() as db:
+        assert (
+            db.query(models.Animal)
+            .filter_by(scientific_name="Lonelyus testus")
+            .first()
+            is None
+        )
         assert db.query(models.Animal).count() == 3
-    finally:
-        db.close()

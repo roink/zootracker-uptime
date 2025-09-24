@@ -353,21 +353,12 @@ def test_sighting_list_sorted_and_named(data):
     assert r3.status_code == 200
 
     with SessionLocal() as session:
-        dialect = session.bind.dialect.name
-        if dialect == "sqlite":
-            session.execute(
-                text(
-                    "UPDATE animal_sightings SET created_at = datetime(created_at, '-1 second') WHERE id = :id"
-                ),
-                {"id": id1},
-            )
-        else:
-            session.execute(
-                text(
-                    "UPDATE animal_sightings SET created_at = created_at - interval '1 second' WHERE id = :id"
-                ),
-                {"id": id1},
-            )
+        session.execute(
+            text(
+                "UPDATE animal_sightings SET created_at = created_at - interval '1 second' WHERE id = :id"
+            ),
+            {"id": id1},
+        )
         session.commit()
 
     resp = client.get("/sightings", headers={"Authorization": f"Bearer {token}"})

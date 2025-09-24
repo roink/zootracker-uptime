@@ -19,15 +19,8 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
 from sqlalchemy.orm import relationship, validates
-from .database import engine
 
-if engine.dialect.name == "sqlite":
-    LocationType = Text
-    WKTElement = None
-else:
-    from geoalchemy2 import Geography, WKTElement
-
-    LocationType = Geography(geometry_type="POINT", srid=4326)
+from geoalchemy2 import Geography, WKTElement
 from sqlalchemy.sql import func
 
 from .database import Base
@@ -127,7 +120,7 @@ class Zoo(Base):
     longitude = Column(DECIMAL(9, 6))
     # Keep the default `spatial_index=True` so GeoAlchemy2 creates a GiST
     # index automatically.
-    location = Column(LocationType)
+    location = Column(Geography(geometry_type="POINT", srid=4326))
     continent_id = Column(Integer, ForeignKey("continent_names.id"))
     country_id = Column(Integer, ForeignKey("country_names.id"))
     city = Column(Text)
@@ -158,12 +151,7 @@ class Zoo(Base):
     def _sync_location(self, key, value):
         lat = value if key == "latitude" else self.latitude
         lon = value if key == "longitude" else self.longitude
-        if (
-            engine.dialect.name == "postgresql"
-            and lat is not None
-            and lon is not None
-            and WKTElement is not None
-        ):
+        if lat is not None and lon is not None:
             # direct dictionary assignment bypasses validation on "location"
             self.__dict__["location"] = WKTElement(
                 f"POINT({float(lon)} {float(lat)})", srid=4326
