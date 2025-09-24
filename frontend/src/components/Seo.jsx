@@ -3,7 +3,13 @@ import PropTypes from 'prop-types';
 import { useParams } from 'react-router-dom';
 
 // Reusable component for setting page title and social meta tags.
-export default function Seo({ title, description, image, canonical }) {
+export default function Seo({
+  title,
+  description,
+  image,
+  canonical,
+  jsonLd,
+}) {
   const { lang } = useParams();
   const activeLang =
     typeof lang === 'string' && lang.length > 0 ? lang : 'en';
@@ -48,6 +54,11 @@ export default function Seo({ title, description, image, canonical }) {
       <meta name="twitter:title" content={title} />
       <meta name="twitter:description" content={description} />
       <meta name="twitter:image" content={imageUrl} />
+      {jsonLd && (
+        <script type="application/ld+json">
+          {JSON.stringify(jsonLd, null, 2)}
+        </script>
+      )}
     </Helmet>
   );
 }
@@ -57,4 +68,5 @@ Seo.propTypes = {
   description: PropTypes.string,
   image: PropTypes.string,
   canonical: PropTypes.string,
+  jsonLd: PropTypes.oneOfType([PropTypes.object, PropTypes.array]),
 };

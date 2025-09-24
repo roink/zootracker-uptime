@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import { useTranslation } from 'react-i18next';
+import { getZooDisplayName } from '../utils/zooDisplayName.js';
 import { normalizeCoordinates } from '../utils/coordinates.js';
 import { MAP_STYLE_URL } from './MapView.jsx';
 
@@ -181,12 +182,15 @@ export default function ZoosMap({ zoos, center, onSelect, resizeToken }) {
       const element = marker.getElement();
       element.setAttribute('role', 'link');
       element.setAttribute('tabindex', '0');
-      if (zoo.name) {
-        element.setAttribute('title', zoo.name);
-        element.setAttribute(
-          'aria-label',
-          t('zoo.openDetail', { name: zoo.name })
-        );
+      {
+        const displayName = getZooDisplayName(zoo);
+        if (displayName) {
+          element.setAttribute('title', displayName);
+          element.setAttribute(
+            'aria-label',
+            t('zoo.openDetail', { name: displayName })
+          );
+        }
       }
       element.addEventListener('click', handleClick);
       element.addEventListener('keydown', handleKeyDown);

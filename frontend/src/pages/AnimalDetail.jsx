@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { API } from '../api';
+import { getZooDisplayName } from '../utils/zooDisplayName.js';
 import useAuthFetch from '../hooks/useAuthFetch';
 import SightingModal from '../components/SightingModal';
 import Seo from '../components/Seo';
@@ -150,8 +151,8 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
         const db = b.distance_km ?? Number.POSITIVE_INFINITY;
         return da - db;
       }
-      const an = (a.city ? `${a.city}: ${a.name}` : a.name) || '';
-      const bn = (b.city ? `${b.city}: ${b.name}` : b.name) || '';
+      const an = getZooDisplayName(a) || '';
+      const bn = getZooDisplayName(b) || '';
       return an.localeCompare(bn);
     });
     return list;
@@ -457,12 +458,14 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
               </tr>
             </thead>
             <tbody>
-              {filteredZoos.map((z) => (
+              {filteredZoos.map((z) => {
+                const displayName = getZooDisplayName(z);
+                return (
                 <tr
                   key={z.id}
                   className="pointer-row"
                   role="link"
-                  aria-label={`Open ${z.city ? `${z.city}: ${z.name}` : z.name}`}
+                  aria-label={`Open ${displayName}`}
                   onClick={() => navigate(`${prefix}/zoos/${z.slug || z.id}`)}
                   tabIndex={0}
                   onKeyDown={(e) => {
@@ -472,14 +475,15 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
                     }
                   }}
                 >
-                  <td>{z.city ? `${z.city}: ${z.name}` : z.name}</td>
+                  <td>{displayName}</td>
                   {location && (
                     <td className="text-end">
                       {z.distance_km != null ? z.distance_km.toFixed(1) : ''}
                     </td>
                   )}
                 </tr>
-              ))}
+              );
+              })}
             </tbody>
           </table>
         </div>
@@ -495,9 +499,7 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
             animalName: animalName,
             zooId: closestZoo ? closestZoo.id : undefined,
             zooName: closestZoo
-              ? closestZoo.city
-                ? `${closestZoo.city}: ${closestZoo.name}`
-                : closestZoo.name
+              ? getZooDisplayName(closestZoo)
               : undefined,
           });
         }}
