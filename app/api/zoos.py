@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import or_, exists
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from .. import schemas, models
 from ..database import get_db
@@ -35,7 +35,7 @@ def search_zoos(
                 detail="country_id does not belong to continent_id",
             )
 
-    query = db.query(models.Zoo)
+    query = db.query(models.Zoo).options(joinedload(models.Zoo.country))
     if q:
         pattern = f"%{q}%"
         query = query.filter(
@@ -57,6 +57,8 @@ def search_zoos(
             latitude=float(z.latitude) if z.latitude is not None else None,
             longitude=float(z.longitude) if z.longitude is not None else None,
             distance_km=dist,
+            country_name_en=z.country.name_en if z.country else None,
+            country_name_de=z.country.name_de if z.country else None,
         )
         for z, dist in results
     ]
