@@ -40,7 +40,7 @@ pytest --pg
 ```
 
 Running tests against PostgreSQL will drop and recreate all tables to ensure a
-clean state. You can still run a fast subset with SQLite using `pytest` alone.
+clean state.
 
 ### Running the Frontend
 

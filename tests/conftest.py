@@ -22,7 +22,12 @@ def pytest_collection_modifyitems(config, items):
 
 
 # set up database url before importing app
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./test.db")
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://postgres:postgres@localhost:5432/postgres",
+)
+if not DATABASE_URL.startswith("postgresql"):
+    raise RuntimeError("Tests require a PostgreSQL database")
 os.environ["DATABASE_URL"] = DATABASE_URL
 os.environ["AUTH_RATE_LIMIT"] = "1000"
 os.environ["GENERAL_RATE_LIMIT"] = "10000"
@@ -34,10 +39,6 @@ os.environ.setdefault(
     "SECRET_KEY",
     "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 )
-
-# ensure a fresh database for every test run when using sqlite
-if DATABASE_URL.startswith("sqlite") and os.path.exists("test.db"):
-    os.remove("test.db")
 
 from app.database import Base, engine, SessionLocal  # noqa: E402
 from app import models  # noqa: E402
