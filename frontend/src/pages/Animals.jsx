@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
@@ -22,10 +22,14 @@ export default function AnimalsPage() {
   const [classId, setClassId] = useState(searchParams.get('class') || '');
   const [orderId, setOrderId] = useState(searchParams.get('order') || '');
   const [familyId, setFamilyId] = useState(searchParams.get('family') || '');
-  const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  // Track pagination state without triggering renders on every increment
+  const offsetRef = useRef(0);
+  const sentinelRef = useRef(null);
+  const requestIdRef = useRef(0);
+  const loadingRef = useRef(false);
   const authFetch = useAuthFetch();
   const { isAuthenticated, user } = useAuth();
   const uid = user?.id;
@@ -105,39 +109,91 @@ export default function AnimalsPage() {
     return () => clearTimeout(id);
   }, [search]);
 
-  // Fetch a page of animals from the API
-  const loadAnimals = (reset = false) => {
-    const currentOffset = reset ? 0 : offset;
-    if (reset) setHasMore(false); // hide button until the first page loads
-    setLoading(true);
-    setError('');
-    const params = new URLSearchParams({
-      limit,
-      offset: currentOffset,
-      q: query,
-    });
-    if (classId) params.append('class_id', classId);
-    if (orderId) params.append('order_id', orderId);
-    if (familyId) params.append('family_id', familyId);
-    fetch(`${API}/animals?${params.toString()}`)
-      .then((r) => {
-        if (!r.ok) throw new Error('Failed to load');
-        return r.json();
-      })
-      .then((data) => {
+  // Fetch a page of animals from the API with deterministic pagination
+  const loadAnimals = useCallback(
+    async (reset = false) => {
+      if (loadingRef.current && !reset) {
+        return;
+      }
+
+      const fetchId = requestIdRef.current + 1;
+      requestIdRef.current = fetchId;
+      const currentOffset = reset ? 0 : offsetRef.current;
+
+      if (reset) {
+        offsetRef.current = 0;
+        setAnimals([]);
+        setHasMore(false);
+      }
+
+      loadingRef.current = true;
+      setLoading(true);
+      setError('');
+
+      const params = new URLSearchParams({
+        limit,
+        offset: currentOffset,
+        q: query,
+      });
+      if (classId) params.append('class_id', classId);
+      if (orderId) params.append('order_id', orderId);
+      if (familyId) params.append('family_id', familyId);
+
+      try {
+        const response = await fetch(`${API}/animals?${params.toString()}`);
+        if (!response.ok) {
+          throw new Error('Failed to load');
+        }
+        const data = await response.json();
+        if (fetchId !== requestIdRef.current) {
+          return;
+        }
         setAnimals((prev) => (reset ? data : [...prev, ...data]));
-        setOffset(currentOffset + data.length);
+        offsetRef.current = currentOffset + data.length;
         setHasMore(data.length === limit);
-      })
-      .catch(() => setError('Failed to load animals'))
-      .finally(() => setLoading(false));
-  };
+      } catch (err) {
+        if (fetchId === requestIdRef.current) {
+          setError('Failed to load animals');
+          setHasMore(false);
+        }
+      } finally {
+        if (fetchId === requestIdRef.current) {
+          loadingRef.current = false;
+          setLoading(false);
+        }
+      }
+    },
+    [classId, familyId, limit, orderId, query]
+  );
 
   // Initial load and reset when search or filters change
   useEffect(() => {
     loadAnimals(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, classId, orderId, familyId]);
+  }, [loadAnimals]);
+
+  // Observe when the user nears the end of the list and fetch the next page
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel || !hasMore) {
+      return undefined;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry.isIntersecting) {
+          loadAnimals(false);
+        }
+      },
+      { rootMargin: '200px' }
+    );
+
+    observer.observe(sentinel);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [hasMore, loadAnimals]);
 
   // load animals seen by the current user
   useEffect(() => {
@@ -168,7 +224,7 @@ export default function AnimalsPage() {
             onChange={(e) => {
               setSearch(e.target.value);
               setAnimals([]);
-              setOffset(0);
+              offsetRef.current = 0;
               setHasMore(false);
             }}
           />
@@ -251,22 +307,24 @@ export default function AnimalsPage() {
             {a.scientific_name && (
               <div className="fst-italic small">{a.scientific_name}</div>
             )}
+            {/* Display the number of zoos to explain the sort order */}
+            <div className="small text-muted">
+              {t('animal.keptInZoos', { count: a.zoo_count ?? 0 })}
+            </div>
             {seenIds.has(a.id) && (
               <span className="seen-badge">{t('animal.seen')}</span>
             )}
           </Link>
         ))}
       </div>
-      {hasMore && (
-        <div className="text-center my-3">
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => loadAnimals(false)}
-            disabled={loading}
-          >
-            {loading ? t('actions.loading') : t('actions.loadMore')}
-          </button>
+      <div
+        ref={sentinelRef}
+        className="infinite-scroll-sentinel"
+        aria-hidden="true"
+      />
+      {loading && (
+        <div className="text-center my-3 text-muted small">
+          {t('actions.loading')}
         </div>
       )}
     </div>

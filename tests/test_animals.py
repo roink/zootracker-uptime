@@ -155,12 +155,17 @@ def test_list_animals_returns_details_and_pagination(data):
     resp = client.get("/animals", params={"limit": 2, "offset": 0})
     assert resp.status_code == 200
     body = resp.json()
-    assert [a["name_en"] for a in body] == ["Eagle", "Lion"]
-    item = body[0]
-    assert item["scientific_name"] == "Aquila chrysaetos"
-    assert item["category"] == "Bird"
-    assert item["default_image_url"].startswith("http://example.com/")
-    assert item["slug"]
+    assert [a["name_en"] for a in body] == ["Lion", "Eagle"]
+    lion = body[0]
+    assert lion["zoo_count"] == 1
+    assert lion["slug"]
+
+    eagle = body[1]
+    assert eagle["zoo_count"] == 0
+    assert eagle["scientific_name"] == "Aquila chrysaetos"
+    assert eagle["category"] == "Bird"
+    assert eagle["default_image_url"].startswith("http://example.com/")
+    assert eagle["slug"]
 
     resp2 = client.get("/animals", params={"limit": 2, "offset": 2})
     assert resp2.status_code == 200
@@ -168,6 +173,7 @@ def test_list_animals_returns_details_and_pagination(data):
     assert len(body2) == 1
     assert body2[0]["scientific_name"] == "Panthera tigris"
     assert body2[0]["slug"]
+    assert body2[0]["zoo_count"] == 0
 
 
 def test_list_animals_invalid_pagination():

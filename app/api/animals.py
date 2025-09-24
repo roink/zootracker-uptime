@@ -97,7 +97,11 @@ def list_animals(
         query = query.filter(models.Animal.familie == family_id)
 
     animals = (
-        query.order_by(models.Animal.name_en)
+        query.order_by(
+            models.Animal.zoo_count.desc(),
+            models.Animal.name_en.asc(),
+            models.Animal.id.asc(),
+        )
         .offset(offset)
         .limit(limit)
         .all()
@@ -114,6 +118,7 @@ def list_animals(
             description_de=a.description_de,
             iucn_conservation_status=a.conservation_state,
             default_image_url=a.default_image_url,
+            zoo_count=a.zoo_count,
         )
         for a in animals
     ]
