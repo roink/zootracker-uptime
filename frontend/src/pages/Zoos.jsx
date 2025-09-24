@@ -467,9 +467,7 @@ export default function ZoosPage() {
                       {z.city ? `${z.city}: ${z.name}` : z.name}
                     </div>
                     {countryName && (
-                      <div className="text-muted">
-                        🌍 {t('zoo.countryLabel', { country: countryName })}
-                      </div>
+                      <div className="text-muted">{countryName}</div>
                     )}
                   </div>
                   <div className="text-end">

@@ -53,7 +53,7 @@ describe('ZoosPage', () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     const badges = await screen.findAllByText('Visited', { selector: 'span' });
     expect(badges[0]).toBeInTheDocument();
-    expect(await screen.findByText(/Country: Germany/)).toBeInTheDocument();
+    expect(await screen.findByText(/^Germany$/)).toBeInTheDocument();
   });
 
   it('filters zoos by visit status', async () => {
