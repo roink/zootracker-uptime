@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 
 
 def pytest_addoption(parser):
-    parser.addoption("--pg", action="store_true", help="run tests that require Postgres")
+    parser.addoption("--pg", action="store_true", help="legacy option; no longer required")
 
 
 def pytest_configure(config):
@@ -13,12 +13,11 @@ def pytest_configure(config):
 
 
 def pytest_collection_modifyitems(config, items):
-    if config.getoption("--pg"):
-        return
-    skip_pg = pytest.mark.skip(reason="need --pg option to run")
-    for item in items:
-        if "postgres" in item.keywords:
-            item.add_marker(skip_pg)
+    """Legacy hook retained for compatibility with the old --pg option."""
+    # The test suite now always runs against PostgreSQL, so the collection phase
+    # no longer needs to skip any tests. Keeping the hook avoids breaking users
+    # that still pass --pg out of habit while making the flag a no-op.
+    config.getoption("--pg", default=False)
 
 
 # set up database url before importing app

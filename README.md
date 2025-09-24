@@ -32,15 +32,15 @@ print(session.query(models.Zoo).all())
 
 ### Running Tests
 
-Start the database and run the PostgreSQL tests:
+Start the database and run the test suite against PostgreSQL:
 
 ```bash
 docker compose up -d db
-pytest --pg
+pytest
 ```
 
 Running tests against PostgreSQL will drop and recreate all tables to ensure a
-clean state.
+clean state. The old `--pg` flag is still accepted but no longer required.
 
 ### Running the Frontend
 
