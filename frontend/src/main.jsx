@@ -14,7 +14,6 @@ import {
   useParams,
   useNavigate,
 } from "react-router-dom";
-import { routerFuture } from './routerFuture';
 import i18n, { loadLocale, normalizeLang } from './i18n';
 import { AuthProvider, useAuth } from './auth/AuthContext.jsx';
 import RequireAuth from './auth/RequireAuth.jsx';
@@ -210,9 +209,8 @@ function App() {
     setRefreshCounter((c) => c + 1);
   };
 
-  // Opt in to React Router v7 behaviors to silence future warnings
   return (
-    <BrowserRouter future={routerFuture}>
+    <BrowserRouter>
       <Routes>
         <Route path="/" element={<RootRedirect />} />
         <Route

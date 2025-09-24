@@ -3,7 +3,6 @@ import '@testing-library/jest-dom';
 import { render, screen, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
-import { routerFuture } from '../test-utils/router.jsx';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Dashboard from './Dashboard.jsx';
 import { loadLocale } from '../i18n.js';
@@ -22,7 +21,7 @@ function renderDash(route) {
         element: <Dashboard refresh={0} onUpdate={() => {}} />,
       },
     ],
-    { initialEntries: [route], future: routerFuture }
+    { initialEntries: [route] }
   );
   const utils = render(
     <QueryClientProvider client={client}>

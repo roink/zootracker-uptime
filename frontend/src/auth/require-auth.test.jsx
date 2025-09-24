@@ -5,7 +5,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryRouter, RouterProvider, Outlet, useLocation } from 'react-router-dom';
 import RequireAuth from './RequireAuth.jsx';
 import { AuthProvider } from './AuthContext.jsx';
-import { routerFuture } from '../test-utils/router.jsx';
 import { createTestToken, setStoredAuth } from '../test-utils/auth.js';
 
 function Layout() {
@@ -38,7 +37,7 @@ describe('RequireAuth', () => {
           ],
         },
       ],
-      { initialEntries: ['/en/secret'], future: routerFuture }
+      { initialEntries: ['/en/secret'] }
     );
 
     render(
@@ -80,7 +79,7 @@ describe('RequireAuth', () => {
           ],
         },
       ],
-      { initialEntries: ['/en/secret'], future: routerFuture }
+      { initialEntries: ['/en/secret'] }
     );
 
     render(
