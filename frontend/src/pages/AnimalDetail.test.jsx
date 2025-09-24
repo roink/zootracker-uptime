@@ -3,7 +3,7 @@ import '@testing-library/jest-dom';
 import { screen } from '@testing-library/react';
 import { describe, it, vi, beforeEach } from 'vitest';
 import { Routes, Route } from 'react-router-dom';
-import { routerFuture, renderWithRouter } from '../test-utils/router.jsx';
+import { renderWithRouter } from '../test-utils/router.jsx';
 
 vi.mock('../hooks/useAuthFetch', () => ({ default: () => fetch }));
 vi.mock('../components/Seo', () => ({ default: () => null }));
@@ -38,7 +38,7 @@ describe('AnimalDetailPage', () => {
       <Routes>
         <Route path="/:lang/animals/:slug" element={<AnimalDetailPage />} />
       </Routes>,
-      { route: '/en/animals/lion', future: routerFuture }
+      { route: '/en/animals/lion' }
     );
     await screen.findByText('Mammals');
     expect(screen.getByText('Carnivorans')).toBeInTheDocument();
@@ -54,7 +54,7 @@ describe('AnimalDetailPage', () => {
       <Routes>
         <Route path="/:lang/animals/:slug" element={<AnimalDetailPage />} />
       </Routes>,
-      { route: '/de/animals/lion', future: routerFuture }
+      { route: '/de/animals/lion' }
     );
     await screen.findByText('Säugetiere');
     expect(screen.getByText('Raubtiere')).toBeInTheDocument();

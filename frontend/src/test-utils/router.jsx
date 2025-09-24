@@ -1,15 +1,12 @@
-// Utility to render components under a MemoryRouter with shared future flags
+// Utility to render components under a MemoryRouter for component tests
 import { MemoryRouter } from 'react-router-dom';
 import { render } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { routerFuture } from '../routerFuture';
 import { AuthProvider } from '../auth/AuthContext.jsx';
-
-export { routerFuture };
 
 export function renderWithRouter(
   ui,
-  { route = '/', future = routerFuture } = {}
+  { route = '/' } = {}
 ) {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -23,7 +20,7 @@ export function renderWithRouter(
   const Wrapper = ({ children }) => (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <MemoryRouter initialEntries={[route]} future={future}>
+        <MemoryRouter initialEntries={[route]}>
           {children}
         </MemoryRouter>
       </AuthProvider>
