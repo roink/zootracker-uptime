@@ -10,7 +10,8 @@ from pathlib import Path
 from typing import Dict, Optional
 from google import genai
 from google.genai import types
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel, HttpUrl, field_validator
+from urllib.parse import urlparse
 
 ENV_FILE_PATH = Path(".env")
 RESEARCH_MODEL = "gemini-flash-latest"
@@ -52,6 +53,31 @@ class ZooRecord(BaseModel):
     website: Optional[HttpUrl] = None
     wikipedia_en: Optional[HttpUrl] = None
     wikipedia_de: Optional[HttpUrl] = None
+
+    @field_validator("website", "wikipedia_en", "wikipedia_de", mode="before")
+    @classmethod
+    def _normalise_url(cls, value: Optional[str]) -> Optional[str]:
+        """Accept bare domains by prepending https:// before validation."""
+
+        if value is None:
+            return None
+
+        text = str(value).strip()
+        if not text:
+            return None
+
+        parsed = urlparse(text)
+        if not parsed.scheme:
+            text = f"https://{text}"
+            parsed = urlparse(text)
+
+        # urlparse treats values like "https://example" as having the scheme but
+        # no network location. Reject such cases by returning the cleaned string
+        # so HttpUrl validation can still fail, ensuring data quality.
+        if not parsed.netloc:
+            return text
+
+        return text
 
 
 @dataclass
