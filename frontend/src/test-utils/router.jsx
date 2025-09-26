@@ -6,7 +6,7 @@ import { AuthProvider } from '../auth/AuthContext.jsx';
 
 export function renderWithRouter(
   ui,
-  { route = '/' } = {}
+  { route = '/', initialEntries } = {}
 ) {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -17,10 +17,12 @@ export function renderWithRouter(
     },
   });
 
+  const entries = initialEntries ?? [route];
+
   const Wrapper = ({ children }) => (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <MemoryRouter initialEntries={[route]}>
+        <MemoryRouter initialEntries={entries}>
           {children}
         </MemoryRouter>
       </AuthProvider>

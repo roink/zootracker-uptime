@@ -8,8 +8,12 @@ import { renderWithRouter } from '../test-utils/router.jsx';
 
 vi.mock('../hooks/useAuthFetch', () => ({ default: () => fetch }));
 vi.mock('../components/Seo', () => ({ default: () => null }));
+const { mapMock } = vi.hoisted(() => ({
+  mapMock: vi.fn(() => <div data-testid="zoos-map" />),
+}));
 vi.mock('../components/ZoosMap.jsx', () => ({
-  default: () => <div data-testid="zoos-map" />,
+  __esModule: true,
+  default: mapMock,
 }));
 
 import AnimalDetailPage from './AnimalDetail.jsx';
@@ -32,6 +36,7 @@ describe('AnimalDetailPage', () => {
 
   beforeEach(() => {
     vi.stubGlobal('navigator', { geolocation: { getCurrentPosition: (_s, e) => e() } });
+    mapMock.mockClear();
   });
 
   it('shows classification names in English', async () => {
@@ -98,5 +103,60 @@ describe('AnimalDetailPage', () => {
     await user.click(mapToggle);
 
     expect(await screen.findByTestId('zoos-map')).toBeInTheDocument();
+  });
+
+  it('restores the map view from navigation state', async () => {
+    const fetchResponse = {
+      ...animal,
+      zoos: [
+        {
+          id: 'z1',
+          slug: 'central-zoo',
+          name: 'Central Zoo',
+          city: 'Metropolis',
+          latitude: 10,
+          longitude: 20,
+        },
+      ],
+    };
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: () => Promise.resolve(fetchResponse) });
+
+    const savedView = {
+      center: [20.123456, 10.654321],
+      zoom: 7.5,
+      bearing: 15.25,
+      pitch: 10.5,
+    };
+
+    renderWithRouter(
+      <Routes>
+        <Route path="/:lang/animals/:slug" element={<AnimalDetailPage />} />
+      </Routes>,
+      {
+        initialEntries: [
+          {
+            pathname: '/en/animals/lion',
+            state: { animalViewMode: 'map', animalMapView: savedView },
+          },
+        ],
+      }
+    );
+
+    await screen.findByText('Mammals');
+
+    const mapRadio = screen.getByRole('radio', { name: 'Map' });
+    expect(mapRadio).toBeChecked();
+
+    expect(mapMock).toHaveBeenCalled();
+    const mapProps = mapMock.mock.calls[mapMock.mock.calls.length - 1][0];
+    expect(mapProps.initialView).toMatchObject({
+      center: savedView.center,
+      zoom: savedView.zoom,
+      bearing: savedView.bearing,
+      pitch: savedView.pitch,
+    });
+    expect(mapProps.resizeToken).toBe(1);
   });
 });
