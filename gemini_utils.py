@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import json
+import asyncio
 import os
 import sqlite3
 from dataclasses import dataclass
@@ -202,7 +202,7 @@ class GeminiZooClient:
                 chunks.append(chunk.text)
         return "".join(chunks).strip()
 
-    def structure_response(self, partially_structured_text: str) -> Dict[str, object]:
+    def structure_response(self, partially_structured_text: str) -> ZooRecord:
         """Convert the research output into a structured JSON payload."""
 
         prompt = (
@@ -226,5 +226,15 @@ class GeminiZooClient:
                 thinking_config=types.ThinkingConfig(thinking_budget=0),
             ),
         )
-        return json.loads(response.text)
+        return ZooRecord.model_validate_json(response.text)
+
+    async def research_zoo_async(self, prompt: str) -> str:
+        """Async wrapper around :meth:`research_zoo`."""
+
+        return await asyncio.to_thread(self.research_zoo, prompt)
+
+    async def structure_response_async(self, partially_structured_text: str) -> ZooRecord:
+        """Async wrapper around :meth:`structure_response`."""
+
+        return await asyncio.to_thread(self.structure_response, partially_structured_text)
 

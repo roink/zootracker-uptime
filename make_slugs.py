@@ -21,7 +21,6 @@ from __future__ import annotations
 import argparse
 import re
 import sqlite3
-import sys
 import unicodedata
 from typing import Dict, Iterable, List, Optional, Set, Tuple
 
@@ -284,7 +283,7 @@ def main(argv: Optional[List[str]] = None) -> None:
         print(f"Updated rows: {changed}")
         print(f"Unique index ensured on {table}({slug_col}).")
 
-    except Exception as e:
+    except Exception:
         # Rollback on error if we started a write transaction
         try:
             conn.rollback()
