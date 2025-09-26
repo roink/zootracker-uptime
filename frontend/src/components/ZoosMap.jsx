@@ -141,6 +141,20 @@ export default function ZoosMap({
     };
   }, []);
 
+  const emitViewChange = useCallback(
+    (event) => {
+      const view = captureView();
+      if (view && onViewChangeRef.current) {
+        onViewChangeRef.current({
+          ...view,
+          isUserInteraction: Boolean(event?.originalEvent),
+        });
+      }
+      return view;
+    },
+    [captureView]
+  );
+
   const scheduleResize = useCallback(() => {
     if (!mapRef.current) return () => {};
     mapRef.current.resize();
@@ -187,7 +201,7 @@ export default function ZoosMap({
         attributionControl: true,
       });
 
-      const handleLoad = () => {
+      const handleLoad = (event) => {
         if (cancelled) return;
         if (persistentInitialView && mapRef.current) {
           mapRef.current.jumpTo({
@@ -200,10 +214,7 @@ export default function ZoosMap({
         setMapReady(true);
         pendingResizeRef.current = false;
         scheduleResize();
-        const view = captureView();
-        if (view && onViewChangeRef.current) {
-          onViewChangeRef.current(view);
-        }
+        emitViewChange(event);
       };
 
       if (mapRef.current?.once) {
@@ -216,7 +227,7 @@ export default function ZoosMap({
     return () => {
       cancelled = true;
     };
-  }, [initialState, scheduleResize]);
+  }, [emitViewChange, initialState, scheduleResize]);
 
   useEffect(
     () => () => {
@@ -348,10 +359,7 @@ export default function ZoosMap({
       if (!id) return;
       const target = zooLookupRef.current.get(String(id));
       if (target && onSelectRef.current) {
-        const view = captureView();
-        if (view && onViewChangeRef.current) {
-          onViewChangeRef.current(view);
-        }
+        const view = emitViewChange(event);
         onSelectRef.current(target, view);
       }
     };
@@ -383,7 +391,7 @@ export default function ZoosMap({
       map.off('mouseenter', UNCLUSTERED_LAYER_ID, handlePointerEnter);
       map.off('mouseleave', UNCLUSTERED_LAYER_ID, handlePointerLeave);
     };
-  }, [mapReady]);
+  }, [emitViewChange, mapReady]);
 
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
@@ -451,18 +459,11 @@ export default function ZoosMap({
     if (!mapReady || !mapRef.current) return undefined;
 
     const map = mapRef.current;
-    const emitViewChange = () => {
-      const view = captureView();
-      if (view && onViewChangeRef.current) {
-        onViewChangeRef.current(view);
-      }
-    };
-
     map.on('moveend', emitViewChange);
     return () => {
       map.off('moveend', emitViewChange);
     };
-  }, [captureView, mapReady]);
+  }, [emitViewChange, mapReady]);
 
   useEffect(() => {
     if (!mapRef.current) {

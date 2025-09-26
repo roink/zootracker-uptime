@@ -105,6 +105,9 @@ export default function ZoosPage() {
   const locationState = useLocation();
   const mapViewRef = useRef(locationState.state?.mapView ?? null);
   const [mapView, setMapView] = useState(() => mapViewRef.current);
+  const [preferStoredView, setPreferStoredView] = useState(
+    () => Array.isArray(mapViewRef.current?.center)
+  );
   const [viewMode, setViewMode] = useState(initialView);
   const [mapResizeToken, setMapResizeToken] = useState(0);
   const estimateAttemptedRef = useRef(false);
@@ -115,6 +118,7 @@ export default function ZoosPage() {
       mapViewRef.current = nextView;
       setMapView(nextView);
     }
+    setPreferStoredView(Array.isArray(nextView?.center));
   }, [locationState.state]);
 
   useEffect(() => {
@@ -123,7 +127,22 @@ export default function ZoosPage() {
 
   const updateMapView = useCallback(
     (view) => {
-      if (!view || !Array.isArray(view.center)) {
+      if (view?.isUserInteraction) {
+        setPreferStoredView(true);
+      }
+
+      const hasCenter = Array.isArray(view?.center);
+      const sanitizedView = hasCenter
+        ? {
+            center: [...view.center],
+            zoom: view.zoom,
+            bearing: view.bearing,
+            pitch: view.pitch,
+          }
+        : null;
+
+      if (!sanitizedView) {
+        setPreferStoredView(false);
         if (mapViewRef.current) {
           mapViewRef.current = null;
           setMapView(null);
@@ -137,20 +156,26 @@ export default function ZoosPage() {
         return;
       }
 
-      if (mapViewsEqual(view, mapViewRef.current)) {
+      if (mapViewsEqual(sanitizedView, mapViewRef.current)) {
         return;
       }
 
-      mapViewRef.current = view;
-      setMapView(view);
+      mapViewRef.current = sanitizedView;
+      setMapView(sanitizedView);
       const baseState = locationState.state ? { ...locationState.state } : {};
-      baseState.mapView = view;
+      baseState.mapView = sanitizedView;
       navigate(
         { pathname: locationState.pathname, search: locationState.search },
         { replace: true, state: baseState }
       );
     },
-    [locationState.pathname, locationState.search, locationState.state, navigate]
+    [
+      locationState.pathname,
+      locationState.search,
+      locationState.state,
+      navigate,
+      setPreferStoredView,
+    ]
   );
 
   // Keep local state in sync with URL (supports browser back/forward)
@@ -572,7 +597,7 @@ export default function ZoosPage() {
       ) : zoosWithCoordinates.length > 0 ? (
         <ZoosMap
           zoos={zoosWithCoordinates}
-          center={activeLocation}
+          center={preferStoredView ? null : activeLocation}
           onSelect={handleSelectZoo}
           initialView={mapView}
           onViewChange={updateMapView}
