@@ -5,17 +5,32 @@ import { getZooDisplayName } from '../utils/zooDisplayName.js';
 import { normalizeCoordinates } from '../utils/coordinates.js';
 import { MAP_STYLE_URL } from './MapView.jsx';
 
-// Interactive map showing multiple zoos with clickable markers.
+// Interactive map showing multiple zoos with clickable markers or clusters.
 const DEFAULT_ZOOM = 5;
 const FOCUS_ZOOM = 8;
+const ZOOS_SOURCE_ID = 'zoos';
+const CLUSTERS_LAYER_ID = 'zoos-clusters';
+const CLUSTER_COUNT_LAYER_ID = 'zoos-cluster-count';
+const UNCLUSTERED_LAYER_ID = 'zoos-unclustered';
 
-export default function ZoosMap({ zoos, center, onSelect, resizeToken }) {
+export default function ZoosMap({
+  zoos,
+  center,
+  onSelect,
+  resizeToken,
+  initialView,
+  onViewChange,
+}) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const maplibreRef = useRef(null);
-  const markersRef = useRef([]);
   const pendingResizeRef = useRef(false);
   const resizeCleanupsRef = useRef([]);
+  const onSelectRef = useRef(onSelect);
+  const onViewChangeRef = useRef(onViewChange);
+  const zooLookupRef = useRef(new Map());
+  const hasFitToZoosRef = useRef(false);
+  const skipNextCenterRef = useRef(false);
   const { t } = useTranslation();
   const [mapReady, setMapReady] = useState(false);
 
@@ -36,14 +51,52 @@ export default function ZoosMap({ zoos, center, onSelect, resizeToken }) {
     [zoos]
   );
 
+  useEffect(() => {
+    onSelectRef.current = onSelect;
+  }, [onSelect]);
+
+  useEffect(() => {
+    onViewChangeRef.current = onViewChange;
+  }, [onViewChange]);
+
+  useEffect(() => {
+    const lookup = new Map();
+    normalizedZoos.forEach((zoo) => {
+      lookup.set(String(zoo.id), zoo);
+    });
+    zooLookupRef.current = lookup;
+  }, [normalizedZoos]);
+
   const fallbackZoo = useMemo(
     () => (normalizedZoos.length > 0 ? normalizedZoos[0] : null),
     [normalizedZoos]
   );
 
+  const persistentInitialView = useMemo(() => {
+    if (!initialView?.center) return null;
+    const [lon, lat] = initialView.center;
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) {
+      return null;
+    }
+    return {
+      center: [lon, lat],
+      zoom: Number.isFinite(initialView.zoom) ? initialView.zoom : FOCUS_ZOOM,
+      bearing: Number.isFinite(initialView.bearing) ? initialView.bearing : 0,
+      pitch: Number.isFinite(initialView.pitch) ? initialView.pitch : 0,
+    };
+  }, [initialView]);
+
   const initialState = useMemo(() => {
+    if (persistentInitialView) {
+      return persistentInitialView;
+    }
     if (Number.isFinite(centerLat) && Number.isFinite(centerLon)) {
-      return { coords: [centerLon, centerLat], zoom: FOCUS_ZOOM };
+      return {
+        center: [centerLon, centerLat],
+        zoom: FOCUS_ZOOM,
+        bearing: 0,
+        pitch: 0,
+      };
     }
     if (
       fallbackZoo &&
@@ -51,22 +104,42 @@ export default function ZoosMap({ zoos, center, onSelect, resizeToken }) {
       Number.isFinite(fallbackZoo.longitude)
     ) {
       return {
-        coords: [fallbackZoo.longitude, fallbackZoo.latitude],
+        center: [fallbackZoo.longitude, fallbackZoo.latitude],
         zoom: DEFAULT_ZOOM,
+        bearing: 0,
+        pitch: 0,
       };
     }
     return null;
-  }, [centerLat, centerLon, fallbackZoo]);
+  }, [centerLat, centerLon, fallbackZoo, persistentInitialView]);
 
-  const clearMarkers = () => {
-    markersRef.current.forEach(({ marker, handleClick, handleKeyDown }) => {
-      const element = marker.getElement();
-      if (handleClick) element.removeEventListener('click', handleClick);
-      if (handleKeyDown) element.removeEventListener('keydown', handleKeyDown);
-      marker.remove();
-    });
-    markersRef.current = [];
-  };
+  useEffect(() => {
+    if (persistentInitialView) {
+      skipNextCenterRef.current = true;
+    }
+  }, [persistentInitialView]);
+
+  const captureView = useCallback(() => {
+    if (!mapRef.current) return null;
+    const center = mapRef.current.getCenter?.();
+    if (!center) return null;
+    const zoomValue = mapRef.current.getZoom?.();
+    const bearingValue = mapRef.current.getBearing?.();
+    const pitchValue = mapRef.current.getPitch?.();
+    return {
+      center: [
+        Number.isFinite(center.lng) ? Number(center.lng.toFixed(6)) : center.lng,
+        Number.isFinite(center.lat) ? Number(center.lat.toFixed(6)) : center.lat,
+      ],
+      zoom: Number.isFinite(zoomValue) ? Number(zoomValue.toFixed(4)) : zoomValue,
+      bearing: Number.isFinite(bearingValue)
+        ? Number(bearingValue.toFixed(2))
+        : bearingValue,
+      pitch: Number.isFinite(pitchValue)
+        ? Number(pitchValue.toFixed(2))
+        : pitchValue,
+    };
+  }, []);
 
   const scheduleResize = useCallback(() => {
     if (!mapRef.current) return () => {};
@@ -93,9 +166,9 @@ export default function ZoosMap({ zoos, center, onSelect, resizeToken }) {
 
   // Initialize the map when we have a target center.
   useEffect(() => {
-    if (mapRef.current) return;
-    if (!containerRef.current) return;
-    if (!initialState) return;
+    if (mapRef.current) return undefined;
+    if (!containerRef.current) return undefined;
+    if (!initialState) return undefined;
 
     let cancelled = false;
 
@@ -107,113 +180,289 @@ export default function ZoosMap({ zoos, center, onSelect, resizeToken }) {
       mapRef.current = new maplibregl.Map({
         container: containerRef.current,
         style: MAP_STYLE_URL,
-        center: initialState.coords,
+        center: initialState.center,
         zoom: initialState.zoom,
+        bearing: initialState.bearing,
+        pitch: initialState.pitch,
         attributionControl: true,
       });
 
-      setMapReady(true);
-
-      if (pendingResizeRef.current || typeof window !== 'undefined') {
-        pendingResizeRef.current = false;
-        if (mapRef.current?.once) {
-          mapRef.current.once('load', scheduleResize);
-        } else {
-          scheduleResize();
+      const handleLoad = () => {
+        if (cancelled) return;
+        if (persistentInitialView && mapRef.current) {
+          mapRef.current.jumpTo({
+            center: persistentInitialView.center,
+            zoom: persistentInitialView.zoom,
+            bearing: persistentInitialView.bearing,
+            pitch: persistentInitialView.pitch,
+          });
         }
+        setMapReady(true);
+        pendingResizeRef.current = false;
+        scheduleResize();
+        const view = captureView();
+        if (view && onViewChangeRef.current) {
+          onViewChangeRef.current(view);
+        }
+      };
+
+      if (mapRef.current?.once) {
+        mapRef.current.once('load', handleLoad);
+      } else {
+        mapRef.current?.on('load', handleLoad);
       }
     })();
 
     return () => {
       cancelled = true;
-      resizeCleanupsRef.current.forEach((cleanup) => cleanup());
-      resizeCleanupsRef.current = [];
-      clearMarkers();
-      mapRef.current?.remove();
-      mapRef.current = null;
-      maplibreRef.current = null;
     };
   }, [initialState, scheduleResize]);
 
+  useEffect(
+    () => () => {
+      resizeCleanupsRef.current.forEach((cleanup) => cleanup());
+      resizeCleanupsRef.current = [];
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
+      maplibreRef.current = null;
+      setMapReady(false);
+      hasFitToZoosRef.current = false;
+    },
+    []
+  );
+
   // Keep the map centered on the user/estimated location when it becomes available.
   useEffect(() => {
-    if (!mapRef.current) return;
+    if (!mapRef.current || !mapReady) return;
     if (!Number.isFinite(centerLat) || !Number.isFinite(centerLon)) return;
+    if (skipNextCenterRef.current) {
+      skipNextCenterRef.current = false;
+      return;
+    }
 
     mapRef.current.easeTo({
       center: [centerLon, centerLat],
       zoom: FOCUS_ZOOM,
       duration: 800,
     });
-  }, [centerLat, centerLon]);
+  }, [centerLat, centerLon, mapReady]);
 
-  // Render markers for the filtered zoos and wire up click navigation.
   useEffect(() => {
-    if (!mapRef.current) return;
-    if (!mapReady) return;
-    if (!maplibreRef.current) return;
+    if (!mapRef.current || !mapReady || !maplibreRef.current) return;
 
-    clearMarkers();
+    const map = mapRef.current;
 
-    const validPositions = [];
-
-    normalizedZoos.forEach((zoo) => {
-      validPositions.push([zoo.longitude, zoo.latitude]);
-
-      const marker = new maplibreRef.current.Marker({ color: '#0d6efd' })
-        .setLngLat([zoo.longitude, zoo.latitude])
-        .addTo(mapRef.current);
-
-      const handleClick = () => {
-        if (onSelect) onSelect(zoo);
-      };
-
-      const handleKeyDown = (event) => {
-        if (
-          event.key === 'Enter' ||
-          event.key === ' ' ||
-          event.key === 'Spacebar'
-        ) {
-          event.preventDefault();
-          if (onSelect) onSelect(zoo);
-        }
-      };
-
-      const element = marker.getElement();
-      element.setAttribute('role', 'link');
-      element.setAttribute('tabindex', '0');
-      {
-        const displayName = getZooDisplayName(zoo);
-        if (displayName) {
-          element.setAttribute('title', displayName);
-          element.setAttribute(
-            'aria-label',
-            t('zoo.openDetail', { name: displayName })
-          );
-        }
-      }
-      element.addEventListener('click', handleClick);
-      element.addEventListener('keydown', handleKeyDown);
-
-      markersRef.current.push({ marker, handleClick, handleKeyDown });
-    });
-
-    const hasCenter = Number.isFinite(centerLat) && Number.isFinite(centerLon);
-
-    if (!hasCenter && validPositions.length > 0) {
-      const [firstLon, firstLat] = validPositions[0];
-      const bounds = new maplibreRef.current.LngLatBounds(
-        [firstLon, firstLat],
-        [firstLon, firstLat]
-      );
-      validPositions.forEach((pos) => bounds.extend(pos));
-      mapRef.current.fitBounds(bounds, {
-        padding: 40,
-        maxZoom: FOCUS_ZOOM,
-        duration: 500,
+    if (!map.getSource(ZOOS_SOURCE_ID)) {
+      map.addSource(ZOOS_SOURCE_ID, {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+        cluster: true,
+        clusterMaxZoom: 12,
+        clusterRadius: 50,
       });
     }
-  }, [normalizedZoos, onSelect, centerLat, centerLon, t, mapReady]);
+
+    if (!map.getLayer(CLUSTERS_LAYER_ID)) {
+      map.addLayer({
+        id: CLUSTERS_LAYER_ID,
+        type: 'circle',
+        source: ZOOS_SOURCE_ID,
+        filter: ['has', 'point_count'],
+        paint: {
+          'circle-color': [
+            'step',
+            ['get', 'point_count'],
+            '#0d6efd',
+            25,
+            '#6610f2',
+            100,
+            '#d63384',
+          ],
+          'circle-radius': [
+            'step',
+            ['get', 'point_count'],
+            18,
+            25,
+            24,
+            100,
+            32,
+          ],
+          'circle-opacity': 0.85,
+        },
+      });
+    }
+
+    if (!map.getLayer(CLUSTER_COUNT_LAYER_ID)) {
+      map.addLayer({
+        id: CLUSTER_COUNT_LAYER_ID,
+        type: 'symbol',
+        source: ZOOS_SOURCE_ID,
+        filter: ['has', 'point_count'],
+        layout: {
+          'text-field': '{point_count_abbreviated}',
+          'text-size': 12,
+          'text-font': ['Noto Sans Regular'],
+        },
+        paint: {
+          'text-color': '#ffffff',
+        },
+      });
+    }
+
+    if (!map.getLayer(UNCLUSTERED_LAYER_ID)) {
+      map.addLayer({
+        id: UNCLUSTERED_LAYER_ID,
+        type: 'circle',
+        source: ZOOS_SOURCE_ID,
+        filter: ['!', ['has', 'point_count']],
+        paint: {
+          'circle-color': '#0d6efd',
+          'circle-radius': 7,
+          'circle-stroke-width': 1,
+          'circle-stroke-color': '#ffffff',
+        },
+      });
+    }
+
+    const handleClusterClick = async (event) => {
+      const feature = event.features?.[0];
+      if (!feature) return;
+      const clusterId = feature.properties?.cluster_id;
+      if (clusterId == null) return;
+      const source = map.getSource(ZOOS_SOURCE_ID);
+      if (!source?.getClusterExpansionZoom) return;
+      try {
+        const zoom = await source.getClusterExpansionZoom(clusterId);
+        map.easeTo({ center: feature.geometry.coordinates, zoom });
+      } catch (error) {
+        // Ignore zoom errors to avoid breaking user interaction.
+      }
+    };
+
+    const handlePointClick = (event) => {
+      const feature = event.features?.[0];
+      if (!feature) return;
+      const id = feature.properties?.zoo_id;
+      if (!id) return;
+      const target = zooLookupRef.current.get(String(id));
+      if (target && onSelectRef.current) {
+        const view = captureView();
+        if (view && onViewChangeRef.current) {
+          onViewChangeRef.current(view);
+        }
+        onSelectRef.current(target, view);
+      }
+    };
+
+    const handlePointerEnter = () => {
+      if (map.getCanvas()) {
+        map.getCanvas().style.cursor = 'pointer';
+      }
+    };
+
+    const handlePointerLeave = () => {
+      if (map.getCanvas()) {
+        map.getCanvas().style.cursor = '';
+      }
+    };
+
+    map.on('click', CLUSTERS_LAYER_ID, handleClusterClick);
+    map.on('click', UNCLUSTERED_LAYER_ID, handlePointClick);
+    map.on('mouseenter', CLUSTERS_LAYER_ID, handlePointerEnter);
+    map.on('mouseleave', CLUSTERS_LAYER_ID, handlePointerLeave);
+    map.on('mouseenter', UNCLUSTERED_LAYER_ID, handlePointerEnter);
+    map.on('mouseleave', UNCLUSTERED_LAYER_ID, handlePointerLeave);
+
+    return () => {
+      map.off('click', CLUSTERS_LAYER_ID, handleClusterClick);
+      map.off('click', UNCLUSTERED_LAYER_ID, handlePointClick);
+      map.off('mouseenter', CLUSTERS_LAYER_ID, handlePointerEnter);
+      map.off('mouseleave', CLUSTERS_LAYER_ID, handlePointerLeave);
+      map.off('mouseenter', UNCLUSTERED_LAYER_ID, handlePointerEnter);
+      map.off('mouseleave', UNCLUSTERED_LAYER_ID, handlePointerLeave);
+    };
+  }, [mapReady]);
+
+  useEffect(() => {
+    if (!mapReady || !mapRef.current) return;
+    const source = mapRef.current.getSource(ZOOS_SOURCE_ID);
+    if (!source) return;
+
+    const features = normalizedZoos.map((zoo) => ({
+      type: 'Feature',
+      geometry: {
+        type: 'Point',
+        coordinates: [zoo.longitude, zoo.latitude],
+      },
+      properties: {
+        zoo_id: String(zoo.id),
+        name: getZooDisplayName(zoo) || '',
+      },
+    }));
+
+    source.setData({
+      type: 'FeatureCollection',
+      features,
+    });
+  }, [normalizedZoos, mapReady]);
+
+  useEffect(() => {
+    if (!mapRef.current || !mapReady || !maplibreRef.current) return;
+    if (persistentInitialView) return;
+
+    const hasCenter = Number.isFinite(centerLat) && Number.isFinite(centerLon);
+    if (hasCenter) {
+      hasFitToZoosRef.current = false;
+      return;
+    }
+
+    if (normalizedZoos.length === 0) {
+      hasFitToZoosRef.current = false;
+      return;
+    }
+
+    if (hasFitToZoosRef.current) return;
+
+    const [firstZoo] = normalizedZoos;
+    const bounds = new maplibreRef.current.LngLatBounds(
+      [firstZoo.longitude, firstZoo.latitude],
+      [firstZoo.longitude, firstZoo.latitude]
+    );
+    normalizedZoos.forEach((zoo) => {
+      bounds.extend([zoo.longitude, zoo.latitude]);
+    });
+    mapRef.current.fitBounds(bounds, {
+      padding: 40,
+      maxZoom: FOCUS_ZOOM,
+      duration: 500,
+    });
+    hasFitToZoosRef.current = true;
+  }, [
+    normalizedZoos,
+    centerLat,
+    centerLon,
+    mapReady,
+    persistentInitialView,
+  ]);
+
+  useEffect(() => {
+    if (!mapReady || !mapRef.current) return undefined;
+
+    const map = mapRef.current;
+    const emitViewChange = () => {
+      const view = captureView();
+      if (view && onViewChangeRef.current) {
+        onViewChangeRef.current(view);
+      }
+    };
+
+    map.on('moveend', emitViewChange);
+    return () => {
+      map.off('moveend', emitViewChange);
+    };
+  }, [captureView, mapReady]);
 
   useEffect(() => {
     if (!mapRef.current) {
@@ -268,6 +517,13 @@ ZoosMap.propTypes = {
   }),
   onSelect: PropTypes.func,
   resizeToken: PropTypes.number,
+  initialView: PropTypes.shape({
+    center: PropTypes.arrayOf(PropTypes.number),
+    zoom: PropTypes.number,
+    bearing: PropTypes.number,
+    pitch: PropTypes.number,
+  }),
+  onViewChange: PropTypes.func,
 };
 
 ZoosMap.defaultProps = {
@@ -275,5 +531,7 @@ ZoosMap.defaultProps = {
   center: null,
   onSelect: undefined,
   resizeToken: 0,
+  initialView: null,
+  onViewChange: undefined,
 };
 
