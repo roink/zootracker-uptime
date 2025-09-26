@@ -1,12 +1,14 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { API } from '../api';
 import { getZooDisplayName } from '../utils/zooDisplayName.js';
+import { normalizeCoordinates } from '../utils/coordinates.js';
 import useAuthFetch from '../hooks/useAuthFetch';
 import SightingModal from '../components/SightingModal';
 import Seo from '../components/Seo';
 import { useAuth } from '../auth/AuthContext.jsx';
+import ZoosMap from '../components/ZoosMap.jsx';
 import '../styles/animal-detail.css';
 
 // Map IUCN codes to labels and bootstrap badge classes
@@ -22,18 +24,57 @@ const IUCN = {
   NE: { label: 'Not Evaluated', badge: 'bg-secondary' },
 };
 
+// Normalize map camera view snapshots stored in navigation state
+function sanitizeCameraView(view) {
+  if (!view) return null;
+  const center = Array.isArray(view.center) ? view.center : null;
+  if (!center || center.length !== 2) return null;
+  const [lon, lat] = center;
+  if (!Number.isFinite(lon) || !Number.isFinite(lat)) return null;
+  const safeView = {
+    center: [Number(lon), Number(lat)],
+  };
+  if (Number.isFinite(view.zoom)) safeView.zoom = Number(view.zoom);
+  if (Number.isFinite(view.bearing)) safeView.bearing = Number(view.bearing);
+  if (Number.isFinite(view.pitch)) safeView.pitch = Number(view.pitch);
+  return safeView;
+}
+
+function cameraViewsEqual(a, b) {
+  const left = sanitizeCameraView(a);
+  const right = sanitizeCameraView(b);
+  if (!left && !right) return true;
+  if (!left || !right) return false;
+  const [lonA, latA] = left.center;
+  const [lonB, latB] = right.center;
+  if (lonA !== lonB || latA !== latB) return false;
+  const zoomA = Number.isFinite(left.zoom) ? left.zoom : null;
+  const zoomB = Number.isFinite(right.zoom) ? right.zoom : null;
+  if (zoomA !== zoomB) return false;
+  const bearingA = Number.isFinite(left.bearing) ? left.bearing : null;
+  const bearingB = Number.isFinite(right.bearing) ? right.bearing : null;
+  if (bearingA !== bearingB) return false;
+  const pitchA = Number.isFinite(left.pitch) ? left.pitch : null;
+  const pitchB = Number.isFinite(right.pitch) ? right.pitch : null;
+  return pitchA === pitchB;
+}
+
 // Detailed page showing an animal along with nearby zoos and user sightings
 
 export default function AnimalDetailPage({ refresh, onLogged }) {
   const { slug, lang } = useParams();
   const navigate = useNavigate();
+  const routerLocation = useLocation();
   const prefix = `/${lang}`;
   const { t } = useTranslation();
   const authFetch = useAuthFetch();
   const { isAuthenticated } = useAuth();
+  const initialViewMode =
+    routerLocation.state?.animalViewMode === 'map' ? 'map' : 'list';
+  const initialMapView = sanitizeCameraView(routerLocation.state?.animalMapView);
   const [animal, setAnimal] = useState(null);
   const [sightings, setSightings] = useState([]);
-  const [location, setLocation] = useState(null);
+  const [userLocation, setUserLocation] = useState(null);
   const [zoos, setZoos] = useState([]);
   const [modalData, setModalData] = useState(null);
   const [zooFilter, setZooFilter] = useState('');
@@ -41,6 +82,15 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
   const [descOpen, setDescOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [viewMode, setViewMode] = useState(initialViewMode);
+  const [mapView, setMapView] = useState(initialMapView);
+  const [mapResizeToken, setMapResizeToken] = useState(() =>
+    initialViewMode === 'map' ? 1 : 0
+  );
+  const persistedViewRef = useRef({
+    viewMode: initialViewMode,
+    mapView: initialMapView,
+  });
 
   // Choose localized name for current language
   const animalName = useMemo(() => {
@@ -79,9 +129,9 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
 
   useEffect(() => {
     const params = [];
-    if (location) {
-      params.push(`latitude=${location.lat}`);
-      params.push(`longitude=${location.lon}`);
+    if (userLocation) {
+      params.push(`latitude=${userLocation.lat}`);
+      params.push(`longitude=${userLocation.lon}`);
     }
     const controller = new AbortController();
     setLoading(true);
@@ -107,7 +157,7 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
       });
 
     return () => controller.abort();
-  }, [slug, location]);
+  }, [slug, userLocation]);
 
   const loadSightings = useCallback(() => {
     if (!isAuthenticated) return;
@@ -122,11 +172,24 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
   }, [loadSightings, refresh]);
 
   useEffect(() => {
+    const navState = routerLocation.state || {};
+    const nextMode = navState.animalViewMode === 'map' ? 'map' : 'list';
+    const nextView = sanitizeCameraView(navState.animalMapView);
+    setViewMode(nextMode);
+    setMapView(nextView);
+    setMapResizeToken(nextMode === 'map' ? 1 : 0);
+    persistedViewRef.current = {
+      viewMode: nextMode,
+      mapView: nextView,
+    };
+  }, [slug]);
+
+  useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) =>
-          setLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
-        () => setLocation(null),
+          setUserLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+        () => setUserLocation(null),
         { enableHighAccuracy: false, timeout: 3000, maximumAge: 600000 }
       );
     }
@@ -134,8 +197,8 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
 
   // Keep sort default in sync with location availability
   useEffect(() => {
-    if (location) setSortBy('distance');
-  }, [location]);
+    if (userLocation) setSortBy('distance');
+  }, [userLocation]);
 
   const filteredZoos = useMemo(() => {
     const q = zooFilter.trim().toLowerCase();
@@ -146,7 +209,7 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
       );
     }
     list.sort((a, b) => {
-      if (sortBy === 'distance' && location) {
+      if (sortBy === 'distance' && userLocation) {
         const da = a.distance_km ?? Number.POSITIVE_INFINITY;
         const db = b.distance_km ?? Number.POSITIVE_INFINITY;
         return da - db;
@@ -156,7 +219,81 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
       return an.localeCompare(bn);
     });
     return list;
-  }, [zoos, zooFilter, sortBy, location]);
+  }, [zoos, zooFilter, sortBy, userLocation]);
+
+  const zoosWithCoordinates = useMemo(
+    () => filteredZoos.filter((zoo) => normalizeCoordinates(zoo)),
+    [filteredZoos]
+  );
+
+  const persistViewState = useCallback(
+    (nextMode, nextView) => {
+      const desiredMode = nextMode || viewMode;
+      const sanitizedView = sanitizeCameraView(nextView);
+      const previous = persistedViewRef.current;
+      if (
+        previous.viewMode === desiredMode &&
+        cameraViewsEqual(previous.mapView, sanitizedView)
+      ) {
+        return;
+      }
+      persistedViewRef.current = {
+        viewMode: desiredMode,
+        mapView: sanitizedView,
+      };
+      const state = routerLocation.state || {};
+      navigate(`${routerLocation.pathname}${routerLocation.search}`, {
+        replace: true,
+        state: {
+          ...state,
+          animalViewMode: desiredMode,
+          animalMapView: sanitizedView,
+        },
+      });
+    },
+    [
+      navigate,
+      routerLocation.pathname,
+      routerLocation.search,
+      routerLocation.state,
+      viewMode,
+    ]
+  );
+
+  const handleMapSelect = useCallback(
+    (zoo, view) => {
+      const sanitizedView = sanitizeCameraView(view) ?? mapView;
+      setMapView(sanitizedView);
+      persistViewState('map', sanitizedView);
+      navigate(`${prefix}/zoos/${zoo.slug || zoo.id}`, {
+        state: {
+          animalViewMode: 'map',
+          animalMapView: sanitizedView,
+        },
+      });
+    },
+    [mapView, navigate, persistViewState, prefix]
+  );
+
+  const handleViewModeChange = useCallback(
+    (mode) => {
+      setViewMode(mode);
+      if (mode === 'map') {
+        setMapResizeToken((token) => token + 1);
+      }
+      persistViewState(mode, mapView);
+    },
+    [mapView, persistViewState]
+  );
+
+  const handleMapViewChange = useCallback(
+    (view) => {
+      const sanitizedView = sanitizeCameraView(view) ?? mapView;
+      setMapView(sanitizedView);
+      persistViewState(viewMode, sanitizedView);
+    },
+    [mapView, persistViewState, viewMode]
+  );
 
   if (loading) return <div className="page-container">Loading...</div>;
   if (error) return (
@@ -182,7 +319,7 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
   const gallery = userSightings.filter((s) => s.photo_url);
   const hasGallery = animal.images && animal.images.length > 0;
 
-  const closestZoo = zoos[0];
+  const closestZoo = filteredZoos[0] ?? zoos[0];
 
   // compute a stable aspect ratio from the first image (fallback 4/3)
   const computeAspect = (img) => {
@@ -438,55 +575,113 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
               <button
                 className={`btn btn-outline-secondary ${sortBy === 'distance' ? 'active' : ''}`}
                 onClick={() => setSortBy('distance')}
-                disabled={!location}
-                title={!location ? t('animal.enableLocationSort') : undefined}
+                disabled={!userLocation}
+                title={!userLocation ? t('animal.enableLocationSort') : undefined}
               >
                 {t('actions.sortByDistance')}
               </button>
             </div>
           </div>
+          <div className="d-flex justify-content-end flex-wrap gap-2 mt-3">
+            <fieldset className="btn-group" role="group" aria-label={t('zoo.viewToggle')}>
+              <legend className="visually-hidden">{t('zoo.viewToggle')}</legend>
+              <input
+                type="radio"
+                className="btn-check"
+                name="animal-zoo-view"
+                id="animal-zoo-view-list"
+                autoComplete="off"
+                checked={viewMode === 'list'}
+                onChange={() => handleViewModeChange('list')}
+              />
+              <label className="btn btn-outline-primary" htmlFor="animal-zoo-view-list">
+                {t('zoo.viewList')}
+              </label>
+              <input
+                type="radio"
+                className="btn-check"
+                name="animal-zoo-view"
+                id="animal-zoo-view-map"
+                autoComplete="off"
+                checked={viewMode === 'map'}
+                onChange={() => handleViewModeChange('map')}
+              />
+              <label className="btn btn-outline-primary" htmlFor="animal-zoo-view-map">
+                {t('zoo.viewMap')}
+              </label>
+            </fieldset>
+          </div>
           <div className="small text-muted mt-2" aria-live="polite">
             Showing {filteredZoos.length} of {zoos.length}
           </div>
         </div>
-        <div className="table-responsive">
-          <table className="table table-hover align-middle mb-0">
-            <thead className="table-light">
-              <tr>
-                <th scope="col">Zoo</th>
-                {location && <th scope="col" className="text-end">Distance (km)</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {filteredZoos.map((z) => {
-                const displayName = getZooDisplayName(z);
-                return (
-                <tr
-                  key={z.id}
-                  className="pointer-row"
-                  role="link"
-                  aria-label={`Open ${displayName}`}
-                  onClick={() => navigate(`${prefix}/zoos/${z.slug || z.id}`)}
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      navigate(`${prefix}/zoos/${z.slug || z.id}`);
-                    }
-                  }}
-                >
-                  <td>{displayName}</td>
-                  {location && (
-                    <td className="text-end">
-                      {z.distance_km != null ? z.distance_km.toFixed(1) : ''}
-                    </td>
+        {viewMode === 'list' ? (
+          <div className="table-responsive">
+            <table className="table table-hover align-middle mb-0">
+              <thead className="table-light">
+                <tr>
+                  <th scope="col">Zoo</th>
+                  {userLocation && (
+                    <th scope="col" className="text-end">Distance (km)</th>
                   )}
                 </tr>
-              );
-              })}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {filteredZoos.map((z) => {
+                  const displayName = getZooDisplayName(z);
+                  return (
+                    <tr
+                      key={z.id}
+                      className="pointer-row"
+                      role="link"
+                      aria-label={`Open ${displayName}`}
+                      onClick={() => navigate(`${prefix}/zoos/${z.slug || z.id}`)}
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          navigate(`${prefix}/zoos/${z.slug || z.id}`);
+                        }
+                      }}
+                    >
+                      <td>{displayName}</td>
+                      {userLocation && (
+                        <td className="text-end">
+                          {z.distance_km != null ? z.distance_km.toFixed(1) : ''}
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="card-body pt-0">
+            {zoosWithCoordinates.length > 0 ? (
+              <ZoosMap
+                zoos={zoosWithCoordinates}
+                center={
+                  userLocation
+                    ? {
+                        lat: userLocation.lat,
+                        lon: userLocation.lon,
+                      }
+                    : null
+                }
+                onSelect={handleMapSelect}
+                initialView={mapView}
+                onViewChange={handleMapViewChange}
+                resizeToken={mapResizeToken}
+                ariaLabel={t('animal.mapAriaLabel', { animal: animalName })}
+              />
+            ) : (
+              <div className="alert alert-info mb-0" role="status">
+                {t('zoo.noMapResults')}
+              </div>
+            )}
+          </div>
+        )}
       </div>
       <button
         onClick={() => {

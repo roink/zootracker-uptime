@@ -30,6 +30,7 @@ export default function ZoosMap({
   resizeToken,
   initialView,
   onViewChange,
+  ariaLabel,
 }) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
@@ -628,12 +629,14 @@ export default function ZoosMap({
     return undefined;
   }, [mapReady, resizeToken, triggerResize]);
 
+  const mapAriaLabel = ariaLabel || t('zoo.mapAriaLabel');
+
   return (
     <div
       ref={containerRef}
       className="map-container zoos-map"
       role="region"
-      aria-label={t('zoo.mapAriaLabel')}
+      aria-label={mapAriaLabel}
     />
   );
 }
@@ -671,6 +674,7 @@ ZoosMap.propTypes = {
     pitch: PropTypes.number,
   }),
   onViewChange: PropTypes.func,
+  ariaLabel: PropTypes.string,
 };
 
 ZoosMap.defaultProps = {
@@ -680,5 +684,6 @@ ZoosMap.defaultProps = {
   resizeToken: 0,
   initialView: null,
   onViewChange: undefined,
+  ariaLabel: undefined,
 };
 

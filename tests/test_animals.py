@@ -34,6 +34,18 @@ def test_get_animal_detail_includes_description_en(data):
     assert body["description_en"] == "King of the jungle"
 
 
+def test_get_animal_detail_zoos_include_coordinates(data):
+    resp = client.get(f"/animals/{data['animal'].slug}")
+    assert resp.status_code == 200
+    zoos = resp.json()["zoos"]
+    assert zoos, "expected at least one zoo in the animal detail response"
+    for zoo in zoos:
+        assert "latitude" in zoo
+        assert "longitude" in zoo
+        assert zoo["latitude"] is not None
+        assert zoo["longitude"] is not None
+
+
 def test_get_animal_detail_includes_taxon_names(data):
     resp = client.get(f"/animals/{data['animal'].slug}")
     assert resp.status_code == 200
