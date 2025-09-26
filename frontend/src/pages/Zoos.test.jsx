@@ -320,4 +320,49 @@ describe('ZoosPage', () => {
     );
     expect(message).toBeInTheDocument();
   });
+
+  it('persists the map camera when toggling between map and list views', async () => {
+    const fetchMock = vi.fn(() =>
+      Promise.resolve({ ok: true, json: () => Promise.resolve([]) })
+    );
+    global.fetch = fetchMock;
+
+    const initialCamera = {
+      center: [8.6, 50.1],
+      zoom: 7.5,
+      bearing: 12,
+      pitch: 15,
+    };
+
+    let loc;
+    function LocWatcher() {
+      loc = useLocation();
+      return null;
+    }
+
+    renderWithRouter(
+      <>
+        <LocWatcher />
+        <ZoosPage />
+      </>,
+      {
+        route: {
+          pathname: '/',
+          search: '?view=map',
+          state: { mapView: initialCamera },
+        },
+      }
+    );
+
+    await waitFor(() => expect(screen.getByLabelText('Map')).toBeChecked());
+    expect(loc.state?.mapView).toEqual(initialCamera);
+
+    fireEvent.click(screen.getByLabelText('List'));
+    await waitFor(() => expect(screen.getByLabelText('List')).toBeChecked());
+    await waitFor(() => expect(loc.state?.mapView).toEqual(initialCamera));
+
+    fireEvent.click(screen.getByLabelText('Map'));
+    await waitFor(() => expect(screen.getByLabelText('Map')).toBeChecked());
+    await waitFor(() => expect(loc.state?.mapView).toEqual(initialCamera));
+  });
 });
