@@ -252,6 +252,13 @@ async def process_zoos(
         await asyncio.to_thread(update_database, db_path, zoo_id, record)
 
 
+def positive_int(value: str) -> int:
+    number = int(value)
+    if number <= 0:
+        raise argparse.ArgumentTypeError("limit must be a positive integer")
+    return number
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Fill missing zoo descriptions and metadata via Gemini.",
@@ -264,9 +271,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--limit",
-        type=int,
+        type=positive_int,
         default=None,
-        help="Limit processing to the first N zoos.",
+        help=(
+            "Limit processing to the first N zoos sorted by species count. "
+            "For example, --limit 1000 restricts processing to the top 1000 zoos."
+        ),
     )
     parser.add_argument(
         "--concurrency",
