@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import json
+import asyncio
 import os
 import sqlite3
 from dataclasses import dataclass
@@ -10,7 +10,8 @@ from pathlib import Path
 from typing import Dict, Optional
 from google import genai
 from google.genai import types
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel, HttpUrl, field_validator
+from urllib.parse import urlparse
 
 ENV_FILE_PATH = Path(".env")
 RESEARCH_MODEL = "gemini-flash-latest"
@@ -52,6 +53,31 @@ class ZooRecord(BaseModel):
     website: Optional[HttpUrl] = None
     wikipedia_en: Optional[HttpUrl] = None
     wikipedia_de: Optional[HttpUrl] = None
+
+    @field_validator("website", "wikipedia_en", "wikipedia_de", mode="before")
+    @classmethod
+    def _normalise_url(cls, value: Optional[str]) -> Optional[str]:
+        """Accept bare domains by prepending https:// before validation."""
+
+        if value is None:
+            return None
+
+        text = str(value).strip()
+        if not text:
+            return None
+
+        parsed = urlparse(text)
+        if not parsed.scheme:
+            text = f"https://{text}"
+            parsed = urlparse(text)
+
+        # urlparse treats values like "https://example" as having the scheme but
+        # no network location. Reject such cases by returning the cleaned string
+        # so HttpUrl validation can still fail, ensuring data quality.
+        if not parsed.netloc:
+            return text
+
+        return text
 
 
 @dataclass
@@ -202,7 +228,7 @@ class GeminiZooClient:
                 chunks.append(chunk.text)
         return "".join(chunks).strip()
 
-    def structure_response(self, partially_structured_text: str) -> Dict[str, object]:
+    def structure_response(self, partially_structured_text: str) -> ZooRecord:
         """Convert the research output into a structured JSON payload."""
 
         prompt = (
@@ -226,5 +252,15 @@ class GeminiZooClient:
                 thinking_config=types.ThinkingConfig(thinking_budget=0),
             ),
         )
-        return json.loads(response.text)
+        return ZooRecord.model_validate_json(response.text)
+
+    async def research_zoo_async(self, prompt: str) -> str:
+        """Async wrapper around :meth:`research_zoo`."""
+
+        return await asyncio.to_thread(self.research_zoo, prompt)
+
+    async def structure_response_async(self, partially_structured_text: str) -> ZooRecord:
+        """Async wrapper around :meth:`structure_response`."""
+
+        return await asyncio.to_thread(self.structure_response, partially_structured_text)
 

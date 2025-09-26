@@ -33,7 +33,7 @@ import shutil
 import sqlite3
 import sys
 from datetime import datetime
-from typing import Iterable, List, Tuple
+from typing import List, Tuple
 
 
 def parse_args() -> argparse.Namespace:
@@ -161,7 +161,7 @@ def main() -> None:
         try:
             tgt_conn.executemany(sql, params)
             tgt_conn.commit()
-        except Exception as e:
+        except Exception:
             tgt_conn.rollback()
             raise
         after = tgt_conn.total_changes
