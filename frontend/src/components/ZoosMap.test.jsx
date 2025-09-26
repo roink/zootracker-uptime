@@ -3,6 +3,8 @@ import '@testing-library/jest-dom';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 
+const mockMaps = [];
+
 vi.mock('maplibre-gl', () => {
   class MockMap {
     constructor({ container, center = [0, 0], zoom = 0, bearing = 0, pitch = 0 }) {
@@ -15,6 +17,8 @@ vi.mock('maplibre-gl', () => {
       this.zoom = zoom;
       this.bearing = bearing;
       this.pitch = pitch;
+      this.sourceSetDataSpies = new Map();
+      mockMaps.push(this);
       queueMicrotask(() => {
         this.emit('load');
       });
@@ -120,7 +124,7 @@ vi.mock('maplibre-gl', () => {
       const source = {
         options,
         data: options?.data,
-        setData: (data) => {
+        setData: vi.fn((data) => {
           source.data = data;
           if (this.container) {
             this.container.innerHTML = '';
@@ -150,9 +154,10 @@ vi.mock('maplibre-gl', () => {
               this.container.appendChild(link);
             });
           }
-        },
+        }),
         getClusterExpansionZoom: async () => 10,
       };
+      this.sourceSetDataSpies.set(id, source.setData);
       this.sources.set(id, source);
       return source;
     }
@@ -215,6 +220,7 @@ vi.mock('maplibre-gl', () => {
       Map: MockMap,
       Marker: MockMarker,
       LngLatBounds: MockLngLatBounds,
+      __getMaps: () => mockMaps,
     },
   };
 });
@@ -280,5 +286,42 @@ describe('ZoosMap', () => {
     });
 
     expect(marker).toBeInTheDocument();
+  });
+
+  it('skips setData when feature ids are unchanged', async () => {
+    const { rerender } = render(
+      <ZoosMap
+        zoos={[
+          { id: '1', name: 'First Zoo', latitude: 10, longitude: 10 },
+          { id: '2', name: 'Second Zoo', latitude: 20, longitude: 20 },
+        ]}
+        center={{ lat: 0, lon: 0 }}
+      />
+    );
+
+    await screen.findAllByRole('link');
+
+    const maplibregl = await import('maplibre-gl');
+    const [mapInstance] = maplibregl.default.__getMaps().slice(-1);
+    const setDataSpy = mapInstance?.sourceSetDataSpies?.get('zoos');
+    expect(setDataSpy).toBeDefined();
+    expect(setDataSpy).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <ZoosMap
+        zoos={[
+          { id: '1', name: 'First Zoo', latitude: 10, longitude: 10 },
+          { id: '2', name: 'Second Zoo', latitude: 20, longitude: 20 },
+        ]}
+        center={{ lat: 0, lon: 0 }}
+      />
+    );
+
+    // Allow pending microtasks/timeouts to flush.
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
+
+    expect(setDataSpy).toHaveBeenCalledTimes(1);
   });
 });

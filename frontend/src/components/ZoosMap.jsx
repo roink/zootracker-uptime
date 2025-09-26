@@ -39,6 +39,7 @@ export default function ZoosMap({
   const onSelectRef = useRef(onSelect);
   const onViewChangeRef = useRef(onViewChange);
   const zooLookupRef = useRef(new Map());
+  const previousFeatureIdsRef = useRef([]);
   const hasFitToZoosRef = useRef(false);
   const skipNextCenterRef = useRef(false);
   const { t } = useTranslation();
@@ -310,6 +311,7 @@ export default function ZoosMap({
       maplibreRef.current = null;
       setMapReady(false);
       hasFitToZoosRef.current = false;
+      previousFeatureIdsRef.current = [];
     },
     [cancelPendingSetData]
   );
@@ -484,17 +486,40 @@ export default function ZoosMap({
     if (!source || typeof source.setData !== 'function') return undefined;
 
     const updateFeatures = () => {
-      const features = normalizedZoos.map((zoo) => ({
-        type: 'Feature',
-        geometry: {
-          type: 'Point',
-          coordinates: [zoo.longitude, zoo.latitude],
-        },
-        properties: {
-          zoo_id: String(zoo.id),
-          name: getZooDisplayName(zoo) || '',
-        },
-      }));
+      const nextIds = [];
+      const features = normalizedZoos.map((zoo) => {
+        const zooId = String(zoo.id);
+        nextIds.push(zooId);
+        return {
+          type: 'Feature',
+          geometry: {
+            type: 'Point',
+            coordinates: [zoo.longitude, zoo.latitude],
+          },
+          properties: {
+            zoo_id: zooId,
+            name: getZooDisplayName(zoo) || '',
+          },
+        };
+      });
+
+      const previousIds = previousFeatureIdsRef.current;
+      const sameLength = previousIds.length === nextIds.length;
+      let idsMatch = sameLength;
+      if (idsMatch) {
+        for (let index = 0; index < nextIds.length; index += 1) {
+          if (previousIds[index] !== nextIds[index]) {
+            idsMatch = false;
+            break;
+          }
+        }
+      }
+
+      if (idsMatch) {
+        return;
+      }
+
+      previousFeatureIdsRef.current = nextIds;
 
       source.setData({
         type: 'FeatureCollection',
