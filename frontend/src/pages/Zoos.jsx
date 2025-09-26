@@ -1,5 +1,11 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
-import { Link, useSearchParams, useParams, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import {
+  Link,
+  useSearchParams,
+  useParams,
+  useNavigate,
+  useLocation,
+} from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
@@ -10,6 +16,22 @@ import { normalizeCoordinates } from '../utils/coordinates.js';
 import { getZooDisplayName } from '../utils/zooDisplayName.js';
 
 const LOCATION_STORAGE_KEY = 'userLocation';
+
+function mapViewsEqual(a, b) {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  if (!Array.isArray(a.center) || !Array.isArray(b.center)) return false;
+  const [aLon, aLat] = a.center;
+  const [bLon, bLat] = b.center;
+  const centerMatch =
+    Math.abs((aLon || 0) - (bLon || 0)) < 1e-6 &&
+    Math.abs((aLat || 0) - (bLat || 0)) < 1e-6;
+  if (!centerMatch) return false;
+  const zoomMatch = Math.abs((a.zoom || 0) - (b.zoom || 0)) < 1e-4;
+  const bearingMatch = Math.abs((a.bearing || 0) - (b.bearing || 0)) < 1e-2;
+  const pitchMatch = Math.abs((a.pitch || 0) - (b.pitch || 0)) < 1e-2;
+  return zoomMatch && bearingMatch && pitchMatch;
+}
 
 // Safely read a previously stored location from sessionStorage.
 function readStoredLocation() {
@@ -80,9 +102,56 @@ export default function ZoosPage() {
   const { isAuthenticated } = useAuth();
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const locationState = useLocation();
+  const mapViewRef = useRef(locationState.state?.mapView ?? null);
+  const [mapView, setMapView] = useState(() => mapViewRef.current);
   const [viewMode, setViewMode] = useState(initialView);
   const [mapResizeToken, setMapResizeToken] = useState(0);
   const estimateAttemptedRef = useRef(false);
+
+  useEffect(() => {
+    const nextView = locationState.state?.mapView ?? null;
+    if (!mapViewsEqual(nextView, mapViewRef.current)) {
+      mapViewRef.current = nextView;
+      setMapView(nextView);
+    }
+  }, [locationState.state]);
+
+  useEffect(() => {
+    mapViewRef.current = mapView;
+  }, [mapView]);
+
+  const updateMapView = useCallback(
+    (view) => {
+      if (!view || !Array.isArray(view.center)) {
+        if (mapViewRef.current) {
+          mapViewRef.current = null;
+          setMapView(null);
+          const baseState = locationState.state ? { ...locationState.state } : {};
+          delete baseState.mapView;
+          navigate(
+            { pathname: locationState.pathname, search: locationState.search },
+            { replace: true, state: baseState }
+          );
+        }
+        return;
+      }
+
+      if (mapViewsEqual(view, mapViewRef.current)) {
+        return;
+      }
+
+      mapViewRef.current = view;
+      setMapView(view);
+      const baseState = locationState.state ? { ...locationState.state } : {};
+      baseState.mapView = view;
+      navigate(
+        { pathname: locationState.pathname, search: locationState.search },
+        { replace: true, state: baseState }
+      );
+    },
+    [locationState.pathname, locationState.search, locationState.state, navigate]
+  );
 
   // Keep local state in sync with URL (supports browser back/forward)
   useEffect(() => {
@@ -306,7 +375,10 @@ export default function ZoosPage() {
     setViewMode(mode);
   };
 
-  const handleSelectZoo = (zoo) => {
+  const handleSelectZoo = (zoo, view) => {
+    if (view) {
+      updateMapView(view);
+    }
     navigate(`${prefix}/zoos/${zoo.slug || zoo.id}`);
   };
 
@@ -502,6 +574,8 @@ export default function ZoosPage() {
           zoos={zoosWithCoordinates}
           center={activeLocation}
           onSelect={handleSelectZoo}
+          initialView={mapView}
+          onViewChange={updateMapView}
           resizeToken={mapResizeToken}
         />
       ) : (
