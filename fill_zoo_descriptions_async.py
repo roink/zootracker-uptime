@@ -28,6 +28,17 @@ INITIAL_BACKOFF = 1.0
 MAX_BACKOFF = 30.0
 
 
+REQUIRED_COLUMNS: dict[str, str] = {
+    "description_en": "TEXT",
+    "description_de": "TEXT",
+    "official_website": "TEXT",
+    "wikipedia_en": "TEXT",
+    "wikipedia_de": "TEXT",
+    "number_visitors": "INTEGER",
+    "source": "TEXT",
+}
+
+
 @dataclass(slots=True)
 class TargetZoo(ZooMetadata):
     """Zoo metadata plus book-keeping fields loaded for processing."""
@@ -100,6 +111,25 @@ def load_target_zoos(db_path: Path, limit: Optional[int]) -> list[TargetZoo]:
             )
         )
     return targets
+
+
+def ensure_columns_exist(db_path: Path) -> None:
+    """Add missing columns required by this script."""
+
+    with sqlite3.connect(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        existing = {
+            row["name"].lower()
+            for row in conn.execute("PRAGMA table_info(zoo)").fetchall()
+        }
+
+        for column, definition in REQUIRED_COLUMNS.items():
+            if column.lower() in existing:
+                continue
+
+            logging.info("Adding missing column %s to zoo table", column)
+            conn.execute(f"ALTER TABLE zoo ADD COLUMN {column} {definition}")
+        conn.commit()
 
 
 async def gather_zoo_details(
@@ -254,9 +284,10 @@ async def main() -> None:
         format="%(asctime)s %(levelname)s %(message)s",
     )
 
-    db_path = args.db or get_database_path()
+    db_path = Path(args.db or get_database_path())
+    ensure_columns_exist(db_path)
     api_key = get_gemini_api_key()
-    target_zoos = load_target_zoos(Path(db_path), args.limit)
+    target_zoos = load_target_zoos(db_path, args.limit)
     if not target_zoos:
         logging.info("No zoos require updates.")
         return
@@ -264,7 +295,7 @@ async def main() -> None:
     logging.info("Processing %s zoos with concurrency=%s", len(target_zoos), args.concurrency)
 
     client = GeminiZooClient(api_key=api_key)
-    await process_zoos(Path(db_path), client, target_zoos, min(args.concurrency, DEFAULT_CONCURRENCY))
+    await process_zoos(db_path, client, target_zoos, min(args.concurrency, DEFAULT_CONCURRENCY))
 
 
 if __name__ == "__main__":
