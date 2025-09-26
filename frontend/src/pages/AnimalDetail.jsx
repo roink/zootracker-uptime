@@ -3,10 +3,12 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { API } from '../api';
 import { getZooDisplayName } from '../utils/zooDisplayName.js';
+import { normalizeCoordinates } from '../utils/coordinates.js';
 import useAuthFetch from '../hooks/useAuthFetch';
 import SightingModal from '../components/SightingModal';
 import Seo from '../components/Seo';
 import { useAuth } from '../auth/AuthContext.jsx';
+import ZoosMap from '../components/ZoosMap.jsx';
 import '../styles/animal-detail.css';
 
 // Map IUCN codes to labels and bootstrap badge classes
@@ -41,6 +43,9 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
   const [descOpen, setDescOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [viewMode, setViewMode] = useState('list');
+  const [mapView, setMapView] = useState(null);
+  const [mapResizeToken, setMapResizeToken] = useState(0);
 
   // Choose localized name for current language
   const animalName = useMemo(() => {
@@ -158,6 +163,38 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
     return list;
   }, [zoos, zooFilter, sortBy, location]);
 
+  const zoosWithCoordinates = useMemo(
+    () => filteredZoos.filter((zoo) => normalizeCoordinates(zoo)),
+    [filteredZoos]
+  );
+
+  const handleMapSelect = useCallback(
+    (zoo, view) => {
+      if (view) {
+        setMapView(view);
+      }
+      navigate(`${prefix}/zoos/${zoo.slug || zoo.id}`);
+    },
+    [navigate, prefix, setMapView]
+  );
+
+  const handleViewModeChange = useCallback(
+    (mode) => {
+      setViewMode(mode);
+      if (mode === 'map') {
+        setMapResizeToken((token) => token + 1);
+      }
+    },
+    [setMapResizeToken]
+  );
+
+  const handleMapViewChange = useCallback(
+    (view) => {
+      setMapView(view);
+    },
+    [setMapView]
+  );
+
   if (loading) return <div className="page-container">Loading...</div>;
   if (error) return (
     <div className="page-container">
@@ -182,7 +219,7 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
   const gallery = userSightings.filter((s) => s.photo_url);
   const hasGallery = animal.images && animal.images.length > 0;
 
-  const closestZoo = zoos[0];
+  const closestZoo = filteredZoos[0] ?? zoos[0];
 
   // compute a stable aspect ratio from the first image (fallback 4/3)
   const computeAspect = (img) => {
@@ -445,48 +482,104 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
               </button>
             </div>
           </div>
+          <div className="d-flex justify-content-end flex-wrap gap-2 mt-3">
+            <fieldset className="btn-group" role="group" aria-label={t('zoo.viewToggle')}>
+              <legend className="visually-hidden">{t('zoo.viewToggle')}</legend>
+              <input
+                type="radio"
+                className="btn-check"
+                name="animal-zoo-view"
+                id="animal-zoo-view-list"
+                autoComplete="off"
+                checked={viewMode === 'list'}
+                onChange={() => handleViewModeChange('list')}
+              />
+              <label className="btn btn-outline-primary" htmlFor="animal-zoo-view-list">
+                {t('zoo.viewList')}
+              </label>
+              <input
+                type="radio"
+                className="btn-check"
+                name="animal-zoo-view"
+                id="animal-zoo-view-map"
+                autoComplete="off"
+                checked={viewMode === 'map'}
+                onChange={() => handleViewModeChange('map')}
+              />
+              <label className="btn btn-outline-primary" htmlFor="animal-zoo-view-map">
+                {t('zoo.viewMap')}
+              </label>
+            </fieldset>
+          </div>
           <div className="small text-muted mt-2" aria-live="polite">
             Showing {filteredZoos.length} of {zoos.length}
           </div>
         </div>
-        <div className="table-responsive">
-          <table className="table table-hover align-middle mb-0">
-            <thead className="table-light">
-              <tr>
-                <th scope="col">Zoo</th>
-                {location && <th scope="col" className="text-end">Distance (km)</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {filteredZoos.map((z) => {
-                const displayName = getZooDisplayName(z);
-                return (
-                <tr
-                  key={z.id}
-                  className="pointer-row"
-                  role="link"
-                  aria-label={`Open ${displayName}`}
-                  onClick={() => navigate(`${prefix}/zoos/${z.slug || z.id}`)}
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      navigate(`${prefix}/zoos/${z.slug || z.id}`);
-                    }
-                  }}
-                >
-                  <td>{displayName}</td>
-                  {location && (
-                    <td className="text-end">
-                      {z.distance_km != null ? z.distance_km.toFixed(1) : ''}
-                    </td>
-                  )}
+        {viewMode === 'list' ? (
+          <div className="table-responsive">
+            <table className="table table-hover align-middle mb-0">
+              <thead className="table-light">
+                <tr>
+                  <th scope="col">Zoo</th>
+                  {location && <th scope="col" className="text-end">Distance (km)</th>}
                 </tr>
-              );
-              })}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {filteredZoos.map((z) => {
+                  const displayName = getZooDisplayName(z);
+                  return (
+                    <tr
+                      key={z.id}
+                      className="pointer-row"
+                      role="link"
+                      aria-label={`Open ${displayName}`}
+                      onClick={() => navigate(`${prefix}/zoos/${z.slug || z.id}`)}
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          navigate(`${prefix}/zoos/${z.slug || z.id}`);
+                        }
+                      }}
+                    >
+                      <td>{displayName}</td>
+                      {location && (
+                        <td className="text-end">
+                          {z.distance_km != null ? z.distance_km.toFixed(1) : ''}
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="card-body pt-0">
+            {zoosWithCoordinates.length > 0 ? (
+              <ZoosMap
+                zoos={zoosWithCoordinates}
+                center={
+                  location
+                    ? {
+                        lat: location.lat,
+                        lon: location.lon,
+                      }
+                    : null
+                }
+                onSelect={handleMapSelect}
+                initialView={mapView}
+                onViewChange={handleMapViewChange}
+                resizeToken={mapResizeToken}
+                ariaLabel={t('animal.mapAriaLabel', { animal: animalName })}
+              />
+            ) : (
+              <div className="alert alert-info mb-0" role="status">
+                {t('zoo.noMapResults')}
+              </div>
+            )}
+          </div>
+        )}
       </div>
       <button
         onClick={() => {
