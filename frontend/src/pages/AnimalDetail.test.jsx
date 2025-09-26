@@ -1,12 +1,16 @@
 import React from 'react';
 import '@testing-library/jest-dom';
 import { screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, it, vi, beforeEach } from 'vitest';
 import { Routes, Route } from 'react-router-dom';
 import { renderWithRouter } from '../test-utils/router.jsx';
 
 vi.mock('../hooks/useAuthFetch', () => ({ default: () => fetch }));
 vi.mock('../components/Seo', () => ({ default: () => null }));
+vi.mock('../components/ZoosMap.jsx', () => ({
+  default: () => <div data-testid="zoos-map" />,
+}));
 
 import AnimalDetailPage from './AnimalDetail.jsx';
 import { API } from '../api';
@@ -59,5 +63,40 @@ describe('AnimalDetailPage', () => {
     await screen.findByText('Säugetiere');
     expect(screen.getByText('Raubtiere')).toBeInTheDocument();
     expect(screen.getByText('Katzen')).toBeInTheDocument();
+  });
+
+  it('renders the zoo map when map view is selected', async () => {
+    const fetchResponse = {
+      ...animal,
+      zoos: [
+        {
+          id: 'z1',
+          slug: 'central-zoo',
+          name: 'Central Zoo',
+          city: 'Metropolis',
+          latitude: 10,
+          longitude: 20,
+        },
+      ],
+    };
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: () => Promise.resolve(fetchResponse) });
+
+    const user = userEvent.setup();
+    renderWithRouter(
+      <Routes>
+        <Route path="/:lang/animals/:slug" element={<AnimalDetailPage />} />
+      </Routes>,
+      { route: '/en/animals/lion' }
+    );
+
+    await screen.findByText('Mammals');
+    expect(screen.queryByTestId('zoos-map')).not.toBeInTheDocument();
+
+    const mapToggle = screen.getByRole('radio', { name: 'Map' });
+    await user.click(mapToggle);
+
+    expect(await screen.findByTestId('zoos-map')).toBeInTheDocument();
   });
 });
