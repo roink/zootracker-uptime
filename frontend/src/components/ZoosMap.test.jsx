@@ -5,9 +5,16 @@ import { describe, it, expect, vi } from 'vitest';
 
 vi.mock('maplibre-gl', () => {
   class MockMap {
-    constructor({ container }) {
+    constructor({ container, center = [0, 0], zoom = 0, bearing = 0, pitch = 0 }) {
       this.container = container;
       this.events = {};
+      this.sources = new Map();
+      this.layers = new Map();
+      this.canvas = { style: {} };
+      this.center = { lng: center[0], lat: center[1] };
+      this.zoom = zoom;
+      this.bearing = bearing;
+      this.pitch = pitch;
       queueMicrotask(() => {
         this.emit('load');
       });
@@ -17,22 +24,150 @@ vi.mock('maplibre-gl', () => {
       if (!this.events[event]) {
         this.events[event] = [];
       }
-      this.events[event].push({ handler, once: true });
+      this.events[event].push({ handler, once: true, layerId: null });
     }
 
-    emit(event, data) {
+    on(event, layerOrHandler, maybeHandler) {
+      let layerId = null;
+      let handler = layerOrHandler;
+      if (typeof layerOrHandler === 'string' && typeof maybeHandler === 'function') {
+        layerId = layerOrHandler;
+        handler = maybeHandler;
+      }
+      if (!this.events[event]) {
+        this.events[event] = [];
+      }
+      this.events[event].push({ handler, once: false, layerId });
+    }
+
+    off(event, layerOrHandler, maybeHandler) {
+      let layerId = null;
+      let handler = layerOrHandler;
+      if (typeof layerOrHandler === 'string' && typeof maybeHandler === 'function') {
+        layerId = layerOrHandler;
+        handler = maybeHandler;
+      }
+      if (!this.events[event]) return;
+      this.events[event] = this.events[event].filter((listener) => {
+        const matchesHandler = listener.handler === handler;
+        const matchesLayer = listener.layerId === layerId;
+        return !(matchesHandler && matchesLayer);
+      });
+    }
+
+    emit(event, data, layerId = null) {
       const listeners = this.events[event] || [];
       this.events[event] = listeners.filter((listener) => !listener.once);
-      listeners.forEach((listener) => listener.handler(data));
+      listeners.forEach((listener) => {
+        if (listener.layerId && listener.layerId !== layerId) {
+          return;
+        }
+        listener.handler(data);
+      });
     }
 
     resize() {}
 
     remove() {}
 
-    easeTo() {}
+    easeTo({ center, zoom }) {
+      if (center) {
+        this.center = { lng: center[0], lat: center[1] };
+      }
+      if (Number.isFinite(zoom)) {
+        this.zoom = zoom;
+      }
+    }
 
     fitBounds() {}
+
+    jumpTo({ center, zoom, bearing, pitch }) {
+      if (center) {
+        this.center = { lng: center[0], lat: center[1] };
+      }
+      if (Number.isFinite(zoom)) {
+        this.zoom = zoom;
+      }
+      if (Number.isFinite(bearing)) {
+        this.bearing = bearing;
+      }
+      if (Number.isFinite(pitch)) {
+        this.pitch = pitch;
+      }
+    }
+
+    getCenter() {
+      return this.center;
+    }
+
+    getZoom() {
+      return this.zoom;
+    }
+
+    getBearing() {
+      return this.bearing;
+    }
+
+    getPitch() {
+      return this.pitch;
+    }
+
+    getCanvas() {
+      return this.canvas;
+    }
+
+    addSource(id, options) {
+      const source = {
+        options,
+        data: options?.data,
+        setData: (data) => {
+          source.data = data;
+          if (this.container) {
+            this.container.innerHTML = '';
+            data.features.forEach((feature) => {
+              const link = document.createElement('a');
+              link.href = '#';
+              link.textContent = `Open details for ${feature.properties?.name ?? 'Unknown zoo'}`;
+              link.dataset.zooId = feature.properties?.zoo_id ?? '';
+              link.tabIndex = 0;
+              link.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                  this.emit(
+                    'click',
+                    {
+                      features: [
+                        {
+                          properties: feature.properties,
+                          geometry: feature.geometry,
+                        },
+                      ],
+                      originalEvent: event,
+                    },
+                    'zoos-unclustered'
+                  );
+                }
+              });
+              this.container.appendChild(link);
+            });
+          }
+        },
+        getClusterExpansionZoom: async () => 10,
+      };
+      this.sources.set(id, source);
+      return source;
+    }
+
+    getSource(id) {
+      return this.sources.get(id);
+    }
+
+    addLayer(layer) {
+      this.layers.set(layer.id, layer);
+    }
+
+    getLayer(id) {
+      return this.layers.get(id);
+    }
   }
 
   class MockMarker {
@@ -111,8 +246,15 @@ describe('ZoosMap', () => {
     });
 
     fireEvent.keyDown(marker, { key: 'Enter' });
-    expect(onSelect).toHaveBeenCalledWith(
+    expect(onSelect).toHaveBeenCalled();
+    const [selectedZoo, viewState] = onSelect.mock.calls[0];
+    expect(selectedZoo).toEqual(
       expect.objectContaining({ id: '1', name: 'Test Zoo' })
+    );
+    expect(viewState).toEqual(
+      expect.objectContaining({
+        center: [0, 0],
+      })
     );
   });
 

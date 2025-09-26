@@ -17,6 +17,15 @@ import { getZooDisplayName } from '../utils/zooDisplayName.js';
 
 const LOCATION_STORAGE_KEY = 'userLocation';
 
+/**
+ * @typedef {Object} CameraState
+ * @property {[number, number]} center Longitude and latitude pair used to restore the viewport.
+ * @property {number} zoom Zoom level applied when persisting and restoring camera state.
+ * @property {number} bearing Map bearing in degrees.
+ * @property {number} pitch Map pitch in degrees.
+ * @description Shared camera schema used by ZoosMap and Zoos.jsx when persisting map position.
+ */
+
 function mapViewsEqual(a, b) {
   if (!a && !b) return true;
   if (!a || !b) return false;
@@ -103,7 +112,11 @@ export default function ZoosPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const locationState = useLocation();
-  const mapViewRef = useRef(locationState.state?.mapView ?? null);
+  // Determine whether the router state already includes a stored camera view.
+  const locationHasMapView =
+    locationState.state &&
+    Object.prototype.hasOwnProperty.call(locationState.state, 'mapView');
+  const mapViewRef = useRef(locationHasMapView ? locationState.state.mapView ?? null : null);
   const [mapView, setMapView] = useState(() => mapViewRef.current);
   const [preferStoredView, setPreferStoredView] = useState(
     () => Array.isArray(mapViewRef.current?.center)
@@ -113,7 +126,12 @@ export default function ZoosPage() {
   const estimateAttemptedRef = useRef(false);
 
   useEffect(() => {
-    const nextView = locationState.state?.mapView ?? null;
+    // Only react when the router explicitly sends a camera update.
+    const state = locationState.state;
+    if (!state || !Object.prototype.hasOwnProperty.call(state, 'mapView')) {
+      return;
+    }
+    const nextView = state.mapView ?? null;
     if (!mapViewsEqual(nextView, mapViewRef.current)) {
       mapViewRef.current = nextView;
       setMapView(nextView);
@@ -146,13 +164,13 @@ export default function ZoosPage() {
         if (mapViewRef.current) {
           mapViewRef.current = null;
           setMapView(null);
-          const baseState = locationState.state ? { ...locationState.state } : {};
-          delete baseState.mapView;
-          navigate(
-            { pathname: locationState.pathname, search: locationState.search },
-            { replace: true, state: baseState }
-          );
         }
+        const baseState = locationState.state ? { ...locationState.state } : {};
+        baseState.mapView = null;
+        navigate(
+          { pathname: locationState.pathname, search: locationState.search },
+          { replace: true, state: baseState }
+        );
         return;
       }
 
@@ -206,7 +224,7 @@ export default function ZoosPage() {
     if (viewMode === 'map') next.set('view', 'map');
 
     if (next.toString() !== searchParams.toString()) {
-      setSearchParams(next, { replace: true });
+      setSearchParams(next, { replace: true, state: locationState.state });
     }
   }, [
     query,
@@ -216,6 +234,7 @@ export default function ZoosPage() {
     viewMode,
     searchParams,
     setSearchParams,
+    locationState.state,
   ]);
 
   useEffect(() => {

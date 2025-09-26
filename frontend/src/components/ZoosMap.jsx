@@ -12,6 +12,16 @@ const ZOOS_SOURCE_ID = 'zoos';
 const CLUSTERS_LAYER_ID = 'zoos-clusters';
 const CLUSTER_COUNT_LAYER_ID = 'zoos-cluster-count';
 const UNCLUSTERED_LAYER_ID = 'zoos-unclustered';
+const SET_DATA_TIMEOUT_MS = 32;
+
+/**
+ * @typedef {Object} CameraState
+ * @property {[number, number]} center Longitude and latitude pair used to restore the viewport.
+ * @property {number} zoom Zoom level applied when persisting and restoring camera state.
+ * @property {number} bearing Map bearing in degrees.
+ * @property {number} pitch Map pitch in degrees.
+ * @description Shared camera schema used by ZoosMap and Zoos.jsx when persisting map position.
+ */
 
 export default function ZoosMap({
   zoos,
@@ -24,8 +34,8 @@ export default function ZoosMap({
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const maplibreRef = useRef(null);
-  const pendingResizeRef = useRef(false);
-  const resizeCleanupsRef = useRef([]);
+  const resizeObserverRef = useRef(null);
+  const setDataFrameRef = useRef(null);
   const onSelectRef = useRef(onSelect);
   const onViewChangeRef = useRef(onViewChange);
   const zooLookupRef = useRef(new Map());
@@ -155,27 +165,22 @@ export default function ZoosMap({
     [captureView]
   );
 
-  const scheduleResize = useCallback(() => {
-    if (!mapRef.current) return () => {};
-    mapRef.current.resize();
-    if (typeof window === 'undefined') {
-      return () => {};
-    }
+  const triggerResize = useCallback(() => {
+    const map = mapRef.current;
+    if (!map || typeof map.resize !== 'function') return;
 
-    const frame = window.requestAnimationFrame(() => {
-      mapRef.current?.resize();
-    });
-    const timeout = window.setTimeout(() => {
-      mapRef.current?.resize();
-    }, 150);
-
-    const cleanup = () => {
-      window.cancelAnimationFrame(frame);
-      window.clearTimeout(timeout);
+    const performResize = () => {
+      mapRef.current?.resize?.();
     };
 
-    resizeCleanupsRef.current.push(cleanup);
-    return cleanup;
+    if (
+      typeof window !== 'undefined' &&
+      typeof window.requestAnimationFrame === 'function'
+    ) {
+      window.requestAnimationFrame(performResize);
+    } else {
+      performResize();
+    }
   }, []);
 
   // Initialize the map when we have a target center.
@@ -204,7 +209,7 @@ export default function ZoosMap({
       const handleLoad = (event) => {
         if (cancelled) return;
         if (persistentInitialView && mapRef.current) {
-          mapRef.current.jumpTo({
+          mapRef.current.jumpTo?.({
             center: persistentInitialView.center,
             zoom: persistentInitialView.zoom,
             bearing: persistentInitialView.bearing,
@@ -212,8 +217,7 @@ export default function ZoosMap({
           });
         }
         setMapReady(true);
-        pendingResizeRef.current = false;
-        scheduleResize();
+        triggerResize();
         emitViewChange(event);
       };
 
@@ -227,21 +231,87 @@ export default function ZoosMap({
     return () => {
       cancelled = true;
     };
-  }, [emitViewChange, initialState, scheduleResize]);
+  }, [emitViewChange, initialState, persistentInitialView, triggerResize]);
+
+  const cancelPendingSetData = useCallback(() => {
+    const pending = setDataFrameRef.current;
+    if (pending?.cancel) {
+      pending.cancel();
+    }
+    setDataFrameRef.current = null;
+  }, []);
+
+  const scheduleDataUpdate = useCallback(
+    (callback) => {
+      cancelPendingSetData();
+
+      if (typeof window === 'undefined') {
+        callback();
+        return () => {};
+      }
+
+      if (typeof window.requestAnimationFrame === 'function') {
+        const frameId = window.requestAnimationFrame(() => {
+          if (setDataFrameRef.current?.id === frameId) {
+            setDataFrameRef.current = null;
+          }
+          callback();
+        });
+        const cancel = () => {
+          if (typeof window.cancelAnimationFrame === 'function') {
+            window.cancelAnimationFrame(frameId);
+          }
+          if (setDataFrameRef.current?.id === frameId) {
+            setDataFrameRef.current = null;
+          }
+        };
+        setDataFrameRef.current = { type: 'raf', id: frameId, cancel };
+        return cancel;
+      }
+
+      if (typeof window.setTimeout === 'function') {
+        const timeoutId = window.setTimeout(() => {
+          if (setDataFrameRef.current?.id === timeoutId) {
+            setDataFrameRef.current = null;
+          }
+          callback();
+        }, SET_DATA_TIMEOUT_MS);
+        const cancel = () => {
+          if (typeof window.clearTimeout === 'function') {
+            window.clearTimeout(timeoutId);
+          } else {
+            clearTimeout(timeoutId);
+          }
+          if (setDataFrameRef.current?.id === timeoutId) {
+            setDataFrameRef.current = null;
+          }
+        };
+        setDataFrameRef.current = { type: 'timeout', id: timeoutId, cancel };
+        return cancel;
+      }
+
+      callback();
+      return () => {};
+    },
+    [cancelPendingSetData]
+  );
 
   useEffect(
     () => () => {
-      resizeCleanupsRef.current.forEach((cleanup) => cleanup());
-      resizeCleanupsRef.current = [];
+      if (resizeObserverRef.current) {
+        resizeObserverRef.current.disconnect();
+        resizeObserverRef.current = null;
+      }
+      cancelPendingSetData();
       if (mapRef.current) {
-        mapRef.current.remove();
+        mapRef.current.remove?.();
         mapRef.current = null;
       }
       maplibreRef.current = null;
       setMapReady(false);
       hasFitToZoosRef.current = false;
     },
-    []
+    [cancelPendingSetData]
   );
 
   // Keep the map centered on the user/estimated location when it becomes available.
@@ -253,7 +323,7 @@ export default function ZoosMap({
       return;
     }
 
-    mapRef.current.easeTo({
+    mapRef.current.easeTo?.({
       center: [centerLon, centerLat],
       zoom: FOCUS_ZOOM,
       duration: 800,
@@ -265,7 +335,9 @@ export default function ZoosMap({
 
     const map = mapRef.current;
 
-    if (!map.getSource(ZOOS_SOURCE_ID)) {
+    const hasGetSource = typeof map.getSource === 'function';
+    const hasAddSource = typeof map.addSource === 'function';
+    if (hasAddSource && hasGetSource && !map.getSource(ZOOS_SOURCE_ID)) {
       map.addSource(ZOOS_SOURCE_ID, {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: [] },
@@ -275,7 +347,10 @@ export default function ZoosMap({
       });
     }
 
-    if (!map.getLayer(CLUSTERS_LAYER_ID)) {
+    const hasGetLayer = typeof map.getLayer === 'function';
+    const hasAddLayer = typeof map.addLayer === 'function';
+
+    if (hasAddLayer && hasGetLayer && !map.getLayer(CLUSTERS_LAYER_ID)) {
       map.addLayer({
         id: CLUSTERS_LAYER_ID,
         type: 'circle',
@@ -305,7 +380,7 @@ export default function ZoosMap({
       });
     }
 
-    if (!map.getLayer(CLUSTER_COUNT_LAYER_ID)) {
+    if (hasAddLayer && hasGetLayer && !map.getLayer(CLUSTER_COUNT_LAYER_ID)) {
       map.addLayer({
         id: CLUSTER_COUNT_LAYER_ID,
         type: 'symbol',
@@ -322,7 +397,7 @@ export default function ZoosMap({
       });
     }
 
-    if (!map.getLayer(UNCLUSTERED_LAYER_ID)) {
+    if (hasAddLayer && hasGetLayer && !map.getLayer(UNCLUSTERED_LAYER_ID)) {
       map.addLayer({
         id: UNCLUSTERED_LAYER_ID,
         type: 'circle',
@@ -342,11 +417,11 @@ export default function ZoosMap({
       if (!feature) return;
       const clusterId = feature.properties?.cluster_id;
       if (clusterId == null) return;
-      const source = map.getSource(ZOOS_SOURCE_ID);
+      const source = hasGetSource ? map.getSource(ZOOS_SOURCE_ID) : null;
       if (!source?.getClusterExpansionZoom) return;
       try {
         const zoom = await source.getClusterExpansionZoom(clusterId);
-        map.easeTo({ center: feature.geometry.coordinates, zoom });
+        map.easeTo?.({ center: feature.geometry.coordinates, zoom });
       } catch (error) {
         // Ignore zoom errors to avoid breaking user interaction.
       }
@@ -365,56 +440,83 @@ export default function ZoosMap({
     };
 
     const handlePointerEnter = () => {
-      if (map.getCanvas()) {
+      if (typeof map.getCanvas === 'function' && map.getCanvas()) {
         map.getCanvas().style.cursor = 'pointer';
       }
     };
 
     const handlePointerLeave = () => {
-      if (map.getCanvas()) {
+      if (typeof map.getCanvas === 'function' && map.getCanvas()) {
         map.getCanvas().style.cursor = '';
       }
     };
 
-    map.on('click', CLUSTERS_LAYER_ID, handleClusterClick);
-    map.on('click', UNCLUSTERED_LAYER_ID, handlePointClick);
-    map.on('mouseenter', CLUSTERS_LAYER_ID, handlePointerEnter);
-    map.on('mouseleave', CLUSTERS_LAYER_ID, handlePointerLeave);
-    map.on('mouseenter', UNCLUSTERED_LAYER_ID, handlePointerEnter);
-    map.on('mouseleave', UNCLUSTERED_LAYER_ID, handlePointerLeave);
+    if (typeof map.on === 'function') {
+      map.on('click', CLUSTERS_LAYER_ID, handleClusterClick);
+      map.on('click', UNCLUSTERED_LAYER_ID, handlePointClick);
+      map.on('mouseenter', CLUSTERS_LAYER_ID, handlePointerEnter);
+      map.on('mouseleave', CLUSTERS_LAYER_ID, handlePointerLeave);
+      map.on('mouseenter', UNCLUSTERED_LAYER_ID, handlePointerEnter);
+      map.on('mouseleave', UNCLUSTERED_LAYER_ID, handlePointerLeave);
+    }
 
     return () => {
-      map.off('click', CLUSTERS_LAYER_ID, handleClusterClick);
-      map.off('click', UNCLUSTERED_LAYER_ID, handlePointClick);
-      map.off('mouseenter', CLUSTERS_LAYER_ID, handlePointerEnter);
-      map.off('mouseleave', CLUSTERS_LAYER_ID, handlePointerLeave);
-      map.off('mouseenter', UNCLUSTERED_LAYER_ID, handlePointerEnter);
-      map.off('mouseleave', UNCLUSTERED_LAYER_ID, handlePointerLeave);
+      if (typeof map.off === 'function') {
+        map.off('click', CLUSTERS_LAYER_ID, handleClusterClick);
+        map.off('click', UNCLUSTERED_LAYER_ID, handlePointClick);
+        map.off('mouseenter', CLUSTERS_LAYER_ID, handlePointerEnter);
+        map.off('mouseleave', CLUSTERS_LAYER_ID, handlePointerLeave);
+        map.off('mouseenter', UNCLUSTERED_LAYER_ID, handlePointerEnter);
+        map.off('mouseleave', UNCLUSTERED_LAYER_ID, handlePointerLeave);
+      }
     };
   }, [emitViewChange, mapReady]);
 
   useEffect(() => {
-    if (!mapReady || !mapRef.current) return;
-    const source = mapRef.current.getSource(ZOOS_SOURCE_ID);
-    if (!source) return;
+    if (!mapReady || !mapRef.current) {
+      cancelPendingSetData();
+      return undefined;
+    }
 
-    const features = normalizedZoos.map((zoo) => ({
-      type: 'Feature',
-      geometry: {
-        type: 'Point',
-        coordinates: [zoo.longitude, zoo.latitude],
-      },
-      properties: {
-        zoo_id: String(zoo.id),
-        name: getZooDisplayName(zoo) || '',
-      },
-    }));
+    const getSource = mapRef.current.getSource;
+    const source =
+      typeof getSource === 'function' ? getSource.call(mapRef.current, ZOOS_SOURCE_ID) : null;
+    if (!source || typeof source.setData !== 'function') return undefined;
 
-    source.setData({
-      type: 'FeatureCollection',
-      features,
-    });
-  }, [normalizedZoos, mapReady]);
+    const updateFeatures = () => {
+      const features = normalizedZoos.map((zoo) => ({
+        type: 'Feature',
+        geometry: {
+          type: 'Point',
+          coordinates: [zoo.longitude, zoo.latitude],
+        },
+        properties: {
+          zoo_id: String(zoo.id),
+          name: getZooDisplayName(zoo) || '',
+        },
+      }));
+
+      source.setData({
+        type: 'FeatureCollection',
+        features,
+      });
+    };
+
+    const cancelScheduledUpdate = scheduleDataUpdate(updateFeatures);
+
+    return () => {
+      if (typeof cancelScheduledUpdate === 'function') {
+        cancelScheduledUpdate();
+      } else {
+        cancelPendingSetData();
+      }
+    };
+  }, [
+    normalizedZoos,
+    mapReady,
+    cancelPendingSetData,
+    scheduleDataUpdate,
+  ]);
 
   useEffect(() => {
     if (!mapRef.current || !mapReady || !maplibreRef.current) return;
@@ -441,7 +543,7 @@ export default function ZoosMap({
     normalizedZoos.forEach((zoo) => {
       bounds.extend([zoo.longitude, zoo.latitude]);
     });
-    mapRef.current.fitBounds(bounds, {
+    mapRef.current.fitBounds?.(bounds, {
       padding: 40,
       maxZoom: FOCUS_ZOOM,
       duration: 500,
@@ -456,9 +558,38 @@ export default function ZoosMap({
   ]);
 
   useEffect(() => {
+    if (!mapReady || !mapRef.current || !containerRef.current) return undefined;
+
+    if (
+      typeof window === 'undefined' ||
+      typeof window.ResizeObserver !== 'function'
+    ) {
+      triggerResize();
+      return undefined;
+    }
+
+    const observer = new window.ResizeObserver(() => {
+      triggerResize();
+    });
+
+    observer.observe(containerRef.current);
+    resizeObserverRef.current = observer;
+
+    return () => {
+      observer.disconnect();
+      if (resizeObserverRef.current === observer) {
+        resizeObserverRef.current = null;
+      }
+    };
+  }, [mapReady, triggerResize]);
+
+  useEffect(() => {
     if (!mapReady || !mapRef.current) return undefined;
 
     const map = mapRef.current;
+    if (typeof map.on !== 'function' || typeof map.off !== 'function') {
+      return undefined;
+    }
     map.on('moveend', emitViewChange);
     return () => {
       map.off('moveend', emitViewChange);
@@ -466,21 +597,11 @@ export default function ZoosMap({
   }, [emitViewChange, mapReady]);
 
   useEffect(() => {
-    if (!mapRef.current) {
-      pendingResizeRef.current = true;
-      return undefined;
-    }
+    if (!mapReady || !mapRef.current) return undefined;
 
-    pendingResizeRef.current = false;
-    const map = mapRef.current;
-    const cleanup = scheduleResize();
-    return () => {
-      cleanup();
-      resizeCleanupsRef.current = resizeCleanupsRef.current.filter(
-        (fn) => fn !== cleanup
-      );
-    };
-  }, [resizeToken, scheduleResize]);
+    triggerResize();
+    return undefined;
+  }, [mapReady, resizeToken, triggerResize]);
 
   return (
     <div
