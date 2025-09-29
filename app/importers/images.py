@@ -17,6 +17,7 @@ from app.import_utils import _clean_text, _parse_datetime
 logger = logging.getLogger(__name__)
 
 BANNED_MIDS = {"M31984332", "M1723980", "M117776631", "M55041643"}
+BANNED_LICENSE_SHORTS = {"GFDL", "GFDL 1.2", "GFDL 1.3", "GPL", "GPLv3"}
 
 
 def import_images(
@@ -76,6 +77,14 @@ def import_images(
             except (TypeError, ValueError):
                 attr_bool = None
 
+        license_name = _clean_text(row.get("license"))
+        license_short = _clean_text(row.get("license_short"))
+        if license_short in BANNED_LICENSE_SHORTS:
+            logger.warning(
+                "Skipping image %s due to banned license %s", mid, license_short
+            )
+            continue
+
         data = {
             "mid": mid,
             "animal_id": animal_id,
@@ -92,8 +101,8 @@ def import_images(
             "title": _clean_text(row.get("title")),
             "artist_raw": _clean_text(row.get("artist_raw")),
             "artist_plain": _clean_text(row.get("artist_plain")),
-            "license": _clean_text(row.get("license")),
-            "license_short": _clean_text(row.get("license_short")),
+            "license": license_name,
+            "license_short": license_short,
             "license_url": _clean_text(row.get("license_url")),
             "attribution_required": attr_bool,
             "usage_terms": _clean_text(row.get("usage_terms")),
