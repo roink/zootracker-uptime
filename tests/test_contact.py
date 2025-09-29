@@ -1,4 +1,3 @@
-import os
 import smtplib
 from concurrent.futures import ThreadPoolExecutor
 

@@ -7,9 +7,7 @@ import logging.config
 import os
 from typing import Any
 
-from .filters import IPOverrideFilter, PrivacyFilter, RequestContextFilter
-from .formatter import ECSJsonFormatter, SERVICE_NAME
-from .handlers import SecureWatchedFileHandler
+from .formatter import SERVICE_NAME
 
 
 def configure_logging() -> None:
