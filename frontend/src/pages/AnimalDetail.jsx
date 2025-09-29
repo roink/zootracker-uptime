@@ -565,22 +565,25 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
                 aria-label={t('animal.filterAria')}
               />
             </div>
-            <div className="btn-group btn-group-sm" role="group" aria-label="Sort zoos">
-              <button
-                className={`btn btn-outline-secondary ${sortBy === 'name' ? 'active' : ''}`}
-                onClick={() => setSortBy('name')}
-              >
-                {t('actions.sortByName')}
-              </button>
-              <button
-                className={`btn btn-outline-secondary ${sortBy === 'distance' ? 'active' : ''}`}
-                onClick={() => setSortBy('distance')}
-                disabled={!userLocation}
-                title={!userLocation ? t('animal.enableLocationSort') : undefined}
-              >
-                {t('actions.sortByDistance')}
-              </button>
-            </div>
+            {/* Sorting controls only apply to the table view */}
+            {viewMode === 'list' && (
+              <div className="btn-group btn-group-sm" role="group" aria-label="Sort zoos">
+                <button
+                  className={`btn btn-outline-secondary ${sortBy === 'name' ? 'active' : ''}`}
+                  onClick={() => setSortBy('name')}
+                >
+                  {t('actions.sortByName')}
+                </button>
+                <button
+                  className={`btn btn-outline-secondary ${sortBy === 'distance' ? 'active' : ''}`}
+                  onClick={() => setSortBy('distance')}
+                  disabled={!userLocation}
+                  title={!userLocation ? t('animal.enableLocationSort') : undefined}
+                >
+                  {t('actions.sortByDistance')}
+                </button>
+              </div>
+            )}
           </div>
           <div className="d-flex justify-content-end flex-wrap gap-2 mt-3">
             <fieldset className="btn-group" role="group" aria-label={t('zoo.viewToggle')}>
