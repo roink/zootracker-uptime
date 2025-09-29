@@ -197,7 +197,6 @@ def test_has_visited_endpoint_true(data):
 
 def test_has_visited_endpoint_false(data):
     token, _ = register_and_login()
-    zoo_id = data["zoo"].id
     zoo_slug = data["zoo"].slug
     resp = client.get(
         f"/zoos/{zoo_slug}/visited",

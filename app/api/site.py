@@ -1,6 +1,6 @@
 """Public endpoints that power the marketing landing page."""
 
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 

@@ -102,10 +102,16 @@ def _send_contact_email(
         label = "ssl" if via_ssl else "starttls"
         attempts.append(label)
         if via_ssl:
-            server_factory = lambda: smtplib.SMTP_SSL(host, port, context=context, timeout=timeout)
+            def server_factory() -> smtplib.SMTP:
+                """Build an SMTP client configured for implicit SSL."""
+
+                return smtplib.SMTP_SSL(host, port, context=context, timeout=timeout)
             use_starttls = False
         else:
-            server_factory = lambda: smtplib.SMTP(host, port, timeout=timeout)
+            def server_factory() -> smtplib.SMTP:
+                """Build a plain SMTP client that can be upgraded with STARTTLS."""
+
+                return smtplib.SMTP(host, port, timeout=timeout)
             use_starttls = True
 
         with server_factory() as server:

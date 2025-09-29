@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from typing import Dict
 
-from sqlalchemy import Table, exists, func, select
+from sqlalchemy import Table, exists, select
 from sqlalchemy.orm import Session
 
 from app import models
