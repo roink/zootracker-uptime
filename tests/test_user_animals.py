@@ -40,6 +40,7 @@ def test_get_seen_animals_wrong_user(data):
         headers={"Authorization": f"Bearer {token2}"},
     )
     assert resp.status_code == 403
+    assert resp.json() == {"detail": "Cannot view animals for another user"}
 
 def test_get_seen_animals_empty(data):
     token, user_id = register_and_login()
@@ -88,6 +89,7 @@ def test_get_seen_animal_ids_wrong_user(data):
         headers={"Authorization": f"Bearer {token2}"},
     )
     assert resp.status_code == 403
+    assert resp.json() == {"detail": "Cannot view animals for another user"}
 
 
 def test_get_seen_animal_ids_empty(data):
@@ -168,6 +170,7 @@ def test_get_seen_animal_count_wrong_user(data):
         headers={"Authorization": f"Bearer {token2}"},
     )
     assert resp.status_code == 403
+    assert resp.json() == {"detail": "Cannot view animals for another user"}
 
 
 def test_get_seen_animal_count_empty(data):
