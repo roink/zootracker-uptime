@@ -1,6 +1,6 @@
 from starlette.requests import Request
 
-from app.logging_config import anonymize_ip
+from app.logging import anonymize_ip
 from app.utils.network import get_client_ip
 
 def make_request(headers=None, client_host="1.2.3.4"):

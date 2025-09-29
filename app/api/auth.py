@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from .. import schemas
 from ..database import get_db
 from ..auth import get_user, verify_password, create_access_token
-from ..logging_config import anonymize_ip
+from ..logging import anonymize_ip
 from ..middleware.logging import set_user_context
 from ..utils.network import get_client_ip
 

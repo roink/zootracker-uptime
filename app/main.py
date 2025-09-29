@@ -13,7 +13,7 @@ from fastapi.responses import JSONResponse, Response
 
 from .config import ALLOWED_ORIGINS
 from .database import get_db
-from .logging_config import configure_logging
+from .logging import configure_logging
 from .middleware.logging import LoggingMiddleware
 from .rate_limit import rate_limit
 
