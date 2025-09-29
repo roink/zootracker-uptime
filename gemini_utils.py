@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Optional
+from typing import ClassVar, Dict, Literal, Optional, Type, cast
 from google import genai
 from google.genai import types
 from pydantic import BaseModel, HttpUrl, field_validator
@@ -43,6 +44,73 @@ wikipedia_en:
 wikipedia_de:
 """
 
+ANIMAL_PROMPT_TEMPLATE = """Research the following animal to provide factual information for a zoo information website.
+
+Latin name: {latin_name}
+German name: {name_de}
+English name: {name_en}
+Class (English): {klasse_en}
+Order (English): {ordnung_en}
+Family (English): {familie_en}
+
+Please write a concise but engaging description in English (4-6 sentences) and in German (4-6 sentences).
+Mention notable physical traits, natural habitat, and interesting behavioural facts that are relevant to zoo visitors.
+If this is a subspecies explain how this taxon relates to the species in the descriptions.
+
+Search sources in both English and German when possible.
+If you cannot find information for a field, clearly state that it is unknown instead of guessing.
+
+Answer in this structure:
+- description_en
+- description_de
+- wikipedia_en (URL if available)
+- wikipedia_de (URL if available)
+- taxon_rank (must be either "species", "subspecies", or leave blank if unknown)
+- iucn_conservation_status (one of "Critically Endangered", "Data Deficient", "Endangered status", "Least Concern", "Near Threatened", "Vulnerable", "extinct in the wild", or leave blank if unknown)
+"""
+
+DEFAULT_STRUCTURE_INSTRUCTIONS = (
+    "Extract the relevant information from the text and respond with JSON that matches the "
+    "provided schema exactly. Return only JSON. Use null for values that are missing or "
+    "cannot be confirmed."
+)
+
+
+_DESCRIPTION_MARKERS_RE = re.compile(r"[*_#]")
+
+
+def _clean_description_text(value: Optional[str]) -> str:
+    """Normalise Gemini description fields for consistent downstream use."""
+
+    if value is None:
+        return ""
+    text = str(value).strip()
+    if not text:
+        return ""
+    text = _DESCRIPTION_MARKERS_RE.sub("", text)
+    return " ".join(text.split())
+
+
+def _normalise_url(value: Optional[str]) -> Optional[str]:
+    """Normalise user-provided URLs for validation."""
+
+    if value is None:
+        return None
+
+    text = str(value).strip()
+    if not text:
+        return None
+
+    parsed = urlparse(text)
+    if not parsed.scheme:
+        text = f"https://{text}"
+        parsed = urlparse(text)
+
+    if not parsed.netloc:
+        return text
+
+    return text
+
 
 class ZooRecord(BaseModel):
     """Structured representation expected from the second Gemini call."""
@@ -54,30 +122,19 @@ class ZooRecord(BaseModel):
     wikipedia_en: Optional[HttpUrl] = None
     wikipedia_de: Optional[HttpUrl] = None
 
+    @field_validator("description_en", "description_de", mode="before")
+    @classmethod
+    def _clean_descriptions(cls, value: str) -> str:
+        """Strip extra whitespace and markdown formatting from descriptions."""
+
+        return _clean_description_text(value)
+
     @field_validator("website", "wikipedia_en", "wikipedia_de", mode="before")
     @classmethod
     def _normalise_url(cls, value: Optional[str]) -> Optional[str]:
         """Accept bare domains by prepending https:// before validation."""
 
-        if value is None:
-            return None
-
-        text = str(value).strip()
-        if not text:
-            return None
-
-        parsed = urlparse(text)
-        if not parsed.scheme:
-            text = f"https://{text}"
-            parsed = urlparse(text)
-
-        # urlparse treats values like "https://example" as having the scheme but
-        # no network location. Reject such cases by returning the cleaned string
-        # so HttpUrl validation can still fail, ensuring data quality.
-        if not parsed.netloc:
-            return text
-
-        return text
+        return _normalise_url(value)
 
 
 @dataclass
@@ -95,6 +152,35 @@ class ZooMetadata:
             country_en=self.country_en or "",
             city=self.city,
             name=self.name,
+        )
+
+
+@dataclass
+class AnimalMetadata:
+    """Minimal animal information used to build Gemini prompts."""
+
+    art: str
+    latin_name: str | None
+    name_de: str | None
+    name_en: str | None
+    klasse_de: str | None
+    klasse_en: str | None
+    ordnung_de: str | None
+    ordnung_en: str | None
+    familie_de: str | None
+    familie_en: str | None
+
+    def _format_value(self, value: Optional[str]) -> str:
+        return value or "Unknown"
+
+    def to_prompt(self) -> str:
+        return ANIMAL_PROMPT_TEMPLATE.format(
+            latin_name=self._format_value(self.latin_name),
+            name_de=self._format_value(self.name_de),
+            name_en=self._format_value(self.name_en),
+            klasse_en=self._format_value(self.klasse_en),
+            ordnung_en=self._format_value(self.ordnung_en),
+            familie_en=self._format_value(self.familie_en),
         )
 
 
@@ -197,15 +283,162 @@ def fetch_zoo_metadata(zoo_id: int, db_path: Path | str | None = None) -> ZooMet
     )
 
 
-class GeminiZooClient:
-    """Wrapper around the google-genai client for the two required calls."""
+def fetch_animal_metadata(art: str, db_path: Path | str | None = None) -> AnimalMetadata:
+    """Fetch animal metadata along with taxonomic context for prompts."""
+
+    if db_path is None:
+        db_path = get_database_path()
+    db_path = Path(db_path)
+    if not db_path.exists():
+        raise FileNotFoundError(f"SQLite database not found: {db_path}")
+
+    with sqlite3.connect(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            """
+            SELECT a.art,
+                   a.latin_name,
+                   a.name_de,
+                   a.name_en,
+                   kn.name_de AS klasse_de,
+                   kn.name_en AS klasse_en,
+                   oname.name_de AS ordnung_de,
+                   oname.name_en AS ordnung_en,
+                   fn.name_de AS familie_de,
+                   fn.name_en AS familie_en
+            FROM animal AS a
+            LEFT JOIN klasse_name AS kn ON a.klasse = kn.klasse
+            LEFT JOIN ordnung_name AS oname ON a.ordnung = oname.ordnung
+            LEFT JOIN familie_name AS fn ON a.familie = fn.familie
+            WHERE a.art = ?
+            """,
+            (art,),
+        ).fetchone()
+
+    if row is None:
+        raise ValueError(f"No animal with art={art} exists in {db_path}")
+
+    return AnimalMetadata(
+        art=row["art"],
+        latin_name=row["latin_name"],
+        name_de=row["name_de"],
+        name_en=row["name_en"],
+        klasse_de=row["klasse_de"],
+        klasse_en=row["klasse_en"],
+        ordnung_de=row["ordnung_de"],
+        ordnung_en=row["ordnung_en"],
+        familie_de=row["familie_de"],
+        familie_en=row["familie_en"],
+    )
+
+
+class AnimalRecord(BaseModel):
+    """Structured Gemini response containing animal specific data."""
+
+    description_en: str
+    description_de: str
+    wikipedia_en: Optional[HttpUrl] = None
+    wikipedia_de: Optional[HttpUrl] = None
+    taxon_rank: Optional[Literal["species", "subspecies"]] = None
+    iucn_conservation_status: Optional[
+        Literal[
+            "Critically Endangered",
+            "Data Deficient",
+            "Endangered status",
+            "Least Concern",
+            "Near Threatened",
+            "Vulnerable",
+            "extinct in the wild",
+        ]
+    ] = None
+
+    _TAXON_RANK_MAP: ClassVar[dict[str, str]] = {
+        "species": "species",
+        "sp.": "species",
+        "sp": "species",
+        "subspecies": "subspecies",
+        "sub species": "subspecies",
+        "ssp": "subspecies",
+    }
+    _IUCN_STATUS_MAP: ClassVar[dict[str, str]] = {
+        "critically endangered": "Critically Endangered",
+        "cr": "Critically Endangered",
+        "data deficient": "Data Deficient",
+        "dd": "Data Deficient",
+        "endangered status": "Endangered status",
+        "endangered": "Endangered status",
+        "en": "Endangered status",
+        "least concern": "Least Concern",
+        "lc": "Least Concern",
+        "near threatened": "Near Threatened",
+        "nt": "Near Threatened",
+        "vulnerable": "Vulnerable",
+        "vu": "Vulnerable",
+        "extinct in the wild": "extinct in the wild",
+        "ew": "extinct in the wild",
+    }
+
+    @field_validator("description_en", "description_de", mode="before")
+    @classmethod
+    def _clean_descriptions(cls, value: str) -> str:
+        """Strip extra whitespace and markdown formatting from descriptions."""
+
+        return _clean_description_text(value)
+
+    @staticmethod
+    def _clean_text(value: str) -> str:
+        cleaned = value.strip().lower()
+        if "(" in cleaned:
+            cleaned = cleaned.split("(", 1)[0].strip()
+        cleaned = cleaned.replace("-", " ").replace("_", " ")
+        cleaned = " ".join(cleaned.split())
+        return cleaned
+
+    @field_validator("taxon_rank", mode="before")
+    @classmethod
+    def _normalise_taxon_rank(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        text = str(value).strip()
+        if not text:
+            return None
+        key = cls._clean_text(text)
+        return cls._TAXON_RANK_MAP.get(key, text)
+
+    @field_validator("wikipedia_en", "wikipedia_de", mode="before")
+    @classmethod
+    def _normalise_url(cls, value: Optional[str]) -> Optional[str]:
+        return _normalise_url(value)
+
+    @field_validator("iucn_conservation_status", mode="before")
+    @classmethod
+    def _normalise_iucn_status(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        text = str(value).strip()
+        if not text:
+            return None
+        key = cls._clean_text(text)
+        canonical = cls._IUCN_STATUS_MAP.get(key)
+        if canonical:
+            return canonical
+        parts = key.split()
+        if len(parts) > 1 and len(parts[-1]) <= 3:
+            trimmed = " ".join(parts[:-1])
+            if trimmed:
+                canonical = cls._IUCN_STATUS_MAP.get(trimmed)
+                if canonical:
+                    return canonical
+        return text
+
+
+class GeminiClientBase:
+    """Shared helper for Gemini workflows."""
 
     def __init__(self, api_key: str):
         self.client = genai.Client(api_key=api_key)
 
-    def research_zoo(self, prompt: str) -> str:
-        """Run the research-oriented Gemini call and return the raw text output."""
-
+    def _research(self, prompt: str) -> str:
         contents = [
             types.Content(
                 role="user",
@@ -228,16 +461,18 @@ class GeminiZooClient:
                 chunks.append(chunk.text)
         return "".join(chunks).strip()
 
-    def structure_response(self, partially_structured_text: str) -> ZooRecord:
-        """Convert the research output into a structured JSON payload."""
-
-        prompt = (
-            "Extract the following text into the requested fields. "
-            "The visitors field is supposed to contain the yearly number of visitors. "
-            "Remove formatiing from the description fields, other than usual punctuation."
-            "If a field is not present, leave it null instead of guessing.\n\n"
-            f"{partially_structured_text}"
-        )
+    def _structure(
+        self,
+        partially_structured_text: str,
+        schema: Type[BaseModel],
+        instructions: str | None = None,
+        extra_instructions: str | None = None,
+    ) -> BaseModel:
+        base_instructions = (instructions or DEFAULT_STRUCTURE_INSTRUCTIONS).strip()
+        prompt_parts = [base_instructions]
+        if extra_instructions:
+            prompt_parts.append(extra_instructions.strip())
+        prompt = "\n\n".join(part for part in prompt_parts if part) + "\n\n" + partially_structured_text
         response = self.client.models.generate_content(
             model=STRUCTURED_MODEL,
             contents=[
@@ -248,19 +483,111 @@ class GeminiZooClient:
             ],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
-                response_schema=ZooRecord,
+                response_schema=schema,
                 thinking_config=types.ThinkingConfig(thinking_budget=0),
             ),
         )
-        return ZooRecord.model_validate_json(response.text)
+        return schema.model_validate_json(response.text)
+
+    async def _research_async(self, prompt: str) -> str:
+        return await asyncio.to_thread(self._research, prompt)
+
+    async def _structure_async(
+        self,
+        partially_structured_text: str,
+        schema: Type[BaseModel],
+        instructions: str | None = None,
+        extra_instructions: str | None = None,
+    ) -> BaseModel:
+        return await asyncio.to_thread(
+            self._structure,
+            partially_structured_text,
+            schema,
+            instructions=instructions,
+            extra_instructions=extra_instructions,
+        )
+
+
+class GeminiZooClient(GeminiClientBase):
+    """Wrapper around the google-genai client for the two required calls."""
+
+    def research_zoo(self, prompt: str) -> str:
+        """Run the research-oriented Gemini call and return the raw text output."""
+        return self._research(prompt)
+
+    def structure_response(self, partially_structured_text: str) -> ZooRecord:
+        """Convert the research output into a structured JSON payload."""
+        extra_instructions = (
+            "Extract the following text into the requested fields. "
+            "The visitors field is supposed to contain the yearly number of visitors. "
+            "Remove formatiing from the description fields, other than usual punctuation."
+            "If a field is not present, leave it null instead of guessing."
+        )
+        return self._structure(
+            partially_structured_text,
+            ZooRecord,
+            extra_instructions=extra_instructions,
+        )
 
     async def research_zoo_async(self, prompt: str) -> str:
         """Async wrapper around :meth:`research_zoo`."""
 
-        return await asyncio.to_thread(self.research_zoo, prompt)
+        return await self._research_async(prompt)
 
     async def structure_response_async(self, partially_structured_text: str) -> ZooRecord:
         """Async wrapper around :meth:`structure_response`."""
 
-        return await asyncio.to_thread(self.structure_response, partially_structured_text)
+        extra_instructions = (
+            "Extract the following text into the requested fields. "
+            "The visitors field is supposed to contain the yearly number of visitors. "
+            "Remove formatiing from the description fields, other than usual punctuation."
+            "If a field is not present, leave it null instead of guessing."
+        )
+        result = await self._structure_async(
+            partially_structured_text,
+            ZooRecord,
+            extra_instructions=extra_instructions,
+        )
+        return cast(ZooRecord, result)
+
+
+class GeminiAnimalClient(GeminiClientBase):
+    """Gemini helper specialised for animal enrichment."""
+
+    def research_animal(self, prompt: str) -> str:
+        return self._research(prompt)
+
+    def structure_response(self, partially_structured_text: str) -> AnimalRecord:
+        extra_instructions = (
+            "Extract the following text into JSON fields named description_en, description_de, "
+            "wikipedia_en, wikipedia_de, taxon_rank, and iucn_conservation_status. "
+            "Keep the descriptions as plain text without markdown or bullet lists. "
+            "For wikipedia URLs, provide the direct link or leave them null if they are missing. "
+            "For taxon_rank, only allow 'species' or 'subspecies'. "
+            "For iucn_conservation_status use one of the allowed values or null when unknown."
+        )
+        return self._structure(
+            partially_structured_text,
+            AnimalRecord,
+            extra_instructions=extra_instructions,
+        )
+
+    async def research_animal_async(self, prompt: str) -> str:
+        return await self._research_async(prompt)
+
+    async def structure_response_async(self, partially_structured_text: str) -> AnimalRecord:
+        extra_instructions = (
+            "Extract the following text into JSON fields named description_en, description_de, "
+            "wikipedia_en, wikipedia_de, taxon_rank, and iucn_conservation_status. "
+            "Keep the descriptions as plain text without markdown or bullet lists. "
+            "For wikipedia URLs, provide the direct link or leave them null if they are missing. "
+            "For taxon_rank, only allow 'species' or 'subspecies'. "
+            "For iucn_conservation_status use one of the allowed values or null when unknown."
+        )
+        result = await self._structure_async(
+            partially_structured_text,
+            AnimalRecord,
+            extra_instructions=extra_instructions,
+        )
+        return cast(AnimalRecord, result)
 
