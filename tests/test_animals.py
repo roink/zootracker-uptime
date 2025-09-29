@@ -236,15 +236,15 @@ def test_list_animals_tiebreaker_uses_id_when_names_match(data):
 
 
 def test_list_animals_invalid_pagination():
-    assert client.get("/animals", params={"limit": 0}).status_code == 400
+    assert client.get("/animals", params={"limit": 0}).status_code == 422
 
 
 def test_list_animals_invalid_pagination_upper_bound():
-    assert client.get("/animals", params={"limit": 101}).status_code == 400
+    assert client.get("/animals", params={"limit": 101}).status_code == 422
 
 
 def test_list_animals_invalid_offset():
-    assert client.get("/animals", params={"offset": -1}).status_code == 400
+    assert client.get("/animals", params={"offset": -1}).status_code == 422
 
 
 def test_list_animals_category_filter():

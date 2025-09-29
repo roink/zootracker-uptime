@@ -11,5 +11,5 @@ def test_popular_animals_limit_and_shape(data):
 
 
 def test_popular_animals_limit_validation():
-    assert client.get("/site/popular-animals?limit=0").status_code == 400
-    assert client.get("/site/popular-animals?limit=50").status_code == 400
+    assert client.get("/site/popular-animals?limit=0").status_code == 422
+    assert client.get("/site/popular-animals?limit=50").status_code == 422
