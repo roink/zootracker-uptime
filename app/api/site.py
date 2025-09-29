@@ -1,6 +1,6 @@
 """Public endpoints that power the marketing landing page."""
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -40,15 +40,9 @@ def get_site_summary(
 
 @router.get("/site/popular-animals", response_model=list[schemas.PopularAnimal])
 def get_popular_animals(
-    limit: int = 8, db: Session = Depends(get_db)
+    limit: int = Query(8, ge=1, le=20), db: Session = Depends(get_db)
 ) -> list[schemas.PopularAnimal]:
     """Return the most represented animals based on zoo coverage."""
-
-    if limit < 1 or limit > 20:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="limit must be between 1 and 20",
-        )
 
     animals = (
         db.query(models.Animal)
