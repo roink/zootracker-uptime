@@ -17,7 +17,6 @@ vi.mock('../components/ZoosMap.jsx', () => ({
 }));
 
 import AnimalDetailPage from './AnimalDetail.jsx';
-import { API } from '../api';
 
 describe('AnimalDetailPage', () => {
   const animal = {
