@@ -41,19 +41,29 @@ export default function ZooDetailPage({ refresh, onLogged }) {
   );
 
   useEffect(() => {
-    fetch(`${API}/zoos/${slug}`)
-      .then((r) => r.json())
+    const ac = new AbortController();
+    setZoo(null);
+    fetch(`${API}/zoos/${slug}`, { signal: ac.signal })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then(setZoo)
-      .catch(() => setZoo(null));
+      .catch((err) => {
+        if (err.name !== 'AbortError') {
+          setZoo(null);
+        }
+      });
+    return () => ac.abort();
   }, [slug]);
 
-  if (!zoo) {
-    return <div>Loading...</div>;
-  }
-
-  const displayName = getZooDisplayName(zoo);
-  const slugOrId = zoo.slug || zoo.id || '';
+  const displayName = useMemo(
+    () => (zoo ? getZooDisplayName(zoo) : ''),
+    [zoo],
+  );
+  const fallbackName = (displayName || slug || '').trim();
   const metaDescription = useMemo(() => {
+    if (!zoo) {
+      const fallbackCopy = t('zoo.seoFallback', { name: fallbackName });
+      return sanitizeDescription(fallbackCopy);
+    }
     const candidates =
       activeLang === 'de'
         ? [
@@ -71,9 +81,23 @@ export default function ZooDetailPage({ refresh, onLogged }) {
     const chosen = candidates.find(
       (value) => typeof value === 'string' && value.trim().length > 0,
     );
-    const fallbackCopy = t('zoo.seoFallback', { name: displayName });
+    const fallbackCopy = t('zoo.seoFallback', {
+      name: (displayName || zoo?.name || fallbackName).trim(),
+    });
     return sanitizeDescription(chosen ?? fallbackCopy);
-  }, [activeLang, zoo, t, displayName]);
+  }, [activeLang, zoo, t, displayName, fallbackName]);
+
+  if (!zoo) {
+    const loadingPath = slug ? `/${activeLang}/zoos/${slug}` : `/${activeLang}/zoos`;
+    return (
+      <>
+        <Seo title={fallbackName} description={metaDescription} canonical={loadingPath} />
+        <div>Loading...</div>
+      </>
+    );
+  }
+
+  const slugOrId = zoo.slug || zoo.id || '';
 
   const localizedPath = `/${activeLang}/zoos/${slugOrId}`;
 
