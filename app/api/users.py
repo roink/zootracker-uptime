@@ -4,9 +4,9 @@ from sqlalchemy.orm import Session
 import uuid
 
 from .. import schemas, models
-from ..database import get_db
-from ..main import require_json
 from ..auth import hash_password, get_user, get_current_user
+from ..database import get_db
+from .deps import require_json
 
 router = APIRouter()
 
