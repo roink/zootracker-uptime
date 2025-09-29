@@ -1,5 +1,11 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
+import {
+  useParams,
+  useNavigate,
+  useLocation,
+  Link,
+  createSearchParams,
+} from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { API } from '../api';
 import { getZooDisplayName } from '../utils/zooDisplayName.js';
@@ -127,22 +133,40 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
       : animal.family_name_en || animal.family_name_de;
   }, [animal, lang]);
 
-  const classId = animal?.class_id ?? null;
-  const orderId = animal?.order_id ?? null;
-  const familyId = animal?.family_id ?? null;
+  const classificationLinks = useMemo(() => {
+    if (!animal) {
+      return { class: null, order: null, family: null };
+    }
 
-  const buildAnimalsLink = useCallback(
-    ({ classId: nextClassId, orderId: nextOrderId, familyId: nextFamilyId }) => {
-      // Compose search parameters for the Animals page based on available taxonomy IDs
-      const params = new URLSearchParams();
-      if (nextClassId) params.set('class', nextClassId);
-      if (nextOrderId) params.set('order', nextOrderId);
-      if (nextFamilyId) params.set('family', nextFamilyId);
+    const makeLink = ({ classId, orderId, familyId }) => {
+      const filtered = [
+        ['class', classId],
+        ['order', orderId],
+        ['family', familyId],
+      ].filter(([, value]) => value != null && value !== '');
+      const params = createSearchParams(
+        filtered.map(([key, value]) => [key, String(value)])
+      );
       const query = params.toString();
-      return query ? `${prefix}/animals?${query}` : `${prefix}/animals`;
-    },
-    [prefix]
-  );
+      return `${prefix}/animals${query ? `?${query}` : ''}`;
+    };
+
+    return {
+      class: animal.class_id ? makeLink({ classId: animal.class_id }) : null,
+      order:
+        animal.class_id && animal.order_id
+          ? makeLink({ classId: animal.class_id, orderId: animal.order_id })
+          : null,
+      family:
+        animal.class_id && animal.order_id && animal.family_id
+          ? makeLink({
+              classId: animal.class_id,
+              orderId: animal.order_id,
+              familyId: animal.family_id,
+            })
+          : null,
+    };
+  }, [animal, prefix]);
 
   useEffect(() => {
     const params = [];
@@ -500,10 +524,13 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
                 <>
                   <dt className="fw-semibold">{t('animal.class')}</dt>
                   <dd className="mb-0">
-                    {classId ? (
+                    {classificationLinks.class ? (
                       <Link
-                        className="link-underline link-underline-opacity-0"
-                        to={buildAnimalsLink({ classId })}
+                        className="link-underline link-underline-opacity-0 link-underline-opacity-75-hover"
+                        to={classificationLinks.class}
+                        aria-label={t('animal.filterByClass', {
+                          classification: className,
+                        })}
                       >
                         {className}
                       </Link>
@@ -517,10 +544,13 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
                 <>
                   <dt className="fw-semibold">{t('animal.order')}</dt>
                   <dd className="mb-0">
-                    {orderId ? (
+                    {classificationLinks.order ? (
                       <Link
-                        className="link-underline link-underline-opacity-0"
-                        to={buildAnimalsLink({ classId, orderId })}
+                        className="link-underline link-underline-opacity-0 link-underline-opacity-75-hover"
+                        to={classificationLinks.order}
+                        aria-label={t('animal.filterByOrder', {
+                          classification: orderName,
+                        })}
                       >
                         {orderName}
                       </Link>
@@ -534,10 +564,13 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
                 <>
                   <dt className="fw-semibold">{t('animal.family')}</dt>
                   <dd className="mb-0">
-                    {familyId ? (
+                    {classificationLinks.family ? (
                       <Link
-                        className="link-underline link-underline-opacity-0"
-                        to={buildAnimalsLink({ classId, orderId, familyId })}
+                        className="link-underline link-underline-opacity-0 link-underline-opacity-75-hover"
+                        to={classificationLinks.family}
+                        aria-label={t('animal.filterByFamily', {
+                          classification: familyName,
+                        })}
                       >
                         {familyName}
                       </Link>
