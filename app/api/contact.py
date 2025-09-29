@@ -14,7 +14,7 @@ import bleach
 from fastapi import BackgroundTasks, APIRouter, Depends, HTTPException, Request, Response, status
 
 from .. import schemas
-from ..logging_config import anonymize_ip
+from ..logging import anonymize_ip
 from ..rate_limit import enforce_contact_rate_limit
 from ..utils.network import get_client_ip
 from .deps import require_json

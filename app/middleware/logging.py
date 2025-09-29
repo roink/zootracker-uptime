@@ -15,8 +15,8 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
-from ..logging_config import anonymize_ip, bind_request_context, reset_request_context
-from ..logging_config import set_user_context  # re-exported for convenience
+from ..logging import anonymize_ip, bind_request_context, reset_request_context
+from ..logging import set_user_context  # re-exported for convenience
 from ..utils.network import get_client_ip as resolve_client_ip
 
 

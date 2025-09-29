@@ -6,8 +6,8 @@ import pytest
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.testclient import TestClient
 
-from app import logging_config
-from app.logging_config import configure_logging
+from app import logging as app_logging
+from app.logging import configure_logging
 from app.middleware.logging import LoggingMiddleware
 
 
@@ -175,11 +175,11 @@ def test_url_query_coordinates_are_coarsened(caplog):
 
 def test_ip_override_filter_modes():
     raw_ip = "198.51.100.23"
-    tokens = logging_config.bind_request_context(
+    tokens = app_logging.bind_request_context(
         request_id="req-ctx",
         client_ip=raw_ip,
         client_ip_raw=raw_ip,
-        client_ip_anonymized=logging_config.anonymize_ip(raw_ip, mode="anonymized"),
+        client_ip_anonymized=app_logging.anonymize_ip(raw_ip, mode="anonymized"),
     )
 
     try:
@@ -194,8 +194,8 @@ def test_ip_override_filter_modes():
         )
         record.client_ip = raw_ip
 
-        anon_filter = logging_config.IPOverrideFilter("anonymized")
-        raw_filter = logging_config.IPOverrideFilter("raw")
+        anon_filter = app_logging.IPOverrideFilter("anonymized")
+        raw_filter = app_logging.IPOverrideFilter("raw")
 
         anon_filter.filter(record)
         assert record.client_ip == "198.51.100.0/24"
@@ -204,11 +204,11 @@ def test_ip_override_filter_modes():
         raw_filter.filter(record)
         assert record.client_ip == raw_ip
     finally:
-        logging_config.reset_request_context(tokens)
+        app_logging.reset_request_context(tokens)
 
 
 def test_ecs_formatter_deduplicates_fields_and_sanitizes_query():
-    formatter = logging_config.ECSJsonFormatter()
+    formatter = app_logging.ECSJsonFormatter()
     record = logging.LogRecord(
         name="app.test",
         level=logging.INFO,
@@ -230,12 +230,12 @@ def test_ecs_formatter_deduplicates_fields_and_sanitizes_query():
     record.event_duration = 123_456
     record.event_dataset = "zoo-tracker-api.access"
 
-    privacy_filter = logging_config.PrivacyFilter()
+    privacy_filter = app_logging.PrivacyFilter()
     assert privacy_filter.filter(record)
 
     payload = json.loads(formatter.format(record))
 
-    for alias in logging_config.FIELD_MAP:
+    for alias in app_logging.FIELD_MAP:
         assert alias not in payload
     assert "client_ip_raw" not in payload
     assert "client_ip_anonymized" not in payload
