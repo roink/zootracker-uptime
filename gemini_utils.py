@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
@@ -72,6 +73,21 @@ DEFAULT_STRUCTURE_INSTRUCTIONS = (
 )
 
 
+_DESCRIPTION_MARKERS_RE = re.compile(r"[*_#]")
+
+
+def _clean_description_text(value: Optional[str]) -> str:
+    """Normalise Gemini description fields for consistent downstream use."""
+
+    if value is None:
+        return ""
+    text = str(value).strip()
+    if not text:
+        return ""
+    text = _DESCRIPTION_MARKERS_RE.sub("", text)
+    return " ".join(text.split())
+
+
 def _normalise_url(value: Optional[str]) -> Optional[str]:
     """Normalise user-provided URLs for validation."""
 
@@ -102,6 +118,13 @@ class ZooRecord(BaseModel):
     website: Optional[HttpUrl] = None
     wikipedia_en: Optional[HttpUrl] = None
     wikipedia_de: Optional[HttpUrl] = None
+
+    @field_validator("description_en", "description_de", mode="before")
+    @classmethod
+    def _clean_descriptions(cls, value: str) -> str:
+        """Strip extra whitespace and markdown formatting from descriptions."""
+
+        return _clean_description_text(value)
 
     @field_validator("website", "wikipedia_en", "wikipedia_de", mode="before")
     @classmethod
@@ -351,6 +374,13 @@ class AnimalRecord(BaseModel):
         "extinct in the wild": "extinct in the wild",
         "ew": "extinct in the wild",
     }
+
+    @field_validator("description_en", "description_de", mode="before")
+    @classmethod
+    def _clean_descriptions(cls, value: str) -> str:
+        """Strip extra whitespace and markdown formatting from descriptions."""
+
+        return _clean_description_text(value)
 
     @staticmethod
     def _clean_text(value: str) -> str:
