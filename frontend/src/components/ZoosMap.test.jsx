@@ -17,6 +17,13 @@ vi.mock('maplibre-gl', () => {
       this.zoom = zoom;
       this.bearing = bearing;
       this.pitch = pitch;
+      this.styleLayers = [
+        {
+          id: 'country-labels',
+          type: 'symbol',
+          layout: { 'text-field': ['get', 'name'] },
+        },
+      ];
       this.sourceSetDataSpies = new Map();
       mockMaps.push(this);
       queueMicrotask(() => {
@@ -73,6 +80,23 @@ vi.mock('maplibre-gl', () => {
     resize() {}
 
     remove() {}
+
+    isStyleLoaded() {
+      return true;
+    }
+
+    getStyle() {
+      return { layers: this.styleLayers };
+    }
+
+    setLayoutProperty(id, property, value) {
+      const layer = this.styleLayers.find((entry) => entry.id === id);
+      if (!layer) return;
+      if (!layer.layout) {
+        layer.layout = {};
+      }
+      layer.layout[property] = value;
+    }
 
     easeTo({ center, zoom }) {
       if (center) {

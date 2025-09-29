@@ -1,5 +1,8 @@
 import { useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
+import { useTranslation } from 'react-i18next';
+
+import { applyBaseMapLanguage } from '../utils/mapLanguage.js';
 
 // Reusable map centered on given coordinates using MapLibre and OpenFreeMap tiles.
 export const MAP_STYLE_URL =
@@ -10,6 +13,7 @@ export default function MapView({ latitude, longitude, zoom = 14 }) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const markerRef = useRef(null);
+  const { i18n } = useTranslation();
 
   // Initialize map once on mount
   useEffect(() => {
@@ -31,6 +35,12 @@ export default function MapView({ latitude, longitude, zoom = 14 }) {
         attributionControl: true,
       });
 
+      if (mapRef.current?.on) {
+        mapRef.current.on('load', () => {
+          applyBaseMapLanguage(mapRef.current, i18n.language);
+        });
+      }
+
       markerRef.current = new maplibregl.Marker()
         .setLngLat([longitude, latitude])
         .addTo(mapRef.current);
@@ -49,6 +59,11 @@ export default function MapView({ latitude, longitude, zoom = 14 }) {
     mapRef.current.setCenter([longitude, latitude]);
     if (markerRef.current) markerRef.current.setLngLat([longitude, latitude]);
   }, [latitude, longitude]);
+
+  useEffect(() => {
+    if (!mapRef.current) return;
+    applyBaseMapLanguage(mapRef.current, i18n.language);
+  }, [i18n.language]);
 
   return (
     <div
