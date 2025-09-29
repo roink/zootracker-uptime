@@ -55,7 +55,7 @@ def main() -> None:
             print("\nFailed to structure Gemini output:")
             print(exc)
         else:
-            structured = structured_record.model_dump()
+            structured = structured_record.model_dump(mode="json")
 
     print("\n=== Structured JSON ===\n")
     print(json.dumps(structured, indent=2, ensure_ascii=False))
