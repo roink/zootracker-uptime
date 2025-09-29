@@ -288,7 +288,7 @@ def test_send_contact_email_sanitizes_reply_to(monkeypatch):
     monkeypatch.setattr(smtplib, "SMTP", smtp_factory)
     monkeypatch.setattr(smtplib, "SMTP_SSL", smtp_factory)
 
-    from app.main import _send_contact_email
+    from app.api.contact import _send_contact_email
 
     _send_contact_email(
         host="smtp.test",
