@@ -1,25 +1,28 @@
 import uuid
 from datetime import datetime, timedelta, UTC
+from types import SimpleNamespace
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
-from passlib.context import CryptContext
-from sqlalchemy.orm import Session
 import bcrypt
+from passlib.context import CryptContext
+from passlib.handlers.bcrypt import _BcryptBackend
+from sqlalchemy.orm import Session
 
 from . import models
 from .database import get_db
 from .config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
 from .middleware.logging import set_user_context
 
-# Ensure backward compatibility with passlib expecting bcrypt.__about__
 if not hasattr(bcrypt, "__about__"):
-    class _About:
-        __version__ = getattr(bcrypt, "__version__", "")
-    bcrypt.__about__ = _About
+    bcrypt.__about__ = SimpleNamespace(__version__=bcrypt.__version__)
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Skip passlib's bcrypt backend self-tests that assume passwords >72 bytes
+# silently truncate instead of raising ValueError under bcrypt>=5.
+_BcryptBackend._workrounds_initialized = True
+
+pwd_context = CryptContext(schemes=["bcrypt_sha256"], deprecated="auto")
 
 # Inform clients of token lifetime in the OpenAPI docs
 # Import this dependency from ``app.auth`` when securing routes.
@@ -31,13 +34,13 @@ oauth2_scheme = OAuth2PasswordBearer(
 
 # Internal; import from ``app.auth`` only.
 def hash_password(password: str) -> str:
-    """Return a hashed password for storage using bcrypt."""
+    """Return a hashed password for storage using bcrypt with SHA-256 pre-hashing."""
     return pwd_context.hash(password)
 
 
 # Internal; import from ``app.auth`` only.
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify a password against the stored hash using bcrypt."""
+    """Verify a password against the stored hash using bcrypt with SHA-256 pre-hashing."""
     return pwd_context.verify(plain_password, hashed_password)
 
 
