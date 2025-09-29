@@ -24,10 +24,13 @@ describe('AnimalDetailPage', () => {
     slug: 'lion',
     name_en: 'Lion',
     name_de: 'Löwe',
+    class_id: 1,
     class_name_en: 'Mammals',
     class_name_de: 'Säugetiere',
+    order_id: 2,
     order_name_en: 'Carnivorans',
     order_name_de: 'Raubtiere',
+    family_id: 3,
     family_name_en: 'Cats',
     family_name_de: 'Katzen',
     zoos: [],
@@ -52,6 +55,18 @@ describe('AnimalDetailPage', () => {
     expect(screen.getByText('Carnivorans')).toBeInTheDocument();
     expect(screen.getByText('Cats')).toBeInTheDocument();
     expect(container.querySelector('dl')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Mammals' })).toHaveAttribute(
+      'href',
+      '/en/animals?class=1'
+    );
+    expect(screen.getByRole('link', { name: 'Carnivorans' })).toHaveAttribute(
+      'href',
+      '/en/animals?class=1&order=2'
+    );
+    expect(screen.getByRole('link', { name: 'Cats' })).toHaveAttribute(
+      'href',
+      '/en/animals?class=1&order=2&family=3'
+    );
   });
 
   it('shows classification names in German', async () => {
@@ -67,6 +82,18 @@ describe('AnimalDetailPage', () => {
     await screen.findByText('Säugetiere');
     expect(screen.getByText('Raubtiere')).toBeInTheDocument();
     expect(screen.getByText('Katzen')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Säugetiere' })).toHaveAttribute(
+      'href',
+      '/de/animals?class=1'
+    );
+    expect(screen.getByRole('link', { name: 'Raubtiere' })).toHaveAttribute(
+      'href',
+      '/de/animals?class=1&order=2'
+    );
+    expect(screen.getByRole('link', { name: 'Katzen' })).toHaveAttribute(
+      'href',
+      '/de/animals?class=1&order=2&family=3'
+    );
   });
 
   it('renders the zoo map when map view is selected', async () => {

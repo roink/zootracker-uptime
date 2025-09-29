@@ -127,6 +127,23 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
       : animal.family_name_en || animal.family_name_de;
   }, [animal, lang]);
 
+  const classId = animal?.class_id ?? null;
+  const orderId = animal?.order_id ?? null;
+  const familyId = animal?.family_id ?? null;
+
+  const buildAnimalsLink = useCallback(
+    ({ classId: nextClassId, orderId: nextOrderId, familyId: nextFamilyId }) => {
+      // Compose search parameters for the Animals page based on available taxonomy IDs
+      const params = new URLSearchParams();
+      if (nextClassId) params.set('class', nextClassId);
+      if (nextOrderId) params.set('order', nextOrderId);
+      if (nextFamilyId) params.set('family', nextFamilyId);
+      const query = params.toString();
+      return query ? `${prefix}/animals?${query}` : `${prefix}/animals`;
+    },
+    [prefix]
+  );
+
   useEffect(() => {
     const params = [];
     if (userLocation) {
@@ -482,19 +499,52 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
               {className && (
                 <>
                   <dt className="fw-semibold">{t('animal.class')}</dt>
-                  <dd className="mb-0">{className}</dd>
+                  <dd className="mb-0">
+                    {classId ? (
+                      <Link
+                        className="link-underline link-underline-opacity-0"
+                        to={buildAnimalsLink({ classId })}
+                      >
+                        {className}
+                      </Link>
+                    ) : (
+                      className
+                    )}
+                  </dd>
                 </>
               )}
               {orderName && (
                 <>
                   <dt className="fw-semibold">{t('animal.order')}</dt>
-                  <dd className="mb-0">{orderName}</dd>
+                  <dd className="mb-0">
+                    {orderId ? (
+                      <Link
+                        className="link-underline link-underline-opacity-0"
+                        to={buildAnimalsLink({ classId, orderId })}
+                      >
+                        {orderName}
+                      </Link>
+                    ) : (
+                      orderName
+                    )}
+                  </dd>
                 </>
               )}
               {familyName && (
                 <>
                   <dt className="fw-semibold">{t('animal.family')}</dt>
-                  <dd className="mb-0">{familyName}</dd>
+                  <dd className="mb-0">
+                    {familyId ? (
+                      <Link
+                        className="link-underline link-underline-opacity-0"
+                        to={buildAnimalsLink({ classId, orderId, familyId })}
+                      >
+                        {familyName}
+                      </Link>
+                    ) : (
+                      familyName
+                    )}
+                  </dd>
                 </>
               )}
             </dl>
