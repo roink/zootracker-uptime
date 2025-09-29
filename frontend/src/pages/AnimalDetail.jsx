@@ -1,5 +1,11 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
+import {
+  useParams,
+  useNavigate,
+  useLocation,
+  Link,
+  createSearchParams,
+} from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { API } from '../api';
 import { getZooDisplayName } from '../utils/zooDisplayName.js';
@@ -126,6 +132,41 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
       ? animal.family_name_de || animal.family_name_en
       : animal.family_name_en || animal.family_name_de;
   }, [animal, lang]);
+
+  const classificationLinks = useMemo(() => {
+    if (!animal) {
+      return { class: null, order: null, family: null };
+    }
+
+    const makeLink = ({ classId, orderId, familyId }) => {
+      const filtered = [
+        ['class', classId],
+        ['order', orderId],
+        ['family', familyId],
+      ].filter(([, value]) => value != null && value !== '');
+      const params = createSearchParams(
+        filtered.map(([key, value]) => [key, String(value)])
+      );
+      const query = params.toString();
+      return `${prefix}/animals${query ? `?${query}` : ''}`;
+    };
+
+    return {
+      class: animal.class_id ? makeLink({ classId: animal.class_id }) : null,
+      order:
+        animal.class_id && animal.order_id
+          ? makeLink({ classId: animal.class_id, orderId: animal.order_id })
+          : null,
+      family:
+        animal.class_id && animal.order_id && animal.family_id
+          ? makeLink({
+              classId: animal.class_id,
+              orderId: animal.order_id,
+              familyId: animal.family_id,
+            })
+          : null,
+    };
+  }, [animal, prefix]);
 
   useEffect(() => {
     const params = [];
@@ -482,19 +523,61 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
               {className && (
                 <>
                   <dt className="fw-semibold">{t('animal.class')}</dt>
-                  <dd className="mb-0">{className}</dd>
+                  <dd className="mb-0">
+                    {classificationLinks.class ? (
+                      <Link
+                        className="link-underline link-underline-opacity-0 link-underline-opacity-75-hover"
+                        to={classificationLinks.class}
+                        aria-label={t('animal.filterByClass', {
+                          classification: className,
+                        })}
+                      >
+                        {className}
+                      </Link>
+                    ) : (
+                      className
+                    )}
+                  </dd>
                 </>
               )}
               {orderName && (
                 <>
                   <dt className="fw-semibold">{t('animal.order')}</dt>
-                  <dd className="mb-0">{orderName}</dd>
+                  <dd className="mb-0">
+                    {classificationLinks.order ? (
+                      <Link
+                        className="link-underline link-underline-opacity-0 link-underline-opacity-75-hover"
+                        to={classificationLinks.order}
+                        aria-label={t('animal.filterByOrder', {
+                          classification: orderName,
+                        })}
+                      >
+                        {orderName}
+                      </Link>
+                    ) : (
+                      orderName
+                    )}
+                  </dd>
                 </>
               )}
               {familyName && (
                 <>
                   <dt className="fw-semibold">{t('animal.family')}</dt>
-                  <dd className="mb-0">{familyName}</dd>
+                  <dd className="mb-0">
+                    {classificationLinks.family ? (
+                      <Link
+                        className="link-underline link-underline-opacity-0 link-underline-opacity-75-hover"
+                        to={classificationLinks.family}
+                        aria-label={t('animal.filterByFamily', {
+                          classification: familyName,
+                        })}
+                      >
+                        {familyName}
+                      </Link>
+                    ) : (
+                      familyName
+                    )}
+                  </dd>
                 </>
               )}
             </dl>
