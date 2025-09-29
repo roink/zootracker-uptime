@@ -27,6 +27,10 @@ MAX_RETRIES = 5
 INITIAL_BACKOFF = 1.0
 MAX_BACKOFF = 30.0
 
+REQUIRED_COLUMNS: dict[str, str] = {
+    "source": "TEXT",
+}
+
 
 @dataclass
 class TargetAnimal(AnimalMetadata):
@@ -114,6 +118,25 @@ def load_target_animals(db_path: Path, limit: Optional[int]) -> list[TargetAnima
             )
         )
     return targets
+
+
+def ensure_columns_exist(db_path: Path) -> None:
+    """Add missing columns required by this script."""
+
+    with sqlite3.connect(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        existing = {
+            row["name"].lower()
+            for row in conn.execute("PRAGMA table_info(animal)").fetchall()
+        }
+
+        for column, definition in REQUIRED_COLUMNS.items():
+            if column.lower() in existing:
+                continue
+
+            logging.info("Adding missing column %s to animal table", column)
+            conn.execute(f"ALTER TABLE animal ADD COLUMN {column} {definition}")
+        conn.commit()
 
 
 _DESCRIPTION_MARKDOWN_PATTERN = re.compile(r"[*_#]")
@@ -306,6 +329,7 @@ async def main() -> None:
     )
 
     db_path = Path(args.db or get_database_path())
+    ensure_columns_exist(db_path)
     api_key = get_gemini_api_key()
     target_animals = load_target_animals(db_path, args.limit)
     if not target_animals:
