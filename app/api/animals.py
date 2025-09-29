@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session, joinedload, load_only
 from .. import schemas, models
 from ..database import get_db
 from ..utils.geometry import query_zoos_with_distance
+from ..utils.images import build_unique_variants
 from .deps import resolve_coords
 
 
@@ -255,26 +256,14 @@ def get_animal_detail(
 
     zoos = [to_zoodetail(z, dist) for z, dist in results]
 
-    images = []
-    for i in animal.images:
-        # Return thumbnail variants deduplicated by width so the frontend can
-        # build concise ``srcset`` attributes.
-        variants: list[schemas.ImageVariant] = []
-        seen_widths: set[int] = set()
-        for v in i.variants:
-            if v.width in seen_widths:
-                continue
-            seen_widths.add(v.width)
-            variants.append(
-                schemas.ImageVariant(width=v.width, height=v.height, thumb_url=v.thumb_url)
-            )
-        images.append(
-            schemas.ImageRead(
-                mid=i.mid,
-                original_url=i.original_url,
-                variants=variants,
-            )
+    images = [
+        schemas.ImageRead(
+            mid=i.mid,
+            original_url=i.original_url,
+            variants=build_unique_variants(i.variants),
         )
+        for i in animal.images
+    ]
 
     return schemas.AnimalDetail(
         id=animal.id,
