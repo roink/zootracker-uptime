@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import { useTranslation } from 'react-i18next';
+
+import { applyBaseMapLanguage } from '../utils/mapLanguage.js';
 import { getZooDisplayName } from '../utils/zooDisplayName.js';
 import { normalizeCoordinates } from '../utils/coordinates.js';
 import { MAP_STYLE_URL } from './MapView.jsx';
@@ -43,7 +45,7 @@ export default function ZoosMap({
   const previousFeatureIdsRef = useRef([]);
   const hasFitToZoosRef = useRef(false);
   const skipNextCenterRef = useRef(false);
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [mapReady, setMapReady] = useState(false);
 
   const centerLat = center?.lat;
@@ -234,6 +236,11 @@ export default function ZoosMap({
       cancelled = true;
     };
   }, [emitViewChange, initialState, persistentInitialView, triggerResize]);
+
+  useEffect(() => {
+    if (!mapReady || !mapRef.current) return;
+    applyBaseMapLanguage(mapRef.current, i18n.language);
+  }, [i18n.language, mapReady]);
 
   const cancelPendingSetData = useCallback(() => {
     const pending = setDataFrameRef.current;
