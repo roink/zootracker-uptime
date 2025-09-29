@@ -90,36 +90,6 @@ def set_user_context(user_id: str | None) -> None:
     user_id_ctx_var.set(user_id)
 
 
-def get_request_id() -> str | None:
-    """Return the current request id if one is bound."""
-
-    return request_id_ctx_var.get(None)
-
-
-def get_user_id() -> str | None:
-    """Return the user id stored in the context, if available."""
-
-    return user_id_ctx_var.get(None)
-
-
-def get_client_ip() -> str | None:
-    """Return the client IP stored in the context, if available."""
-
-    return client_ip_ctx_var.get(None)
-
-
-def get_client_ip_raw() -> str | None:
-    """Return the raw client IP stored in the context, if available."""
-
-    return client_ip_raw_ctx_var.get(None)
-
-
-def get_client_ip_anonymized() -> str | None:
-    """Return the anonymized client IP stored in the context, if available."""
-
-    return client_ip_anonymized_ctx_var.get(None)
-
-
 # ---------------------------------------------------------------------------
 # Privacy helpers
 # ---------------------------------------------------------------------------
