@@ -53,11 +53,14 @@ Class (English): {klasse_en}
 Order (English): {ordnung_en}
 Family (English): {familie_en}
 
-Please write a concise but engaging description in English (4-6 sentences) and in German (4-6 sentences). Mention notable physical traits, natural habitat, and interesting behavioural facts that are relevant to zoo visitors.
+Please write a concise but engaging description in English (4-6 sentences) and in German (4-6 sentences).
+Mention notable physical traits, natural habitat, and interesting behavioural facts that are relevant to zoo visitors.
+If this is a subspecies explain how this taxon relates to the species in the descriptions.
 
-Search sources in both English and German when possible. If you cannot find information for a field, clearly state that it is unknown instead of guessing.
+Search sources in both English and German when possible.
+If you cannot find information for a field, clearly state that it is unknown instead of guessing.
 
-Collect the following data points during your research so they can be structured later:
+Answer in this structure:
 - description_en
 - description_de
 - wikipedia_en (URL if available)
