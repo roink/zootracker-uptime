@@ -39,8 +39,8 @@ class User(Base):
     )
     name = Column(String(255), nullable=False)
     email = Column(String(255), nullable=False, unique=True)
-    # bcrypt hashes are ~60 characters
-    password_hash = Column(String(64), nullable=False)
+    # Allow extra room for bcrypt_sha256 and future password hashing schemes
+    password_hash = Column(String(255), nullable=False)
     created_at = Column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

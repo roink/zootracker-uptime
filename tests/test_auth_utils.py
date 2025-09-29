@@ -7,10 +7,18 @@ from app.database import SessionLocal
 from .conftest import register_and_login
 
 
-def test_hash_and_verify_round_trip():
-    hashed = hash_password("secret")
-    assert verify_password("secret", hashed)
+def test_password_round_trip_short():
+    password = "abcdefghij"
+    hashed = hash_password(password)
+    assert verify_password(password, hashed)
     assert not verify_password("wrong", hashed)
+
+
+def test_password_round_trip_long_80_bytes():
+    password = "x" * 80
+    hashed = hash_password(password)
+    assert verify_password(password, hashed)
+    assert not verify_password("y" * 80, hashed)
 
 
 def test_create_token_and_get_current_user():
