@@ -181,7 +181,7 @@ class AnimalMetadata:
         if self.is_domestic:
             additional_parts = [
                 "Make it clear in the descriptions that the animal is a domesticated form or specific breed of a wild ancestor.",
-                "Leave the taxon_rank field blank for domesticated animals unless you can confirm it for the wild ancestor.",
+                "Leave the taxon_rank field blank for domesticated animals.",
             ]
             additional_guidance = "\n".join(additional_parts)
 
