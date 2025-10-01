@@ -53,6 +53,8 @@ Class (English): {klasse_en}
 Order (English): {ordnung_en}
 Family (English): {familie_en}
 
+{additional_guidance}
+
 Please write a concise but engaging description in English (4-6 sentences) and in German (4-6 sentences).
 Mention notable physical traits, natural habitat, and interesting behavioural facts that are relevant to zoo visitors.
 If this is a subspecies explain how this taxon relates to the species in the descriptions.
@@ -169,11 +171,20 @@ class AnimalMetadata:
     ordnung_en: str | None
     familie_de: str | None
     familie_en: str | None
+    is_domestic: bool = False
 
     def _format_value(self, value: Optional[str]) -> str:
         return value or "Unknown"
 
     def to_prompt(self) -> str:
+        additional_guidance = ""
+        if self.is_domestic:
+            additional_parts = [
+                "Make it clear in the descriptions that the animal is a domesticated form or specific breed of a wild ancestor.",
+                "Leave the taxon_rank field blank for domesticated animals unless you can confirm it for the wild ancestor.",
+            ]
+            additional_guidance = "\n".join(additional_parts)
+
         return ANIMAL_PROMPT_TEMPLATE.format(
             latin_name=self._format_value(self.latin_name),
             name_de=self._format_value(self.name_de),
@@ -181,6 +192,7 @@ class AnimalMetadata:
             klasse_en=self._format_value(self.klasse_en),
             ordnung_en=self._format_value(self.ordnung_en),
             familie_en=self._format_value(self.familie_en),
+            additional_guidance=additional_guidance,
         )
 
 
@@ -300,6 +312,7 @@ def fetch_animal_metadata(art: str, db_path: Path | str | None = None) -> Animal
                    a.latin_name,
                    a.name_de,
                    a.name_en,
+                   a.klasse,
                    kn.name_de AS klasse_de,
                    kn.name_en AS klasse_en,
                    oname.name_de AS ordnung_de,
@@ -329,6 +342,7 @@ def fetch_animal_metadata(art: str, db_path: Path | str | None = None) -> Animal
         ordnung_en=row["ordnung_en"],
         familie_de=row["familie_de"],
         familie_en=row["familie_en"],
+        is_domestic=(row["klasse"] == 6 if row["klasse"] is not None else False),
     )
 
 

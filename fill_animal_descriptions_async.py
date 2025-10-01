@@ -74,6 +74,7 @@ def load_target_animals(db_path: Path, limit: Optional[int]) -> list[TargetAnima
                a.latin_name,
                a.name_de,
                a.name_en,
+               a.klasse,
                kn.name_de AS klasse_de,
                kn.name_en AS klasse_en,
                oname.name_de AS ordnung_de,
@@ -88,7 +89,7 @@ def load_target_animals(db_path: Path, limit: Optional[int]) -> list[TargetAnima
         WHERE ((a.description_en IS NULL OR TRIM(a.description_en) = '')
            OR (a.description_de IS NULL OR TRIM(a.description_de) = ''))
           AND a.zoo_count > 0
-          AND a.klasse < 6
+          AND a.klasse <= 6
         ORDER BY a.zoo_count DESC, a.art ASC
     """
     params: tuple[object, ...] = ()
@@ -115,6 +116,7 @@ def load_target_animals(db_path: Path, limit: Optional[int]) -> list[TargetAnima
                 familie_de=row["familie_de"],
                 familie_en=row["familie_en"],
                 zoo_count=row["zoo_count"],
+                is_domestic=row["klasse"] == 6,
             )
         )
     return targets
@@ -180,7 +182,7 @@ async def gather_animal_details(
     client: GeminiAnimalClient,
     semaphore: asyncio.Semaphore,
     animal: TargetAnimal,
-) -> tuple[str, Optional[AnimalRecord]]:
+) -> tuple[TargetAnimal, Optional[AnimalRecord]]:
     prompt = animal.to_prompt()
     try:
         async with semaphore:
@@ -190,21 +192,24 @@ async def gather_animal_details(
             )
     except Exception as exc:  # pragma: no cover - network errors are non-deterministic
         logging.exception("Gemini call failed for art %s: %s", animal.art, exc)
-        return animal.art, None
+        return animal, None
 
-    return animal.art, structured
+    return animal, structured
 
 
 def update_database(
     db_path: Path,
-    art: str,
+    animal: TargetAnimal,
     record: AnimalRecord,
 ) -> None:
+    art = animal.art
     description_en = sanitize_description(record.description_en)
     description_de = sanitize_description(record.description_de)
     wikipedia_en = sanitize_text(record.wikipedia_en)
     wikipedia_de = sanitize_text(record.wikipedia_de)
-    taxon_rank = sanitize_text(record.taxon_rank)
+    taxon_rank = None
+    if not animal.is_domestic:
+        taxon_rank = sanitize_text(record.taxon_rank)
     iucn_status = sanitize_text(record.iucn_conservation_status)
 
     with sqlite3.connect(db_path) as conn:
@@ -280,10 +285,10 @@ async def process_animals(
         for animal in animals
     ]
     for coro in asyncio.as_completed(tasks):
-        art, record = await coro
+        animal, record = await coro
         if record is None:
             continue
-        await asyncio.to_thread(update_database, db_path, art, record)
+        await asyncio.to_thread(update_database, db_path, animal, record)
 
 
 def positive_int(value: str) -> int:
