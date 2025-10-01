@@ -10,6 +10,7 @@ import random
 import re
 import sqlite3
 import sys
+from urllib.parse import urlparse, urlunparse
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Optional
@@ -58,11 +59,23 @@ def is_retryable_exception(exc: Exception) -> bool:
     """Return True if the exception looks like a transient API failure."""
 
     status = getattr(exc, "status", None) or getattr(exc, "status_code", None)
-    if isinstance(status, int) and (status == 429 or status >= 500):
+    if isinstance(status, int) and (status in (408, 429, 500, 502, 503, 504) or status >= 500):
         return True
 
     message = str(exc).lower()
-    for marker in ("429", "rate limit", "timeout", "temporarily unavailable", "503", "504"):
+    for marker in (
+        "408",
+        "429",
+        "rate limit",
+        "timeout",
+        "timed out",
+        "temporarily unavailable",
+        "502",
+        "503",
+        "504",
+        "deadline",
+        "connection reset",
+    ):
         if marker in message:
             return True
     return False
@@ -74,6 +87,7 @@ def load_target_animals(db_path: Path, limit: Optional[int]) -> list[TargetAnima
                a.latin_name,
                a.name_de,
                a.name_en,
+               a.klasse,
                kn.name_de AS klasse_de,
                kn.name_en AS klasse_en,
                oname.name_de AS ordnung_de,
@@ -88,7 +102,7 @@ def load_target_animals(db_path: Path, limit: Optional[int]) -> list[TargetAnima
         WHERE ((a.description_en IS NULL OR TRIM(a.description_en) = '')
            OR (a.description_de IS NULL OR TRIM(a.description_de) = ''))
           AND a.zoo_count > 0
-          AND a.klasse < 6
+          AND a.klasse <= 6
         ORDER BY a.zoo_count DESC, a.art ASC
     """
     params: tuple[object, ...] = ()
@@ -115,6 +129,7 @@ def load_target_animals(db_path: Path, limit: Optional[int]) -> list[TargetAnima
                 familie_de=row["familie_de"],
                 familie_en=row["familie_en"],
                 zoo_count=row["zoo_count"],
+                is_domestic=(row["klasse"] == 6 if row["klasse"] is not None else False),
             )
         )
     return targets
@@ -168,6 +183,27 @@ def is_empty(value: Optional[str]) -> bool:
     return value is None or not str(value).strip()
 
 
+def _normalize_wikipedia_url(url: Optional[str]) -> Optional[str]:
+    """Normalise Wikipedia URLs to a canonical form."""
+
+    if not url:
+        return None
+
+    try:
+        parsed = urlparse(url.strip())
+    except Exception:
+        return url
+
+    if not parsed.netloc:
+        return url
+
+    host = parsed.netloc.lower()
+    if "wikipedia.org" not in host:
+        return url
+
+    return urlunparse(("https", host, parsed.path, "", "", ""))
+
+
 def ensure_unique(conn: sqlite3.Connection, column: str, value: str, current_art: str) -> bool:
     row = conn.execute(
         f"SELECT art FROM animal WHERE LOWER({column}) = LOWER(?) AND art != ?",
@@ -180,7 +216,7 @@ async def gather_animal_details(
     client: GeminiAnimalClient,
     semaphore: asyncio.Semaphore,
     animal: TargetAnimal,
-) -> tuple[str, Optional[AnimalRecord]]:
+) -> tuple[TargetAnimal, Optional[AnimalRecord]]:
     prompt = animal.to_prompt()
     try:
         async with semaphore:
@@ -190,22 +226,25 @@ async def gather_animal_details(
             )
     except Exception as exc:  # pragma: no cover - network errors are non-deterministic
         logging.exception("Gemini call failed for art %s: %s", animal.art, exc)
-        return animal.art, None
+        return animal, None
 
-    return animal.art, structured
+    return animal, structured
 
 
 def update_database(
     db_path: Path,
-    art: str,
+    animal: TargetAnimal,
     record: AnimalRecord,
 ) -> None:
+    art = animal.art
     description_en = sanitize_description(record.description_en)
     description_de = sanitize_description(record.description_de)
-    wikipedia_en = sanitize_text(record.wikipedia_en)
-    wikipedia_de = sanitize_text(record.wikipedia_de)
-    taxon_rank = sanitize_text(record.taxon_rank)
+    wikipedia_en = _normalize_wikipedia_url(sanitize_text(record.wikipedia_en))
+    wikipedia_de = _normalize_wikipedia_url(sanitize_text(record.wikipedia_de))
+    taxon_rank = sanitize_text(record.taxon_rank) if not animal.is_domestic else None
     iucn_status = sanitize_text(record.iucn_conservation_status)
+    if animal.is_domestic:
+        iucn_status = None
 
     with sqlite3.connect(db_path) as conn:
         conn.row_factory = sqlite3.Row
@@ -217,7 +256,8 @@ def update_database(
                    wikipedia_de,
                    taxon_rank,
                    iucn_conservation_status,
-                   source
+                   source,
+                   klasse
             FROM animal
             WHERE art = ?
             """,
@@ -227,14 +267,16 @@ def update_database(
             logging.warning("Animal with art %s not found during update", art)
             return
 
+        existing_klasse = existing["klasse"]
+
         updates: dict[str, object] = {}
         if description_en and is_empty(existing["description_en"]):
             updates["description_en"] = description_en
         if description_de and is_empty(existing["description_de"]):
             updates["description_de"] = description_de
-        if taxon_rank and is_empty(existing["taxon_rank"]):
+        if taxon_rank and (existing_klasse != 6) and is_empty(existing["taxon_rank"]):
             updates["taxon_rank"] = taxon_rank
-        if iucn_status and is_empty(existing["iucn_conservation_status"]):
+        if iucn_status and (existing_klasse != 6) and is_empty(existing["iucn_conservation_status"]):
             updates["iucn_conservation_status"] = iucn_status
 
         if wikipedia_en and is_empty(existing["wikipedia_en"]):
@@ -280,10 +322,10 @@ async def process_animals(
         for animal in animals
     ]
     for coro in asyncio.as_completed(tasks):
-        art, record = await coro
+        animal, record = await coro
         if record is None:
             continue
-        await asyncio.to_thread(update_database, db_path, art, record)
+        await asyncio.to_thread(update_database, db_path, animal, record)
 
 
 def positive_int(value: str) -> int:
@@ -304,6 +346,12 @@ def parse_args() -> argparse.Namespace:
         help="Path to the SQLite database (default: taken from .env)",
     )
     parser.add_argument(
+        "--concurrency",
+        type=positive_int,
+        default=DEFAULT_CONCURRENCY,
+        help="Maximum number of concurrent Gemini requests (default: %(default)s)",
+    )
+    parser.add_argument(
         "--limit",
         type=positive_int,
         default=None,
@@ -311,12 +359,6 @@ def parse_args() -> argparse.Namespace:
             "Limit processing to the first N animals sorted by zoo count. "
             "For example, --limit 100 restricts processing to the top 100 animals."
         ),
-    )
-    parser.add_argument(
-        "--concurrency",
-        type=int,
-        default=DEFAULT_CONCURRENCY,
-        help="Maximum number of concurrent Gemini requests (default: %(default)s)",
     )
     return parser.parse_args()
 
@@ -345,7 +387,7 @@ async def main() -> None:
         db_path,
         client,
         target_animals,
-        min(args.concurrency, DEFAULT_CONCURRENCY),
+        args.concurrency,
     )
 
 
