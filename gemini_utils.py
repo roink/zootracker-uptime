@@ -157,7 +157,7 @@ class ZooMetadata:
         )
 
 
-@dataclass
+@dataclass(kw_only=True)
 class AnimalMetadata:
     """Minimal animal information used to build Gemini prompts."""
 
