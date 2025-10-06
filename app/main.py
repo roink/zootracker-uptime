@@ -6,19 +6,22 @@ from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 
+# load environment variables from .env if present before importing config
+load_dotenv()
+
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
-from .config import ALLOWED_ORIGINS, CSRF_HEADER_NAME
+from .config import ALLOWED_ORIGINS, SECURITY_HEADERS, CSRF_HEADER_NAME
+
 from .database import get_db  # noqa: F401 - re-exported for tests and scripts
 from .logging import configure_logging
 from .middleware.logging import LoggingMiddleware
+from .middleware.security import SecureHeadersMiddleware
 from .rate_limit import rate_limit
 
-# load environment variables from .env if present
-load_dotenv()
 configure_logging()
 
 logger = logging.getLogger("app.main")
@@ -38,7 +41,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Zoo Tracker API", lifespan=lifespan)
-
+app.add_middleware(SecureHeadersMiddleware, headers=SECURITY_HEADERS)
 app.add_middleware(LoggingMiddleware)
 
 # configure CORS using a controlled list of allowed origins

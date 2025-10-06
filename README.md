@@ -255,6 +255,38 @@ When running the API on the public internet remember to:
   `uvicorn app.main:app --reload --env-file .env` locally or `EnvironmentFile=/opt/zoo_tracker/.env`
   in systemd) instead of calling `load_dotenv()` in application modules.
 
+### HTTP security headers
+
+The API ships with strict defaults for the browser security headers injected by
+`SecureHeadersMiddleware`. Override them only when absolutely necessary.
+
+| Environment variable | Production default |
+| -------------------- | ------------------ |
+| `STRICT_TRANSPORT_SECURITY` | `max-age=63072000; includeSubDomains; preload` |
+| `CONTENT_SECURITY_POLICY` | `default-src 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'` |
+
+For **HTTP-only localhost testing** (FastAPI on `http://127.0.0.1:8000` and the
+Vite dev server on `http://localhost:5173`) add the following overrides to your
+`.env` file:
+
+```
+STRICT_TRANSPORT_SECURITY=
+CONTENT_SECURITY_POLICY=default-src 'self'; img-src 'self' data:; connect-src 'self' http://localhost:5173
+```
+
+Setting `STRICT_TRANSPORT_SECURITY` to an empty value stops browsers from
+caching an HTTPS requirement that you cannot satisfy locally, while the CSP
+example keeps the interactive docs working. Cross-origin requests from the Vite
+dev server to the API are controlled by CORS (see `ALLOWED_ORIGINS`). Frame and
+content-type protections are enforced directly in code
+(`X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`) so you do not need
+matching environment variables and should not attempt to disable them.
+
+Removing or weakening these headers makes the application vulnerable to
+clickjacking, MIME sniffing, or malicious resource injection. Prefer temporary
+overrides in local `.env` files and revert to the secure defaults before
+deploying to staging or production.
+
 ### SECRET_KEY requirements
 
 - **Minimum:** 32 bytes for HS256 (per RFC 7518). That corresponds to at least

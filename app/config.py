@@ -61,3 +61,41 @@ ALLOWED_ORIGINS = [
     if origin.strip()
 ]
 
+def _read_header(name: str, default: str | None) -> str | None:
+    """Fetch an environment override for a security header."""
+
+    value = os.getenv(name)
+    if value is None:
+        return default
+    value = value.strip()
+    return value or None
+
+
+# Security header defaults keep browsers on HTTPS and enforce safe resource loading.
+DEFAULT_STRICT_TRANSPORT_SECURITY = "max-age=63072000; includeSubDomains; preload"
+DEFAULT_CONTENT_SECURITY_POLICY = (
+    "default-src 'self'; "
+    "frame-ancestors 'none'; "
+    "base-uri 'self'; "
+    "object-src 'none'"
+)
+DEFAULT_X_FRAME_OPTIONS = "DENY"
+DEFAULT_X_CONTENT_TYPE_OPTIONS = "nosniff"
+
+STRICT_TRANSPORT_SECURITY = _read_header(
+    "STRICT_TRANSPORT_SECURITY", DEFAULT_STRICT_TRANSPORT_SECURITY
+)
+CONTENT_SECURITY_POLICY = _read_header(
+    "CONTENT_SECURITY_POLICY", DEFAULT_CONTENT_SECURITY_POLICY
+)
+
+SECURITY_HEADERS = {
+    "X-Frame-Options": DEFAULT_X_FRAME_OPTIONS,
+    "X-Content-Type-Options": DEFAULT_X_CONTENT_TYPE_OPTIONS,
+}
+
+if STRICT_TRANSPORT_SECURITY:
+    SECURITY_HEADERS["Strict-Transport-Security"] = STRICT_TRANSPORT_SECURITY
+
+if CONTENT_SECURITY_POLICY:
+    SECURITY_HEADERS["Content-Security-Policy"] = CONTENT_SECURITY_POLICY
