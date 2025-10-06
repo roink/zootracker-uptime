@@ -35,10 +35,13 @@ import LegalNoticePage from "./pages/LegalNotice";
 import DataProtectionPage from "./pages/DataProtection";
 import ContactPage from "./pages/Contact";
 import Footer from "./components/Footer";
+import "bootstrap/dist/css/bootstrap.min.css";
 import "./styles/app.css";
 import "./styles/landing.css";
 // MapLibre default styles for the OpenFreeMap tiles
 import "maplibre-gl/dist/maplibre-gl.css";
+// Bundle Bootstrap locally instead of relying on the CDN.
+import "bootstrap/dist/js/bootstrap.bundle.min.js";
 
 // Cache API data and persist between reloads
 const queryClient = new QueryClient({
