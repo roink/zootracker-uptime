@@ -11,7 +11,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
-from .config import ALLOWED_ORIGINS
+from .config import ALLOWED_ORIGINS, CSRF_HEADER_NAME
 from .database import get_db  # noqa: F401 - re-exported for tests and scripts
 from .logging import configure_logging
 from .middleware.logging import LoggingMiddleware
@@ -46,7 +46,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
     allow_methods=["*"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_headers=["Authorization", "Content-Type", CSRF_HEADER_NAME],
+    allow_credentials=True,
 )
 
 # register rate limiting middleware

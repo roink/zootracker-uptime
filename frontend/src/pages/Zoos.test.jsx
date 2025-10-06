@@ -10,7 +10,7 @@ vi.mock('../components/Seo', () => ({ default: () => null }));
 
 import ZoosPage from './Zoos.jsx';
 import { API } from '../api';
-import { createTestToken, setStoredAuth } from '../test-utils/auth.js';
+import { createTestToken, setStoredAuth, clearStoredAuth } from '../test-utils/auth.js';
 
 describe('ZoosPage', () => {
   beforeEach(() => {
@@ -19,6 +19,10 @@ describe('ZoosPage', () => {
     });
     const token = createTestToken();
     setStoredAuth({ token, user: { id: 'user-1', email: 'user@example.com' } });
+  });
+
+  afterEach(() => {
+    clearStoredAuth();
   });
 
   it('loads visited zoo IDs and marks visited zoos', async () => {

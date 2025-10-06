@@ -4,7 +4,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderWithRouter } from '../test-utils/router.jsx';
 import ZooDetail from './ZooDetail';
 import { API } from '../api';
-import { createTestToken, setStoredAuth } from '../test-utils/auth.js';
+import { createTestToken } from '../test-utils/auth.js';
 vi.mock('./LazyMap', () => ({ default: () => <div data-testid="map" /> }));
 
 describe('ZooDetail component', () => {
@@ -13,9 +13,13 @@ describe('ZooDetail component', () => {
   const animalId = 'a1';
 
   beforeEach(() => {
-    const token = createTestToken();
-    setStoredAuth({ token, user: { id: userId, email: 'user@example.com' } });
     global.fetch = vi.fn((url) => {
+      if (url.endsWith('/auth/refresh')) {
+        return Promise.resolve({ ok: false, status: 401, json: () => Promise.resolve({ detail: 'unauthorized' }) });
+      }
+      if (url.endsWith('/auth/logout')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+      }
       if (url.endsWith(`/zoos/${zoo.slug}/animals`)) {
         return Promise.resolve({
           ok: true,
@@ -43,7 +47,10 @@ describe('ZooDetail component', () => {
   });
 
   it('shows visit status and seen marker', async () => {
-    renderWithRouter(<ZooDetail zoo={zoo} refresh={0} onLogged={() => {}} />);
+    const token = createTestToken();
+    renderWithRouter(<ZooDetail zoo={zoo} refresh={0} onLogged={() => {}} />, {
+      auth: { token, user: { id: userId, email: 'user@example.com' }, expiresIn: 3600 },
+    });
 
     await waitFor(() => {
       expect(screen.getByText('Visited? ☑️ Yes')).toBeInTheDocument();

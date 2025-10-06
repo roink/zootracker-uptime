@@ -77,11 +77,12 @@ describe('ContactPage form behavior', () => {
     renderContact('/en/contact');
 
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText('Name'), 'Alice Example');
-    await user.type(screen.getByLabelText('Email'), 'alice@example.com');
-    await user.type(screen.getByLabelText('Message'), 'Hello there friend!');
+    const nameField = await screen.findByLabelText('Name');
+    await user.type(nameField, 'Alice Example');
+    await user.type(await screen.findByLabelText('Email'), 'alice@example.com');
+    await user.type(await screen.findByLabelText('Message'), 'Hello there friend!');
     nowSpy.mockImplementation(() => 5000);
-    await user.click(screen.getByRole('button', { name: 'Send' }));
+    await user.click(await screen.findByRole('button', { name: 'Send' }));
 
     const alert = await screen.findByRole('status');
     expect(alert).toHaveClass('alert', 'alert-danger');
@@ -105,11 +106,12 @@ describe('ContactPage form behavior', () => {
     renderContact('/en/contact');
 
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText('Name'), 'Alice Example');
-    await user.type(screen.getByLabelText('Email'), 'alice@example.com');
-    await user.type(screen.getByLabelText('Message'), 'Hello there friend!');
+    const nameField = await screen.findByLabelText('Name');
+    await user.type(nameField, 'Alice Example');
+    await user.type(await screen.findByLabelText('Email'), 'alice@example.com');
+    await user.type(await screen.findByLabelText('Message'), 'Hello there friend!');
     nowSpy.mockImplementation(() => 5000);
-    await user.click(screen.getByRole('button', { name: 'Send' }));
+    await user.click(await screen.findByRole('button', { name: 'Send' }));
 
     const alert = await screen.findByRole('status');
     expect(alert).toHaveClass('alert', 'alert-warning');

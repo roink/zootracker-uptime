@@ -1,44 +1,63 @@
+"""Environment-driven configuration for the FastAPI application."""
+
+from __future__ import annotations
+
 import os
+from typing import Final
 
 
-def _normalize_secret(value: str) -> str:
-    """Strip surrounding whitespace so simple copy/paste mistakes are ignored."""
-
+def _get_env(name: str, *, default: str | None = None, required: bool = False) -> str | None:
+    value = os.getenv(name)
+    if value is None:
+        if required:
+            raise RuntimeError(f"Missing required environment variable: {name}")
+        return default
     return value.strip()
 
 
-SECRET_KEY = os.getenv("SECRET_KEY")
-if not SECRET_KEY:
-    raise RuntimeError(
-        "SECRET_KEY environment variable is required. Generate a strong value (e.g., openssl rand -hex 32)."
-    )
+def _get_bool(name: str, default: bool) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "t", "yes", "y", "on"}
 
-SECRET_KEY = _normalize_secret(SECRET_KEY)
 
-if len(SECRET_KEY) < 32:
-    raise RuntimeError(
-        "SECRET_KEY must be at least 32 characters (32 bytes) for HS256. Use a long, random value."
-    )
+JWT_ALGORITHM: Final[str] = "HS256"
 
-_WEAK_SECRET_KEYS = {
-    "secret",
-    "changeme",
-    "password",
-    "test-secret-key",
-    "test-secret-key-change-me",
-}
-if SECRET_KEY.lower() in _WEAK_SECRET_KEYS:
-    raise RuntimeError(
-        "SECRET_KEY is too weak; use a long, random value such as openssl rand -hex 32."
-    )
-ALGORITHM = "HS256"
-# Allow token lifetime to be configured via environment variable
-# Defaults to 30 minutes when not provided
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+_hs_secret = _get_env("JWT_SECRET") or _get_env("SECRET_KEY")
+if not _hs_secret:
+    raise RuntimeError("JWT_SECRET (or legacy SECRET_KEY) is required for HS256 JWTs")
 
-# Comma separated list of origins allowed to access the API via CORS
+JWT_SIGNING_KEY: Final[str] = _hs_secret
+JWT_VERIFYING_KEY: Final[str] = _hs_secret
+
+JWT_KID = _get_env("JWT_KID")
+
+ACCESS_TOKEN_TTL = int(_get_env("ACCESS_TOKEN_TTL", default="900"))
+ACCESS_TOKEN_LEEWAY = int(_get_env("ACCESS_TOKEN_LEEWAY", default="60"))
+
+# Preserve legacy configuration import paths used in the existing codebase/tests.
+ACCESS_TOKEN_EXPIRE_MINUTES = max(1, ACCESS_TOKEN_TTL // 60)
+
+REFRESH_IDLE_TTL = int(_get_env("REFRESH_IDLE_TTL", default="1800"))
+REFRESH_ABS_TTL = int(_get_env("REFRESH_ABS_TTL", default="1209600"))
+
+REFRESH_COOKIE_NAME = "refresh_token"
+CSRF_COOKIE_NAME = _get_env("CSRF_COOKIE_NAME", default="refresh_csrf") or "refresh_csrf"
+CSRF_HEADER_NAME = _get_env("CSRF_HEADER_NAME", default="X-CSRF") or "X-CSRF"
+
+COOKIE_SAMESITE = (_get_env("COOKIE_SAMESITE", default="Lax") or "Lax").capitalize()
+if COOKIE_SAMESITE not in {"Lax", "Strict", "None"}:
+    raise RuntimeError("COOKIE_SAMESITE must be one of: Lax, Strict, None")
+
+COOKIE_DOMAIN = _get_env("COOKIE_DOMAIN")
+COOKIE_SECURE = _get_bool("COOKIE_SECURE", default=True)
+
+TOKEN_PEPPER = _get_env("TOKEN_PEPPER", required=True)
+
 ALLOWED_ORIGINS = [
     origin.strip()
-    for origin in os.getenv("ALLOWED_ORIGINS", "").split(",")
+    for origin in (_get_env("ALLOWED_ORIGINS", default="") or "").split(",")
     if origin.strip()
 ]
+

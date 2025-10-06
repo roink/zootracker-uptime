@@ -3,9 +3,13 @@ import { useAuth } from './AuthContext.jsx';
 
 // Guard component that redirects unauthenticated users to the login page.
 export default function RequireAuth() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, hydrated } = useAuth();
   const location = useLocation();
   const { lang } = useParams();
+
+  if (!hydrated) {
+    return null;
+  }
 
   if (!isAuthenticated) {
     return (

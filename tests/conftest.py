@@ -38,6 +38,9 @@ os.environ.setdefault(
     "SECRET_KEY",
     "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 )
+os.environ.setdefault("JWT_SECRET", os.environ["SECRET_KEY"])
+os.environ.setdefault("TOKEN_PEPPER", "unit-test-pepper")
+os.environ.setdefault("COOKIE_SECURE", "false")
 
 from app.database import Base, engine, SessionLocal  # noqa: E402
 from app import models  # noqa: E402
@@ -253,6 +256,7 @@ def register_and_login(return_register_resp: bool = False):
     global _counter
     email = f"alice{_counter}@example.com"
     _counter += 1
+    client.cookies.clear()
     register_resp = client.post(
         "/users",
         json={"name": "Alice", "email": email, "password": TEST_PASSWORD},
@@ -265,7 +269,9 @@ def register_and_login(return_register_resp: bool = False):
         headers={"content-type": "application/x-www-form-urlencoded"},
     )
     assert login_resp.status_code == 200
-    token = login_resp.json()["access_token"]
+    body = login_resp.json()
+    assert "expires_in" in body
+    token = body["access_token"]
     if return_register_resp:
         return token, user_id, register_resp
     return token, user_id
