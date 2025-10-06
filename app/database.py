@@ -14,6 +14,7 @@ if not DATABASE_URL:
     raise RuntimeError(
         "DATABASE_URL environment variable is required to connect to PostgreSQL"
     )
+
 if "postgres:postgres@" in DATABASE_URL:
     raise RuntimeError(
         "DATABASE_URL must use unique credentials instead of the insecure "
