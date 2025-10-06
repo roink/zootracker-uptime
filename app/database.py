@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session, declarative_base, sessionmaker
 # via the ``DATABASE_URL`` environment variable so deployments never rely on
 # an implicit insecure default.
 DATABASE_URL = os.getenv("DATABASE_URL")
-APP_ENV = os.getenv("APP_ENV", "development").lower()
+APP_ENV = os.getenv("APP_ENV", "production").lower()
 
 if not DATABASE_URL:
     raise RuntimeError(
