@@ -1,24 +1,33 @@
 """Database configuration used across the application."""
 
 import os
+import warnings
 from typing import Generator
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 # Connection string for the PostgreSQL database.  A value **must** be provided
-# via the ``DATABASE_URL`` environment variable so deployments always use
-# dedicated credentials instead of the legacy ``postgres:postgres`` fallback.
+# via the ``DATABASE_URL`` environment variable so deployments never rely on
+# an implicit insecure default.
 DATABASE_URL = os.getenv("DATABASE_URL")
+APP_ENV = os.getenv("APP_ENV", "development").lower()
+
 if not DATABASE_URL:
     raise RuntimeError(
         "DATABASE_URL environment variable is required to connect to PostgreSQL"
     )
 
-if "postgres:postgres@" in DATABASE_URL:
+placeholder = "postgresql://postgres:postgres@"
+if APP_ENV == "production" and placeholder in DATABASE_URL:
     raise RuntimeError(
-        "DATABASE_URL must use unique credentials instead of the insecure "
-        "postgres:postgres default"
+        "Refusing to start in production with the legacy postgres:postgres placeholder in DATABASE_URL."
+    )
+if placeholder in DATABASE_URL:
+    warnings.warn(
+        "DATABASE_URL appears to use the 'postgres:postgres' placeholder. "
+        "This is acceptable for local development and tests but must not be used in production.",
+        RuntimeWarning,
     )
 
 # Global engine and session factory used by the application.  Zoo Tracker relies

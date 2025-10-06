@@ -48,8 +48,9 @@ Then point the backend at those credentials, either in your shell or in a
 export DATABASE_URL=postgresql://zoo_app_user:strong-password@localhost:5432/zoo_app
 ```
 
-The application refuses to start if `DATABASE_URL` is unset or still uses the
-old `postgres:postgres` pattern, helping catch misconfigured deployments early.
+The application refuses to start if `DATABASE_URL` is unset. If you set
+`APP_ENV=production`, it will also refuse to start when the URL still uses the
+legacy `postgres:postgres` placeholder so misconfigured deployments fail fast.
 
 
 ### Running Tests

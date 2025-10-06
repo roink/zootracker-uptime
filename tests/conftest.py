@@ -25,17 +25,12 @@ DEFAULT_TEST_DATABASE_URL = (
     "postgresql://zootracker_test:zootracker_test@localhost:5432/zootracker_test"
 )
 DATABASE_URL = os.getenv("DATABASE_URL", DEFAULT_TEST_DATABASE_URL)
-if "postgres:postgres@" in DATABASE_URL:
-    # Environments that still rely on the insecure placeholder should fall back
-    # to the dedicated test credentials so the suite can execute. Individual
-    # tests exercise the failure mode when the application is started with the
-    # placeholder URL.
-    DATABASE_URL = DEFAULT_TEST_DATABASE_URL
 
 if not DATABASE_URL.startswith("postgresql"):
     raise RuntimeError("Tests require a PostgreSQL database")
 
 os.environ["DATABASE_URL"] = DATABASE_URL
+os.environ.setdefault("APP_ENV", "test")
 os.environ["AUTH_RATE_LIMIT"] = "1000"
 os.environ["GENERAL_RATE_LIMIT"] = "10000"
 os.environ.setdefault("SMTP_HOST", "smtp.test")
