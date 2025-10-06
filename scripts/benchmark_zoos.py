@@ -31,86 +31,46 @@ import httpx
 # Queries reproduced from the supplied log snippet. The categories ensure we
 # exercise latitude/longitude lookups, text filtering, and continent/country
 # filters.
-@dataclass(frozen=True)
-class VariantTemplate:
-    """Template for a request variant with a descriptive label."""
-
-    name: str
-    params: Dict[str, Any]
-
-    def build_params(self) -> Dict[str, Any]:
-        """Return a shallow copy of the stored parameters for safe reuse."""
-
-        return dict(self.params)
-
-
-LAT_LON_VARIANTS: List[VariantTemplate] = [
-    VariantTemplate("lat_lon", {"latitude": "51.0", "longitude": "6.9"}),
+LAT_LON_VARIANTS: List[Dict[str, Any]] = [
+    {"latitude": "51.0", "longitude": "6.9"},
 ]
 
-SEARCH_VARIANTS: List[VariantTemplate] = [
-    VariantTemplate("search_zoo", {"latitude": "51.0", "longitude": "6.9", "q": "zoo"}),
-    VariantTemplate(
-        "search_zoo_continent6",
-        {"latitude": "51.0", "longitude": "6.9", "q": "zoo", "continent_id": "6"},
-    ),
-    VariantTemplate(
-        "search_zoo_continent3",
-        {"latitude": "51.0", "longitude": "6.9", "q": "zoo", "continent_id": "3"},
-    ),
-    VariantTemplate(
-        "search_zoo_continent3_country109",
-        {
-            "latitude": "51.0",
-            "longitude": "6.9",
-            "q": "zoo",
-            "continent_id": "3",
-            "country_id": "109",
-        },
-    ),
-    VariantTemplate("search_koeln", {"latitude": "51.0", "longitude": "6.9", "q": "K\u00f6ln"}),
-    VariantTemplate("search_berlin", {"latitude": "51.0", "longitude": "6.9", "q": "Berlin"}),
-    VariantTemplate("search_berl", {"latitude": "51.0", "longitude": "6.9", "q": "Berl"}),
-    VariantTemplate("search_ber", {"latitude": "51.0", "longitude": "6.9", "q": "Ber"}),
+SEARCH_VARIANTS: List[Dict[str, Any]] = [
+    {"latitude": "51.0", "longitude": "6.9", "q": "zoo"},
+    {"latitude": "51.0", "longitude": "6.9", "q": "zoo", "continent_id": "6"},
+    {"latitude": "51.0", "longitude": "6.9", "q": "zoo", "continent_id": "3"},
+    {
+        "latitude": "51.0",
+        "longitude": "6.9",
+        "q": "zoo",
+        "continent_id": "3",
+        "country_id": "109",
+    },
+    {"latitude": "51.0", "longitude": "6.9", "q": "K\u00f6ln"},
+    {"latitude": "51.0", "longitude": "6.9", "q": "Berlin"},
+    {"latitude": "51.0", "longitude": "6.9", "q": "Berl"},
+    {"latitude": "51.0", "longitude": "6.9", "q": "Ber"},
 ]
 
-CONTINENT_VARIANTS: List[VariantTemplate] = [
-    VariantTemplate("continent_1", {"latitude": "51.0", "longitude": "6.9", "continent_id": "1"}),
-    VariantTemplate("continent_2", {"latitude": "51.0", "longitude": "6.9", "continent_id": "2"}),
-    VariantTemplate("continent_3", {"latitude": "51.0", "longitude": "6.9", "continent_id": "3"}),
-    VariantTemplate("continent_4", {"latitude": "51.0", "longitude": "6.9", "continent_id": "4"}),
-    VariantTemplate("continent_5", {"latitude": "51.0", "longitude": "6.9", "continent_id": "5"}),
-    VariantTemplate("continent_6", {"latitude": "51.0", "longitude": "6.9", "continent_id": "6"}),
+CONTINENT_VARIANTS: List[Dict[str, Any]] = [
+    {"latitude": "51.0", "longitude": "6.9", "continent_id": "1"},
+    {"latitude": "51.0", "longitude": "6.9", "continent_id": "2"},
+    {"latitude": "51.0", "longitude": "6.9", "continent_id": "3"},
+    {"latitude": "51.0", "longitude": "6.9", "continent_id": "4"},
+    {"latitude": "51.0", "longitude": "6.9", "continent_id": "5"},
+    {"latitude": "51.0", "longitude": "6.9", "continent_id": "6"},
 ]
 
-CONTINENT_COUNTRY_VARIANTS: List[VariantTemplate] = [
-    VariantTemplate(
-        "continent2_country16",
-        {"latitude": "51.0", "longitude": "6.9", "continent_id": "2", "country_id": "16"},
-    ),
-    VariantTemplate(
-        "continent2_country60",
-        {"latitude": "51.0", "longitude": "6.9", "continent_id": "2", "country_id": "60"},
-    ),
-    VariantTemplate(
-        "continent2_country144",
-        {"latitude": "51.0", "longitude": "6.9", "continent_id": "2", "country_id": "144"},
-    ),
-    VariantTemplate(
-        "continent2_country158",
-        {"latitude": "51.0", "longitude": "6.9", "continent_id": "2", "country_id": "158"},
-    ),
-    VariantTemplate(
-        "continent3_country39",
-        {"latitude": "51.0", "longitude": "6.9", "continent_id": "3", "country_id": "39"},
-    ),
-    VariantTemplate(
-        "continent3_country109",
-        {"latitude": "51.0", "longitude": "6.9", "continent_id": "3", "country_id": "109"},
-    ),
+CONTINENT_COUNTRY_VARIANTS: List[Dict[str, Any]] = [
+    {"latitude": "51.0", "longitude": "6.9", "continent_id": "2", "country_id": "16"},
+    {"latitude": "51.0", "longitude": "6.9", "continent_id": "2", "country_id": "60"},
+    {"latitude": "51.0", "longitude": "6.9", "continent_id": "2", "country_id": "144"},
+    {"latitude": "51.0", "longitude": "6.9", "continent_id": "2", "country_id": "158"},
+    {"latitude": "51.0", "longitude": "6.9", "continent_id": "3", "country_id": "39"},
+    {"latitude": "51.0", "longitude": "6.9", "continent_id": "3", "country_id": "109"},
 ]
 
-ALL_VARIANTS: List[VariantTemplate] = (
+ALL_VARIANTS: List[Dict[str, Any]] = (
     LAT_LON_VARIANTS
     + SEARCH_VARIANTS
     + CONTINENT_VARIANTS
@@ -128,13 +88,13 @@ class RequestResult:
     error: Optional[BaseException] = None
 
 
-def build_request_plan(total: int) -> List[VariantTemplate]:
-    """Return a shuffled list of query parameter templates."""
+def build_request_plan(total: int) -> List[Dict[str, Any]]:
+    """Return a shuffled list of query parameter dictionaries."""
 
     if total <= 0:
         raise ValueError("Total number of requests must be positive")
 
-    plan: List[VariantTemplate] = []
+    plan: List[Dict[str, Any]] = []
     category_plan = [
         (LAT_LON_VARIANTS, 0.25),
         (SEARCH_VARIANTS, 0.25),
@@ -144,10 +104,10 @@ def build_request_plan(total: int) -> List[VariantTemplate]:
 
     for variants, fraction in category_plan:
         count = max(1, int(total * fraction))
-        plan.extend(random.choice(variants) for _ in range(count))
+        plan.extend(dict(random.choice(variants)) for _ in range(count))
 
     while len(plan) < total:
-        plan.append(random.choice(ALL_VARIANTS))
+        plan.append(dict(random.choice(ALL_VARIANTS)))
 
     random.shuffle(plan)
     return plan[:total]
@@ -207,20 +167,11 @@ async def run_benchmark(
     semaphore = asyncio.Semaphore(concurrency)
     request_plan = build_request_plan(total_requests)
 
-    mix_counter = Counter(template.name for template in request_plan)
-
-    print("Request mix:")
-    for name, count in sorted(mix_counter.items(), key=lambda item: item[1], reverse=True):
-        share = (count / total_requests) * 100
-        print(f"  {name}: {count} ({share:.1f}%)")
-
     limits = httpx.Limits(max_connections=concurrency, max_keepalive_connections=concurrency)
     async with httpx.AsyncClient(base_url=base_url, timeout=timeout, limits=limits) as client:
         tasks = [
-            asyncio.create_task(
-                send_request(client, semaphore, template.build_params())
-            )
-            for template in request_plan
+            asyncio.create_task(send_request(client, semaphore, dict(params)))
+            for params in request_plan
         ]
 
         responses: List[RequestResult] = []
