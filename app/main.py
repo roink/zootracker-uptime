@@ -6,6 +6,9 @@ from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 
+# load environment variables from .env if present before importing config
+load_dotenv()
+
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,8 +21,6 @@ from .middleware.logging import LoggingMiddleware
 from .middleware.security import SecureHeadersMiddleware
 from .rate_limit import rate_limit
 
-# load environment variables from .env if present
-load_dotenv()
 configure_logging()
 
 logger = logging.getLogger("app.main")

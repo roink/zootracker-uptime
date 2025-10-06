@@ -249,8 +249,9 @@ CONTENT_SECURITY_POLICY=default-src 'self'; img-src 'self' data:; connect-src 's
 
 Setting `STRICT_TRANSPORT_SECURITY` to an empty value stops browsers from
 caching an HTTPS requirement that you cannot satisfy locally, while the CSP
-example keeps the interactive docs working and permits the Vite dev server to
-call the API. Frame and content-type protections are enforced directly in code
+example keeps the interactive docs working. Cross-origin requests from the Vite
+dev server to the API are controlled by CORS (see `ALLOWED_ORIGINS`). Frame and
+content-type protections are enforced directly in code
 (`X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`) so you do not need
 matching environment variables and should not attempt to disable them.
 

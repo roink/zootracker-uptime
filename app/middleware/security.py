@@ -19,9 +19,17 @@ class SecureHeadersMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request, call_next):  # type: ignore[override]
         response = await call_next(request)
+
+        scheme = request.url.scheme
+        forwarded_proto = request.headers.get("x-forwarded-proto", "").lower()
+        is_https = scheme == "https" or forwarded_proto == "https"
+
         for header, value in self._headers.items():
-            if value:
-                response.headers[header] = value
+            if not value:
+                continue
+            if header.lower() == "strict-transport-security" and not is_https:
+                continue
+            response.headers[header] = value
         return response
 
     def __repr__(self) -> str:
