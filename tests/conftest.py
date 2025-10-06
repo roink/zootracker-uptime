@@ -21,12 +21,14 @@ def pytest_collection_modifyitems(config, items):
 
 
 # set up database url before importing app
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://postgres:postgres@localhost:5432/postgres",
+DEFAULT_TEST_DATABASE_URL = (
+    "postgresql://zootracker_test:zootracker_test@localhost:5432/zootracker_test"
 )
+DATABASE_URL = os.getenv("DATABASE_URL", DEFAULT_TEST_DATABASE_URL)
 if not DATABASE_URL.startswith("postgresql"):
     raise RuntimeError("Tests require a PostgreSQL database")
+if "postgres:postgres@" in DATABASE_URL:
+    raise RuntimeError("Tests must run with dedicated PostgreSQL credentials")
 os.environ["DATABASE_URL"] = DATABASE_URL
 os.environ["AUTH_RATE_LIMIT"] = "1000"
 os.environ["GENERAL_RATE_LIMIT"] = "10000"

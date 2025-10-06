@@ -6,11 +6,19 @@ from typing import Generator
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
-# Connection string for the PostgreSQL database.  A default is provided for
-# local development/testing but can be overridden via an environment variable.
-DATABASE_URL = os.getenv(
-    "DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/postgres"
-)
+# Connection string for the PostgreSQL database.  A value **must** be provided
+# via the ``DATABASE_URL`` environment variable so deployments always use
+# dedicated credentials instead of the legacy ``postgres:postgres`` fallback.
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise RuntimeError(
+        "DATABASE_URL environment variable is required to connect to PostgreSQL"
+    )
+if "postgres:postgres@" in DATABASE_URL:
+    raise RuntimeError(
+        "DATABASE_URL must use unique credentials instead of the insecure "
+        "postgres:postgres default"
+    )
 
 # Global engine and session factory used by the application.  Zoo Tracker relies
 # on PostgreSQL/PostGIS; fail fast if another backend is configured.
