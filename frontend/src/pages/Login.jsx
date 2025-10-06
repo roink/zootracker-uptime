@@ -57,11 +57,16 @@ export default function LoginPage() {
       const resp = await fetch(`${API}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        credentials: 'include',
         body,
       });
       if (resp.ok) {
         const data = await resp.json();
-        login({ token: data.access_token, user: { id: data.user_id, email: cleanEmail } });
+        login({
+          token: data.access_token,
+          user: { id: data.user_id, email: cleanEmail },
+          expiresIn: data.expires_in,
+        });
         navigate(prefix, { replace: true });
       } else {
         alert('Login failed');

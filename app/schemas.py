@@ -28,8 +28,10 @@ class UserRead(BaseModel):
 
 class Token(BaseModel):
     """Authentication token response."""
+
     access_token: str
     token_type: str
+    expires_in: int
     user_id: Optional[UUID] = None
 
     model_config = ConfigDict(extra="forbid")

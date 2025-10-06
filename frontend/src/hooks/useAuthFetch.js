@@ -1,38 +1,55 @@
-import { useCallback, useRef } from 'react';
+import { useCallback } from 'react';
 import { useAuth } from '../auth/AuthContext.jsx';
 
-// Hook returning a memoized fetch wrapper that automatically includes an
-// Authorization header and clears auth state on HTTP 401 responses.
+const REFRESH_THRESHOLD_MS = 60_000;
+
+// Hook returning a memoized fetch wrapper that automatically refreshes access
+// tokens, replays requests on 401 responses, and clears auth state if refresh
+// attempts fail.
 export default function useAuthFetch() {
-  const { token, tokenExpiresAt, logout } = useAuth();
-  const handling401 = useRef(false);
+  const { token, tokenExpiresAt, refreshAccessToken, logout } = useAuth();
 
   return useCallback(
     async (input, options = {}) => {
       const headers = new Headers(options.headers || {});
+      let authToken = token;
       const now = Date.now();
-      const hasValidToken = Boolean(token) && (!tokenExpiresAt || tokenExpiresAt > now);
-      if (hasValidToken && !headers.has('Authorization')) {
-        headers.set('Authorization', `Bearer ${token}`);
+
+      if (authToken && tokenExpiresAt && tokenExpiresAt - now < REFRESH_THRESHOLD_MS) {
+        try {
+          authToken = await refreshAccessToken();
+        } catch (err) {
+          await logout({ reason: 'refresh_failed' });
+          return fetch(input, { ...options, headers });
+        }
       }
 
-      const response = await fetch(input, { ...options, headers });
+      if (authToken && !headers.has('Authorization')) {
+        headers.set('Authorization', `Bearer ${authToken}`);
+      }
+
+      let response = await fetch(input, { ...options, headers });
       if (response.status !== 401) {
         return response;
       }
 
-      if (handling401.current) {
+      try {
+        const refreshed = await refreshAccessToken();
+        if (!refreshed) {
+          await logout({ reason: '401' });
+          return response;
+        }
+        headers.set('Authorization', `Bearer ${refreshed}`);
+        response = await fetch(input, { ...options, headers });
+        if (response.status === 401) {
+          await logout({ reason: '401' });
+        }
+        return response;
+      } catch (err) {
+        await logout({ reason: '401' });
         return response;
       }
-
-      handling401.current = true;
-      try {
-        await logout({ reason: '401' });
-      } finally {
-        handling401.current = false;
-      }
-      return response;
     },
-    [token, tokenExpiresAt, logout]
+    [token, tokenExpiresAt, refreshAccessToken, logout]
   );
 }

@@ -1,29 +1,17 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 
-// Storage keys for persisted auth data. New entries live under the `auth.` namespace.
-const STORAGE_KEYS = {
-  token: 'auth.token',
-  user: 'auth.user',
-};
+import { API } from '../api';
 
-// Legacy keys from the previous implementation. We clear these once migration happens.
-const LEGACY_KEYS = {
-  token: 'token',
-  userId: 'userId',
-  userEmail: 'userEmail',
-};
+const CSRF_COOKIE_NAME = 'refresh_csrf';
+const CSRF_HEADER_NAME = 'X-CSRF';
 
-// Helper to decode a JWT payload so we can read the `exp` claim. Invalid tokens
-// are ignored and treated as non-expiring (the backend will still enforce auth).
 function decodeJwtPayload(token) {
   if (!token) return null;
   const parts = token.split('.');
   if (parts.length < 2) return null;
   try {
-    const payload = parts[1]
-      .replace(/-/g, '+')
-      .replace(/_/g, '/');
+    const payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
     const padded = payload.padEnd(payload.length + ((4 - (payload.length % 4)) % 4), '=');
     const decoded = atob(padded);
     return JSON.parse(decoded);
@@ -33,129 +21,140 @@ function decodeJwtPayload(token) {
   }
 }
 
-// Persist the current auth data to storage and clean up old keys.
-function persistAuth(token, user) {
-  try {
-    if (token) {
-      localStorage.setItem(STORAGE_KEYS.token, token);
-    } else {
-      localStorage.removeItem(STORAGE_KEYS.token);
-    }
-    if (user) {
-      localStorage.setItem(STORAGE_KEYS.user, JSON.stringify(user));
-    } else {
-      localStorage.removeItem(STORAGE_KEYS.user);
-    }
-    // Remove legacy entries to keep storage tidy.
-    Object.values(LEGACY_KEYS).forEach((key) => localStorage.removeItem(key));
-  } catch (err) {
-    console.warn('Unable to persist auth data', err);
-  }
-}
-
-// Remove both the new and legacy auth keys from storage.
-function clearPersistedAuth() {
-  try {
-    Object.values(STORAGE_KEYS).forEach((key) => localStorage.removeItem(key));
-    Object.values(LEGACY_KEYS).forEach((key) => localStorage.removeItem(key));
-  } catch (err) {
-    console.warn('Unable to clear auth data', err);
-  }
-}
-
-// Load auth information from storage, migrating legacy keys when necessary.
-function loadStoredAuth() {
-  if (typeof window === 'undefined') {
-    return { token: null, user: null, expiresAt: null };
-  }
-
-  let token = null;
-  let user = null;
-  let migrated = false;
-
-  try {
-    token = localStorage.getItem(STORAGE_KEYS.token);
-    const rawUser = localStorage.getItem(STORAGE_KEYS.user);
-    if (rawUser) {
-      try {
-        user = JSON.parse(rawUser);
-      } catch {
-        user = null;
-      }
-    }
-
-    if (!token) {
-      const legacyToken = localStorage.getItem(LEGACY_KEYS.token);
-      if (legacyToken) {
-        token = legacyToken;
-        const legacyId = localStorage.getItem(LEGACY_KEYS.userId);
-        const legacyEmail = localStorage.getItem(LEGACY_KEYS.userEmail);
-        if (legacyId) {
-          user = { id: legacyId, email: legacyEmail || '' };
-        }
-        migrated = true;
-      }
-    }
-  } catch (err) {
-    console.warn('Unable to read auth data', err);
-    token = null;
-    user = null;
-  }
-
+function computeExpiry(token, expiresIn) {
   const payload = decodeJwtPayload(token);
-  const expiresAt = payload && typeof payload.exp === 'number' ? payload.exp * 1000 : null;
-  const now = Date.now();
-
-  if (token && expiresAt && expiresAt <= now) {
-    clearPersistedAuth();
-    return { token: null, user: null, expiresAt: null };
+  if (payload && typeof payload.exp === 'number') {
+    return payload.exp * 1000;
   }
-
-  if (token && migrated) {
-    persistAuth(token, user);
+  if (typeof expiresIn === 'number') {
+    return Date.now() + expiresIn * 1000;
   }
+  return null;
+}
 
-  return { token, user, expiresAt };
+function readCookie(name) {
+  if (typeof document === 'undefined') return null;
+  const entries = document.cookie ? document.cookie.split('; ') : [];
+  for (const entry of entries) {
+    if (entry.startsWith(`${name}=`)) {
+      return decodeURIComponent(entry.slice(name.length + 1));
+    }
+  }
+  return null;
 }
 
 const AuthContext = createContext(null);
 
-// Provider exposing login/logout helpers and keeping auth state in sync with storage.
 export function AuthProvider({ children }) {
   const queryClient = useQueryClient();
-  const [authState, setAuthState] = useState(() => loadStoredAuth());
+  const [authState, setAuthState] = useState({
+    token: null,
+    user: null,
+    expiresAt: null,
+    hydrated: false,
+  });
   const loggingOut = useRef(false);
+  const refreshPromise = useRef(null);
 
-  const login = useCallback(({ token, user }) => {
-    const payload = decodeJwtPayload(token);
-    const expiresAt = payload && typeof payload.exp === 'number' ? payload.exp * 1000 : null;
-    persistAuth(token, user);
-    setAuthState({ token, user: user || null, expiresAt });
+  const clearAuthState = useCallback(() => {
+    setAuthState((prev) => ({ ...prev, token: null, user: null, expiresAt: null, hydrated: true }));
+    queryClient.clear();
+  }, [queryClient]);
+
+  const applyAuth = useCallback((token, expiresIn, userPatch) => {
+    const expiresAt = computeExpiry(token, expiresIn);
+    setAuthState((prev) => {
+      const mergedUser = userPatch
+        ? { ...(prev.user ?? {}), ...userPatch }
+        : prev.user;
+      return {
+        token,
+        user: mergedUser ?? null,
+        expiresAt,
+        hydrated: true,
+      };
+    });
   }, []);
+
+  const login = useCallback(
+    ({ token, user, expiresIn }) => {
+      applyAuth(token, expiresIn, user);
+    },
+    [applyAuth]
+  );
 
   const logout = useCallback(
     async ({ reason } = {}) => {
       if (loggingOut.current) return;
       loggingOut.current = true;
       try {
-        clearPersistedAuth();
-        setAuthState({ token: null, user: null, expiresAt: null });
-        queryClient.removeQueries({ queryKey: ['user'] });
+        await fetch(`${API}/auth/logout`, { method: 'POST', credentials: 'include' });
+      } catch (err) {
+        console.warn('Logout request failed', err);
       } finally {
+        clearAuthState();
         loggingOut.current = false;
       }
     },
-    [queryClient]
+    [clearAuthState]
   );
 
-  // When the stored token has an expiry timestamp, automatically clear it once
-  // the time passes. This keeps the UI consistent without waiting for the next request.
+  const refreshAccessToken = useCallback(async () => {
+    if (refreshPromise.current) {
+      return refreshPromise.current;
+    }
+    const promise = (async () => {
+      const csrfToken = readCookie(CSRF_COOKIE_NAME);
+      if (!csrfToken) {
+        throw new Error('Missing CSRF token');
+      }
+      const response = await fetch(`${API}/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { [CSRF_HEADER_NAME]: csrfToken },
+      });
+      if (!response.ok) {
+        throw new Error(`Refresh failed with ${response.status}`);
+      }
+      const data = await response.json();
+      applyAuth(data.access_token, data.expires_in, { id: data.user_id });
+      return data.access_token;
+    })();
+    refreshPromise.current = promise
+      .catch((err) => {
+        throw err;
+      })
+      .finally(() => {
+        refreshPromise.current = null;
+      });
+    return refreshPromise.current;
+  }, [applyAuth]);
+
   useEffect(() => {
-    if (!authState.token || !authState.expiresAt) return;
+    if (authState.hydrated) return;
+    let active = true;
+    refreshAccessToken()
+      .catch(() => {
+        if (active) {
+          clearAuthState();
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setAuthState((prev) => (prev.hydrated ? prev : { ...prev, hydrated: true }));
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [authState.hydrated, refreshAccessToken, clearAuthState]);
+
+  useEffect(() => {
+    if (!authState.token || !authState.expiresAt) return undefined;
     const now = Date.now();
     if (authState.expiresAt <= now) {
       logout({ reason: 'expired' });
-      return;
+      return undefined;
     }
     const timeout = setTimeout(() => logout({ reason: 'expired' }), authState.expiresAt - now);
     return () => clearTimeout(timeout);
@@ -167,10 +166,12 @@ export function AuthProvider({ children }) {
       user: authState.user,
       tokenExpiresAt: authState.expiresAt,
       isAuthenticated: Boolean(authState.token),
+      hydrated: authState.hydrated,
       login,
       logout,
+      refreshAccessToken,
     }),
-    [authState, login, logout]
+    [authState, login, logout, refreshAccessToken]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -183,3 +184,5 @@ export function useAuth() {
   }
   return ctx;
 }
+
+export { CSRF_HEADER_NAME };

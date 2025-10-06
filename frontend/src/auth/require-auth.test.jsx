@@ -1,11 +1,12 @@
 import '@testing-library/jest-dom';
 import { render, screen, act } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
+import { useEffect } from 'react';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryRouter, RouterProvider, Outlet, useLocation } from 'react-router-dom';
 import RequireAuth from './RequireAuth.jsx';
-import { AuthProvider } from './AuthContext.jsx';
-import { createTestToken, setStoredAuth } from '../test-utils/auth.js';
+import { AuthProvider, useAuth } from './AuthContext.jsx';
+import { createTestToken } from '../test-utils/auth.js';
 
 function Layout() {
   return <Outlet />;
@@ -21,6 +22,14 @@ function LoginCapture() {
 }
 
 describe('RequireAuth', () => {
+  beforeEach(() => {
+    global.fetch = vi.fn(() => Promise.resolve({ ok: false, status: 401, json: () => Promise.resolve({}) }));
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('redirects unauthenticated users to login and preserves from', async () => {
     const client = new QueryClient();
     const router = createMemoryRouter(
@@ -63,7 +72,7 @@ describe('RequireAuth', () => {
   it('allows access when authenticated', async () => {
     const client = new QueryClient();
     const token = createTestToken();
-    setStoredAuth({ token, user: { id: 'user-1', email: 'user@example.com' } });
+    const auth = { token, user: { id: 'user-1', email: 'user@example.com' }, expiresIn: 3600 };
 
     const router = createMemoryRouter(
       [
@@ -85,7 +94,9 @@ describe('RequireAuth', () => {
     render(
       <QueryClientProvider client={client}>
         <AuthProvider>
-          <RouterProvider router={router} />
+          <AuthLogin auth={auth}>
+            <RouterProvider router={router} />
+          </AuthLogin>
         </AuthProvider>
       </QueryClientProvider>
     );
@@ -94,3 +105,21 @@ describe('RequireAuth', () => {
     expect(router.state.location.pathname).toBe('/en/secret');
   });
 });
+
+function AuthLogin({ auth, children }) {
+  const { login, token, hydrated } = useAuth();
+
+  useEffect(() => {
+    if (auth?.token) {
+      login(auth);
+    }
+  }, [auth, login]);
+
+  if (auth?.token && !token) {
+    return null;
+  }
+  if (!auth?.token && !hydrated) {
+    return null;
+  }
+  return children;
+}

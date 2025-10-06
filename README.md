@@ -89,6 +89,9 @@ JSON response so clients can identify the user without an extra lookup.
 Authorization checks on the sighting endpoints ensure each user may only read,
 update, or delete their own records without privileged overrides.
 
+See [docs/auth.md](docs/auth.md) for details on configuring the rotating
+refresh-token flow in development (localhost) and in production deployments.
+
 ### Contact Form Email
 
 The `/contact` endpoint sends messages via SMTP using credentials from
