@@ -1,8 +1,10 @@
-import pytest
 from datetime import timedelta
+
+import pytest
 from fastapi import HTTPException
 
-from app.auth import hash_password, verify_password, create_access_token, get_current_user
+from app.auth import create_access_token, get_current_user, hash_password, verify_password
+from app.config import ACCESS_TOKEN_LEEWAY
 from app.database import SessionLocal
 from .conftest import register_and_login
 
@@ -23,7 +25,7 @@ def test_password_round_trip_long_80_bytes():
 
 def test_create_token_and_get_current_user():
     _, user_id = register_and_login()
-    token = create_access_token({"sub": user_id})
+    token, _ = create_access_token(user_id)
     db = SessionLocal()
     try:
         user = get_current_user(token=token, db=db)
@@ -34,7 +36,10 @@ def test_create_token_and_get_current_user():
 
 def test_get_current_user_expired_token():
     _, user_id = register_and_login()
-    token = create_access_token({"sub": user_id}, expires_delta=timedelta(seconds=-1))
+    token, _ = create_access_token(
+        user_id,
+        expires_delta=timedelta(seconds=-(ACCESS_TOKEN_LEEWAY + 5)),
+    )
     db = SessionLocal()
     try:
         with pytest.raises(HTTPException):

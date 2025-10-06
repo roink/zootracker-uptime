@@ -11,6 +11,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     text,
 )
 from sqlalchemy.dialects.postgresql import UUID
@@ -73,7 +74,13 @@ class Animal(Base):
     __tablename__ = "animals"
     __table_args__ = (
         CheckConstraint("zoo_count >= 0"),
+        CheckConstraint(
+            "parent_art IS NULL OR parent_art <> art",
+            name="ck_animals_parent_not_self",
+        ),
         Index("idx_animals_slug", "slug", unique=True),
+        UniqueConstraint("art", name="idx_animals_art"),
+        Index("idx_animals_parent_art", "parent_art"),
         Index("idx_animals_klasse", "klasse"),
         Index("idx_animals_ordnung", "ordnung"),
         Index("idx_animals_familie", "familie"),
@@ -103,6 +110,15 @@ class Animal(Base):
     english_label = Column(Text)
     german_label = Column(Text)
     latin_name = Column(Text)
+    parent_art = Column(
+        Text,
+        ForeignKey(
+            "animals.art",
+            name="fk_animals_parent_art",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+    )
     klasse = Column(Integer, ForeignKey("klasse_names.klasse"))
     ordnung = Column(Integer, ForeignKey("ordnung_names.ordnung"))
     familie = Column(Integer, ForeignKey("familie_names.familie"))
@@ -129,6 +145,17 @@ class Animal(Base):
         "Image",
         back_populates="animal",
         order_by=(SOURCE_ORDER, Image.mid),
+    )
+    parent = relationship(
+        "Animal",
+        back_populates="subspecies",
+        foreign_keys=[parent_art],
+        remote_side=[art],
+        uselist=False,
+    )
+    subspecies = relationship(
+        "Animal",
+        back_populates="parent",
     )
 
 

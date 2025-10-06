@@ -53,7 +53,12 @@ Example:
 ./deploy/deploy_zootracker.sh 138.199.203.214 www.ZooTracker.app
 ```
 
-The script will display the generated **database password** and **SECRET\_KEY** at the end. You should store these securely.
+The script will display the generated **database password** and **SECRET\_KEY** at
+the end. Store these securely and update any existing `.env` files or
+orchestration tooling with the new `DATABASE_URL` value so the service never
+falls back to shared credentials. Ensure your production environment exports
+`APP_ENV=production` (the default) so placeholder credentials are rejected at
+startup.
 
 > **Important:** The backend refuses to start unless `SECRET_KEY` is present in `.env`. Generate a long, random value such as
 > `openssl rand -hex 32` (64 hex characters = 32 bytes) before launching the service, and rotate it regularly. Weak or short

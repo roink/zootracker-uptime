@@ -16,6 +16,26 @@ CREATE TABLE users (
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- 1b. Refresh tokens
+CREATE TABLE refresh_tokens (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id           UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash        CHAR(64) NOT NULL UNIQUE,
+  family_id         UUID NOT NULL,
+  issued_at         TIMESTAMPTZ NOT NULL,
+  expires_at        TIMESTAMPTZ NOT NULL,
+  last_used_at      TIMESTAMPTZ NOT NULL,
+  rotated_at        TIMESTAMPTZ,
+  revoked_at        TIMESTAMPTZ,
+  revocation_reason TEXT,
+  user_agent        TEXT
+);
+
+CREATE INDEX ix_refresh_tokens_user_id ON refresh_tokens (user_id);
+CREATE INDEX ix_refresh_tokens_family_id ON refresh_tokens (family_id);
+CREATE INDEX ix_refresh_tokens_revoked_at ON refresh_tokens (revoked_at);
+CREATE INDEX ix_refresh_tokens_expires_at ON refresh_tokens (expires_at);
+
 -- 2. Region reference tables
 CREATE TABLE continent_names (
   id       INTEGER PRIMARY KEY,
@@ -101,6 +121,11 @@ CREATE TABLE animals (
   slug               TEXT NOT NULL,
   name_de            TEXT,
   art                TEXT,
+  parent_art         TEXT,
+  CONSTRAINT fk_animals_parent_art
+      FOREIGN KEY (parent_art) REFERENCES animals(art) DEFERRABLE INITIALLY DEFERRED,
+  CONSTRAINT ck_animals_parent_not_self CHECK (parent_art IS NULL OR parent_art <> art),
+  CONSTRAINT idx_animals_art UNIQUE (art),
   english_label      TEXT,
   german_label       TEXT,
   latin_name         TEXT,
@@ -115,6 +140,8 @@ CREATE TABLE animals (
 );
 
 CREATE INDEX IF NOT EXISTS idx_animals_zoo_count ON animals (zoo_count DESC);
+CREATE INDEX IF NOT EXISTS idx_animals_parent_art ON animals(parent_art);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_animals_art ON animals(art);
 CREATE INDEX IF NOT EXISTS idx_animal_popularity
     ON animals (zoo_count DESC, name_en ASC, id ASC);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_animals_slug ON animals(slug);

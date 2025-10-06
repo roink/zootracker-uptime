@@ -38,7 +38,16 @@ def _ensure_animal_columns(dst: Session) -> None:
     from . import models
 
     table = models.Animal.__table__
+    indexes = {idx["name"] for idx in insp.get_indexes("animals")}
+    art_exists = "art" in existing
+
     with bind.begin() as conn:
+        if art_exists and "idx_animals_art" not in indexes:
+            conn.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS idx_animals_art ON animals (art)"
+                )
+            )
         if bind.dialect.name == "postgresql" and "default_image_url" in cols:
             try:
                 conn.execute(
@@ -58,6 +67,18 @@ def _ensure_animal_columns(dst: Session) -> None:
             if column.name not in existing:
                 ddl = CreateColumn(column).compile(dialect=bind.dialect)
                 conn.execute(text(f"ALTER TABLE animals ADD COLUMN {ddl}"))
+
+    if not art_exists:
+        refreshed_indexes = {
+            idx["name"] for idx in inspect(bind).get_indexes("animals")
+        }
+        if "idx_animals_art" not in refreshed_indexes:
+            with bind.begin() as conn:
+                conn.execute(
+                    text(
+                        "CREATE UNIQUE INDEX IF NOT EXISTS idx_animals_art ON animals (art)"
+                    )
+                )
 
 
 def _ensure_image_columns(dst: Session) -> None:

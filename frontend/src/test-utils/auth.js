@@ -11,15 +11,16 @@ export function createTestToken({ expOffsetSeconds = 3600, payload = {} } = {}) 
   return `${base64Url(header)}.${base64Url(fullPayload)}.signature`;
 }
 
-export function setStoredAuth({ token, user }) {
-  localStorage.setItem('auth.token', token);
-  localStorage.setItem('auth.user', JSON.stringify(user));
+const TEST_AUTH_KEY = '__TEST_AUTH_STATE__';
+
+export function setStoredAuth(auth) {
+  globalThis[TEST_AUTH_KEY] = auth;
 }
 
 export function clearStoredAuth() {
-  localStorage.removeItem('auth.token');
-  localStorage.removeItem('auth.user');
-  localStorage.removeItem('token');
-  localStorage.removeItem('userId');
-  localStorage.removeItem('userEmail');
+  delete globalThis[TEST_AUTH_KEY];
+}
+
+export function getStoredAuth() {
+  return globalThis[TEST_AUTH_KEY] || null;
 }

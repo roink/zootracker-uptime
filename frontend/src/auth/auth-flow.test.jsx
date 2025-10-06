@@ -4,13 +4,16 @@ import '@testing-library/jest-dom';
 import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from 'vitest';
 import { setupServer } from 'msw/node';
 import { http, HttpResponse } from 'msw';
+
 import { renderWithRouter } from '../test-utils/router.jsx';
 import useAuthFetch from '../hooks/useAuthFetch.js';
 import { useAuth } from './AuthContext.jsx';
-import { createTestToken, setStoredAuth } from '../test-utils/auth.js';
+import { createTestToken } from '../test-utils/auth.js';
 
-// MSW server to intercept fetch requests during the tests.
-const server = setupServer();
+const server = setupServer(
+  http.post('/auth/refresh', () => HttpResponse.json({ detail: 'no session' }, { status: 401 })),
+  http.post('/auth/logout', () => HttpResponse.json({}, { status: 204 }))
+);
 
 beforeAll(() => server.listen());
 afterEach(() => server.resetHandlers());
@@ -21,7 +24,7 @@ function FetchHarness({ token, endpoint = '/protected', onFetched }) {
   const { login, isAuthenticated } = useAuth();
 
   useEffect(() => {
-    login({ token, user: { id: 'user-1', email: 'user@example.com' } });
+    login({ token, user: { id: 'user-1', email: 'user@example.com' }, expiresIn: 3600 });
   }, [login, token]);
 
   return (
@@ -59,11 +62,11 @@ describe('useAuthFetch integration', () => {
     const onFetched = vi.fn();
     renderWithRouter(<FetchHarness token={token} onFetched={onFetched} />);
 
-    fireEvent.click(screen.getByText('fetch'));
+    const trigger = await screen.findByRole('button', { name: 'fetch' });
+    fireEvent.click(trigger);
 
     await waitFor(() => expect(onFetched).toHaveBeenCalledTimes(1));
     expect(headers).toEqual([`Bearer ${token}`]);
-    expect(localStorage.getItem('auth.token')).toBe(token);
     expect(screen.getByTestId('auth-status').textContent).toBe('authed');
   });
 
@@ -85,12 +88,12 @@ describe('useAuthFetch integration', () => {
     const onFetched = vi.fn();
     renderWithRouter(<FetchHarness token={token} onFetched={onFetched} />);
 
-    fireEvent.click(screen.getByText('fetch'));
+    const trigger = await screen.findByRole('button', { name: 'fetch' });
+    fireEvent.click(trigger);
     await waitFor(() => expect(onFetched).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(screen.getByTestId('auth-status').textContent).toBe('guest'));
-    expect(localStorage.getItem('auth.token')).toBeNull();
 
-    fireEvent.click(screen.getByText('fetch'));
+    fireEvent.click(trigger);
     await waitFor(() => expect(onFetched).toHaveBeenCalledTimes(2));
     expect(headers[0]).toBe(`Bearer ${token}`);
     expect(headers[1]).toBeNull();
@@ -109,21 +112,17 @@ describe('useAuthFetch integration', () => {
     const onFetched = vi.fn();
     renderWithRouter(<FetchHarness token={token} onFetched={onFetched} />);
 
-    fireEvent.click(screen.getByText('fetch'));
+    const trigger = await screen.findByRole('button', { name: 'fetch' });
+    fireEvent.click(trigger);
     await waitFor(() => expect(onFetched).toHaveBeenCalledTimes(1));
 
     expect(headers).toEqual([`Bearer ${token}`]);
-    expect(localStorage.getItem('auth.token')).toBe(token);
     expect(screen.getByTestId('auth-status').textContent).toBe('authed');
   });
 
-  it('drops expired tokens during boot', async () => {
-    const expired = createTestToken({ expOffsetSeconds: -60 });
-    setStoredAuth({ token: expired, user: { id: 'user-1', email: 'user@example.com' } });
-
+  it('remains logged out when refresh fails during boot', async () => {
     renderWithRouter(<AuthStatus />);
 
     await waitFor(() => expect(screen.getByTestId('auth-status').textContent).toBe('guest'));
-    expect(localStorage.getItem('auth.token')).toBeNull();
   });
 });

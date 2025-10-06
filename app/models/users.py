@@ -38,3 +38,4 @@ class User(Base):
     zoo_visits = relationship("ZooVisit", back_populates="user")
     animal_sightings = relationship("AnimalSighting", back_populates="user")
     achievements = relationship("UserAchievement", back_populates="user")
+    refresh_tokens = relationship("RefreshToken", back_populates="user")
