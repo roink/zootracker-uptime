@@ -30,6 +30,30 @@ print(session.query(models.Zoo).all())
 ```
 
 
+### Database Credentials
+
+Zoo Tracker no longer ships with a weak `postgres:postgres` fallback. Create a
+dedicated PostgreSQL role and password for every environment and expose it via
+`DATABASE_URL` before starting the API. For example, inside `psql` you can run:
+
+```sql
+CREATE USER zoo_app_user WITH PASSWORD 'replace-with-a-long-random-string';
+CREATE DATABASE zoo_app OWNER zoo_app_user;
+```
+
+Then point the backend at those credentials, either in your shell or in a
+`.env` file loaded by your process manager:
+
+```bash
+export DATABASE_URL=postgresql://zoo_app_user:strong-password@localhost:5432/zoo_app
+```
+
+The application refuses to start if `DATABASE_URL` is unset. When `APP_ENV` is
+`production` (the default), it will also refuse to start when the URL still uses
+the legacy `postgres:postgres` placeholder so misconfigured deployments fail
+fast.
+
+
 ### Running Tests
 
 Start the database and run the test suite against PostgreSQL:
