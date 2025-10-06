@@ -7,7 +7,7 @@ import re
 import uuid
 from typing import Dict
 
-from sqlalchemy import Table, exists, func, select
+from sqlalchemy import Table, exists, func, select, text
 from sqlalchemy.orm import Session
 
 from app import models
@@ -74,7 +74,6 @@ def import_animals(
         if parent_art_col is not None
         and (parent := _normalize_art(row.get("parent_art"))) is not None
     }
-    parent_targets.difference_update(main_art_values)
     parent_rows = []
     if parent_targets and parent_art_col is not None:
         parent_rows = list(
@@ -94,7 +93,17 @@ def import_animals(
     n_inserted = 0
     n_updated = 0
     n_skipped = 0
+    # Optional: if Postgres, defer the self-referencing FK until commit for robustness.
+    try:
+        bind = dst.get_bind()
+        if bind.dialect.name == "postgresql":
+            dst.execute(text("SET CONSTRAINTS fk_animals_parent_art DEFERRED"))
+    except Exception:
+        # Best effort – SQLite and older PostgreSQL releases may not support deferrable constraints.
+        pass
+
     processed_arts: set[str] = set()
+    # Insert parent taxa before main rows; duplicates are skipped via processed_arts.
     for row in parent_rows + main_rows:
         raw_art = row.get("art")
         art = _normalize_art(raw_art)

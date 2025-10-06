@@ -101,7 +101,9 @@ CREATE TABLE animals (
   slug               TEXT NOT NULL,
   name_de            TEXT,
   art                TEXT,
-  parent_art         TEXT REFERENCES animals(art),
+  parent_art         TEXT,
+  CONSTRAINT fk_animals_parent_art
+      FOREIGN KEY (parent_art) REFERENCES animals(art) DEFERRABLE INITIALLY DEFERRED,
   CONSTRAINT ck_animals_parent_not_self CHECK (parent_art IS NULL OR parent_art <> art),
   CONSTRAINT idx_animals_art UNIQUE (art),
   english_label      TEXT,

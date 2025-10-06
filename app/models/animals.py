@@ -112,7 +112,12 @@ class Animal(Base):
     latin_name = Column(Text)
     parent_art = Column(
         Text,
-        ForeignKey("animals.art", name="fk_animals_parent_art"),
+        ForeignKey(
+            "animals.art",
+            name="fk_animals_parent_art",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
     )
     klasse = Column(Integer, ForeignKey("klasse_names.klasse"))
     ordnung = Column(Integer, ForeignKey("ordnung_names.ordnung"))
