@@ -5,10 +5,13 @@ from __future__ import annotations
 import argparse
 import logging
 
+from dotenv import load_dotenv
 from sqlalchemy import MetaData, Table, create_engine, inspect
 from sqlalchemy.orm import Session
 
 from app.db_extensions import ensure_pg_extensions
+
+load_dotenv()
 
 from .database import Base, SessionLocal
 from .import_utils import _ensure_animal_columns, _ensure_image_columns
