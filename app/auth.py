@@ -5,7 +5,6 @@ from __future__ import annotations
 import base64
 import inspect
 import hashlib
-import hmac
 import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -166,12 +165,6 @@ def hash_refresh_token(raw_token: str) -> str:
 
     digest = hashlib.sha256(_PEPPER + raw_token.encode("utf-8")).hexdigest()
     return digest
-
-
-def constant_time_compare(left: str, right: str) -> bool:
-    """Compare two hashes using a timing safe check."""
-
-    return hmac.compare_digest(left, right)
 
 
 def refresh_token_expired(token: models.RefreshToken, *, now: datetime | None = None) -> bool:
