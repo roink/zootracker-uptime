@@ -112,6 +112,13 @@ class Zoo(Base):
     sightings = relationship("AnimalSighting", back_populates="zoo")
     continent = relationship("ContinentName", back_populates="zoos")
     country = relationship("CountryName", back_populates="zoos")
+    favorite_user_links = relationship("UserFavoriteZoo", back_populates="zoo")
+    favorited_by_users = relationship(
+        "User",
+        secondary="user_favorite_zoos",
+        back_populates="favorite_zoos",
+        viewonly=True,
+    )
 
     @validates("latitude", "longitude")
     def _sync_location(self, key, value):

@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session, joinedload, load_only
 
 from .. import schemas, models
 from ..database import get_db
+from ..auth import get_current_user, get_optional_user
 from ..utils.geometry import query_zoos_with_distance
 from ..utils.images import build_unique_variants
 from .deps import resolve_coords
@@ -25,6 +26,20 @@ def to_zoodetail(z: models.Zoo, dist: float | None) -> schemas.ZooDetail:
 
 router = APIRouter()
 
+
+def _get_animal_or_404(animal_slug: str, db: Session) -> models.Animal:
+    """Return an animal by slug or raise a 404 error."""
+
+    animal = (
+        db.query(models.Animal)
+        .options(load_only(models.Animal.id, models.Animal.slug))
+        .filter(models.Animal.slug == animal_slug)
+        .first()
+    )
+    if animal is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Animal not found")
+    return animal
+
 @router.get("/animals", response_model=list[schemas.AnimalListItem])
 def list_animals(
     q: str = "",
@@ -34,7 +49,9 @@ def list_animals(
     class_id: int | None = None,
     order_id: int | None = None,
     family_id: int | None = None,
+    favorites_only: bool = False,
     db: Session = Depends(get_db),
+    user: models.User | None = Depends(get_optional_user),
 ):
     """List animals filtered by search query, taxonomy and pagination."""
 
@@ -68,6 +85,17 @@ def list_animals(
         .options(joinedload(models.Animal.category))
     )
 
+    if favorites_only:
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication required to filter favorites",
+            )
+        query = query.join(
+            models.UserFavoriteAnimal,
+            models.UserFavoriteAnimal.animal_id == models.Animal.id,
+        ).filter(models.UserFavoriteAnimal.user_id == user.id)
+
     if q:
         pattern = f"%{q}%"
         query = query.filter(
@@ -97,6 +125,17 @@ def list_animals(
         .all()
     )
 
+    favorite_ids: set = set()
+    if user is not None:
+        favorite_ids = {
+            row[0]
+            for row in (
+                db.query(models.UserFavoriteAnimal.animal_id)
+                .filter(models.UserFavoriteAnimal.user_id == user.id)
+                .all()
+            )
+        }
+
     return [
         schemas.AnimalListItem(
             id=a.id,
@@ -109,6 +148,7 @@ def list_animals(
             iucn_conservation_status=a.conservation_state,
             default_image_url=a.default_image_url,
             zoo_count=a.zoo_count,
+            is_favorite=a.id in favorite_ids,
         )
         for a in animals
     ]
@@ -167,7 +207,12 @@ def list_families(order_id: int, db: Session = Depends(get_db)):
     ]
 
 @router.get("/search", response_model=schemas.SearchResults)
-def combined_search(q: str = "", limit: int = 5, db: Session = Depends(get_db)):
+def combined_search(
+    q: str = "",
+    limit: int = 5,
+    db: Session = Depends(get_db),
+    user: models.User | None = Depends(get_optional_user),
+):
     """Return top zoos and animals matching the query."""
     zoo_q = db.query(models.Zoo).options(
         load_only(models.Zoo.id, models.Zoo.slug, models.Zoo.name, models.Zoo.city)
@@ -190,13 +235,89 @@ def combined_search(q: str = "", limit: int = 5, db: Session = Depends(get_db)):
         )
     animals = animal_q.limit(limit).all()
 
+    if user is not None:
+        favorite_zoo_ids = {
+            row[0]
+            for row in (
+                db.query(models.UserFavoriteZoo.zoo_id)
+                .filter(models.UserFavoriteZoo.user_id == user.id)
+                .all()
+            )
+        }
+        favorite_animal_ids = {
+            row[0]
+            for row in (
+                db.query(models.UserFavoriteAnimal.animal_id)
+                .filter(models.UserFavoriteAnimal.user_id == user.id)
+                .all()
+            )
+        }
+        for zoo in zoos:
+            setattr(zoo, "is_favorite", zoo.id in favorite_zoo_ids)
+        for animal in animals:
+            setattr(animal, "is_favorite", animal.id in favorite_animal_ids)
+
     return {"zoos": zoos, "animals": animals}
+
+
+@router.post(
+    "/animals/{animal_slug}/favorite",
+    response_model=schemas.FavoriteStatus,
+    status_code=status.HTTP_200_OK,
+)
+def mark_animal_favorite(
+    animal_slug: str,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    """Mark an animal as a favorite for the authenticated user."""
+
+    animal = _get_animal_or_404(animal_slug, db)
+    exists = (
+        db.query(models.UserFavoriteAnimal)
+        .filter(
+            models.UserFavoriteAnimal.user_id == user.id,
+            models.UserFavoriteAnimal.animal_id == animal.id,
+        )
+        .first()
+    )
+    if exists is None:
+        db.add(models.UserFavoriteAnimal(user_id=user.id, animal_id=animal.id))
+        db.commit()
+    return schemas.FavoriteStatus(favorite=True)
+
+
+@router.delete(
+    "/animals/{animal_slug}/favorite",
+    response_model=schemas.FavoriteStatus,
+    status_code=status.HTTP_200_OK,
+)
+def unmark_animal_favorite(
+    animal_slug: str,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    """Remove an animal from the authenticated user's favorites."""
+
+    animal = _get_animal_or_404(animal_slug, db)
+    (
+        db.query(models.UserFavoriteAnimal)
+        .filter(
+            models.UserFavoriteAnimal.user_id == user.id,
+            models.UserFavoriteAnimal.animal_id == animal.id,
+        )
+        .delete(synchronize_session=False)
+    )
+    db.commit()
+    return schemas.FavoriteStatus(favorite=False)
+
 
 @router.get("/animals/{animal_slug}", response_model=schemas.AnimalDetail)
 def get_animal_detail(
     animal_slug: str,
     coords: tuple[float | None, float | None] = Depends(resolve_coords),
     db: Session = Depends(get_db),
+    user: models.User | None = Depends(get_optional_user),
 ):
     """Retrieve a single animal and the zoos where it can be found.
 
@@ -220,6 +341,17 @@ def get_animal_detail(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Animal not found")
 
     animal_id = animal.id
+    is_favorite = False
+    if user is not None:
+        is_favorite = (
+            db.query(models.UserFavoriteAnimal)
+            .filter(
+                models.UserFavoriteAnimal.user_id == user.id,
+                models.UserFavoriteAnimal.animal_id == animal_id,
+            )
+            .first()
+            is not None
+        )
     latitude, longitude = coords
 
     query = (
@@ -277,5 +409,6 @@ def get_animal_detail(
         default_image_url=animal.default_image_url,
         images=images,
         zoos=zoos,
+        is_favorite=is_favorite,
     )
 

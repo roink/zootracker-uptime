@@ -25,6 +25,7 @@ def test_get_animals_for_zoo(data):
     animals = resp.json()
     assert len(animals) == 1
     assert animals[0]["id"] == str(data["animal"].id)
+    assert animals[0]["is_favorite"] is False
 
 def test_get_zoo_details(data):
     resp = client.get(f"/zoos/{data['zoo'].slug}")
@@ -36,6 +37,7 @@ def test_get_zoo_details(data):
     assert body["description_en"] == "A fun place"
     assert body["description_de"] == "Ein lustiger Ort"
     assert body["city"] == "Metropolis"
+    assert body["is_favorite"] is False
 
 def test_get_zoo_invalid_id():
     resp = client.get("/zoos/missing-zoo")
@@ -62,6 +64,7 @@ def test_search_zoos_is_paginated_and_sorted_by_distance(data):
     assert "latitude" not in first
     assert "longitude" not in first
     assert first["distance_km"] == 0
+    assert first["is_favorite"] is False
 
     params["offset"] = 1
     resp = client.get("/zoos", params=params)
@@ -70,6 +73,7 @@ def test_search_zoos_is_paginated_and_sorted_by_distance(data):
     assert meta["offset"] == 1
     assert len(second_items) == 1
     assert second_items[0]["slug"] == data["far_zoo"].slug
+    assert second_items[0]["is_favorite"] is False
 
 
 def test_search_zoos_without_coordinates_returns_by_name(data):
@@ -194,4 +198,44 @@ def test_user_not_visited_endpoints_exclude_visited_zoos(data):
     assert str(data["zoo"].id) not in map_ids
     assert map_resp.headers.get("Cache-Control") == "private, no-store, max-age=0"
     assert map_resp.headers.get("Vary") == "Authorization"
+
+
+def test_zoo_favorites_flow(data):
+    token, _ = register_and_login()
+    headers = {"Authorization": f"Bearer {token}"}
+
+    resp = client.post(f"/zoos/{data['zoo'].slug}/favorite", headers=headers)
+    assert resp.status_code == 200
+    assert resp.json() == {"favorite": True}
+
+    fav_resp = client.get("/zoos", params={"favorites_only": "true"}, headers=headers)
+    assert fav_resp.status_code == 200
+    items, meta = _extract_items(fav_resp.json())
+    assert meta["total"] == 1
+    assert len(items) == 1
+    assert items[0]["id"] == str(data["zoo"].id)
+    assert items[0]["is_favorite"] is True
+
+    detail_resp = client.get(f"/zoos/{data['zoo'].slug}", headers=headers)
+    assert detail_resp.status_code == 200
+    assert detail_resp.json()["is_favorite"] is True
+
+    resp = client.delete(f"/zoos/{data['zoo'].slug}/favorite", headers=headers)
+    assert resp.status_code == 200
+    assert resp.json() == {"favorite": False}
+
+    cleared = client.get("/zoos", params={"favorites_only": "true"}, headers=headers)
+    assert cleared.status_code == 200
+    items, meta = _extract_items(cleared.json())
+    assert meta["total"] == 0
+    assert items == []
+
+    detail_after = client.get(f"/zoos/{data['zoo'].slug}", headers=headers)
+    assert detail_after.status_code == 200
+    assert detail_after.json()["is_favorite"] is False
+
+
+def test_zoo_favorites_filter_requires_auth():
+    resp = client.get("/zoos", params={"favorites_only": "true"})
+    assert resp.status_code == 401
 

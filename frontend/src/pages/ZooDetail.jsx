@@ -6,6 +6,7 @@ import { API } from '../api';
 import Seo from '../components/Seo';
 import { getZooDisplayName } from '../utils/zooDisplayName.js';
 import { normalizeLang } from '../i18n.js';
+import useAuthFetch from '../hooks/useAuthFetch';
 
 const META_DESCRIPTION_LIMIT = 160;
 
@@ -32,6 +33,7 @@ export default function ZooDetailPage({ refresh, onLogged }) {
   const { slug, lang: langParam } = useParams();
   const [zoo, setZoo] = useState(null);
   const { i18n } = useTranslation();
+  const authFetch = useAuthFetch();
   const urlLang = typeof langParam === 'string' ? normalizeLang(langParam) : null;
   const detectedLang = normalizeLang(i18n.language);
   const activeLang = urlLang ?? detectedLang;
@@ -41,18 +43,26 @@ export default function ZooDetailPage({ refresh, onLogged }) {
   );
 
   useEffect(() => {
-    const ac = new AbortController();
+    const controller = new AbortController();
     setZoo(null);
-    fetch(`${API}/zoos/${slug}`, { signal: ac.signal })
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then(setZoo)
-      .catch((err) => {
-        if (err.name !== 'AbortError') {
+    (async () => {
+      try {
+        const response = await authFetch(`${API}/zoos/${slug}`, {
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        const data = await response.json();
+        setZoo(data);
+      } catch (err) {
+        if (!controller.signal.aborted) {
           setZoo(null);
         }
-      });
-    return () => ac.abort();
-  }, [slug]);
+      }
+    })();
+    return () => controller.abort();
+  }, [slug, authFetch]);
 
   const displayName = useMemo(
     () => (zoo ? getZooDisplayName(zoo) : ''),
@@ -137,6 +147,9 @@ export default function ZooDetailPage({ refresh, onLogged }) {
         headingLevel="h1"
         refresh={refresh}
         onLogged={onLogged}
+        onFavoriteChange={(next) =>
+          setZoo((prev) => (prev ? { ...prev, is_favorite: next } : prev))
+        }
       />
     </>
   );

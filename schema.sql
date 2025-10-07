@@ -161,6 +161,32 @@ CREATE TABLE zoo_animals (
 CREATE INDEX IF NOT EXISTS idx_zooanimal_zoo_id ON zoo_animals(zoo_id);
 CREATE INDEX IF NOT EXISTS idx_zooanimal_animal_id ON zoo_animals(animal_id);
 
+CREATE TABLE user_favorite_zoos (
+    user_id UUID NOT NULL,
+    zoo_id UUID NOT NULL,
+    PRIMARY KEY (user_id, zoo_id),
+    CONSTRAINT fk_user_favorite_zoos_user FOREIGN KEY (user_id)
+        REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_user_favorite_zoos_zoo FOREIGN KEY (zoo_id)
+        REFERENCES zoos(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_userfavoritezoo_user_id ON user_favorite_zoos(user_id);
+CREATE INDEX IF NOT EXISTS idx_userfavoritezoo_zoo_id ON user_favorite_zoos(zoo_id);
+
+CREATE TABLE user_favorite_animals (
+    user_id UUID NOT NULL,
+    animal_id UUID NOT NULL,
+    PRIMARY KEY (user_id, animal_id),
+    CONSTRAINT fk_user_favorite_animals_user FOREIGN KEY (user_id)
+        REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_user_favorite_animals_animal FOREIGN KEY (animal_id)
+        REFERENCES animals(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_userfavoriteanimal_user_id ON user_favorite_animals(user_id);
+CREATE INDEX IF NOT EXISTS idx_userfavoriteanimal_animal_id ON user_favorite_animals(animal_id);
+
 -- 7. Zoo Visits
 CREATE TABLE zoo_visits (
   id           UUID       PRIMARY KEY DEFAULT gen_random_uuid(),

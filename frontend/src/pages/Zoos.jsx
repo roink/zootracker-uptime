@@ -115,6 +115,7 @@ export default function ZoosPage() {
   const initialCountry = searchParams.get('country') || '';
   const initialVisit = searchParams.get('visit');
   const initialView = searchParams.get('view') === 'map' ? 'map' : 'list';
+  const initialFavorites = searchParams.get('favorites') === '1';
 
   const [zoos, setZoos] = useState([]);
   const [mapZoos, setMapZoos] = useState([]);
@@ -128,6 +129,7 @@ export default function ZoosPage() {
   const [visitFilter, setVisitFilter] = useState(() =>
     initialVisit === 'visited' || initialVisit === 'not' ? initialVisit : 'all'
   ); // all | visited | not
+  const [favoritesOnly, setFavoritesOnly] = useState(initialFavorites);
   const [visitedLoading, setVisitedLoading] = useState(true);
   const [estimatedLocation, setEstimatedLocation] = useState(null);
   const [location, setLocation] = useState(() => readStoredLocation());
@@ -245,6 +247,47 @@ export default function ZoosPage() {
     ]
   );
 
+  const handleFavoritesToggle = useCallback(
+    (checked) => {
+      if (listRequestRef.current) {
+        listRequestRef.current.abort();
+        listRequestRef.current = null;
+      }
+      if (mapRequestRef.current) {
+        mapRequestRef.current.abort();
+        mapRequestRef.current = null;
+      }
+      zoosRef.current = [];
+      setZoos([]);
+      setMapZoos([]);
+      setTotalZoos(0);
+      setNextOffset(0);
+      setHasMore(true);
+      setListError(null);
+      setMapError(null);
+      setListLoading(true);
+      setMapLoading(true);
+      setFavoritesOnly(checked);
+    },
+    [
+      setZoos,
+      setMapZoos,
+      setTotalZoos,
+      setNextOffset,
+      setHasMore,
+      setListError,
+      setMapError,
+      setListLoading,
+      setMapLoading,
+    ]
+  );
+
+  useEffect(() => {
+    if (!isAuthenticated && favoritesOnly) {
+      handleFavoritesToggle(false);
+    }
+  }, [isAuthenticated, favoritesOnly, handleFavoritesToggle]);
+
   // Keep local state in sync with URL (supports browser back/forward)
   useEffect(() => {
     const spQ = searchParams.get('q') || '';
@@ -254,6 +297,7 @@ export default function ZoosPage() {
     const spVisitNorm =
       spVisit === 'visited' || spVisit === 'not' ? spVisit : 'all';
     const spView = searchParams.get('view') === 'map' ? 'map' : 'list';
+    const spFavorites = searchParams.get('favorites') === '1';
 
     if (spQ !== search) setSearch(spQ);
     if (spQ !== query) setQuery(spQ);
@@ -261,6 +305,7 @@ export default function ZoosPage() {
     if (spCountry !== countryId) setCountryId(spCountry);
     if (spVisitNorm !== visitFilter) setVisitFilter(spVisitNorm);
     if (spView !== viewMode) setViewMode(spView);
+    if (spFavorites !== favoritesOnly) handleFavoritesToggle(spFavorites);
   }, [searchParams]);
 
   useEffect(() => {
@@ -271,6 +316,7 @@ export default function ZoosPage() {
     if (countryId) next.set('country', countryId);
     if (visitFilter !== 'all') next.set('visit', visitFilter);
     if (viewMode === 'map') next.set('view', 'map');
+    if (favoritesOnly) next.set('favorites', '1');
 
     if (next.toString() !== searchParams.toString()) {
       setSearchParams(next, { replace: true, state: locationState.state });
@@ -281,6 +327,7 @@ export default function ZoosPage() {
     countryId,
     visitFilter,
     viewMode,
+    favoritesOnly,
     searchParams,
     setSearchParams,
     locationState.state,
@@ -297,8 +344,9 @@ export default function ZoosPage() {
       q: query.trim(),
       continent: continentId || '',
       country: countryId || '',
+      favoritesOnly,
     }),
-    [query, continentId, countryId]
+    [query, continentId, countryId, favoritesOnly]
   );
   const mapFiltersKey = useMemo(
     () => JSON.stringify(mapFilters),
@@ -311,6 +359,16 @@ export default function ZoosPage() {
   const isServerFilteredByVisit = isAuthenticated && visitFilterActive;
 
   const listRequestConfig = useMemo(() => {
+    if (favoritesOnly) {
+      if (!isAuthenticated) {
+        return { url: null, requiresAuth: true, ready: false };
+      }
+      return {
+        url: `${API}/zoos`,
+        requiresAuth: true,
+        ready: true,
+      };
+    }
     if (isAuthenticated && visitFilterActive) {
       if (!userId) {
         return {
@@ -330,9 +388,15 @@ export default function ZoosPage() {
       requiresAuth: false,
       ready: true,
     };
-  }, [isAuthenticated, visitFilterActive, userId, visitSegment]);
+  }, [favoritesOnly, isAuthenticated, visitFilterActive, userId, visitSegment]);
 
   const mapRequestConfig = useMemo(() => {
+    if (favoritesOnly) {
+      if (!isAuthenticated) {
+        return { url: null, requiresAuth: true, ready: false };
+      }
+      return { url: `${API}/zoos/map`, requiresAuth: true, ready: true };
+    }
     if (isAuthenticated && visitFilterActive) {
       if (!userId) {
         return { url: null, requiresAuth: true, ready: false };
@@ -344,7 +408,7 @@ export default function ZoosPage() {
       };
     }
     return { url: `${API}/zoos/map`, requiresAuth: false, ready: true };
-  }, [isAuthenticated, visitFilterActive, userId, visitSegment]);
+  }, [favoritesOnly, isAuthenticated, visitFilterActive, userId, visitSegment]);
 
   useEffect(() => {
     if (mapRequestRef.current) {
@@ -368,6 +432,7 @@ export default function ZoosPage() {
     if (mapFilters.q) params.set('q', mapFilters.q);
     if (mapFilters.continent) params.set('continent_id', mapFilters.continent);
     if (mapFilters.country) params.set('country_id', mapFilters.country);
+    if (mapFilters.favoritesOnly) params.set('favorites_only', 'true');
     const paramsString = params.toString();
     const requestUrl = `${mapRequestConfig.url}${paramsString ? `?${paramsString}` : ''}`;
     const fetcher = mapRequestConfig.requiresAuth ? authFetch : fetch;
@@ -440,6 +505,7 @@ export default function ZoosPage() {
       q: query.trim(),
       continent: continentId || '',
       country: countryId || '',
+      favoritesOnly,
       latitude:
         typeof activeLocation?.lat === 'number' && Number.isFinite(activeLocation.lat)
           ? activeLocation.lat
@@ -453,6 +519,7 @@ export default function ZoosPage() {
       query,
       continentId,
       countryId,
+      favoritesOnly,
       activeLocation?.lat,
       activeLocation?.lon,
     ]
@@ -488,6 +555,7 @@ export default function ZoosPage() {
     if (listFilters.q) params.set('q', listFilters.q);
     if (listFilters.continent) params.set('continent_id', listFilters.continent);
     if (listFilters.country) params.set('country_id', listFilters.country);
+    if (listFilters.favoritesOnly) params.set('favorites_only', 'true');
     if (Number.isFinite(listFilters.latitude)) {
       params.set('latitude', listFilters.latitude);
     }
@@ -555,6 +623,7 @@ export default function ZoosPage() {
     if (listFilters.q) params.set('q', listFilters.q);
     if (listFilters.continent) params.set('continent_id', listFilters.continent);
     if (listFilters.country) params.set('country_id', listFilters.country);
+    if (listFilters.favoritesOnly) params.set('favorites_only', 'true');
     if (Number.isFinite(listFilters.latitude)) {
       params.set('latitude', listFilters.latitude);
     }
@@ -702,12 +771,22 @@ export default function ZoosPage() {
     }
   }, [isAuthenticated, visitFilter]);
 
+
+  useEffect(() => {
+    if (favoritesOnly && visitFilter !== 'all') {
+      setVisitFilter('all');
+    }
+  }, [favoritesOnly, visitFilter]);
+
   const visitedSet = useMemo(() => new Set(visitedIds.map(String)), [visitedIds]);
 
   const updateVisitFilter = (v) => {
     if ((v === 'visited' || v === 'not') && !isAuthenticated) {
       setVisitFilter('all');
       return;
+    }
+    if (v !== 'all' && favoritesOnly) {
+      handleFavoritesToggle(false);
     }
     setVisitFilter(v);
   };
@@ -888,6 +967,22 @@ export default function ZoosPage() {
             />
           )}
         </div>
+        {isAuthenticated && (
+          <div className="col-md-4 mb-2">
+            <div className="form-check mt-2">
+              <input
+                className="form-check-input"
+                type="checkbox"
+                id="zoos-favorites-only"
+                checked={favoritesOnly}
+                onChange={(e) => handleFavoritesToggle(e.target.checked)}
+              />
+              <label className="form-check-label" htmlFor="zoos-favorites-only">
+                {t('zoo.favoritesOnly')}
+              </label>
+            </div>
+          </div>
+        )}
       </div>
       <div className="d-flex justify-content-end flex-wrap gap-2 mb-3">
         <fieldset className="btn-group" role="group" aria-label={t('zoo.viewToggle')}>
@@ -955,8 +1050,17 @@ export default function ZoosPage() {
                     >
                       <div className="d-flex justify-content-between">
                         <div>
-                          <div className="fw-bold">
+                          <div className="fw-bold d-flex align-items-center gap-1">
                             {getZooDisplayName(z)}
+                            {z.is_favorite && (
+                              <span
+                                className="text-warning"
+                                role="img"
+                                aria-label={t('zoo.favoriteBadge')}
+                              >
+                                ★
+                              </span>
+                            )}
                           </div>
                           {countryName && (
                             <div className="text-muted">{countryName}</div>

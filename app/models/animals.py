@@ -146,6 +146,13 @@ class Animal(Base):
         back_populates="animal",
         order_by=(SOURCE_ORDER, Image.mid),
     )
+    favorite_user_links = relationship("UserFavoriteAnimal", back_populates="animal")
+    favorited_by_users = relationship(
+        "User",
+        secondary="user_favorite_animals",
+        back_populates="favorite_animals",
+        viewonly=True,
+    )
     parent = relationship(
         "Animal",
         back_populates="subspecies",

@@ -5,7 +5,7 @@ import pytest
 from app import models
 from app.database import SessionLocal
 
-from .conftest import client
+from .conftest import client, register_and_login
 
 def test_get_animal_detail_success(data):
     resp = client.get(f"/animals/{data['animal'].slug}")
@@ -18,6 +18,7 @@ def test_get_animal_detail_success(data):
     # distance should be included but undefined without coordinates
     assert body["zoos"][0]["distance_km"] is None
     assert body["zoos"][0]["city"] == "Metropolis"
+    assert body["is_favorite"] is False
 
 
 def test_get_animal_detail_includes_name_de(data):
@@ -176,6 +177,7 @@ def test_list_animals_returns_details_and_pagination(data):
     lion = body[0]
     assert lion["zoo_count"] == 1
     assert lion["slug"]
+    assert lion["is_favorite"] is False
 
     eagle = body[1]
     assert eagle["zoo_count"] == 0
@@ -183,6 +185,7 @@ def test_list_animals_returns_details_and_pagination(data):
     assert eagle["category"] == "Bird"
     assert eagle["default_image_url"].startswith("http://example.com/")
     assert eagle["slug"]
+    assert eagle["is_favorite"] is False
 
     resp2 = client.get("/animals", params={"limit": 2, "offset": 2})
     assert resp2.status_code == 200
@@ -191,6 +194,7 @@ def test_list_animals_returns_details_and_pagination(data):
     assert body2[0]["scientific_name"] == "Panthera tigris"
     assert body2[0]["slug"]
     assert body2[0]["zoo_count"] == 0
+    assert body2[0]["is_favorite"] is False
 
 
 def test_list_animals_tiebreaker_uses_id_when_names_match(data):
@@ -297,6 +301,49 @@ def test_list_animals_invalid_order_for_class(data):
 def test_list_animals_invalid_family_for_order(data):
     resp = client.get("/animals", params={"order_id": 1, "family_id": 999})
     assert resp.status_code == 400
+
+
+def test_animal_favorites_flow(data):
+    token, _ = register_and_login()
+    headers = {"Authorization": f"Bearer {token}"}
+
+    resp = client.post(
+        f"/animals/{data['animal'].slug}/favorite",
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json() == {"favorite": True}
+
+    fav_resp = client.get("/animals", params={"favorites_only": "true"}, headers=headers)
+    assert fav_resp.status_code == 200
+    favorites = fav_resp.json()
+    assert len(favorites) == 1
+    assert favorites[0]["id"] == str(data["animal"].id)
+    assert favorites[0]["is_favorite"] is True
+
+    detail_resp = client.get(f"/animals/{data['animal'].slug}", headers=headers)
+    assert detail_resp.status_code == 200
+    assert detail_resp.json()["is_favorite"] is True
+
+    resp = client.delete(
+        f"/animals/{data['animal'].slug}/favorite",
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json() == {"favorite": False}
+
+    cleared = client.get("/animals", params={"favorites_only": "true"}, headers=headers)
+    assert cleared.status_code == 200
+    assert cleared.json() == []
+
+    detail_after = client.get(f"/animals/{data['animal'].slug}", headers=headers)
+    assert detail_after.status_code == 200
+    assert detail_after.json()["is_favorite"] is False
+
+
+def test_animal_favorites_filter_requires_auth():
+    resp = client.get("/animals", params={"favorites_only": "true"})
+    assert resp.status_code == 401
 
 
 @pytest.mark.postgres
