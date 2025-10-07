@@ -52,7 +52,7 @@ def search_zoos(
             models.UserFavoriteZoo.zoo_id == models.Zoo.id,
         ).filter(models.UserFavoriteZoo.user_id == user.id)
 
-    total = query.count()
+    total = query.order_by(None).count()
     latitude, longitude = coords
 
     items: list[schemas.ZooSearchResult] = []

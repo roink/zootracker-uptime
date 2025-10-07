@@ -237,7 +237,7 @@ describe('ZooDetail component', () => {
 
     expect(await screen.findByText('Today')).toBeInTheDocument();
     expect(screen.getByText('Yesterday')).toBeInTheDocument();
-    const formatted = new Date(`${isoEarlier}T00:00:00Z`).toLocaleDateString('en-US');
+    const formatted = new Date(`${isoEarlier}T12:00:00`).toLocaleDateString('en-US');
     expect(screen.getByText(formatted)).toBeInTheDocument();
   });
 

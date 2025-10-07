@@ -55,6 +55,18 @@ export default function ZooDetail({
     [lang]
   );
 
+  const localYMD = useCallback((value) => {
+    if (!value) return '';
+    const date = typeof value === 'string' ? new Date(value) : value;
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+      return '';
+    }
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }, []);
+
   const handleFavoriteToggle = useCallback(async () => {
     if (!zoo) return;
     if (!isAuthenticated) {
@@ -224,7 +236,7 @@ export default function ZooDetail({
     });
     const groups = [];
     sorted.forEach((item) => {
-      const day = item?.sighting_datetime ? item.sighting_datetime.slice(0, 10) : '';
+      const day = item?.sighting_datetime ? localYMD(item.sighting_datetime) : '';
       const last = groups[groups.length - 1];
       if (!last || last.day !== day) {
         groups.push({ day, items: [item] });
@@ -233,15 +245,15 @@ export default function ZooDetail({
       }
     });
     return groups;
-  }, [history]);
+  }, [history, localYMD]);
 
   const formatDay = useCallback(
     (day) => {
       if (!day) return '';
-      const today = new Date().toISOString().slice(0, 10);
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      const yesterdayIso = yesterday.toISOString().slice(0, 10);
+      const today = localYMD(new Date());
+      const yesterdayDate = new Date();
+      yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+      const yesterdayIso = localYMD(yesterdayDate);
       if (day === today) {
         return t('dashboard.today');
       }
@@ -254,7 +266,7 @@ export default function ZooDetail({
       }
       return day;
     },
-    [locale, t]
+    [locale, localYMD, t]
   );
 
   const formatTime = useCallback(
@@ -378,8 +390,8 @@ export default function ZooDetail({
           </div>
         ) : (
           <ul className="list-group mb-3">
-            {groupedHistory.map((group) => (
-              <Fragment key={group.day || 'unknown'}>
+            {groupedHistory.map((group, idx) => (
+              <Fragment key={`${group.day || 'unknown'}:${idx}`}>
                 <li className="list-group-item active">{formatDay(group.day)}</li>
                 {group.items.map((sighting) => {
                   const animalName = getSightingAnimalName(sighting);
