@@ -281,10 +281,6 @@ export function LogSighting({
     } else if (sightingId) {
       sighting.notes = null;
     }
-    if (!sightingId) {
-      // user_id is required only when creating a new sighting
-      sighting.user_id = uid;
-    }
     const url = sightingId ? `${API}/sightings/${sightingId}` : `${API}/sightings`;
     const method = sightingId ? 'PATCH' : 'POST';
     const resp = await authFetch(url, {
