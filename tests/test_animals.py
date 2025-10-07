@@ -1,4 +1,5 @@
 import uuid
+from datetime import UTC, datetime
 
 import pytest
 
@@ -6,6 +7,7 @@ from app import models
 from app.database import SessionLocal
 
 from .conftest import client, register_and_login
+
 
 def test_get_animal_detail_success(data):
     resp = client.get(f"/animals/{data['animal'].slug}")
@@ -61,7 +63,9 @@ def test_get_animal_detail_includes_images(data):
     assert resp.status_code == 200
     body = resp.json()
     assert len(body["images"]) == 2
-    assert body["images"][0]["variants"][0]["thumb_url"].startswith("http://example.com/")
+    assert body["images"][0]["variants"][0]["thumb_url"].startswith(
+        "http://example.com/"
+    )
     assert "commons_page_url" not in body["images"][0]
     assert "commons_title" not in body["images"][0]
 
@@ -97,7 +101,9 @@ def test_get_animal_detail_with_distance(data):
 
 
 def test_get_animal_detail_invalid_params(data):
-    bad = client.get(f"/animals/{data['animal'].slug}", params={"latitude": 200, "longitude": 0})
+    bad = client.get(
+        f"/animals/{data['animal'].slug}", params={"latitude": 200, "longitude": 0}
+    )
     assert bad.status_code == 400
 
 
@@ -113,6 +119,7 @@ def test_get_animal_detail_coords_must_be_pair(data):
     assert resp.status_code == 400
     resp = client.get(f"/animals/{data['animal'].slug}", params={"longitude": 0})
     assert resp.status_code == 400
+
 
 def test_get_animal_detail_not_found():
     resp = client.get("/animals/not-found")
@@ -146,9 +153,7 @@ def test_explicit_coords_override_cf_headers(data):
         "latitude": data["zoo"].latitude,
         "longitude": data["zoo"].longitude,
     }
-    resp = client.get(
-        f"/animals/{data['animal'].slug}", headers=headers, params=params
-    )
+    resp = client.get(f"/animals/{data['animal'].slug}", headers=headers, params=params)
     assert resp.status_code == 200
     assert resp.json()["zoos"][0]["distance_km"] == 0
 
@@ -167,6 +172,129 @@ def test_out_of_range_cf_headers_ignored(data):
     assert resp.json()["zoos"][0]["distance_km"] is None
 
 
+def test_animal_sightings_require_auth(data):
+    resp = client.get(f"/animals/{data['animal'].slug}/sightings")
+    assert resp.status_code == 401
+
+
+def test_animal_sightings_return_user_history(data):
+    token, _user_id = register_and_login()
+    other_token, _other_user = register_and_login()
+    headers = {"Authorization": f"Bearer {token}"}
+
+    first_time = datetime(2024, 4, 12, 9, 45, tzinfo=UTC)
+    second_time = datetime(2024, 6, 3, 18, 20, tzinfo=UTC)
+    other_time = datetime(2024, 5, 1, 10, 0, tzinfo=UTC)
+
+    client.post(
+        "/sightings",
+        json={
+            "zoo_id": str(data["zoo"].id),
+            "animal_id": str(data["animal"].id),
+            "sighting_datetime": first_time.isoformat(),
+            "notes": "Morning visit",
+        },
+        headers=headers,
+    )
+    client.post(
+        "/sightings",
+        json={
+            "zoo_id": str(data["far_zoo"].id),
+            "animal_id": str(data["animal"].id),
+            "sighting_datetime": second_time.isoformat(),
+            "notes": "Evening encounter",
+        },
+        headers=headers,
+    )
+    client.post(
+        "/sightings",
+        json={
+            "zoo_id": str(data["zoo"].id),
+            "animal_id": str(data["animal"].id),
+            "sighting_datetime": other_time.isoformat(),
+            "notes": "Different user",
+        },
+        headers={"Authorization": f"Bearer {other_token}"},
+    )
+    client.post(
+        "/sightings",
+        json={
+            "zoo_id": str(data["zoo"].id),
+            "animal_id": str(data["tiger"].id),
+            "sighting_datetime": other_time.isoformat(),
+            "notes": "Another species",
+        },
+        headers=headers,
+    )
+
+    resp = client.get(
+        f"/animals/{data['animal'].slug}/sightings",
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload["total"] == 2
+    assert payload["limit"] == 50
+    assert payload["offset"] == 0
+    assert resp.headers["X-Total-Count"] == "2"
+    assert resp.headers["Cache-Control"] == "private, no-store, max-age=0"
+    assert resp.headers["Vary"] == "Authorization"
+
+    items = payload["items"]
+    assert len(items) == 2
+    assert items[0]["zoo_id"] == str(data["far_zoo"].id)
+    assert items[0]["notes"] == "Evening encounter"
+    assert items[0]["sighting_datetime"].startswith("2024-06-03")
+    assert items[1]["zoo_id"] == str(data["zoo"].id)
+    assert items[1]["notes"] == "Morning visit"
+    assert items[1]["sighting_datetime"].startswith("2024-04-12")
+
+
+def test_animal_sightings_pagination(data):
+    token, _user_id = register_and_login()
+    headers = {"Authorization": f"Bearer {token}"}
+
+    times = [
+        datetime(2024, 7, 10, 8, 0, tzinfo=UTC),
+        datetime(2024, 7, 9, 11, 30, tzinfo=UTC),
+        datetime(2024, 7, 8, 14, 15, tzinfo=UTC),
+    ]
+
+    for index, moment in enumerate(times):
+        client.post(
+            "/sightings",
+            json={
+                "zoo_id": str(data["zoo"].id if index % 2 == 0 else data["far_zoo"].id),
+                "animal_id": str(data["animal"].id),
+                "sighting_datetime": moment.isoformat(),
+                "notes": f"History {index}",
+            },
+            headers=headers,
+        )
+
+    resp = client.get(
+        f"/animals/{data['animal'].slug}/sightings",
+        params={"limit": 2, "offset": 0},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    page = resp.json()
+    assert page["total"] == 3
+    assert len(page["items"]) == 2
+    first, second = page["items"]
+    assert first["sighting_datetime"].startswith("2024-07-10")
+    assert second["sighting_datetime"].startswith("2024-07-09")
+
+    resp_next = client.get(
+        f"/animals/{data['animal'].slug}/sightings",
+        params={"limit": 2, "offset": 2},
+        headers=headers,
+    )
+    assert resp_next.status_code == 200
+    next_page = resp_next.json()
+    assert next_page["total"] == 3
+    assert len(next_page["items"]) == 1
+    assert next_page["items"][0]["sighting_datetime"].startswith("2024-07-08")
 
 
 def test_list_animals_returns_details_and_pagination(data):
@@ -314,7 +442,9 @@ def test_animal_favorites_flow(data):
     assert resp.status_code == 200
     assert resp.json() == {"favorite": True}
 
-    fav_resp = client.get("/animals", params={"favorites_only": "true"}, headers=headers)
+    fav_resp = client.get(
+        "/animals", params={"favorites_only": "true"}, headers=headers
+    )
     assert fav_resp.status_code == 200
     favorites = fav_resp.json()
     assert len(favorites) == 1

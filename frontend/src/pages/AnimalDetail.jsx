@@ -12,11 +12,13 @@ import { getZooDisplayName } from '../utils/zooDisplayName.js';
 import { normalizeCoordinates } from '../utils/coordinates.js';
 import useAuthFetch from '../hooks/useAuthFetch';
 import SightingModal from '../components/SightingModal';
+import SightingHistoryList from '../components/SightingHistoryList.jsx';
 import Seo from '../components/Seo';
 import { useAuth } from '../auth/AuthContext.jsx';
 import ZoosMap from '../components/ZoosMap.jsx';
 import FavoriteBadge from '../components/FavoriteBadge.jsx';
 import '../styles/animal-detail.css';
+import { formatSightingDayLabel } from '../utils/sightingHistory.js';
 
 // Map IUCN codes to labels and bootstrap badge classes
 const IUCN = {
@@ -80,7 +82,9 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
     routerLocation.state?.animalViewMode === 'map' ? 'map' : 'list';
   const initialMapView = sanitizeCameraView(routerLocation.state?.animalMapView);
   const [animal, setAnimal] = useState(null);
-  const [sightings, setSightings] = useState([]);
+  const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState(false);
   const [userLocation, setUserLocation] = useState(null);
   const [zoos, setZoos] = useState([]);
   const [modalData, setModalData] = useState(null);
@@ -209,17 +213,69 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
     return () => controller.abort();
   }, [slug, userLocation, authFetch]);
 
-  const loadSightings = useCallback(() => {
-    if (!isAuthenticated) return;
-    authFetch(`${API}/sightings`)
-      .then((r) => (r.ok ? r.json() : []))
-      .then(setSightings)
-      .catch(() => setSightings([]));
-  }, [isAuthenticated, authFetch]);
+  const fetchHistory = useCallback(
+    async ({ signal, limit, offset } = {}) => {
+      if (!slug) {
+        return [];
+      }
+      const params = new URLSearchParams();
+      if (typeof limit === 'number') {
+        params.set('limit', String(limit));
+      }
+      if (typeof offset === 'number' && offset > 0) {
+        params.set('offset', String(offset));
+      }
+      const baseUrl = `${API}/animals/${slug}/sightings`;
+      const url = params.size ? `${baseUrl}?${params.toString()}` : baseUrl;
+      const response = await authFetch(url, { signal });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const data = await response.json();
+      if (data && Array.isArray(data.items)) {
+        return data.items;
+      }
+      return Array.isArray(data) ? data : [];
+    },
+    [authFetch, slug]
+  );
+
+  const loadHistory = useCallback(
+    ({ signal } = {}) => {
+      if (!isAuthenticated || !slug) {
+        setHistory([]);
+        setHistoryError(false);
+        setHistoryLoading(false);
+        return Promise.resolve();
+      }
+      setHistoryLoading(true);
+      setHistoryError(false);
+      return fetchHistory({ signal })
+        .then((items) => {
+          setHistory(items);
+          setHistoryError(false);
+        })
+        .catch((err) => {
+          if (err?.name === 'AbortError') {
+            return;
+          }
+          setHistory([]);
+          setHistoryError(true);
+        })
+        .finally(() => {
+          if (!signal || !signal.aborted) {
+            setHistoryLoading(false);
+          }
+        });
+    },
+    [fetchHistory, isAuthenticated, slug]
+  );
 
   useEffect(() => {
-    loadSightings();
-  }, [loadSightings, refresh]);
+    const controller = new AbortController();
+    loadHistory({ signal: controller.signal });
+    return () => controller.abort();
+  }, [loadHistory, refresh]);
 
   useEffect(() => {
     setFavorite(Boolean(animal?.is_favorite));
@@ -379,6 +435,47 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
     }
   }, [animal, authFetch, favorite, isAuthenticated, navigate, prefix, routerLocation.pathname, t]);
 
+  const handleLoginRedirect = useCallback(() => {
+    navigate(`${prefix}/login`, {
+      state: { redirectTo: routerLocation.pathname },
+    });
+  }, [navigate, prefix, routerLocation.pathname]);
+
+  const formatHistoryDay = useCallback(
+    (day) =>
+      formatSightingDayLabel(day, locale, {
+        today: t('dashboard.today'),
+        yesterday: t('dashboard.yesterday'),
+      }),
+    [locale, t]
+  );
+
+  const renderHistoryItem = useCallback(
+    (sighting, helpers) => {
+      const zooName = sighting.zoo_name || sighting.zoo_id;
+      const timeLabel = helpers.formatTime(sighting.sighting_datetime);
+      const message = timeLabel
+        ? t('animal.sightingHistoryItemWithTime', {
+            animal: animalName,
+            zoo: zooName,
+            time: timeLabel,
+          })
+        : t('animal.sightingHistoryItem', {
+            animal: animalName,
+            zoo: zooName,
+          });
+      return (
+        <>
+          <div>{message}</div>
+          {sighting.notes && (
+            <div className="small text-muted mt-1">{sighting.notes}</div>
+          )}
+        </>
+      );
+    },
+    [animalName, t]
+  );
+
   if (loading) return <div className="page-container">Loading...</div>;
   if (error) return (
     <div className="page-container">
@@ -391,7 +488,7 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
     </div>
   );
 
-  const userSightings = sightings.filter((s) => s.animal_id === animal.id);
+  const userSightings = Array.isArray(history) ? history : [];
   const seen = userSightings.length > 0;
   const firstSeen = seen
     ? new Date(
@@ -404,6 +501,27 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
   const hasGallery = animal.images && animal.images.length > 0;
 
   const closestZoo = filteredZoos[0] ?? zoos[0];
+
+  const historyMessages = {
+    login: t('animal.sightingHistoryLogin'),
+    loginCta: t('nav.login'),
+    loading: t('animal.sightingHistoryLoading'),
+    error: t('animal.sightingHistoryError'),
+    empty: t('animal.sightingHistoryEmpty'),
+  };
+
+  const unauthenticatedHistory = (
+    <div className="alert alert-info mt-2" role="status" aria-live="polite">
+      <p className="mb-2">{historyMessages.login}</p>
+      <button
+        type="button"
+        className="btn btn-primary btn-sm"
+        onClick={handleLoginRedirect}
+      >
+        {historyMessages.loginCta}
+      </button>
+    </div>
+  );
 
   // compute a stable aspect ratio from the first image (fallback 4/3)
   const computeAspect = (img) => {
@@ -667,6 +785,25 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
               ))}
             </div>
           )}
+          <div className="card mt-3">
+            <div className="card-body">
+              <h4 className="card-title mb-3">
+                {t('animal.sightingHistoryHeading')}
+              </h4>
+              <SightingHistoryList
+                sightings={history}
+                locale={locale}
+                isAuthenticated={isAuthenticated}
+                loading={historyLoading}
+                error={historyError}
+                messages={historyMessages}
+                onLogin={handleLoginRedirect}
+                formatDay={formatHistoryDay}
+                renderSighting={renderHistoryItem}
+                unauthenticatedContent={unauthenticatedHistory}
+              />
+            </div>
+          </div>
           {animalDesc && (
             <div className="card mt-3">
               <div className="card-body">
@@ -859,7 +996,7 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
           defaultZooName={modalData.zooName}
           defaultAnimalName={modalData.animalName}
           onLogged={() => {
-            loadSightings();
+            loadHistory();
             onLogged && onLogged();
           }}
           onClose={() => setModalData(null)}

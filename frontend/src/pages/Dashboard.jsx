@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, Fragment } from 'react';
+import { useState, useMemo, useEffect, Fragment, useCallback } from 'react';
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
@@ -7,6 +7,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import Seo from '../components/Seo';
 import { useAuth } from '../auth/AuthContext.jsx';
+import { groupSightingsByDay, formatSightingDayLabel } from '../utils/sightingHistory.js';
 
 // User dashboard showing recent visits, sightings and badges. Includes
 // buttons to open forms for logging additional activity.
@@ -136,37 +137,19 @@ export default function Dashboard({ refresh, onUpdate }) {
     badgesFetching;
 
   // Group sightings by day and order by day descending then creation time
-  const groupedSightings = useMemo(() => {
-    const sorted = [...sightings].sort((a, b) => {
-      const dayA = new Date(a.sighting_datetime).toDateString();
-      const dayB = new Date(b.sighting_datetime).toDateString();
-      if (dayA === dayB) {
-        return new Date(b.created_at) - new Date(a.created_at);
-      }
-      return new Date(b.sighting_datetime) - new Date(a.sighting_datetime);
-    });
-    const groups = [];
-    sorted.forEach((s) => {
-      const day = s.sighting_datetime.slice(0, 10);
-      const last = groups[groups.length - 1];
-      if (!last || last.day !== day) {
-        groups.push({ day, items: [s] });
-      } else {
-        last.items.push(s);
-      }
-    });
-    return groups;
-  }, [sightings]);
+  const groupedSightings = useMemo(
+    () => groupSightingsByDay(sightings),
+    [sightings]
+  );
 
-  const formatDay = (day) => {
-    const today = new Date().toISOString().slice(0, 10);
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yDay = yesterday.toISOString().slice(0, 10);
-    if (day === today) return t('dashboard.today');
-    if (day === yDay) return t('dashboard.yesterday');
-    return new Date(day).toLocaleDateString(lang === 'de' ? 'de-DE' : 'en-US');
-  };
+  const formatDay = useCallback(
+    (day) =>
+      formatSightingDayLabel(day, lang === 'de' ? 'de-DE' : 'en-US', {
+        today: t('dashboard.today'),
+        yesterday: t('dashboard.yesterday'),
+      }),
+    [lang, t]
+  );
 
   // Distinct zoo count, derived from visits and sightings in case visit sync is missing
   const visitedZooCount = useMemo(() => {

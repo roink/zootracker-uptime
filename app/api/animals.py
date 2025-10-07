@@ -11,6 +11,7 @@ from ..utils.geometry import query_zoos_with_distance
 from ..utils.images import build_unique_variants
 from ..utils.http import set_personalized_cache_headers
 from .deps import resolve_coords
+from .common_sightings import apply_recent_first_order, build_user_sightings_query
 
 
 def to_zoodetail(
@@ -30,6 +31,7 @@ def to_zoodetail(
         is_favorite=is_favorite,
     )
 
+
 router = APIRouter()
 
 
@@ -43,8 +45,11 @@ def _get_animal_or_404(animal_slug: str, db: Session) -> models.Animal:
         .first()
     )
     if animal is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Animal not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Animal not found"
+        )
     return animal
+
 
 @router.get("/animals", response_model=list[schemas.AnimalListItem])
 def list_animals(
@@ -79,7 +84,9 @@ def list_animals(
     if order_id is not None and family_id is not None:
         exists = (
             db.query(models.Animal)
-            .filter(models.Animal.ordnung == order_id, models.Animal.familie == family_id)
+            .filter(
+                models.Animal.ordnung == order_id, models.Animal.familie == family_id
+            )
             .first()
         )
         if not exists:
@@ -214,6 +221,7 @@ def list_families(order_id: int, db: Session = Depends(get_db)):
         schemas.TaxonName(id=f.familie, name_de=f.name_de, name_en=f.name_en)
         for f in families
     ]
+
 
 @router.get("/search", response_model=schemas.SearchResults)
 def combined_search(
@@ -352,7 +360,9 @@ def get_animal_detail(
         .first()
     )
     if animal is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Animal not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Animal not found"
+        )
 
     animal_id = animal.id
     is_favorite = False
@@ -387,7 +397,9 @@ def get_animal_detail(
         .filter(models.ZooAnimal.animal_id == animal_id)
     )
 
-    results = query_zoos_with_distance(query, latitude, longitude, include_no_coords=True)
+    results = query_zoos_with_distance(
+        query, latitude, longitude, include_no_coords=True
+    )
 
     favorite_zoo_ids: set[uuid.UUID] = set()
     if user is not None:
@@ -440,3 +452,36 @@ def get_animal_detail(
         is_favorite=is_favorite,
     )
 
+
+@router.get(
+    "/animals/{animal_slug}/sightings",
+    response_model=schemas.AnimalSightingPage,
+)
+def list_animal_sightings(
+    response: Response,
+    animal_slug: str,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    """Return the authenticated user's sightings for a specific animal."""
+
+    animal = _get_animal_or_404(animal_slug, db)
+    set_personalized_cache_headers(response)
+
+    query = build_user_sightings_query(db, user.id).filter(
+        models.AnimalSighting.animal_id == animal.id
+    )
+
+    total = query.order_by(None).count()
+    items = apply_recent_first_order(query).limit(limit).offset(offset).all()
+
+    response.headers["X-Total-Count"] = str(total)
+
+    return schemas.AnimalSightingPage(
+        items=items,
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
