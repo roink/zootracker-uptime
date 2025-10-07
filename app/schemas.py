@@ -1,10 +1,10 @@
 """Pydantic schemas used for request and response models."""
 
 from datetime import date, datetime
-from typing import Annotated, Optional
+from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, ConfigDict, Field, constr
+from pydantic import BaseModel, EmailStr, ConfigDict, Field, constr, field_validator
 
 
 class UserCreate(BaseModel):
@@ -181,7 +181,7 @@ class ZooVisitCreate(BaseModel):
     """Input data required to log a zoo visit."""
     zoo_id: UUID
     visit_date: date
-    notes: Annotated[Optional[str], Field(default=None, max_length=1000)]
+    notes: Optional[str] = Field(default=None, max_length=1000)
 
     model_config = ConfigDict(extra="forbid")
 
@@ -200,11 +200,19 @@ class AnimalSightingCreate(BaseModel):
     """Input data for recording an animal sighting."""
     zoo_id: UUID
     animal_id: UUID
-    user_id: UUID
     sighting_datetime: datetime
-    notes: Annotated[Optional[str], Field(default=None, max_length=1000)]
+    notes: Optional[str] = Field(default=None, max_length=1000)
 
     model_config = ConfigDict(extra="forbid")
+
+    @field_validator("notes", mode="before")
+    @classmethod
+    def _normalize_notes(cls, value: Optional[str]):
+        """Trim whitespace and collapse empty notes to ``None``."""
+        if value is None:
+            return None
+        value = str(value).strip()
+        return value or None
 
 
 class AnimalSightingRead(BaseModel):
@@ -227,7 +235,7 @@ class ZooVisitUpdate(BaseModel):
     """Fields allowed when updating a zoo visit."""
 
     visit_date: Optional[date] = None
-    notes: Annotated[Optional[str], Field(default=None, max_length=1000)]
+    notes: Optional[str] = Field(default=None, max_length=1000)
 
     model_config = ConfigDict(extra="forbid")
 
@@ -238,10 +246,19 @@ class AnimalSightingUpdate(BaseModel):
     zoo_id: Optional[UUID] = None
     animal_id: Optional[UUID] = None
     sighting_datetime: Optional[datetime] = None
-    notes: Annotated[Optional[str], Field(default=None, max_length=1000)]
+    notes: Optional[str] = Field(default=None, max_length=1000)
     photo_url: Optional[str] = Field(default=None, max_length=512)
 
     model_config = ConfigDict(extra="forbid")
+
+    @field_validator("notes", mode="before")
+    @classmethod
+    def _normalize_notes(cls, value: Optional[str]):
+        """Trim whitespace and collapse empty notes to ``None``."""
+        if value is None:
+            return None
+        value = str(value).strip()
+        return value or None
 
 
 class AnimalDetail(BaseModel):

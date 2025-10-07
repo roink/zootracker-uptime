@@ -8,7 +8,6 @@ def test_get_seen_animals_success(data):
     sighting = {
         "zoo_id": str(zoo_id),
         "animal_id": str(animal_id),
-        "user_id": str(user_id),
         "sighting_datetime": datetime.now(UTC).isoformat(),
     }
     resp = client.post(
@@ -61,7 +60,6 @@ def test_get_seen_animal_ids_success(data):
     payload = {
         "zoo_id": str(zoo_id),
         "animal_id": str(animal_id),
-        "user_id": str(user_id),
         "sighting_datetime": datetime.now(UTC).isoformat(),
     }
     client.post(
@@ -113,7 +111,6 @@ def test_get_seen_animal_ids_deduplicates_same_animal(data):
     payload = {
         "zoo_id": str(zoo_id),
         "animal_id": str(animal_id),
-        "user_id": str(user_id),
         "sighting_datetime": datetime.now(UTC).isoformat(),
     }
     # create duplicate sightings of same animal
@@ -142,7 +139,6 @@ def test_get_seen_animal_count_success(data):
     sighting = {
         "zoo_id": str(zoo_id),
         "animal_id": str(animal_id),
-        "user_id": str(user_id),
         "sighting_datetime": datetime.now(UTC).isoformat(),
     }
     resp = client.post(
@@ -196,7 +192,6 @@ def test_seen_animal_count_deduplicates_same_animal(data):
     payload = {
         "zoo_id": str(zoo_id),
         "animal_id": str(animal_id),
-        "user_id": str(user_id),
         "sighting_datetime": datetime.now(UTC).isoformat(),
     }
     client.post(
@@ -226,7 +221,6 @@ def test_seen_animal_count_two_animals(data):
         payload = {
             "zoo_id": str(zoo_id),
             "animal_id": str(animal_id),
-            "user_id": str(user_id),
             "sighting_datetime": datetime.now(UTC).isoformat(),
         }
         client.post(

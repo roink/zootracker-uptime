@@ -5,12 +5,11 @@ from app.database import SessionLocal
 from app import models
 
 
-def create_sighting(token, user_id, zoo_id, animal_id, dt=None):
+def create_sighting(token, _user_id, zoo_id, animal_id, dt=None):
     dt = dt or datetime.now(UTC)
     sighting = {
         "zoo_id": str(zoo_id),
         "animal_id": str(animal_id),
-        "user_id": str(user_id),
         "sighting_datetime": dt.isoformat(),
     }
     resp = client.post(
@@ -92,7 +91,6 @@ def test_visit_updated_on_sighting_change(data):
     sighting = {
         "zoo_id": str(zoo_id),
         "animal_id": str(animal_id),
-        "user_id": str(user_id),
         "sighting_datetime": datetime.combine(today, datetime.min.time(), tzinfo=UTC).isoformat(),
     }
     resp = client.post("/sightings", json=sighting, headers={"Authorization": f"Bearer {token}"})

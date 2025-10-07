@@ -32,19 +32,14 @@ def create_sighting(
 ):
     """Record an animal sighting for the authenticated user."""
 
-    if sighting_in.user_id != user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Cannot log sighting for another user",
-        )
-
     if db.get(models.Zoo, sighting_in.zoo_id) is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Zoo not found")
 
     if db.get(models.Animal, sighting_in.animal_id) is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Animal not found")
 
-    data = sighting_in.model_dump()
+    data = sighting_in.model_dump(exclude_unset=True)
+    data["user_id"] = user.id
     sighting = models.AnimalSighting(**data)
     db.add(sighting)
     db.commit()
