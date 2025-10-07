@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import UTC, date, datetime
 
 from .conftest import SessionLocal, client, models, register_and_login
 
@@ -42,6 +42,139 @@ def test_get_zoo_details(data):
 def test_get_zoo_invalid_id():
     resp = client.get("/zoos/missing-zoo")
     assert resp.status_code == 404
+
+
+def test_zoo_sightings_require_auth(data):
+    resp = client.get(f"/zoos/{data['zoo'].slug}/sightings")
+    assert resp.status_code == 401
+
+
+def test_zoo_sightings_return_user_history(data):
+    token, _user_id = register_and_login()
+    other_token, _other_user_id = register_and_login()
+    headers = {"Authorization": f"Bearer {token}"}
+
+    first_time = datetime(2024, 5, 1, 9, 30, tzinfo=UTC)
+    second_time = datetime(2024, 6, 2, 15, 5, tzinfo=UTC)
+    other_time = datetime(2024, 7, 4, 8, 0, tzinfo=UTC)
+
+    client.post(
+        "/sightings",
+        json={
+            "zoo_id": str(data["zoo"].id),
+            "animal_id": str(data["animal"].id),
+            "sighting_datetime": first_time.isoformat(),
+            "notes": "Early lion encounter",
+        },
+        headers=headers,
+    )
+    client.post(
+        "/sightings",
+        json={
+            "zoo_id": str(data["zoo"].id),
+            "animal_id": str(data["tiger"].id),
+            "sighting_datetime": second_time.isoformat(),
+            "notes": "Afternoon tiger sighting",
+        },
+        headers=headers,
+    )
+    client.post(
+        "/sightings",
+        json={
+            "zoo_id": str(data["zoo"].id),
+            "animal_id": str(data["animal"].id),
+            "sighting_datetime": other_time.isoformat(),
+            "notes": "Different user note",
+        },
+        headers={"Authorization": f"Bearer {other_token}"},
+    )
+    client.post(
+        "/sightings",
+        json={
+            "zoo_id": str(data["far_zoo"].id),
+            "animal_id": str(data["animal"].id),
+            "sighting_datetime": other_time.isoformat(),
+            "notes": "Another zoo",
+        },
+        headers=headers,
+    )
+
+    resp = client.get(
+        f"/zoos/{data['zoo'].slug}/sightings",
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload["total"] == 2
+    assert payload["limit"] == 50
+    assert payload["offset"] == 0
+    assert resp.headers["X-Total-Count"] == "2"
+    assert resp.headers["Cache-Control"] == "private, no-store, max-age=0"
+    assert resp.headers["Vary"] == "Authorization"
+    items = payload["items"]
+    assert len(items) == 2
+    assert all("user_id" not in item for item in items)
+    assert items[0]["animal_id"] == str(data["tiger"].id)
+    assert items[0]["notes"] == "Afternoon tiger sighting"
+    assert items[0]["zoo_id"] == str(data["zoo"].id)
+    assert items[0]["sighting_datetime"].startswith("2024-06-02")
+    assert items[1]["animal_id"] == str(data["animal"].id)
+    assert items[1]["notes"] == "Early lion encounter"
+    assert items[1]["sighting_datetime"].startswith("2024-05-01")
+
+
+def test_zoo_sightings_pagination_and_filtering(data):
+    token, _user_id = register_and_login()
+    headers = {"Authorization": f"Bearer {token}"}
+
+    times = [
+        datetime(2024, 6, 10, 12, 0, tzinfo=UTC),
+        datetime(2024, 6, 9, 14, 30, tzinfo=UTC),
+        datetime(2024, 6, 8, 16, 45, tzinfo=UTC),
+    ]
+
+    for index, moment in enumerate(times):
+        client.post(
+            "/sightings",
+            json={
+                "zoo_id": str(data["zoo"].id),
+                "animal_id": str(
+                    data["animal"].id if index % 2 == 0 else data["tiger"].id
+                ),
+                "sighting_datetime": moment.isoformat(),
+                "notes": f"Note {index}",
+            },
+            headers=headers,
+        )
+
+    client.post(
+        "/sightings",
+        json={
+            "zoo_id": str(data["far_zoo"].id),
+            "animal_id": str(data["animal"].id),
+            "sighting_datetime": datetime(2024, 6, 11, 10, 0, tzinfo=UTC).isoformat(),
+            "notes": "Other zoo",
+        },
+        headers=headers,
+    )
+
+    resp = client.get(
+        f"/zoos/{data['zoo'].slug}/sightings",
+        headers=headers,
+        params={"limit": 1, "offset": 1},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 3
+    assert body["limit"] == 1
+    assert body["offset"] == 1
+    assert len(body["items"]) == 1
+    second = body["items"][0]
+    assert second["sighting_datetime"].startswith("2024-06-09")
+    assert second["zoo_id"] == str(data["zoo"].id)
+    assert second["notes"] == "Note 1"
+    assert resp.headers["X-Total-Count"] == "3"
+
 
 def test_search_zoos_is_paginated_and_sorted_by_distance(data):
     """The search endpoint returns paginated results ordered by distance."""

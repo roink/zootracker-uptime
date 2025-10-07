@@ -244,6 +244,17 @@ class AnimalSightingRead(BaseModel):
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 
 
+class AnimalSightingPage(BaseModel):
+    """Paginated response with animal sightings."""
+
+    items: list[AnimalSightingRead]
+    total: int
+    limit: int
+    offset: int
+
+    model_config = ConfigDict(extra="forbid")
+
+
 class ZooVisitUpdate(BaseModel):
     """Fields allowed when updating a zoo visit."""
 

@@ -298,6 +298,56 @@ def has_visited_zoo(
     return {"visited": bool(visited)}
 
 
+@router.get(
+    "/zoos/{zoo_slug}/sightings",
+    response_model=schemas.AnimalSightingPage,
+)
+def list_zoo_sightings(
+    response: Response,
+    zoo_slug: str,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    """Return the authenticated user's sightings for a specific zoo."""
+
+    _set_private_cache_headers(response)
+
+    zoo = _get_zoo_or_404(zoo_slug, db)
+    query = (
+        db.query(models.AnimalSighting)
+        .options(
+            joinedload(models.AnimalSighting.animal),
+            joinedload(models.AnimalSighting.zoo),
+        )
+        .filter(
+            models.AnimalSighting.user_id == user.id,
+            models.AnimalSighting.zoo_id == zoo.id,
+        )
+    )
+
+    total = query.count()
+    items = (
+        query.order_by(
+            models.AnimalSighting.sighting_datetime.desc(),
+            models.AnimalSighting.created_at.desc(),
+        )
+        .limit(limit)
+        .offset(offset)
+        .all()
+    )
+
+    response.headers["X-Total-Count"] = str(total)
+
+    return schemas.AnimalSightingPage(
+        items=items,
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
+
+
 @router.get("/zoos/{zoo_slug}/animals", response_model=list[schemas.AnimalRead])
 def list_zoo_animals(
     response: Response,

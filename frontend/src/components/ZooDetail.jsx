@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { API } from '../api';
@@ -21,6 +21,9 @@ export default function ZooDetail({
   const [animals, setAnimals] = useState([]);
   const [visited, setVisited] = useState(false);
   const [seenIds, setSeenIds] = useState(new Set());
+  const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState(false);
   const [modalData, setModalData] = useState(null);
   const navigate = useNavigate();
   const { lang } = useParams();
@@ -29,6 +32,8 @@ export default function ZooDetail({
   const authFetch = useAuthFetch();
   const { isAuthenticated, user } = useAuth();
   const userId = user?.id;
+  const zooSlug = zoo?.slug;
+  const locale = lang === 'de' ? 'de-DE' : 'en-US';
   const [descExpanded, setDescExpanded] = useState(false); // track full description visibility
   const [favorite, setFavorite] = useState(false);
   const [favoritePending, setFavoritePending] = useState(false);
@@ -39,6 +44,14 @@ export default function ZooDetail({
       lang === 'de'
         ? a.name_de || a.name_en
         : a.name_en || a.name_de,
+    [lang]
+  );
+
+  const getSightingAnimalName = useCallback(
+    (s) =>
+      lang === 'de'
+        ? s.animal_name_de || s.animal_name_en
+        : s.animal_name_en || s.animal_name_de,
     [lang]
   );
 
@@ -68,17 +81,111 @@ export default function ZooDetail({
     }
   }, [authFetch, favorite, isAuthenticated, navigate, onFavoriteChange, prefix, t, zoo]);
 
-  // Load animals in this zoo (server already returns popularity order;
-  // keep client-side sort as a fallback for robustness)
-  useEffect(() => {
-    if (!zoo?.slug) return;
-    authFetch(`${API}/zoos/${zoo.slug}/animals`)
+  const loadAnimals = useCallback(() => {
+    if (!zooSlug) {
+      setAnimals([]);
+      return Promise.resolve();
+    }
+    return authFetch(`${API}/zoos/${zooSlug}/animals`)
       .then((r) => (r.ok ? r.json() : []))
       .then((data) => {
         setAnimals(Array.isArray(data) ? data : []);
       })
       .catch(() => setAnimals([]));
-  }, [authFetch, zoo?.slug, refresh]);
+  }, [authFetch, zooSlug]);
+
+  const loadVisited = useCallback(() => {
+    if (!isAuthenticated || !zooSlug) {
+      setVisited(false);
+      return Promise.resolve();
+    }
+    return authFetch(`${API}/zoos/${zooSlug}/visited`)
+      .then((r) => (r.ok ? r.json() : { visited: false }))
+      .then((d) => setVisited(Boolean(d.visited)))
+      .catch(() => setVisited(false));
+  }, [authFetch, isAuthenticated, zooSlug]);
+
+  const loadSeenIds = useCallback(() => {
+    if (!isAuthenticated || !userId) {
+      setSeenIds(new Set());
+      return Promise.resolve();
+    }
+    return authFetch(`${API}/users/${userId}/animals/ids`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((ids) => setSeenIds(new Set(ids)))
+      .catch(() => setSeenIds(new Set()));
+  }, [authFetch, isAuthenticated, userId]);
+
+  const fetchHistory = useCallback(
+    async ({ signal, limit, offset } = {}) => {
+      if (!zooSlug) {
+        return [];
+      }
+      const params = new URLSearchParams();
+      if (typeof limit === 'number') {
+        params.set('limit', String(limit));
+      }
+      if (typeof offset === 'number' && offset > 0) {
+        params.set('offset', String(offset));
+      }
+      const baseUrl = `${API}/zoos/${zooSlug}/sightings`;
+      const url = params.size ? `${baseUrl}?${params.toString()}` : baseUrl;
+      const response = await authFetch(url, { signal });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const data = await response.json();
+      if (data && Array.isArray(data.items)) {
+        return data.items;
+      }
+      return Array.isArray(data) ? data : [];
+    },
+    [authFetch, zooSlug]
+  );
+
+  const loadHistory = useCallback(
+    ({ signal } = {}) => {
+      if (!isAuthenticated || !zooSlug) {
+        setHistory([]);
+        setHistoryError(false);
+        setHistoryLoading(false);
+        return Promise.resolve();
+      }
+      setHistoryLoading(true);
+      setHistoryError(false);
+      return fetchHistory({ signal })
+        .then((items) => {
+          setHistory(items);
+          setHistoryError(false);
+        })
+        .catch((err) => {
+          if (err?.name === 'AbortError') {
+            return;
+          }
+          setHistory([]);
+          setHistoryError(true);
+        })
+        .finally(() => {
+          if (!signal || !signal.aborted) {
+            setHistoryLoading(false);
+          }
+        });
+    },
+    [fetchHistory, isAuthenticated, zooSlug]
+  );
+
+  const reloadLocalData = useCallback(() => {
+    loadAnimals();
+    loadVisited();
+    loadSeenIds();
+    loadHistory();
+  }, [loadAnimals, loadVisited, loadSeenIds, loadHistory]);
+
+  // Load animals in this zoo (server already returns popularity order;
+  // keep client-side sort as a fallback for robustness)
+  useEffect(() => {
+    loadAnimals();
+  }, [loadAnimals, refresh]);
 
   useEffect(() => {
     setFavorite(Boolean(zoo?.is_favorite));
@@ -87,21 +194,80 @@ export default function ZooDetail({
 
   // Load whether user has visited this zoo
   useEffect(() => {
-    if (!isAuthenticated || !zoo?.slug) return;
-    authFetch(`${API}/zoos/${zoo.slug}/visited`)
-      .then((r) => (r.ok ? r.json() : { visited: false }))
-      .then((d) => setVisited(Boolean(d.visited)))
-      .catch(() => setVisited(false));
-  }, [isAuthenticated, authFetch, zoo?.slug, refresh]);
+    loadVisited();
+  }, [loadVisited, refresh]);
 
   // Load IDs of animals the user has seen
   useEffect(() => {
-    if (!isAuthenticated || !userId) return;
-    authFetch(`${API}/users/${userId}/animals/ids`)
-      .then((r) => (r.ok ? r.json() : []))
-      .then((ids) => setSeenIds(new Set(ids)))
-      .catch(() => setSeenIds(new Set()));
-  }, [isAuthenticated, userId, authFetch, refresh]);
+    loadSeenIds();
+  }, [loadSeenIds, refresh]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    loadHistory({ signal: controller.signal });
+    return () => controller.abort();
+  }, [loadHistory, refresh]);
+
+  const groupedHistory = useMemo(() => {
+    if (!history || history.length === 0) {
+      return [];
+    }
+    const sorted = [...history].sort((a, b) => {
+      const aTime = new Date(a?.sighting_datetime ?? 0).getTime();
+      const bTime = new Date(b?.sighting_datetime ?? 0).getTime();
+      if (aTime !== bTime) {
+        return bTime - aTime;
+      }
+      const aCreated = new Date(a?.created_at ?? 0).getTime();
+      const bCreated = new Date(b?.created_at ?? 0).getTime();
+      return bCreated - aCreated;
+    });
+    const groups = [];
+    sorted.forEach((item) => {
+      const day = item?.sighting_datetime ? item.sighting_datetime.slice(0, 10) : '';
+      const last = groups[groups.length - 1];
+      if (!last || last.day !== day) {
+        groups.push({ day, items: [item] });
+      } else {
+        last.items.push(item);
+      }
+    });
+    return groups;
+  }, [history]);
+
+  const formatDay = useCallback(
+    (day) => {
+      if (!day) return '';
+      const today = new Date().toISOString().slice(0, 10);
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayIso = yesterday.toISOString().slice(0, 10);
+      if (day === today) {
+        return t('dashboard.today');
+      }
+      if (day === yesterdayIso) {
+        return t('dashboard.yesterday');
+      }
+      const parsed = new Date(`${day}T00:00:00`);
+      if (!Number.isNaN(parsed.getTime())) {
+        return parsed.toLocaleDateString(locale);
+      }
+      return day;
+    },
+    [locale, t]
+  );
+
+  const formatTime = useCallback(
+    (value) => {
+      if (!value) return null;
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) {
+        return null;
+      }
+      return date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+    },
+    [locale]
+  );
   // pick description based on current language with fallback to generic text
   const zooDescription =
     lang === 'de' ? zoo.description_de : zoo.description_en;
@@ -185,6 +351,59 @@ export default function ZooDetail({
           {favoriteError}
         </div>
       )}
+      <div className="mt-3">
+        <h4>{t('zoo.visitHistoryHeading')}</h4>
+        {!isAuthenticated ? (
+          <div className="alert alert-info mt-2" role="status" aria-live="polite">
+            <p className="mb-2">{t('zoo.visitHistoryLogin')}</p>
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              onClick={() => navigate(`${prefix}/login`)}
+            >
+              {t('nav.login')}
+            </button>
+          </div>
+        ) : historyLoading ? (
+          <div className="text-muted" role="status" aria-live="polite">
+            {t('zoo.visitHistoryLoading')}
+          </div>
+        ) : historyError ? (
+          <div className="text-danger" role="status" aria-live="polite">
+            {t('zoo.visitHistoryError')}
+          </div>
+        ) : groupedHistory.length === 0 ? (
+          <div className="text-muted" role="status" aria-live="polite">
+            {t('zoo.visitHistoryEmpty')}
+          </div>
+        ) : (
+          <ul className="list-group mb-3">
+            {groupedHistory.map((group) => (
+              <Fragment key={group.day || 'unknown'}>
+                <li className="list-group-item active">{formatDay(group.day)}</li>
+                {group.items.map((sighting) => {
+                  const animalName = getSightingAnimalName(sighting);
+                  const timeLabel = formatTime(sighting.sighting_datetime);
+                  const message = timeLabel
+                    ? t('zoo.visitHistoryItemWithTime', {
+                        animal: animalName,
+                        time: timeLabel,
+                      })
+                    : t('zoo.visitHistoryItem', { animal: animalName });
+                  return (
+                    <li key={sighting.id} className="list-group-item">
+                      <div>{message}</div>
+                      {sighting.notes && (
+                        <div className="small text-muted mt-1">{sighting.notes}</div>
+                      )}
+                    </li>
+                  );
+                })}
+              </Fragment>
+            ))}
+          </ul>
+        )}
+      </div>
       {/* visit logging removed - visits are created automatically from sightings */}
       <h4 className="mt-3">{t('zoo.animals')}</h4>
       <table className="table">
@@ -259,29 +478,8 @@ export default function ZooDetail({
             defaultZooName={modalData.zooName}
             defaultAnimalName={modalData.animalName}
             onLogged={() => {
-              if (!zoo?.slug) {
-                onLogged && onLogged();
-                return;
-              }
               onLogged && onLogged();
-              authFetch(`${API}/zoos/${zoo.slug}/animals`)
-                .then((r) => (r.ok ? r.json() : []))
-                .then((data) => {
-                  setAnimals(Array.isArray(data) ? data : []);
-                })
-                .catch(() => setAnimals([]));
-              if (isAuthenticated) {
-                authFetch(`${API}/zoos/${zoo.slug}/visited`)
-                  .then((r) => (r.ok ? r.json() : { visited: false }))
-                  .then((d) => setVisited(Boolean(d.visited)))
-                  .catch(() => setVisited(false));
-                if (userId) {
-                  authFetch(`${API}/users/${userId}/animals/ids`)
-                    .then((r) => (r.ok ? r.json() : []))
-                    .then((ids) => setSeenIds(new Set(ids)))
-                    .catch(() => setSeenIds(new Set()));
-                }
-              }
+              reloadLocalData();
             }}
             onClose={() => setModalData(null)}
           />
