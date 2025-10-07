@@ -11,7 +11,11 @@ from ..utils.geometry import query_zoos_with_distance
 from ..utils.images import build_unique_variants
 from ..utils.http import set_personalized_cache_headers
 from .deps import resolve_coords
-from .common_sightings import apply_recent_first_order, build_user_sightings_query
+from .common_sightings import (
+    apply_recent_first_order,
+    build_user_sightings_query,
+    count_query_rows,
+)
 
 
 def to_zoodetail(
@@ -474,7 +478,7 @@ def list_animal_sightings(
         models.AnimalSighting.animal_id == animal.id
     )
 
-    total = query.order_by(None).count()
+    total = count_query_rows(query)
     items = apply_recent_first_order(query).limit(limit).offset(offset).all()
 
     response.headers["X-Total-Count"] = str(total)

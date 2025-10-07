@@ -78,6 +78,7 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
   const { t } = useTranslation();
   const authFetch = useAuthFetch();
   const { isAuthenticated } = useAuth();
+  const locale = lang === 'de' ? 'de-DE' : 'en-US';
   const initialViewMode =
     routerLocation.state?.animalViewMode === 'map' ? 'map' : 'list';
   const initialMapView = sanitizeCameraView(routerLocation.state?.animalMapView);
