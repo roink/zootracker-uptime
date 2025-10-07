@@ -13,6 +13,8 @@ import ZoosPage from './Zoos.jsx';
 import { API } from '../api';
 import { createTestToken, setStoredAuth, clearStoredAuth } from '../test-utils/auth.js';
 
+const originalFetch = global.fetch;
+
 const paginated = (items) => ({
   items,
   total: items.length,
@@ -83,6 +85,11 @@ describe('ZoosPage', () => {
     consoleWarnSpy.mockRestore();
     clearStoredAuth();
     vi.unstubAllGlobals();
+    if (originalFetch) {
+      global.fetch = originalFetch;
+    } else {
+      delete global.fetch;
+    }
   });
 
   it('loads visited zoo IDs and marks visited zoos', async () => {

@@ -64,6 +64,9 @@ describe('useAuthFetch integration', () => {
     const onFetched = vi.fn();
     renderWithRouter(<FetchHarness token={token} onFetched={onFetched} />);
 
+    await waitFor(() =>
+      expect(screen.getByTestId('auth-status').textContent).toBe('authed')
+    );
     const trigger = await screen.findByRole('button', { name: 'fetch' });
     fireEvent.click(trigger);
 
@@ -90,6 +93,9 @@ describe('useAuthFetch integration', () => {
     const onFetched = vi.fn();
     renderWithRouter(<FetchHarness token={token} onFetched={onFetched} />);
 
+    await waitFor(() =>
+      expect(screen.getByTestId('auth-status').textContent).toBe('authed')
+    );
     const trigger = await screen.findByRole('button', { name: 'fetch' });
     fireEvent.click(trigger);
     await waitFor(() => expect(onFetched).toHaveBeenCalledTimes(1));
@@ -114,6 +120,9 @@ describe('useAuthFetch integration', () => {
     const onFetched = vi.fn();
     renderWithRouter(<FetchHarness token={token} onFetched={onFetched} />);
 
+    await waitFor(() =>
+      expect(screen.getByTestId('auth-status').textContent).toBe('authed')
+    );
     const trigger = await screen.findByRole('button', { name: 'fetch' });
     fireEvent.click(trigger);
     await waitFor(() => expect(onFetched).toHaveBeenCalledTimes(1));
