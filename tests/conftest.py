@@ -1,7 +1,10 @@
 import os
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+
+from dotenv import load_dotenv
 
 
 def pytest_addoption(parser):
@@ -20,6 +23,42 @@ def pytest_collection_modifyitems(config, items):
     config.getoption("--pg", default=False)
 
 
+# Load environment configuration from a local .env file if present so developers
+# can point the test suite at their own database without exporting variables
+# manually. The repository ships a .env.example template in the project root, so
+# we look for a sibling `.env` file relative to this test module.
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+dotenv_path = PROJECT_ROOT / ".env"
+if dotenv_path.exists():
+    load_dotenv(dotenv_path, override=False)
+
+# The pytest suite relies on specific security header and CORS behaviour. Local
+# `.env` files used for manual testing often disable or narrow those settings,
+# so normalise the values after loading environment variables. This preserves a
+# developer's custom database credentials while keeping the tests deterministic.
+# Keep this default in sync with `app.config.DEFAULT_STRICT_TRANSPORT_SECURITY`.
+_DEFAULT_STRICT_TRANSPORT_SECURITY = "max-age=63072000; includeSubDomains; preload"
+
+_strict_transport_security = os.getenv("STRICT_TRANSPORT_SECURITY")
+if _strict_transport_security is None:
+    os.environ["STRICT_TRANSPORT_SECURITY"] = _DEFAULT_STRICT_TRANSPORT_SECURITY
+else:
+    normalised_sts = _strict_transport_security.strip()
+    if not normalised_sts:
+        os.environ["STRICT_TRANSPORT_SECURITY"] = _DEFAULT_STRICT_TRANSPORT_SECURITY
+    else:
+        os.environ["STRICT_TRANSPORT_SECURITY"] = normalised_sts
+
+_ALLOWED_ORIGIN = "http://allowed.example"
+existing_origins = os.getenv("ALLOWED_ORIGINS")
+if existing_origins:
+    origins = [origin.strip() for origin in existing_origins.split(",") if origin.strip()]
+    if _ALLOWED_ORIGIN not in origins:
+        origins.append(_ALLOWED_ORIGIN)
+    os.environ["ALLOWED_ORIGINS"] = ",".join(origins)
+else:
+    os.environ["ALLOWED_ORIGINS"] = _ALLOWED_ORIGIN
+
 # set up database url before importing app
 DEFAULT_TEST_DATABASE_URL = (
     "postgresql://zootracker_test:zootracker_test@localhost:5432/zootracker_test"
@@ -36,7 +75,6 @@ os.environ["GENERAL_RATE_LIMIT"] = "10000"
 os.environ.setdefault("SMTP_HOST", "smtp.test")
 os.environ.setdefault("CONTACT_EMAIL", "contact@zootracker.app")
 os.environ.pop("SMTP_SSL", None)
-os.environ.setdefault("ALLOWED_ORIGINS", "http://allowed.example")
 os.environ.setdefault(
     "SECRET_KEY",
     "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
