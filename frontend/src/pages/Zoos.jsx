@@ -909,7 +909,9 @@ export default function ZoosPage() {
         </div>
       </div>
       <div className="row mb-3">
-        <div className="col-md-4 mb-2">
+        <div
+          className={`${isAuthenticated ? 'col-12 col-md-4' : 'col-12'} mb-2`}
+        >
           {isAuthenticated ? (
             <>
               <fieldset
@@ -978,7 +980,7 @@ export default function ZoosPage() {
             </>
           ) : (
             <div
-              className="alert alert-info mb-0"
+              className="alert alert-info mb-0 w-100"
               role="status"
               aria-live="polite"
               aria-atomic="true"
@@ -995,9 +997,6 @@ export default function ZoosPage() {
                   ),
                 }}
               />
-              <p className="mb-0 small mt-2">
-                {t('zoo.visitFilterLoginBenefits')}
-              </p>
             </div>
           )}
         </div>
