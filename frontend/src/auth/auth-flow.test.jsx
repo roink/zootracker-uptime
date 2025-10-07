@@ -11,8 +11,10 @@ import { useAuth } from './AuthContext.jsx';
 import { createTestToken } from '../test-utils/auth.js';
 
 const server = setupServer(
-  http.post('/auth/refresh', () => HttpResponse.json({ detail: 'no session' }, { status: 401 })),
-  http.post('/auth/logout', () => HttpResponse.json({}, { status: 204 }))
+  http.post(/\/auth\/refresh$/, () =>
+    HttpResponse.json({ detail: 'no session' }, { status: 401 })
+  ),
+  http.post(/\/auth\/logout$/, () => HttpResponse.json({}, { status: 204 }))
 );
 
 beforeAll(() => server.listen());

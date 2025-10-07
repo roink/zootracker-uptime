@@ -26,15 +26,15 @@ const SET_DATA_TIMEOUT_MS = 32;
  */
 
 export default function ZoosMap({
-  zoos,
-  center,
+  zoos = [],
+  center = null,
   onSelect,
-  resizeToken,
-  initialView,
-  suppressAutoFit,
+  resizeToken = 0,
+  initialView = null,
+  suppressAutoFit = false,
   onViewChange,
   ariaLabel,
-}) {
+} = {}) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const maplibreRef = useRef(null);
@@ -689,16 +689,5 @@ ZoosMap.propTypes = {
   suppressAutoFit: PropTypes.bool,
   onViewChange: PropTypes.func,
   ariaLabel: PropTypes.string,
-};
-
-ZoosMap.defaultProps = {
-  zoos: [],
-  center: null,
-  onSelect: undefined,
-  resizeToken: 0,
-  initialView: null,
-  suppressAutoFit: false,
-  onViewChange: undefined,
-  ariaLabel: undefined,
 };
 
