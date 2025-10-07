@@ -308,6 +308,7 @@ export default function ZoosPage() {
   const visitFilterActive = visitFilter === 'visited' || visitFilter === 'not';
   const visitSegment = visitFilter === 'visited' ? 'visited' : 'not-visited';
   const userId = user?.id ?? null;
+  const isServerFilteredByVisit = isAuthenticated && visitFilterActive;
 
   const listRequestConfig = useMemo(() => {
     if (isAuthenticated && visitFilterActive) {
@@ -712,20 +713,26 @@ export default function ZoosPage() {
   };
 
   const filtered = useMemo(() => {
+    if (isServerFilteredByVisit) {
+      return zoos;
+    }
     return zoos.filter((z) => {
       if (visitFilter === 'visited') return visitedSet.has(String(z.id));
       if (visitFilter === 'not') return !visitedSet.has(String(z.id));
       return true;
     });
-  }, [zoos, visitFilter, visitedSet]);
+  }, [zoos, visitFilter, visitedSet, isServerFilteredByVisit]);
 
   const mapFiltered = useMemo(() => {
+    if (isServerFilteredByVisit) {
+      return mapZoos;
+    }
     return mapZoos.filter((z) => {
       if (visitFilter === 'visited') return visitedSet.has(String(z.id));
       if (visitFilter === 'not') return !visitedSet.has(String(z.id));
       return true;
     });
-  }, [mapZoos, visitFilter, visitedSet]);
+  }, [mapZoos, visitFilter, visitedSet, isServerFilteredByVisit]);
 
   const mapZoosWithCoordinates = useMemo(
     () =>

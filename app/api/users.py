@@ -8,7 +8,7 @@ from .. import schemas, models
 from ..auth import hash_password, get_user, get_current_user
 from ..database import get_db
 from .deps import require_json, resolve_coords
-from .zoos import _apply_zoo_filters, _validate_region_filters
+from .common_filters import apply_zoo_filters, validate_region_filters
 from ..utils.geometry import query_zoos_with_distance
 
 router = APIRouter()
@@ -19,7 +19,7 @@ def ensure_same_user(user_id: uuid.UUID, current_user: models.User) -> None:
     if user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Cannot view animals for another user",
+            detail="Cannot access this resource for another user",
         )
 
 
@@ -130,7 +130,7 @@ def list_user_visited_zoos(
     """Return zoos visited by the authenticated user with pagination."""
 
     ensure_same_user(user_id, current_user)
-    _validate_region_filters(db, continent_id, country_id)
+    validate_region_filters(db, continent_id, country_id)
 
     visited_ids = _visited_zoo_ids_subquery(db, user_id)
     query = (
@@ -138,10 +138,11 @@ def list_user_visited_zoos(
         .options(joinedload(models.Zoo.country))
         .filter(models.Zoo.id.in_(select(visited_ids.c.zoo_id)))
     )
-    query = _apply_zoo_filters(query, q, continent_id, country_id)
+    query = apply_zoo_filters(query, q, continent_id, country_id)
 
     latitude, longitude = coords
-    response.headers["Cache-Control"] = "private, no-store"
+    response.headers["Cache-Control"] = "private, no-store, max-age=0"
+    response.headers["Vary"] = "Authorization"
     return _build_user_zoo_page(query, latitude, longitude, limit, offset)
 
 
@@ -164,15 +165,16 @@ def list_user_not_visited_zoos(
     """Return zoos the authenticated user has not yet visited."""
 
     ensure_same_user(user_id, current_user)
-    _validate_region_filters(db, continent_id, country_id)
+    validate_region_filters(db, continent_id, country_id)
 
     visited_ids = _visited_zoo_ids_subquery(db, user_id)
     query = db.query(models.Zoo).options(joinedload(models.Zoo.country))
     query = query.filter(~models.Zoo.id.in_(select(visited_ids.c.zoo_id)))
-    query = _apply_zoo_filters(query, q, continent_id, country_id)
+    query = apply_zoo_filters(query, q, continent_id, country_id)
 
     latitude, longitude = coords
-    response.headers["Cache-Control"] = "private, no-store"
+    response.headers["Cache-Control"] = "private, no-store, max-age=0"
+    response.headers["Vary"] = "Authorization"
     return _build_user_zoo_page(query, latitude, longitude, limit, offset)
 
 
@@ -192,7 +194,7 @@ def list_user_visited_zoos_for_map(
     """Return lightweight map data for zoos visited by the user."""
 
     ensure_same_user(user_id, current_user)
-    _validate_region_filters(db, continent_id, country_id)
+    validate_region_filters(db, continent_id, country_id)
 
     visited_ids = _visited_zoo_ids_subquery(db, user_id)
     query = (
@@ -209,9 +211,10 @@ def list_user_visited_zoos_for_map(
         )
         .filter(models.Zoo.id.in_(select(visited_ids.c.zoo_id)))
     )
-    query = _apply_zoo_filters(query, q, continent_id, country_id)
+    query = apply_zoo_filters(query, q, continent_id, country_id)
     zoos = query.order_by(models.Zoo.name).all()
-    response.headers["Cache-Control"] = "private, no-store"
+    response.headers["Cache-Control"] = "private, no-store, max-age=0"
+    response.headers["Vary"] = "Authorization"
     return _serialize_map_points(zoos)
 
 
@@ -231,7 +234,7 @@ def list_user_not_visited_zoos_for_map(
     """Return map data for zoos the user has not visited."""
 
     ensure_same_user(user_id, current_user)
-    _validate_region_filters(db, continent_id, country_id)
+    validate_region_filters(db, continent_id, country_id)
 
     visited_ids = _visited_zoo_ids_subquery(db, user_id)
     query = (
@@ -248,9 +251,10 @@ def list_user_not_visited_zoos_for_map(
         )
         .filter(~models.Zoo.id.in_(select(visited_ids.c.zoo_id)))
     )
-    query = _apply_zoo_filters(query, q, continent_id, country_id)
+    query = apply_zoo_filters(query, q, continent_id, country_id)
     zoos = query.order_by(models.Zoo.name).all()
-    response.headers["Cache-Control"] = "private, no-store"
+    response.headers["Cache-Control"] = "private, no-store, max-age=0"
+    response.headers["Vary"] = "Authorization"
     return _serialize_map_points(zoos)
 
 @router.get("/users/{user_id}/animals", response_model=list[schemas.AnimalRead])

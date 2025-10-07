@@ -153,13 +153,15 @@ def test_user_visited_zoo_endpoints_return_filtered_results(data):
     items, meta = _extract_items(resp.json())
     assert meta["total"] == 1
     assert items[0]["id"] == str(data["zoo"].id)
-    assert resp.headers.get("Cache-Control") == "private, no-store"
+    assert resp.headers.get("Cache-Control") == "private, no-store, max-age=0"
+    assert resp.headers.get("Vary") == "Authorization"
 
     map_resp = client.get(f"/users/{user_id}/zoos/visited/map", headers=headers)
     assert map_resp.status_code == 200
     map_ids = {z["id"] for z in map_resp.json()}
     assert str(data["zoo"].id) in map_ids
-    assert map_resp.headers.get("Cache-Control") == "private, no-store"
+    assert map_resp.headers.get("Cache-Control") == "private, no-store, max-age=0"
+    assert map_resp.headers.get("Vary") == "Authorization"
 
 
 def test_user_not_visited_endpoints_exclude_visited_zoos(data):
@@ -182,12 +184,14 @@ def test_user_not_visited_endpoints_exclude_visited_zoos(data):
     ids = {item["id"] for item in items}
     assert str(data["far_zoo"].id) in ids
     assert str(data["zoo"].id) not in ids
-    assert resp.headers.get("Cache-Control") == "private, no-store"
+    assert resp.headers.get("Cache-Control") == "private, no-store, max-age=0"
+    assert resp.headers.get("Vary") == "Authorization"
 
     map_resp = client.get(f"/users/{user_id}/zoos/not-visited/map", headers=headers)
     assert map_resp.status_code == 200
     map_ids = {z["id"] for z in map_resp.json()}
     assert str(data["far_zoo"].id) in map_ids
     assert str(data["zoo"].id) not in map_ids
-    assert map_resp.headers.get("Cache-Control") == "private, no-store"
+    assert map_resp.headers.get("Cache-Control") == "private, no-store, max-age=0"
+    assert map_resp.headers.get("Vary") == "Authorization"
 

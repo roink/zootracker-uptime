@@ -1,54 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import or_, exists
-from sqlalchemy.orm import Session, joinedload, load_only, Query as SQLAQuery
+from sqlalchemy import exists
+from sqlalchemy.orm import Session, joinedload, load_only
 
 from .. import schemas, models
 from ..database import get_db
 from ..utils.geometry import query_zoos_with_distance
 from ..auth import get_current_user
 from .deps import resolve_coords
+from .common_filters import apply_zoo_filters, validate_region_filters
 
 router = APIRouter()
-
-
-def _validate_region_filters(
-    db: Session, continent_id: int | None, country_id: int | None
-) -> None:
-    """Ensure the provided country belongs to the selected continent."""
-
-    if continent_id is None or country_id is None:
-        return
-
-    exists_country = (
-        db.query(models.CountryName)
-        .filter(
-            models.CountryName.id == country_id,
-            models.CountryName.continent_id == continent_id,
-        )
-        .first()
-    )
-    if exists_country is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="country_id does not belong to continent_id",
-        )
-
-
-def _apply_zoo_filters(
-    query: SQLAQuery, q: str, continent_id: int | None, country_id: int | None
-):
-    """Apply shared filters to the base zoo query."""
-
-    if q:
-        pattern = f"%{q}%"
-        query = query.filter(
-            or_(models.Zoo.name.ilike(pattern), models.Zoo.city.ilike(pattern))
-        )
-    if continent_id is not None:
-        query = query.filter(models.Zoo.continent_id == continent_id)
-    if country_id is not None:
-        query = query.filter(models.Zoo.country_id == country_id)
-    return query
 
 
 @router.get("/zoos", response_model=schemas.ZooSearchPage)
@@ -63,10 +24,10 @@ def search_zoos(
 ):
     """Search for zoos by name, region and optional distance."""
 
-    _validate_region_filters(db, continent_id, country_id)
+    validate_region_filters(db, continent_id, country_id)
 
     query = db.query(models.Zoo).options(joinedload(models.Zoo.country))
-    query = _apply_zoo_filters(query, q, continent_id, country_id)
+    query = apply_zoo_filters(query, q, continent_id, country_id)
 
     total = query.count()
     latitude, longitude = coords
@@ -110,7 +71,7 @@ def list_zoos_for_map(
 ):
     """Return minimal data for plotting zoos on the world map."""
 
-    _validate_region_filters(db, continent_id, country_id)
+    validate_region_filters(db, continent_id, country_id)
 
     query = (
         db.query(models.Zoo)
@@ -125,7 +86,7 @@ def list_zoos_for_map(
             )
         )
     )
-    query = _apply_zoo_filters(query, q, continent_id, country_id)
+    query = apply_zoo_filters(query, q, continent_id, country_id)
 
     zoos = query.order_by(models.Zoo.name).all()
     return [

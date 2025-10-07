@@ -1,5 +1,17 @@
 import { vi } from 'vitest';
 
+if (typeof window !== 'undefined') {
+  if (!window.URL) {
+    window.URL = {};
+  }
+  if (!window.URL.createObjectURL) {
+    window.URL.createObjectURL = vi.fn();
+  }
+  if (!window.URL.revokeObjectURL) {
+    window.URL.revokeObjectURL = vi.fn();
+  }
+}
+
 const mockMaps = [];
 
 class MockMap {
