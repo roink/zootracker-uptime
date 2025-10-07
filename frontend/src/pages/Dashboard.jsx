@@ -202,15 +202,22 @@ export default function Dashboard({ refresh, onUpdate }) {
             {g.items.map((s) => (
               <li
                 key={s.id}
-                className="list-group-item d-flex justify-content-between align-items-center"
+                className="list-group-item d-flex justify-content-between align-items-start"
               >
-                <span>
-                  {t('dashboard.sighting', {
-                    animal: displayAnimalName(s),
-                    zoo: s.zoo_name ?? s.zoo_id,
-                    date: s.sighting_datetime.slice(0, 10),
-                  })}
-                </span>
+                <div className="me-3">
+                  <div>
+                    {t('dashboard.sighting', {
+                      animal: displayAnimalName(s),
+                      zoo: s.zoo_name ?? s.zoo_id,
+                      date: s.sighting_datetime.slice(0, 10),
+                    })}
+                  </div>
+                  {s.notes && (
+                    <div className="text-muted small mt-1">
+                      {t('dashboard.note', { note: s.notes })}
+                    </div>
+                  )}
+                </div>
                 <button
                   className="btn btn-sm btn-outline-secondary"
                   onClick={() =>
@@ -220,6 +227,7 @@ export default function Dashboard({ refresh, onUpdate }) {
                       zooName: s.zoo_name,
                       animalId: s.animal_id,
                       animalName: displayAnimalName(s),
+                      note: s.notes ?? '',
                     })
                   }
                 >
@@ -262,6 +270,7 @@ export default function Dashboard({ refresh, onUpdate }) {
           defaultAnimalId={modalData.animalId}
           defaultZooName={modalData.zooName}
           defaultAnimalName={modalData.animalName}
+          defaultNotes={modalData.note ?? ''}
           onLogged={() => {
             onUpdate && onUpdate();
           }}

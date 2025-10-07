@@ -4,7 +4,7 @@ from datetime import date, datetime
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, ConfigDict, Field, constr
+from pydantic import BaseModel, EmailStr, ConfigDict, Field, constr, field_validator
 
 
 class UserCreate(BaseModel):
@@ -213,11 +213,19 @@ class AnimalSightingCreate(BaseModel):
     """Input data for recording an animal sighting."""
     zoo_id: UUID
     animal_id: UUID
-    user_id: UUID
     sighting_datetime: datetime
     notes: Optional[str] = Field(default=None, max_length=1000)
 
     model_config = ConfigDict(extra="forbid")
+
+    @field_validator("notes", mode="before")
+    @classmethod
+    def _normalize_notes(cls, value: Optional[str]):
+        """Trim whitespace and collapse empty notes to ``None``."""
+        if value is None:
+            return None
+        value = str(value).strip()
+        return value or None
 
 
 class AnimalSightingRead(BaseModel):
@@ -255,6 +263,15 @@ class AnimalSightingUpdate(BaseModel):
     photo_url: Optional[str] = Field(default=None, max_length=512)
 
     model_config = ConfigDict(extra="forbid")
+
+    @field_validator("notes", mode="before")
+    @classmethod
+    def _normalize_notes(cls, value: Optional[str]):
+        """Trim whitespace and collapse empty notes to ``None``."""
+        if value is None:
+            return None
+        value = str(value).strip()
+        return value or None
 
 
 class AnimalDetail(BaseModel):

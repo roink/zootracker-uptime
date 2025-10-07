@@ -45,6 +45,7 @@ describe('Dashboard', () => {
     animal_name_de: 'Löwe',
     sighting_datetime: '2024-05-01T00:00:00Z',
     created_at: '2024-05-01T00:00:00Z',
+    notes: 'Feeding time',
   };
 
   let auth;
@@ -78,6 +79,7 @@ describe('Dashboard', () => {
       'Saw Lion at Berlin Zoo on 2024-05-01'
     );
     expect(english).toBeInTheDocument();
+    expect(await screen.findByText('Note: Feeding time')).toBeInTheDocument();
 
     await act(async () => {
       await loadLocale('de');
@@ -88,6 +90,7 @@ describe('Dashboard', () => {
       'Löwe im Berlin Zoo am 2024-05-01 gesehen'
     );
     expect(german).toBeInTheDocument();
+    expect(await screen.findByText('Notiz: Feeding time')).toBeInTheDocument();
   });
 });
 
