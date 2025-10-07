@@ -786,7 +786,21 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
                         }
                       }}
                     >
-                      <td>{displayName}</td>
+                      <td>
+                        <span className="d-inline-flex align-items-center gap-1">
+                          {displayName}
+                          {/* Highlight favorite zoos with a star icon. */}
+                          {z.is_favorite && (
+                            <span
+                              className="text-warning"
+                              role="img"
+                              aria-label={t('zoo.favoriteBadge')}
+                            >
+                              ★
+                            </span>
+                          )}
+                        </span>
+                      </td>
                       {userLocation && (
                         <td className="text-end">
                           {z.distance_km != null ? z.distance_km.toFixed(1) : ''}

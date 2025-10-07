@@ -168,6 +168,25 @@ def test_user_visited_zoo_endpoints_return_filtered_results(data):
     assert map_resp.headers.get("Vary") == "Authorization"
 
 
+def test_user_visited_zoos_include_favorite_flag(data):
+    token, user_id = register_and_login()
+    db = SessionLocal()
+    visit = models.ZooVisit(user_id=user_id, zoo_id=data["zoo"].id, visit_date=date.today())
+    db.add(visit)
+    db.commit()
+    db.close()
+
+    headers = {"Authorization": f"Bearer {token}"}
+    fav_resp = client.put(f"/zoos/{data['zoo'].slug}/favorite", headers=headers)
+    assert fav_resp.status_code == 200
+
+    resp = client.get(f"/users/{user_id}/zoos/visited", headers=headers)
+    assert resp.status_code == 200
+    items, _ = _extract_items(resp.json())
+    target = next(item for item in items if item["id"] == str(data["zoo"].id))
+    assert target["is_favorite"] is True
+
+
 def test_user_not_visited_endpoints_exclude_visited_zoos(data):
     token, user_id = register_and_login()
     db = SessionLocal()
@@ -215,6 +234,12 @@ def test_zoo_favorites_flow(data):
     assert len(items) == 1
     assert items[0]["id"] == str(data["zoo"].id)
     assert items[0]["is_favorite"] is True
+
+    general_resp = client.get("/zoos", headers=headers)
+    assert general_resp.status_code == 200
+    general_items, _ = _extract_items(general_resp.json())
+    target = next(item for item in general_items if item["id"] == str(data["zoo"].id))
+    assert target["is_favorite"] is True
 
     detail_resp = client.get(f"/zoos/{data['zoo'].slug}", headers=headers)
     assert detail_resp.status_code == 200

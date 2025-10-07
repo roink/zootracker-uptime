@@ -385,7 +385,7 @@ export default function ZoosPage() {
     }
     return {
       url: `${API}/zoos`,
-      requiresAuth: false,
+      requiresAuth: isAuthenticated,
       ready: true,
     };
   }, [favoritesOnly, isAuthenticated, visitFilterActive, userId, visitSegment]);

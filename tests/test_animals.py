@@ -341,6 +341,21 @@ def test_animal_favorites_flow(data):
     assert detail_after.json()["is_favorite"] is False
 
 
+def test_animal_detail_marks_favorite_zoos(data):
+    token, _ = register_and_login()
+    headers = {"Authorization": f"Bearer {token}"}
+
+    fav_resp = client.put(f"/zoos/{data['zoo'].slug}/favorite", headers=headers)
+    assert fav_resp.status_code == 200
+
+    detail_resp = client.get(f"/animals/{data['animal'].slug}", headers=headers)
+    assert detail_resp.status_code == 200
+    zoos = detail_resp.json()["zoos"]
+    assert zoos, "expected at least one zoo for the animal detail response"
+    target = next(z for z in zoos if z["id"] == str(data["zoo"].id))
+    assert target["is_favorite"] is True
+
+
 def test_animal_favorites_filter_requires_auth():
     resp = client.get("/animals", params={"favorites_only": "true"})
     assert resp.status_code == 401

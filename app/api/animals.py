@@ -1,3 +1,5 @@
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import or_, text
 from sqlalchemy.orm import Session, joinedload, load_only
@@ -10,7 +12,9 @@ from ..utils.images import build_unique_variants
 from .deps import resolve_coords
 
 
-def to_zoodetail(z: models.Zoo, dist: float | None) -> schemas.ZooDetail:
+def to_zoodetail(
+    z: models.Zoo, dist: float | None, *, is_favorite: bool = False
+) -> schemas.ZooDetail:
     return schemas.ZooDetail(
         id=z.id,
         slug=z.slug,
@@ -22,6 +26,7 @@ def to_zoodetail(z: models.Zoo, dist: float | None) -> schemas.ZooDetail:
         description_de=z.description_de,
         description_en=z.description_en,
         distance_km=dist,
+        is_favorite=is_favorite,
     )
 
 router = APIRouter()
@@ -357,6 +362,7 @@ def get_animal_detail(
 
     animal_id = animal.id
     is_favorite = False
+    favorite_zoo_ids: set[uuid.UUID] = set()
     if user is not None:
         is_favorite = (
             db.query(models.UserFavoriteAnimal)
@@ -367,6 +373,14 @@ def get_animal_detail(
             .first()
             is not None
         )
+        favorite_zoo_ids = {
+            row[0]
+            for row in (
+                db.query(models.UserFavoriteZoo.zoo_id)
+                .filter(models.UserFavoriteZoo.user_id == user.id)
+                .all()
+            )
+        }
     latitude, longitude = coords
 
     query = (
@@ -390,7 +404,10 @@ def get_animal_detail(
 
     results = query_zoos_with_distance(query, latitude, longitude, include_no_coords=True)
 
-    zoos = [to_zoodetail(z, dist) for z, dist in results]
+    zoos = [
+        to_zoodetail(z, dist, is_favorite=z.id in favorite_zoo_ids)
+        for z, dist in results
+    ]
 
     images = [
         schemas.ImageRead(
