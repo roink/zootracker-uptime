@@ -15,6 +15,9 @@ def query_zoos_with_distance(
     longitude: Optional[float],
     radius_km: Optional[float] = None,
     include_no_coords: bool = False,
+    *,
+    limit: Optional[int] = None,
+    offset: int = 0,
 ) -> list[tuple[models.Zoo, Optional[float]]]:
     """Return zoos paired with distance in kilometers ordered by proximity.
 
@@ -53,12 +56,20 @@ def query_zoos_with_distance(
                 )
         order_expr = geom_loc.op("<->")(user_point)
         precise_m = func.ST_DistanceSphere(geom_loc, user_point)
-        rows = (
-            q.with_entities(models.Zoo, precise_m.label("distance_m"))
-            .order_by(order_expr.nulls_last(), models.Zoo.name)
-            .all()
+        q = q.with_entities(models.Zoo, precise_m.label("distance_m")).order_by(
+            order_expr.nulls_last(), models.Zoo.name
         )
+        if offset:
+            q = q.offset(offset)
+        if limit is not None:
+            q = q.limit(limit)
+        rows = q.all()
         return [(z, d / 1000 if d is not None else None) for z, d in rows]
 
     # no coordinates supplied – return zoos without distance ordered by name
-    return [(z, None) for z in query.order_by(models.Zoo.name).all()]
+    ordered = query.order_by(models.Zoo.name)
+    if offset:
+        ordered = ordered.offset(offset)
+    if limit is not None:
+        ordered = ordered.limit(limit)
+    return [(z, None) for z in ordered.all()]

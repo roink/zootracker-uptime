@@ -16,6 +16,7 @@ import { normalizeCoordinates } from '../utils/coordinates.js';
 import { getZooDisplayName } from '../utils/zooDisplayName.js';
 
 const LOCATION_STORAGE_KEY = 'userLocation';
+const PAGE_SIZE = 20;
 
 /**
  * @typedef {Object} CameraState
@@ -94,6 +95,7 @@ export default function ZoosPage() {
   const initialView = searchParams.get('view') === 'map' ? 'map' : 'list';
 
   const [zoos, setZoos] = useState([]);
+  const [mapZoos, setMapZoos] = useState([]);
   const [visitedIds, setVisitedIds] = useState([]);
   const [search, setSearch] = useState(initialSearch);
   const [query, setQuery] = useState(initialSearch);
@@ -124,6 +126,26 @@ export default function ZoosPage() {
   const [viewMode, setViewMode] = useState(initialView);
   const [mapResizeToken, setMapResizeToken] = useState(0);
   const estimateAttemptedRef = useRef(false);
+  useEffect(() => () => {
+    if (listRequestRef.current) {
+      listRequestRef.current.abort();
+    }
+  }, []);
+  useEffect(() => () => {
+    if (mapRequestRef.current) {
+      mapRequestRef.current.abort();
+    }
+  }, []);
+  const listRequestRef = useRef(null);
+  const mapRequestRef = useRef(null);
+  const sentinelRef = useRef(null);
+  const [totalZoos, setTotalZoos] = useState(0);
+  const [nextOffset, setNextOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [listLoading, setListLoading] = useState(false);
+  const [listError, setListError] = useState(null);
+  const [mapLoading, setMapLoading] = useState(false);
+  const [mapError, setMapError] = useState(null);
 
   useEffect(() => {
     // Only react when the router explicitly sends a camera update.
@@ -243,6 +265,63 @@ export default function ZoosPage() {
     }
   }, [viewMode]);
 
+  const mapFilters = useMemo(
+    () => ({
+      q: query.trim(),
+      continent: continentId || '',
+      country: countryId || '',
+    }),
+    [query, continentId, countryId]
+  );
+  const mapFiltersKey = useMemo(
+    () => JSON.stringify(mapFilters),
+    [mapFilters]
+  );
+
+  useEffect(() => {
+    const controller = new AbortController();
+    if (mapRequestRef.current) {
+      mapRequestRef.current.abort();
+    }
+    mapRequestRef.current = controller;
+    setMapLoading(true);
+    setMapError(null);
+
+    const params = new URLSearchParams();
+    if (mapFilters.q) params.set('q', mapFilters.q);
+    if (mapFilters.continent) params.set('continent_id', mapFilters.continent);
+    if (mapFilters.country) params.set('country_id', mapFilters.country);
+
+    fetch(`${API}/zoos/map${params.toString() ? `?${params.toString()}` : ''}`, {
+      signal: controller.signal,
+    })
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((data) => {
+        if (!controller.signal.aborted) {
+          setMapZoos(Array.isArray(data) ? data : []);
+        }
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted) {
+          setMapZoos([]);
+          setMapError(error instanceof Error ? error.message : 'Failed to load map data');
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setMapLoading(false);
+          mapRequestRef.current = null;
+        }
+      });
+
+    return () => {
+      controller.abort();
+    };
+  }, [mapFiltersKey]);
+
   useEffect(() => {
     fetch(`${API}/zoos/continents`)
       .then((r) => (r.ok ? r.json() : []))
@@ -273,26 +352,125 @@ export default function ZoosPage() {
     [location, estimatedLocation]
   );
 
+  const listFilters = useMemo(
+    () => ({
+      q: query.trim(),
+      continent: continentId || '',
+      country: countryId || '',
+      latitude:
+        typeof activeLocation?.lat === 'number' && Number.isFinite(activeLocation.lat)
+          ? activeLocation.lat
+          : null,
+      longitude:
+        typeof activeLocation?.lon === 'number' && Number.isFinite(activeLocation.lon)
+          ? activeLocation.lon
+          : null,
+    }),
+    [
+      query,
+      continentId,
+      countryId,
+      activeLocation?.lat,
+      activeLocation?.lon,
+    ]
+  );
+  const listFiltersKey = useMemo(
+    () => JSON.stringify(listFilters),
+    [listFilters]
+  );
+
   useEffect(() => {
-    const params = new URLSearchParams();
-    if (activeLocation) {
-      params.set('latitude', activeLocation.lat);
-      params.set('longitude', activeLocation.lon);
+    if (listRequestRef.current) {
+      listRequestRef.current.abort();
+      listRequestRef.current = null;
     }
-    if (query) params.set('q', query);
-    if (continentId) params.set('continent_id', continentId);
-    if (countryId) params.set('country_id', countryId);
-    fetch(`${API}/zoos${params.toString() ? `?${params.toString()}` : ''}`)
-      .then((r) => (r.ok ? r.json() : []))
-      .then(setZoos)
-      .catch(() => setZoos([]));
+    setZoos([]);
+    setTotalZoos(0);
+    setNextOffset(0);
+    setHasMore(true);
+    setListError(null);
+  }, [listFiltersKey]);
+
+  const loadNextPage = useCallback(async () => {
+    if (listLoading || !hasMore) return;
+
+    const controller = new AbortController();
+    listRequestRef.current = controller;
+    setListLoading(true);
+    setListError(null);
+
+    const params = new URLSearchParams();
+    if (listFilters.q) params.set('q', listFilters.q);
+    if (listFilters.continent) params.set('continent_id', listFilters.continent);
+    if (listFilters.country) params.set('country_id', listFilters.country);
+    if (Number.isFinite(listFilters.latitude)) {
+      params.set('latitude', listFilters.latitude);
+    }
+    if (Number.isFinite(listFilters.longitude)) {
+      params.set('longitude', listFilters.longitude);
+    }
+    params.set('limit', String(PAGE_SIZE));
+    params.set('offset', String(nextOffset));
+
+    try {
+      const resp = await fetch(
+        `${API}/zoos${params.toString() ? `?${params.toString()}` : ''}`,
+        { signal: controller.signal }
+      );
+      if (!resp.ok) {
+        throw new Error(`HTTP ${resp.status}`);
+      }
+      const data = await resp.json();
+      const items = Array.isArray(data?.items)
+        ? data.items
+        : Array.isArray(data)
+          ? data
+          : [];
+      const newOffset = nextOffset + items.length;
+      const total = Number.isFinite(data?.total) ? data.total : newOffset;
+      setZoos((prev) => (nextOffset === 0 ? items : [...prev, ...items]));
+      setNextOffset(newOffset);
+      setTotalZoos(total);
+      setHasMore(newOffset < total && items.length > 0);
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        setListError(error instanceof Error ? error.message : 'Failed to load zoos');
+      }
+    } finally {
+      if (!controller.signal.aborted) {
+        setListLoading(false);
+        listRequestRef.current = null;
+      }
+    }
   }, [
-    activeLocation?.lat,
-    activeLocation?.lon,
-    query,
-    continentId,
-    countryId,
+    listFilters,
+    listLoading,
+    hasMore,
+    nextOffset,
   ]);
+
+  useEffect(() => {
+    if (zoos.length === 0 && hasMore && !listLoading) {
+      loadNextPage();
+    }
+  }, [listFiltersKey, loadNextPage, zoos.length, hasMore, listLoading]);
+
+  useEffect(() => {
+    if (viewMode !== 'list') return undefined;
+    const node = sentinelRef.current;
+    if (!node) return undefined;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          loadNextPage();
+        }
+      },
+      { root: null, rootMargin: '200px' }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [viewMode, loadNextPage]);
 
   useEffect(() => {
     if (estimateAttemptedRef.current) return;
@@ -383,9 +561,17 @@ export default function ZoosPage() {
     });
   }, [zoos, visitFilter, visitedSet]);
 
-  const zoosWithCoordinates = useMemo(
+  const mapFiltered = useMemo(() => {
+    return mapZoos.filter((z) => {
+      if (visitFilter === 'visited') return visitedSet.has(String(z.id));
+      if (visitFilter === 'not') return !visitedSet.has(String(z.id));
+      return true;
+    });
+  }, [mapZoos, visitFilter, visitedSet]);
+
+  const mapZoosWithCoordinates = useMemo(
     () =>
-      filtered
+      mapFiltered
         .map((zoo) => {
           const coords = normalizeCoordinates(zoo);
           if (!coords) {
@@ -394,18 +580,18 @@ export default function ZoosPage() {
           return { ...zoo, ...coords };
         })
         .filter(Boolean),
-    [filtered]
+    [mapFiltered]
   );
 
   useEffect(() => {
-    if (import.meta.env.DEV && filtered.length > 0 && zoosWithCoordinates.length === 0) {
+    if (import.meta.env.DEV && mapFiltered.length > 0 && mapZoosWithCoordinates.length === 0) {
       // eslint-disable-next-line no-console
       console.warn(
         'ZoosPage: no coordinate fields found on items. Example keys:',
-        Object.keys(filtered[0] || {})
+        Object.keys(mapFiltered[0] || {})
       );
     }
-  }, [filtered, zoosWithCoordinates]);
+  }, [mapFiltered, mapZoosWithCoordinates]);
 
   const localizedName = (item) =>
     lang === 'de' ? item.name_de || item.name_en : item.name_en || item.name_de;
@@ -569,53 +755,81 @@ export default function ZoosPage() {
         </fieldset>
       </div>
       {viewMode === 'list' ? (
-        <div className="list-group">
-          {filtered.map((z) => {
-            const countryName = localizedCountry(z);
-            return (
-              <Link
-                key={z.id}
-                className="list-group-item list-group-item-action text-start w-100 text-decoration-none text-reset"
-                to={`${prefix}/zoos/${z.slug || z.id}`}
-              >
-                <div className="d-flex justify-content-between">
-                  <div>
-                    <div className="fw-bold">
-                      {getZooDisplayName(z)}
-                    </div>
-                    {countryName && (
-                      <div className="text-muted">{countryName}</div>
-                    )}
-                  </div>
-                  <div className="text-end">
-                    {z.distance_km != null && (
-                      <div className="small text-muted">
-                        {z.distance_km.toFixed(1)} km
+        <>
+          <div className="list-group">
+            {filtered.map((z) => {
+              const countryName = localizedCountry(z);
+              return (
+                <Link
+                  key={z.id}
+                  className="list-group-item list-group-item-action text-start w-100 text-decoration-none text-reset"
+                  to={`${prefix}/zoos/${z.slug || z.id}`}
+                >
+                  <div className="d-flex justify-content-between">
+                    <div>
+                      <div className="fw-bold">
+                        {getZooDisplayName(z)}
                       </div>
-                    )}
-                    {visitedSet.has(String(z.id)) && (
-                      <span className="badge bg-success mt-1">
-                        {t('zoo.visitedOnly')}
-                      </span>
-                    )}
+                      {countryName && (
+                        <div className="text-muted">{countryName}</div>
+                      )}
+                    </div>
+                    <div className="text-end">
+                      {z.distance_km != null && (
+                        <div className="small text-muted">
+                          {z.distance_km.toFixed(1)} km
+                        </div>
+                      )}
+                      {visitedSet.has(String(z.id)) && (
+                        <span className="badge bg-success mt-1">
+                          {t('zoo.visitedOnly')}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </Link>
-            );
-          })}
-          {filtered.length === 0 && (
-            <div className="list-group-item text-muted" role="status">
-              {t('zoo.noResults')}
+                </Link>
+              );
+            })}
+            {filtered.length === 0 && !listLoading && !hasMore && (
+              <div className="list-group-item text-muted" role="status">
+                {t('zoo.noResults')}
+              </div>
+            )}
+          </div>
+          <div ref={sentinelRef} aria-hidden="true" style={{ height: '1px' }} />
+          {listLoading && (
+            <div className="d-flex justify-content-center my-3" role="status" aria-live="polite">
+              <div className="spinner-border text-primary" aria-hidden="true" />
+              <span className="visually-hidden">{t('zoo.loadingMore')}</span>
             </div>
           )}
+          {listError && !listLoading && (
+            <div className="alert alert-warning mt-3" role="status">
+              {t('zoo.loadingError')}
+            </div>
+          )}
+          {!listLoading && !listError && !hasMore && totalZoos > 0 && filtered.length > 0 && (
+            <div className="text-muted text-center my-3" role="status">
+              {t('zoo.noMoreResults')}
+            </div>
+          )}
+        </>
+      ) : mapLoading ? (
+        <div className="d-flex justify-content-center my-3" role="status" aria-live="polite">
+          <div className="spinner-border text-primary" aria-hidden="true" />
+          <span className="visually-hidden">{t('zoo.mapLoading')}</span>
         </div>
-      ) : filtered.length === 0 ? (
+      ) : mapError ? (
+        <div className="alert alert-warning" role="status">
+          {t('zoo.mapLoadingError')}
+        </div>
+      ) : mapFiltered.length === 0 ? (
         <div className="alert alert-info" role="status">
           {t('zoo.noResults')}
         </div>
-      ) : zoosWithCoordinates.length > 0 ? (
+      ) : mapZoosWithCoordinates.length > 0 ? (
         <ZoosMap
-          zoos={zoosWithCoordinates}
+          zoos={mapZoosWithCoordinates}
           center={preferStoredView ? null : activeLocation}
           onSelect={handleSelectZoo}
           initialView={mapView}

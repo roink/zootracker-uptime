@@ -12,6 +12,13 @@ import ZoosPage from './Zoos.jsx';
 import { API } from '../api';
 import { createTestToken, setStoredAuth, clearStoredAuth } from '../test-utils/auth.js';
 
+const paginated = (items) => ({
+  items,
+  total: items.length,
+  limit: 20,
+  offset: 0,
+});
+
 describe('ZoosPage', () => {
   beforeEach(() => {
     vi.stubGlobal('navigator', {
@@ -38,12 +45,26 @@ describe('ZoosPage', () => {
         country_name_de: 'Deutschland',
       },
     ];
+    const listZoos = zoos.map(({ latitude, longitude, ...rest }) => rest);
+    const mapZoos = zoos.map(({ id, slug, name, city, latitude, longitude }) => ({
+      id,
+      slug,
+      name,
+      city,
+      latitude,
+      longitude,
+    }));
     const visited = ['1'];
     const fetchMock = vi.fn((url) => {
       if (url.startsWith(`${API}/zoos/continents`))
         return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
-      if (url.startsWith(`${API}/zoos`))
-        return Promise.resolve({ ok: true, json: () => Promise.resolve(zoos) });
+      if (url.startsWith(`${API}/zoos/map`))
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(mapZoos) });
+      if (url.startsWith(`${API}/zoos?`))
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(paginated(listZoos)),
+        });
       if (url.startsWith(`${API}/visits/ids`))
         return Promise.resolve({ ok: true, json: () => Promise.resolve(visited) });
       if (url.startsWith(`${API}/zoos/countries`))
@@ -83,12 +104,26 @@ describe('ZoosPage', () => {
         country_name_de: 'USA',
       },
     ];
+    const listZoos = zoos.map(({ latitude, longitude, ...rest }) => rest);
+    const mapZoos = zoos.map(({ id, slug, name, city, latitude, longitude }) => ({
+      id,
+      slug,
+      name,
+      city,
+      latitude,
+      longitude,
+    }));
     const visited = ['1'];
     const fetchMock = vi.fn((url) => {
       if (url.startsWith(`${API}/zoos/continents`))
         return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
-      if (url.startsWith(`${API}/zoos`))
-        return Promise.resolve({ ok: true, json: () => Promise.resolve(zoos) });
+      if (url.startsWith(`${API}/zoos/map`))
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(mapZoos) });
+      if (url.startsWith(`${API}/zoos?`))
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(paginated(listZoos)),
+        });
       if (url.startsWith(`${API}/visits/ids`))
         return Promise.resolve({ ok: true, json: () => Promise.resolve(visited) });
       if (url.startsWith(`${API}/zoos/countries`))
@@ -151,12 +186,26 @@ describe('ZoosPage', () => {
         country_name_de: 'USA',
       },
     ];
+    const listZoos = zoos.map(({ latitude, longitude, ...rest }) => rest);
+    const mapZoos = zoos.map(({ id, slug, name, city, latitude, longitude }) => ({
+      id,
+      slug,
+      name,
+      city,
+      latitude,
+      longitude,
+    }));
     const visited = ['1'];
     const fetchMock = vi.fn((url) => {
       if (url.startsWith(`${API}/zoos/continents`))
         return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
-      if (url.startsWith(`${API}/zoos`))
-        return Promise.resolve({ ok: true, json: () => Promise.resolve(zoos) });
+      if (url.startsWith(`${API}/zoos/map`))
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(mapZoos) });
+      if (url.startsWith(`${API}/zoos?`))
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(paginated(listZoos)),
+        });
       if (url.startsWith(`${API}/visits/ids`))
         return Promise.resolve({ ok: true, json: () => Promise.resolve(visited) });
       if (url.startsWith(`${API}/zoos/countries`))
@@ -185,11 +234,25 @@ describe('ZoosPage', () => {
         country_name_de: 'Deutschland',
       },
     ];
+    const listZoos = zoos.map(({ latitude, longitude, ...rest }) => rest);
+    const mapZoos = zoos.map(({ id, name, city, latitude, longitude }) => ({
+      id,
+      slug: id,
+      name,
+      city,
+      latitude,
+      longitude,
+    }));
     const fetchMock = vi.fn((url) => {
       if (url.startsWith(`${API}/zoos/continents`))
         return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
-      if (url.startsWith(`${API}/zoos`))
-        return Promise.resolve({ ok: true, json: () => Promise.resolve(zoos) });
+      if (url.startsWith(`${API}/zoos/map`))
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(mapZoos) });
+      if (url.startsWith(`${API}/zoos?`))
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(paginated(listZoos)),
+        });
       if (url.startsWith(`${API}/visits/ids`))
         return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
       if (url.startsWith(`${API}/zoos/countries`))
@@ -229,6 +292,8 @@ describe('ZoosPage', () => {
         return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
       if (url.startsWith(`${API}/visits/ids`))
         return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      if (url.startsWith(`${API}/zoos/map`))
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
       if (url.startsWith(`${API}/zoos?`))
         return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
       return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
@@ -263,8 +328,10 @@ describe('ZoosPage', () => {
           ok: true,
           json: () => Promise.resolve({ latitude: 50.5, longitude: 8.6 }),
         });
-      if (url.startsWith(`${API}/zoos`))
-        return Promise.resolve({ ok: true, json: () => Promise.resolve(zoos) });
+      if (url.startsWith(`${API}/zoos/map`))
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      if (url.startsWith(`${API}/zoos?`))
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(paginated(zoos)) });
       return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
     });
     global.fetch = fetchMock;
@@ -279,12 +346,13 @@ describe('ZoosPage', () => {
     });
 
     await waitFor(() => {
-      const zooCall = fetchMock.mock.calls.find(([u]) =>
+      const zooCalls = fetchMock.mock.calls.filter(([u]) =>
         u.startsWith(`${API}/zoos?`)
       );
-      expect(zooCall).toBeDefined();
-      expect(zooCall[0]).toContain('latitude=50.5');
-      expect(zooCall[0]).toContain('longitude=8.6');
+      expect(zooCalls.length).toBeGreaterThan(0);
+      const lastCall = zooCalls[zooCalls.length - 1];
+      expect(lastCall[0]).toContain('latitude=50.5');
+      expect(lastCall[0]).toContain('longitude=8.6');
     });
   });
 
@@ -299,6 +367,7 @@ describe('ZoosPage', () => {
         longitude: null,
       },
     ];
+    const listZoos = zoos.map(({ latitude, longitude, ...rest }) => rest);
     const fetchMock = vi.fn((url) => {
       if (url.startsWith(`${API}/zoos/continents`))
         return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
@@ -311,8 +380,13 @@ describe('ZoosPage', () => {
           ok: true,
           json: () => Promise.resolve({ latitude: 40.1, longitude: -73.9 }),
         });
-      if (url.startsWith(`${API}/zoos`))
+      if (url.startsWith(`${API}/zoos/map`))
         return Promise.resolve({ ok: true, json: () => Promise.resolve(zoos) });
+      if (url.startsWith(`${API}/zoos?`))
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(paginated(listZoos)),
+        });
       return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
     });
     global.fetch = fetchMock;

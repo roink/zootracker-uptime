@@ -47,8 +47,16 @@ export default function SightingModal({
         return;
       }
       try {
-        const resp = await fetch(`${API}/zoos`);
-        if (resp.ok) setZoos(await resp.json());
+        const resp = await fetch(`${API}/zoos?limit=6000`);
+        if (resp.ok) {
+          const payload = await resp.json();
+          const items = Array.isArray(payload?.items)
+            ? payload.items
+            : Array.isArray(payload)
+              ? payload
+              : [];
+          setZoos(items);
+        }
       } catch {
         setZoos([]);
       }

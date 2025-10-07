@@ -1,6 +1,21 @@
-import pytest
-
 from .conftest import client
+
+
+def _extract_items(response_json):
+    """Helper to unwrap paginated zoo responses."""
+
+    if isinstance(response_json, dict) and "items" in response_json:
+        return response_json["items"], response_json
+    return (
+        response_json,
+        {
+            "items": response_json,
+            "total": len(response_json),
+            "limit": len(response_json),
+            "offset": 0,
+        },
+    )
+
 
 def test_get_animals_for_zoo(data):
     resp = client.get(f"/zoos/{data['zoo'].slug}/animals")
@@ -24,61 +39,51 @@ def test_get_zoo_invalid_id():
     resp = client.get("/zoos/missing-zoo")
     assert resp.status_code == 404
 
-def test_search_zoos_with_radius_returns_all(data):
-    """Even with a radius parameter all zoos should be returned."""
+def test_search_zoos_is_paginated_and_sorted_by_distance(data):
+    """The search endpoint returns paginated results ordered by distance."""
+
     params = {
         "latitude": data["zoo"].latitude,
         "longitude": data["zoo"].longitude,
-        "radius_km": 100,
+        "limit": 1,
+        "offset": 0,
     }
     resp = client.get("/zoos", params=params)
     assert resp.status_code == 200
-    body = resp.json()
-    ids = {z["id"] for z in body}
-    assert str(data["zoo"].id) in ids
-    assert str(data["far_zoo"].id) in ids
-    assert all("slug" in z for z in body)
-    assert all("latitude" in z and "longitude" in z for z in body)
-    assert all("country_name_en" in z for z in body)
-    assert all("country_name_de" in z for z in body)
-    assert any(
-        pytest.approx(float(data["zoo"].latitude)) == z["latitude"]
-        and pytest.approx(float(data["zoo"].longitude)) == z["longitude"]
-        for z in body
-    )
-    dists = [z["distance_km"] for z in body]
-    assert dists == sorted(dists)
-    assert any(z["city"] == "Metropolis" for z in body)
+    first_items, meta = _extract_items(resp.json())
+    assert meta["offset"] == 0
+    assert meta["limit"] == 1
+    assert meta["total"] >= 2
+    assert len(first_items) == 1
+    first = first_items[0]
+    assert first["slug"] == data["zoo"].slug
+    assert "latitude" not in first
+    assert "longitude" not in first
+    assert first["distance_km"] == 0
 
-
-def test_search_zoos_without_radius_returns_all(data):
-    """Supplying coordinates without a radius should return all zoos."""
-    params = {
-        "latitude": data["zoo"].latitude,
-        "longitude": data["zoo"].longitude,
-    }
+    params["offset"] = 1
     resp = client.get("/zoos", params=params)
     assert resp.status_code == 200
-    body = resp.json()
-    ids = {z["id"] for z in body}
-    assert str(data["zoo"].id) in ids
-    assert str(data["far_zoo"].id) in ids
-    assert all("latitude" in z and "longitude" in z for z in body)
-    assert any(z["country_name_en"] == "Germany" for z in body)
-    assert any(z["country_name_de"] == "Deutschland" for z in body)
+    second_items, meta = _extract_items(resp.json())
+    assert meta["offset"] == 1
+    assert len(second_items) == 1
+    assert second_items[0]["slug"] == data["far_zoo"].slug
 
-def test_search_zoos_name_only(data):
-    """Name search should work without location parameters."""
+
+def test_search_zoos_without_coordinates_returns_by_name(data):
+    """Name filters work without providing location information."""
+
     resp = client.get("/zoos", params={"q": "Central"})
     assert resp.status_code == 200
-    names = [z["name"] for z in resp.json()]
+    items, _ = _extract_items(resp.json())
+    names = [z["name"] for z in items]
     assert "Central Zoo" in names
-
 
 def test_search_zoos_by_city(data):
     resp = client.get("/zoos", params={"q": data["zoo"].city})
     assert resp.status_code == 200
-    names = [z["name"] for z in resp.json()]
+    items, _ = _extract_items(resp.json())
+    names = [z["name"] for z in items]
     assert "Central Zoo" in names
 
 
@@ -96,9 +101,21 @@ def test_list_continents_and_countries():
 
 
 def test_search_zoos_by_country(data):
-    resp = client.get("/zoos", params={"country_id": 1})
+    resp = client.get("/zoos", params={"country_id": 1, "limit": 10})
     assert resp.status_code == 200
-    names = [z["name"] for z in resp.json()]
+    items, _ = _extract_items(resp.json())
+    names = [z["name"] for z in items]
     assert "Central Zoo" in names
     assert "Far Zoo" not in names
+
+
+def test_map_endpoint_returns_coordinates(data):
+    resp = client.get("/zoos/map")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert isinstance(body, list)
+    ids = {z["id"] for z in body}
+    assert str(data["zoo"].id) in ids
+    assert str(data["far_zoo"].id) in ids
+    assert any(z.get("latitude") is not None for z in body)
 

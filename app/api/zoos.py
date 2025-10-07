@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import or_, exists
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, load_only, Query as SQLAQuery
 
 from .. import schemas, models
 from ..database import get_db
@@ -10,32 +10,35 @@ from .deps import resolve_coords
 
 router = APIRouter()
 
-@router.get("/zoos", response_model=list[schemas.ZooSearchResult])
-def search_zoos(
-    q: str = "",
-    continent_id: int | None = None,
-    country_id: int | None = None,
-    coords: tuple[float | None, float | None] = Depends(resolve_coords),
-    db: Session = Depends(get_db),
-):
-    """Search for zoos by name, region and optional distance."""
 
-    if continent_id is not None and country_id is not None:
-        exists_country = (
-            db.query(models.CountryName)
-            .filter(
-                models.CountryName.id == country_id,
-                models.CountryName.continent_id == continent_id,
-            )
-            .first()
+def _validate_region_filters(
+    db: Session, continent_id: int | None, country_id: int | None
+) -> None:
+    """Ensure the provided country belongs to the selected continent."""
+
+    if continent_id is None or country_id is None:
+        return
+
+    exists_country = (
+        db.query(models.CountryName)
+        .filter(
+            models.CountryName.id == country_id,
+            models.CountryName.continent_id == continent_id,
         )
-        if not exists_country:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="country_id does not belong to continent_id",
-            )
+        .first()
+    )
+    if exists_country is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="country_id does not belong to continent_id",
+        )
 
-    query = db.query(models.Zoo).options(joinedload(models.Zoo.country))
+
+def _apply_zoo_filters(
+    query: SQLAQuery, q: str, continent_id: int | None, country_id: int | None
+):
+    """Apply shared filters to the base zoo query."""
+
     if q:
         pattern = f"%{q}%"
         query = query.filter(
@@ -45,22 +48,96 @@ def search_zoos(
         query = query.filter(models.Zoo.continent_id == continent_id)
     if country_id is not None:
         query = query.filter(models.Zoo.country_id == country_id)
+    return query
 
+
+@router.get("/zoos", response_model=schemas.ZooSearchPage)
+def search_zoos(
+    q: str = "",
+    continent_id: int | None = None,
+    country_id: int | None = None,
+    limit: int = Query(default=20, ge=1, le=10000),
+    offset: int = Query(default=0, ge=0),
+    coords: tuple[float | None, float | None] = Depends(resolve_coords),
+    db: Session = Depends(get_db),
+):
+    """Search for zoos by name, region and optional distance."""
+
+    _validate_region_filters(db, continent_id, country_id)
+
+    query = db.query(models.Zoo).options(joinedload(models.Zoo.country))
+    query = _apply_zoo_filters(query, q, continent_id, country_id)
+
+    total = query.count()
     latitude, longitude = coords
-    results = query_zoos_with_distance(query, latitude, longitude)
+
+    items: list[schemas.ZooSearchResult] = []
+    if total and offset < total:
+        results = query_zoos_with_distance(
+            query,
+            latitude,
+            longitude,
+            limit=limit,
+            offset=offset,
+        )
+        items = [
+            schemas.ZooSearchResult(
+                id=z.id,
+                slug=z.slug,
+                name=z.name,
+                city=z.city,
+                distance_km=dist,
+                country_name_en=z.country.name_en if z.country else None,
+                country_name_de=z.country.name_de if z.country else None,
+            )
+            for z, dist in results
+        ]
+
+    return schemas.ZooSearchPage(
+        items=items,
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.get("/zoos/map", response_model=list[schemas.ZooMapPoint])
+def list_zoos_for_map(
+    q: str = "",
+    continent_id: int | None = None,
+    country_id: int | None = None,
+    db: Session = Depends(get_db),
+):
+    """Return minimal data for plotting zoos on the world map."""
+
+    _validate_region_filters(db, continent_id, country_id)
+
+    query = (
+        db.query(models.Zoo)
+        .options(
+            load_only(
+                models.Zoo.id,
+                models.Zoo.slug,
+                models.Zoo.name,
+                models.Zoo.city,
+                models.Zoo.latitude,
+                models.Zoo.longitude,
+            )
+        )
+    )
+    query = _apply_zoo_filters(query, q, continent_id, country_id)
+
+    zoos = query.order_by(models.Zoo.name).all()
     return [
-        schemas.ZooSearchResult(
+        schemas.ZooMapPoint(
             id=z.id,
             slug=z.slug,
             name=z.name,
             city=z.city,
             latitude=float(z.latitude) if z.latitude is not None else None,
             longitude=float(z.longitude) if z.longitude is not None else None,
-            distance_km=dist,
-            country_name_en=z.country.name_en if z.country else None,
-            country_name_de=z.country.name_de if z.country else None,
         )
-        for z, dist in results
+        for z in zoos
     ]
 
 

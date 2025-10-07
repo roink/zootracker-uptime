@@ -90,7 +90,18 @@ export function LogSighting({
       fetch(`${API}/animals`).then(r => r.json()).then(setAnimals);
     }
     if (!propZoos) {
-      fetch(`${API}/zoos`).then(r => r.json()).then(setZoos);
+      fetch(`${API}/zoos?limit=6000`)
+        .then((r) => (r.ok ? r.json() : []))
+        .then((data) => {
+          if (Array.isArray(data?.items)) {
+            setZoos(data.items);
+          } else if (Array.isArray(data)) {
+            setZoos(data);
+          } else {
+            setZoos([]);
+          }
+        })
+        .catch(() => setZoos([]));
     }
   }, [propAnimals, propZoos]);
 
