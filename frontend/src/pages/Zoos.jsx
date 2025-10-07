@@ -304,10 +304,11 @@ export default function ZoosPage() {
     if (spQ !== query) setQuery(spQ);
     if (spCont !== continentId) setContinentId(spCont);
     if (spCountry !== countryId) setCountryId(spCountry);
-    if (spVisitNorm !== visitFilter) setVisitFilter(spVisitNorm);
+    const effectiveVisit = !isAuthenticated ? 'all' : spVisitNorm;
+    if (effectiveVisit !== visitFilter) setVisitFilter(effectiveVisit);
     if (spView !== viewMode) setViewMode(spView);
     if (spFavorites !== favoritesOnly) handleFavoritesToggle(spFavorites);
-  }, [searchParams]);
+  }, [searchParams, isAuthenticated]);
 
   useEffect(() => {
     // State ➜ URL, but only if different (avoid loops & history spam)
@@ -914,9 +915,11 @@ export default function ZoosPage() {
               <fieldset
                 className="btn-group w-100"
                 role="group"
-                aria-label="Visit filter"
+                aria-label={t('zoo.visitFilterLabel')}
               >
-                <legend className="visually-hidden">Visit filter</legend>
+                <legend className="visually-hidden">
+                  {t('zoo.visitFilterLabel')}
+                </legend>
                 <input
                   type="radio"
                   className="btn-check"
@@ -942,7 +945,7 @@ export default function ZoosPage() {
                   autoComplete="off"
                   checked={visitFilter === 'visited'}
                   onChange={() => updateVisitFilter('visited')}
-                  disabled={visitedLoading || !isAuthenticated}
+                  disabled={visitedLoading}
                 />
                 <label
                   className="btn btn-outline-primary"
@@ -959,7 +962,7 @@ export default function ZoosPage() {
                   autoComplete="off"
                   checked={visitFilter === 'not'}
                   onChange={() => updateVisitFilter('not')}
-                  disabled={visitedLoading || !isAuthenticated}
+                  disabled={visitedLoading}
                 />
                 <label className="btn btn-outline-primary" htmlFor="visit-not">
                   {t('zoo.notVisited')}
@@ -974,14 +977,27 @@ export default function ZoosPage() {
               )}
             </>
           ) : (
-            <div className="alert alert-info mb-0" role="alert">
+            <div
+              className="alert alert-info mb-0"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+            >
               <Trans
                 i18nKey="zoo.visitFilterLoginPrompt"
                 components={{
                   login: <Link className="alert-link" to={`${prefix}/login`} />,
-                  signup: <Link className="alert-link" to={`${prefix}/login`} />,
+                  signup: (
+                    <Link
+                      className="alert-link"
+                      to={`${prefix}/login#signup`}
+                    />
+                  ),
                 }}
               />
+              <p className="mb-0 small mt-2">
+                {t('zoo.visitFilterLoginBenefits')}
+              </p>
             </div>
           )}
         </div>

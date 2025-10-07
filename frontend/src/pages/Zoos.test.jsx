@@ -221,6 +221,28 @@ describe('ZoosPage', () => {
     });
   });
 
+  it('prompts anonymous visitors to sign in for visit filters', async () => {
+    clearStoredAuth();
+    const fetchMock = createZooFetchMock({
+      extra: {
+        [`${API}/auth/refresh`]: () =>
+          Promise.resolve({ ok: false, status: 401 }),
+      },
+    });
+    global.fetch = fetchMock;
+
+    renderWithRouter(<ZoosPage />, { auth: null });
+
+    const region = await screen.findByRole('status');
+    expect(region).toHaveTextContent(/Log in/i);
+    expect(region).toHaveTextContent(/create an account/i);
+    expect(screen.getByRole('link', { name: /Log in/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: /create an account/i })
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Visited/i)).toBeNull();
+  });
+
   it('reads visit filter from URL', async () => {
     const zoos = [
       {
