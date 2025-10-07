@@ -33,9 +33,12 @@ export default function Dashboard({ refresh, onUpdate }) {
   const { data: zooMap = {}, isFetching: zoosFetching } = useQuery({
     queryKey: ['zoos'],
     queryFn: async ({ signal }) => {
-      const r = await fetch(`${API}/zoos`, { signal });
+      const r = await fetch(`${API}/zoos?limit=6000`, { signal });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      return r.json();
+      const payload = await r.json();
+      if (Array.isArray(payload?.items)) return payload.items;
+      if (Array.isArray(payload)) return payload;
+      return [];
     },
     staleTime: Infinity,
     gcTime: 30 * 60 * 1000,

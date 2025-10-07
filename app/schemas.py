@@ -73,9 +73,31 @@ class ZooSearchResult(BaseModel):
     city: Optional[str] = None
     country_name_de: Optional[str] = None
     country_name_en: Optional[str] = None
+    distance_km: Optional[float] = None
+
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
+
+
+class ZooSearchPage(BaseModel):
+    """Paginated response returned by the zoo search endpoint."""
+
+    items: list[ZooSearchResult]
+    total: int
+    limit: int
+    offset: int
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class ZooMapPoint(BaseModel):
+    """Minimal data required to plot zoos on the map."""
+
+    id: UUID
+    slug: str
+    name: str
+    city: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
-    distance_km: Optional[float] = None
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 
