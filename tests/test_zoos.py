@@ -158,14 +158,33 @@ def test_user_visited_zoo_endpoints_return_filtered_results(data):
     assert meta["total"] == 1
     assert items[0]["id"] == str(data["zoo"].id)
     assert resp.headers.get("Cache-Control") == "private, no-store, max-age=0"
-    assert resp.headers.get("Vary") == "Authorization"
+    assert "Authorization" in (resp.headers.get("Vary") or "")
 
     map_resp = client.get(f"/users/{user_id}/zoos/visited/map", headers=headers)
     assert map_resp.status_code == 200
     map_ids = {z["id"] for z in map_resp.json()}
     assert str(data["zoo"].id) in map_ids
     assert map_resp.headers.get("Cache-Control") == "private, no-store, max-age=0"
-    assert map_resp.headers.get("Vary") == "Authorization"
+    assert "Authorization" in (map_resp.headers.get("Vary") or "")
+
+
+def test_user_visited_zoos_include_favorite_flag(data):
+    token, user_id = register_and_login()
+    db = SessionLocal()
+    visit = models.ZooVisit(user_id=user_id, zoo_id=data["zoo"].id, visit_date=date.today())
+    db.add(visit)
+    db.commit()
+    db.close()
+
+    headers = {"Authorization": f"Bearer {token}"}
+    fav_resp = client.put(f"/zoos/{data['zoo'].slug}/favorite", headers=headers)
+    assert fav_resp.status_code == 200
+
+    resp = client.get(f"/users/{user_id}/zoos/visited", headers=headers)
+    assert resp.status_code == 200
+    items, _ = _extract_items(resp.json())
+    target = next(item for item in items if item["id"] == str(data["zoo"].id))
+    assert target["is_favorite"] is True
 
 
 def test_user_not_visited_endpoints_exclude_visited_zoos(data):
@@ -189,7 +208,7 @@ def test_user_not_visited_endpoints_exclude_visited_zoos(data):
     assert str(data["far_zoo"].id) in ids
     assert str(data["zoo"].id) not in ids
     assert resp.headers.get("Cache-Control") == "private, no-store, max-age=0"
-    assert resp.headers.get("Vary") == "Authorization"
+    assert "Authorization" in (resp.headers.get("Vary") or "")
 
     map_resp = client.get(f"/users/{user_id}/zoos/not-visited/map", headers=headers)
     assert map_resp.status_code == 200
@@ -197,7 +216,7 @@ def test_user_not_visited_endpoints_exclude_visited_zoos(data):
     assert str(data["far_zoo"].id) in map_ids
     assert str(data["zoo"].id) not in map_ids
     assert map_resp.headers.get("Cache-Control") == "private, no-store, max-age=0"
-    assert map_resp.headers.get("Vary") == "Authorization"
+    assert "Authorization" in (map_resp.headers.get("Vary") or "")
 
 
 def test_zoo_favorites_flow(data):
@@ -215,6 +234,12 @@ def test_zoo_favorites_flow(data):
     assert len(items) == 1
     assert items[0]["id"] == str(data["zoo"].id)
     assert items[0]["is_favorite"] is True
+
+    general_resp = client.get("/zoos", headers=headers)
+    assert general_resp.status_code == 200
+    general_items, _ = _extract_items(general_resp.json())
+    target = next(item for item in general_items if item["id"] == str(data["zoo"].id))
+    assert target["is_favorite"] is True
 
     detail_resp = client.get(f"/zoos/{data['zoo'].slug}", headers=headers)
     assert detail_resp.status_code == 200

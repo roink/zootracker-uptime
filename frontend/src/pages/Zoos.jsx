@@ -14,6 +14,7 @@ import { useAuth } from '../auth/AuthContext.jsx';
 import ZoosMap from '../components/ZoosMap.jsx';
 import { normalizeCoordinates } from '../utils/coordinates.js';
 import { getZooDisplayName } from '../utils/zooDisplayName.js';
+import FavoriteBadge from '../components/FavoriteBadge.jsx';
 
 const LOCATION_STORAGE_KEY = 'userLocation';
 const PAGE_SIZE = 20;
@@ -385,7 +386,7 @@ export default function ZoosPage() {
     }
     return {
       url: `${API}/zoos`,
-      requiresAuth: false,
+      requiresAuth: isAuthenticated,
       ready: true,
     };
   }, [favoritesOnly, isAuthenticated, visitFilterActive, userId, visitSegment]);
@@ -1052,15 +1053,7 @@ export default function ZoosPage() {
                         <div>
                           <div className="fw-bold d-flex align-items-center gap-1">
                             {getZooDisplayName(z)}
-                            {z.is_favorite && (
-                              <span
-                                className="text-warning"
-                                role="img"
-                                aria-label={t('zoo.favoriteBadge')}
-                              >
-                                ★
-                              </span>
-                            )}
+                            <FavoriteBadge isFavorite={Boolean(z.is_favorite)} />
                           </div>
                           {countryName && (
                             <div className="text-muted">{countryName}</div>

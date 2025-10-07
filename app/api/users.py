@@ -10,6 +10,7 @@ from ..database import get_db
 from .deps import require_json, resolve_coords
 from .common_filters import apply_zoo_filters, validate_region_filters
 from ..utils.geometry import query_zoos_with_distance
+from ..utils.http import set_personalized_cache_headers
 
 router = APIRouter()
 
@@ -39,15 +40,30 @@ def _visited_zoo_ids_subquery(db: Session, user_id: uuid.UUID):
     return visits.union(sightings).subquery()
 
 
+def _favorite_zoo_ids(db: Session, user_id: uuid.UUID) -> set[uuid.UUID]:
+    """Return the set of zoo IDs the user has favorited."""
+
+    return {
+        row[0]
+        for row in (
+            db.query(models.UserFavoriteZoo.zoo_id)
+            .filter(models.UserFavoriteZoo.user_id == user_id)
+            .all()
+        )
+    }
+
+
 def _build_user_zoo_page(
     query,
     latitude: float | None,
     longitude: float | None,
     limit: int,
     offset: int,
+    favorite_ids: set[uuid.UUID] | None = None,
 ):
     """Execute a paginated zoo query and serialize the response."""
 
+    favorite_ids = favorite_ids or set()
     total = query.count()
     items: list[schemas.ZooSearchResult] = []
     if total and offset < total:
@@ -67,6 +83,7 @@ def _build_user_zoo_page(
                 distance_km=distance,
                 country_name_en=z.country.name_en if z.country else None,
                 country_name_de=z.country.name_de if z.country else None,
+                is_favorite=z.id in favorite_ids,
             )
             for z, distance in results
         ]
@@ -141,9 +158,11 @@ def list_user_visited_zoos(
     query = apply_zoo_filters(query, q, continent_id, country_id)
 
     latitude, longitude = coords
-    response.headers["Cache-Control"] = "private, no-store, max-age=0"
-    response.headers["Vary"] = "Authorization"
-    return _build_user_zoo_page(query, latitude, longitude, limit, offset)
+    set_personalized_cache_headers(response)
+    favorite_ids = _favorite_zoo_ids(db, user_id)
+    return _build_user_zoo_page(
+        query, latitude, longitude, limit, offset, favorite_ids=favorite_ids
+    )
 
 
 @router.get(
@@ -173,9 +192,11 @@ def list_user_not_visited_zoos(
     query = apply_zoo_filters(query, q, continent_id, country_id)
 
     latitude, longitude = coords
-    response.headers["Cache-Control"] = "private, no-store, max-age=0"
-    response.headers["Vary"] = "Authorization"
-    return _build_user_zoo_page(query, latitude, longitude, limit, offset)
+    set_personalized_cache_headers(response)
+    favorite_ids = _favorite_zoo_ids(db, user_id)
+    return _build_user_zoo_page(
+        query, latitude, longitude, limit, offset, favorite_ids=favorite_ids
+    )
 
 
 @router.get(
@@ -213,8 +234,7 @@ def list_user_visited_zoos_for_map(
     )
     query = apply_zoo_filters(query, q, continent_id, country_id)
     zoos = query.order_by(models.Zoo.name).all()
-    response.headers["Cache-Control"] = "private, no-store, max-age=0"
-    response.headers["Vary"] = "Authorization"
+    set_personalized_cache_headers(response)
     return _serialize_map_points(zoos)
 
 
@@ -253,8 +273,7 @@ def list_user_not_visited_zoos_for_map(
     )
     query = apply_zoo_filters(query, q, continent_id, country_id)
     zoos = query.order_by(models.Zoo.name).all()
-    response.headers["Cache-Control"] = "private, no-store, max-age=0"
-    response.headers["Vary"] = "Authorization"
+    set_personalized_cache_headers(response)
     return _serialize_map_points(zoos)
 
 @router.get("/users/{user_id}/animals", response_model=list[schemas.AnimalRead])

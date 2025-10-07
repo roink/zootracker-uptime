@@ -5,18 +5,12 @@ from sqlalchemy.orm import Session, joinedload, load_only
 from .. import schemas, models
 from ..database import get_db
 from ..utils.geometry import query_zoos_with_distance
+from ..utils.http import set_personalized_cache_headers
 from ..auth import get_current_user, get_optional_user
 from .deps import resolve_coords
 from .common_filters import apply_zoo_filters, validate_region_filters
 
 router = APIRouter()
-
-
-def _set_private_cache_headers(response: Response) -> None:
-    """Prevent intermediaries from caching personalized favorite data."""
-
-    response.headers["Cache-Control"] = "private, no-store, max-age=0"
-    response.headers["Vary"] = "Authorization"
 
 
 @router.get("/zoos", response_model=schemas.ZooSearchPage)
@@ -34,7 +28,7 @@ def search_zoos(
 ):
     """Search for zoos by name, region and optional distance."""
 
-    _set_private_cache_headers(response)
+    set_personalized_cache_headers(response)
 
     validate_region_filters(db, continent_id, country_id)
 
@@ -108,7 +102,7 @@ def list_zoos_for_map(
 ):
     """Return minimal data for plotting zoos on the world map."""
 
-    _set_private_cache_headers(response)
+    set_personalized_cache_headers(response)
 
     validate_region_filters(db, continent_id, country_id)
 
@@ -204,7 +198,7 @@ def get_zoo(
 ):
     """Retrieve detailed information about a zoo."""
 
-    _set_private_cache_headers(response)
+    set_personalized_cache_headers(response)
 
     zoo = _get_zoo_or_404(zoo_slug, db)
     if user is not None:
@@ -307,7 +301,7 @@ def list_zoo_animals(
 ):
     """Return animals that are associated with a specific zoo."""
 
-    _set_private_cache_headers(response)
+    set_personalized_cache_headers(response)
 
     zoo = _get_zoo_or_404(zoo_slug, db)
     favorites: set = set()

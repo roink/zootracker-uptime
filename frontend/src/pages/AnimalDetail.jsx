@@ -15,6 +15,7 @@ import SightingModal from '../components/SightingModal';
 import Seo from '../components/Seo';
 import { useAuth } from '../auth/AuthContext.jsx';
 import ZoosMap from '../components/ZoosMap.jsx';
+import FavoriteBadge from '../components/FavoriteBadge.jsx';
 import '../styles/animal-detail.css';
 
 // Map IUCN codes to labels and bootstrap badge classes
@@ -786,7 +787,13 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
                         }
                       }}
                     >
-                      <td>{displayName}</td>
+                      <td>
+                        <span className="d-inline-flex align-items-center gap-1">
+                          {displayName}
+                          {/* Highlight favorite zoos with a shared badge component. */}
+                          <FavoriteBadge isFavorite={Boolean(z.is_favorite)} />
+                        </span>
+                      </td>
                       {userLocation && (
                         <td className="text-end">
                           {z.distance_km != null ? z.distance_km.toFixed(1) : ''}
