@@ -18,6 +18,28 @@ import { getZooDisplayName } from '../utils/zooDisplayName.js';
 const LOCATION_STORAGE_KEY = 'userLocation';
 const PAGE_SIZE = 20;
 
+function normalizeZooPage(payload, fallbackOffset = 0) {
+  if (payload && typeof payload === 'object' && Array.isArray(payload.items)) {
+    const items = Array.isArray(payload.items) ? payload.items : [];
+    const total = Number.isFinite(payload.total) ? payload.total : items.length;
+    const offset = Number.isFinite(payload.offset)
+      ? payload.offset
+      : fallbackOffset;
+    const limit = Number.isFinite(payload.limit) ? payload.limit : items.length;
+    return { items, total, offset, limit };
+  }
+  if (Array.isArray(payload)) {
+    const items = payload;
+    return {
+      items,
+      total: items.length,
+      offset: fallbackOffset,
+      limit: items.length,
+    };
+  }
+  return { items: [], total: 0, offset: fallbackOffset, limit: 0 };
+}
+
 /**
  * @typedef {Object} CameraState
  * @property {[number, number]} center Longitude and latitude pair used to restore the viewport.
@@ -110,7 +132,7 @@ export default function ZoosPage() {
   const [estimatedLocation, setEstimatedLocation] = useState(null);
   const [location, setLocation] = useState(() => readStoredLocation());
   const authFetch = useAuthFetch();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const { t } = useTranslation();
   const navigate = useNavigate();
   const locationState = useLocation();
@@ -284,48 +306,63 @@ export default function ZoosPage() {
   );
 
   useEffect(() => {
-    const controller = new AbortController();
     if (mapRequestRef.current) {
       mapRequestRef.current.abort();
     }
+    const controller = new AbortController();
     mapRequestRef.current = controller;
-    setMapLoading(true);
+    setMapLoading(mapZoos.length === 0);
     setMapError(null);
+
+    if (!mapRequestConfig.ready || !mapRequestConfig.url) {
+      return () => {
+        if (mapRequestRef.current === controller) {
+          mapRequestRef.current = null;
+        }
+        controller.abort();
+      };
+    }
 
     const params = new URLSearchParams();
     if (mapFilters.q) params.set('q', mapFilters.q);
     if (mapFilters.continent) params.set('continent_id', mapFilters.continent);
     if (mapFilters.country) params.set('country_id', mapFilters.country);
+    const paramsString = params.toString();
+    const requestUrl = `${mapRequestConfig.url}${paramsString ? `?${paramsString}` : ''}`;
+    const fetcher = mapRequestConfig.requiresAuth ? authFetch : fetch;
 
-    fetch(`${API}/zoos/map${params.toString() ? `?${params.toString()}` : ''}`, {
-      signal: controller.signal,
-    })
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      })
-      .then((data) => {
+    (async () => {
+      try {
+        const response = await fetcher(requestUrl, { signal: controller.signal });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        const data = await response.json();
         if (!controller.signal.aborted) {
           setMapZoos(Array.isArray(data) ? data : []);
         }
-      })
-      .catch((error) => {
+      } catch (error) {
         if (!controller.signal.aborted) {
           setMapZoos([]);
           setMapError(error instanceof Error ? error.message : 'Failed to load map data');
         }
-      })
-      .finally(() => {
+      } finally {
         if (!controller.signal.aborted) {
           setMapLoading(false);
+        }
+        if (mapRequestRef.current === controller) {
           mapRequestRef.current = null;
         }
-      });
+      }
+    })();
 
     return () => {
+      if (mapRequestRef.current === controller) {
+        mapRequestRef.current = null;
+      }
       controller.abort();
     };
-  }, [mapFiltersKey]);
+  }, [mapFiltersKey, mapFilters, mapRequestConfig, authFetch, mapZoos.length]);
 
   useEffect(() => {
     fetch(`${API}/zoos/continents`)
@@ -384,6 +421,46 @@ export default function ZoosPage() {
     [listFilters]
   );
 
+  const visitFilterActive = visitFilter === 'visited' || visitFilter === 'not';
+  const visitSegment = visitFilter === 'visited' ? 'visited' : 'not-visited';
+  const userId = user?.id ?? null;
+
+  const listRequestConfig = useMemo(() => {
+    if (isAuthenticated && visitFilterActive) {
+      if (!userId) {
+        return {
+          url: null,
+          requiresAuth: true,
+          ready: false,
+        };
+      }
+      return {
+        url: `${API}/users/${userId}/zoos/${visitSegment}`,
+        requiresAuth: true,
+        ready: true,
+      };
+    }
+    return {
+      url: `${API}/zoos`,
+      requiresAuth: false,
+      ready: true,
+    };
+  }, [isAuthenticated, visitFilterActive, userId, visitSegment]);
+
+  const mapRequestConfig = useMemo(() => {
+    if (isAuthenticated && visitFilterActive) {
+      if (!userId) {
+        return { url: null, requiresAuth: true, ready: false };
+      }
+      return {
+        url: `${API}/users/${userId}/zoos/${visitSegment}/map`,
+        requiresAuth: true,
+        ready: true,
+      };
+    }
+    return { url: `${API}/zoos/map`, requiresAuth: false, ready: true };
+  }, [isAuthenticated, visitFilterActive, userId, visitSegment]);
+
   useEffect(() => {
     if (listRequestRef.current) {
       listRequestRef.current.abort();
@@ -397,6 +474,15 @@ export default function ZoosPage() {
     setNextOffset(0);
     setListLoading(zoosRef.current.length === 0);
 
+    if (!listRequestConfig.ready || !listRequestConfig.url) {
+      return () => {
+        if (listRequestRef.current === controller) {
+          listRequestRef.current = null;
+        }
+        controller.abort();
+      };
+    }
+
     const params = new URLSearchParams();
     if (listFilters.q) params.set('q', listFilters.q);
     if (listFilters.continent) params.set('continent_id', listFilters.continent);
@@ -409,49 +495,42 @@ export default function ZoosPage() {
     }
     params.set('limit', String(PAGE_SIZE));
     params.set('offset', '0');
+    const paramsString = params.toString();
+    const requestUrl = `${listRequestConfig.url}${paramsString ? `?${paramsString}` : ''}`;
+    const fetcher = listRequestConfig.requiresAuth ? authFetch : fetch;
 
     let active = true;
 
-    fetch(`${API}/zoos${params.toString() ? `?${params.toString()}` : ''}`, {
-      signal: controller.signal,
-    })
-      .then((resp) => {
-        if (!resp.ok) {
-          throw new Error(`HTTP ${resp.status}`);
+    (async () => {
+      try {
+        const response = await fetcher(requestUrl, { signal: controller.signal });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
         }
-        return resp.json();
-      })
-      .then((data) => {
+        const data = await response.json();
         if (!active || controller.signal.aborted) {
           return;
         }
-        const items = Array.isArray(data?.items)
-          ? data.items
-          : Array.isArray(data)
-            ? data
-            : [];
-        const newOffset = items.length;
-        const total = Number.isFinite(data?.total) ? data.total : newOffset;
-        setZoos(items);
+        const page = normalizeZooPage(data, 0);
+        setZoos(page.items);
+        const newOffset = page.offset + page.items.length;
         setNextOffset(newOffset);
-        setTotalZoos(total);
-        setHasMore(newOffset < total && items.length > 0);
-      })
-      .catch((error) => {
+        setTotalZoos(page.total);
+        setHasMore(newOffset < page.total && page.items.length > 0);
+      } catch (error) {
         if (!active || controller.signal.aborted) {
           return;
         }
         setListError(error instanceof Error ? error.message : 'Failed to load zoos');
-      })
-      .finally(() => {
-        if (!active) {
-          return;
-        }
+      } finally {
         if (listRequestRef.current === controller) {
           listRequestRef.current = null;
         }
-        setListLoading(false);
-      });
+        if (!controller.signal.aborted && active) {
+          setListLoading(false);
+        }
+      }
+    })();
 
     return () => {
       active = false;
@@ -460,10 +539,11 @@ export default function ZoosPage() {
       }
       controller.abort();
     };
-  }, [listFiltersKey, listFilters]);
+  }, [listFiltersKey, listFilters, listRequestConfig, authFetch]);
 
   const loadNextPage = useCallback(async () => {
     if (listRequestRef.current || listLoading || !hasMore) return;
+    if (!listRequestConfig.ready || !listRequestConfig.url) return;
 
     const controller = new AbortController();
     listRequestRef.current = controller;
@@ -482,27 +562,25 @@ export default function ZoosPage() {
     }
     params.set('limit', String(PAGE_SIZE));
     params.set('offset', String(nextOffset));
+    const paramsString = params.toString();
+    const requestUrl = `${listRequestConfig.url}${paramsString ? `?${paramsString}` : ''}`;
+    const fetcher = listRequestConfig.requiresAuth ? authFetch : fetch;
 
     try {
-      const resp = await fetch(
-        `${API}/zoos${params.toString() ? `?${params.toString()}` : ''}`,
-        { signal: controller.signal }
-      );
-      if (!resp.ok) {
-        throw new Error(`HTTP ${resp.status}`);
+      const response = await fetcher(requestUrl, { signal: controller.signal });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
       }
-      const data = await resp.json();
-      const items = Array.isArray(data?.items)
-        ? data.items
-        : Array.isArray(data)
-          ? data
-          : [];
-      const newOffset = nextOffset + items.length;
-      const total = Number.isFinite(data?.total) ? data.total : newOffset;
-      setZoos((prev) => (nextOffset === 0 ? items : [...prev, ...items]));
+      const data = await response.json();
+      if (controller.signal.aborted) {
+        return;
+      }
+      const page = normalizeZooPage(data, nextOffset);
+      const newOffset = page.offset + page.items.length;
+      setZoos((prev) => (page.offset === 0 ? page.items : [...prev, ...page.items]));
       setNextOffset(newOffset);
-      setTotalZoos(total);
-      setHasMore(newOffset < total && items.length > 0);
+      setTotalZoos(page.total);
+      setHasMore(newOffset < page.total && page.items.length > 0);
     } catch (error) {
       if (!controller.signal.aborted) {
         setListError(error instanceof Error ? error.message : 'Failed to load zoos');
@@ -511,13 +589,17 @@ export default function ZoosPage() {
       if (listRequestRef.current === controller) {
         listRequestRef.current = null;
       }
-      setListLoading(false);
+      if (!controller.signal.aborted) {
+        setListLoading(false);
+      }
     }
   }, [
     listFilters,
     listLoading,
     hasMore,
     nextOffset,
+    listRequestConfig,
+    authFetch,
   ]);
 
   useEffect(() => {
@@ -612,9 +694,19 @@ export default function ZoosPage() {
       .finally(() => setVisitedLoading(false));
   }, [isAuthenticated, authFetch]);
 
+  useEffect(() => {
+    if (!isAuthenticated && (visitFilter === 'visited' || visitFilter === 'not')) {
+      setVisitFilter('all');
+    }
+  }, [isAuthenticated, visitFilter]);
+
   const visitedSet = useMemo(() => new Set(visitedIds.map(String)), [visitedIds]);
 
   const updateVisitFilter = (v) => {
+    if ((v === 'visited' || v === 'not') && !isAuthenticated) {
+      setVisitFilter('all');
+      return;
+    }
     setVisitFilter(v);
   };
 
@@ -757,7 +849,7 @@ export default function ZoosPage() {
               autoComplete="off"
               checked={visitFilter === 'visited'}
               onChange={() => updateVisitFilter('visited')}
-              disabled={visitedLoading}
+              disabled={visitedLoading || !isAuthenticated}
             />
             <label
               className="btn btn-outline-primary"
@@ -774,7 +866,7 @@ export default function ZoosPage() {
               autoComplete="off"
               checked={visitFilter === 'not'}
               onChange={() => updateVisitFilter('not')}
-              disabled={visitedLoading}
+              disabled={visitedLoading || !isAuthenticated}
             />
             <label className="btn btn-outline-primary" htmlFor="visit-not">
               {t('zoo.notVisited')}

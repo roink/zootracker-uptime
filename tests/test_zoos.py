@@ -1,4 +1,6 @@
-from .conftest import client
+from datetime import date
+
+from .conftest import SessionLocal, client, models, register_and_login
 
 
 def _extract_items(response_json):
@@ -118,4 +120,74 @@ def test_map_endpoint_returns_coordinates(data):
     assert str(data["zoo"].id) in ids
     assert str(data["far_zoo"].id) in ids
     assert any(z.get("latitude") is not None for z in body)
+
+
+def test_user_zoo_endpoints_require_auth(data):
+    token, user_id = register_and_login()
+    assert token  # token returned but not used to ensure user exists
+
+    resp = client.get(f"/users/{user_id}/zoos/visited")
+    assert resp.status_code == 401
+
+    resp = client.get(f"/users/{user_id}/zoos/visited/map")
+    assert resp.status_code == 401
+
+
+def test_user_visited_zoo_endpoints_return_filtered_results(data):
+    token, user_id = register_and_login()
+    db = SessionLocal()
+    visit = models.ZooVisit(user_id=user_id, zoo_id=data["zoo"].id, visit_date=date.today())
+    db.add(visit)
+    db.commit()
+    db.close()
+
+    headers = {"Authorization": f"Bearer {token}"}
+    params = {
+        "limit": 1,
+        "offset": 0,
+        "latitude": data["zoo"].latitude,
+        "longitude": data["zoo"].longitude,
+    }
+    resp = client.get(f"/users/{user_id}/zoos/visited", params=params, headers=headers)
+    assert resp.status_code == 200
+    items, meta = _extract_items(resp.json())
+    assert meta["total"] == 1
+    assert items[0]["id"] == str(data["zoo"].id)
+    assert resp.headers.get("Cache-Control") == "private, no-store"
+
+    map_resp = client.get(f"/users/{user_id}/zoos/visited/map", headers=headers)
+    assert map_resp.status_code == 200
+    map_ids = {z["id"] for z in map_resp.json()}
+    assert str(data["zoo"].id) in map_ids
+    assert map_resp.headers.get("Cache-Control") == "private, no-store"
+
+
+def test_user_not_visited_endpoints_exclude_visited_zoos(data):
+    token, user_id = register_and_login()
+    db = SessionLocal()
+    visit = models.ZooVisit(user_id=user_id, zoo_id=data["zoo"].id, visit_date=date.today())
+    db.add(visit)
+    db.commit()
+    db.close()
+
+    headers = {"Authorization": f"Bearer {token}"}
+    resp = client.get(
+        f"/users/{user_id}/zoos/not-visited",
+        params={"limit": 10, "offset": 0, "q": "Zoo"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    items, meta = _extract_items(resp.json())
+    assert meta["total"] >= 1
+    ids = {item["id"] for item in items}
+    assert str(data["far_zoo"].id) in ids
+    assert str(data["zoo"].id) not in ids
+    assert resp.headers.get("Cache-Control") == "private, no-store"
+
+    map_resp = client.get(f"/users/{user_id}/zoos/not-visited/map", headers=headers)
+    assert map_resp.status_code == 200
+    map_ids = {z["id"] for z in map_resp.json()}
+    assert str(data["far_zoo"].id) in map_ids
+    assert str(data["zoo"].id) not in map_ids
+    assert map_resp.headers.get("Cache-Control") == "private, no-store"
 

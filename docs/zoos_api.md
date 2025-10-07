@@ -79,3 +79,49 @@ response.
 
 Zoos missing coordinates are included but can be filtered out by clients that
 require valid locations.
+
+## `GET /users/{user_id}/zoos/visited`
+
+Returns a paginated list of zoos the authenticated user has visited. The
+endpoint supports the same query parameters as `GET /zoos` and requires a
+Bearer token. Responses include a `Cache-Control: private, no-store` header so
+they are never cached by shared intermediaries.
+
+The payload structure matches `GET /zoos`:
+
+```
+{
+  "items": [
+    { "id": "…", "slug": "…", "name": "…", "distance_km": 1.2 }
+  ],
+  "total": 3,
+  "limit": 20,
+  "offset": 0
+}
+```
+
+## `GET /users/{user_id}/zoos/not-visited`
+
+Lists zoos the authenticated user has not visited yet. Pagination, filtering
+parameters, and response format mirror the public `GET /zoos` endpoint. The
+response also carries `Cache-Control: private, no-store` to prevent caching.
+
+## `GET /users/{user_id}/zoos/visited/map`
+
+Provides the map markers for zoos the user has visited. It accepts the same
+filters as `GET /zoos/map`, requires authentication, and returns the minimal
+marker payload:
+
+```
+[
+  { "id": "…", "slug": "…", "name": "…", "city": "…", "latitude": 52.52, "longitude": 13.405 }
+]
+```
+
+The response is marked `Cache-Control: private, no-store`.
+
+## `GET /users/{user_id}/zoos/not-visited/map`
+
+Works like the visited map endpoint but lists zoos the user has not visited. It
+shares the same filters, authentication requirement, response shape, and
+`Cache-Control: private, no-store` header.
