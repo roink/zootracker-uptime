@@ -786,25 +786,6 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
               ))}
             </div>
           )}
-          <div className="card mt-3">
-            <div className="card-body">
-              <h4 className="card-title mb-3">
-                {t('animal.sightingHistoryHeading')}
-              </h4>
-              <SightingHistoryList
-                sightings={history}
-                locale={locale}
-                isAuthenticated={isAuthenticated}
-                loading={historyLoading}
-                error={historyError}
-                messages={historyMessages}
-                onLogin={handleLoginRedirect}
-                formatDay={formatHistoryDay}
-                renderSighting={renderHistoryItem}
-                unauthenticatedContent={unauthenticatedHistory}
-              />
-            </div>
-          </div>
           {animalDesc && (
             <div className="card mt-3">
               <div className="card-body">
@@ -826,6 +807,26 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
               </div>
             </div>
           )}
+          <section
+            className={`mt-${animalDesc ? '4' : '3'} w-100`}
+            aria-labelledby="animal-sighting-history-heading"
+          >
+            <h4 id="animal-sighting-history-heading" className="mb-3">
+              {t('animal.sightingHistoryHeading')}
+            </h4>
+            <SightingHistoryList
+              sightings={history}
+              locale={locale}
+              isAuthenticated={isAuthenticated}
+              loading={historyLoading}
+              error={historyError}
+              messages={historyMessages}
+              onLogin={handleLoginRedirect}
+              formatDay={formatHistoryDay}
+              renderSighting={renderHistoryItem}
+              unauthenticatedContent={unauthenticatedHistory}
+            />
+          </section>
         </div>
       </div>
       <div className="card spaced-top-lg">
