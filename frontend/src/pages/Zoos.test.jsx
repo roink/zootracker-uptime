@@ -13,6 +13,8 @@ import ZoosPage from './Zoos.jsx';
 import { API } from '../api';
 import { createTestToken, setStoredAuth, clearStoredAuth } from '../test-utils/auth.js';
 
+const originalFetch = global.fetch;
+
 const paginated = (items) => ({
   items,
   total: items.length,
@@ -61,6 +63,8 @@ const createZooFetchMock = ({
   });
 
 describe('ZoosPage', () => {
+  let consoleWarnSpy;
+
   beforeEach(() => {
     vi.stubGlobal('navigator', {
       geolocation: { getCurrentPosition: (_s, e) => e() },
@@ -73,11 +77,19 @@ describe('ZoosPage', () => {
     });
     const token = createTestToken();
     setStoredAuth({ token, user: { id: 'user-1', email: 'user@example.com' } });
+    consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
   });
 
   afterEach(() => {
+    expect(consoleWarnSpy).not.toHaveBeenCalled();
+    consoleWarnSpy.mockRestore();
     clearStoredAuth();
     vi.unstubAllGlobals();
+    if (originalFetch) {
+      global.fetch = originalFetch;
+    } else {
+      delete global.fetch;
+    }
   });
 
   it('loads visited zoo IDs and marks visited zoos', async () => {

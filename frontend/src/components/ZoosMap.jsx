@@ -8,6 +8,8 @@ import { normalizeCoordinates } from '../utils/coordinates.js';
 import { MAP_STYLE_URL } from './MapView.jsx';
 
 // Interactive map showing multiple zoos with clickable markers or clusters.
+// NOTE: React plans to remove support for defaultProps on function components.
+// Use JS default parameters instead: https://react.dev/learn/passing-props-to-a-component
 const DEFAULT_ZOOM = 5;
 const FOCUS_ZOOM = 8;
 const ZOOS_SOURCE_ID = 'zoos';
@@ -26,15 +28,15 @@ const SET_DATA_TIMEOUT_MS = 32;
  */
 
 export default function ZoosMap({
-  zoos,
-  center,
-  onSelect,
-  resizeToken,
-  initialView,
-  suppressAutoFit,
-  onViewChange,
+  zoos = [],
+  center = null,
+  onSelect = () => {},
+  resizeToken = 0,
+  initialView = null,
+  suppressAutoFit = false,
+  onViewChange = () => {},
   ariaLabel,
-}) {
+} = {}) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const maplibreRef = useRef(null);
@@ -689,16 +691,5 @@ ZoosMap.propTypes = {
   suppressAutoFit: PropTypes.bool,
   onViewChange: PropTypes.func,
   ariaLabel: PropTypes.string,
-};
-
-ZoosMap.defaultProps = {
-  zoos: [],
-  center: null,
-  onSelect: undefined,
-  resizeToken: 0,
-  initialView: null,
-  suppressAutoFit: false,
-  onViewChange: undefined,
-  ariaLabel: undefined,
 };
 

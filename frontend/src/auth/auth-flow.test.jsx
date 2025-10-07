@@ -11,11 +11,13 @@ import { useAuth } from './AuthContext.jsx';
 import { createTestToken } from '../test-utils/auth.js';
 
 const server = setupServer(
-  http.post('/auth/refresh', () => HttpResponse.json({ detail: 'no session' }, { status: 401 })),
-  http.post('/auth/logout', () => HttpResponse.json({}, { status: 204 }))
+  http.post('*/auth/refresh', () =>
+    HttpResponse.json({ detail: 'no session' }, { status: 401 })
+  ),
+  http.post('*/auth/logout', () => HttpResponse.json({}, { status: 204 }))
 );
 
-beforeAll(() => server.listen());
+beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
@@ -62,6 +64,9 @@ describe('useAuthFetch integration', () => {
     const onFetched = vi.fn();
     renderWithRouter(<FetchHarness token={token} onFetched={onFetched} />);
 
+    await waitFor(() =>
+      expect(screen.getByTestId('auth-status').textContent).toBe('authed')
+    );
     const trigger = await screen.findByRole('button', { name: 'fetch' });
     fireEvent.click(trigger);
 
@@ -88,6 +93,9 @@ describe('useAuthFetch integration', () => {
     const onFetched = vi.fn();
     renderWithRouter(<FetchHarness token={token} onFetched={onFetched} />);
 
+    await waitFor(() =>
+      expect(screen.getByTestId('auth-status').textContent).toBe('authed')
+    );
     const trigger = await screen.findByRole('button', { name: 'fetch' });
     fireEvent.click(trigger);
     await waitFor(() => expect(onFetched).toHaveBeenCalledTimes(1));
@@ -112,6 +120,9 @@ describe('useAuthFetch integration', () => {
     const onFetched = vi.fn();
     renderWithRouter(<FetchHarness token={token} onFetched={onFetched} />);
 
+    await waitFor(() =>
+      expect(screen.getByTestId('auth-status').textContent).toBe('authed')
+    );
     const trigger = await screen.findByRole('button', { name: 'fetch' });
     fireEvent.click(trigger);
     await waitFor(() => expect(onFetched).toHaveBeenCalledTimes(1));

@@ -3,8 +3,10 @@ import PropTypes from 'prop-types';
 import { groupSightingsByDay, formatSightingTime } from '../utils/sightingHistory';
 
 // Generic list component to render sighting history grouped by day.
+// NOTE: React plans to remove support for defaultProps on function components.
+// Use JS default parameters instead: https://react.dev/learn/passing-props-to-a-component
 export default function SightingHistoryList({
-  sightings,
+  sightings = [],
   locale,
   isAuthenticated,
   loading,
@@ -13,7 +15,7 @@ export default function SightingHistoryList({
   onLogin,
   formatDay,
   renderSighting,
-  unauthenticatedContent,
+  unauthenticatedContent = null,
 }) {
   // Pre-compute groups so renderers can focus on UI.
   const groups = useMemo(() => groupSightingsByDay(sightings), [sightings]);
@@ -98,8 +100,3 @@ SightingHistoryList.propTypes = {
   unauthenticatedContent: PropTypes.node,
 };
 
-SightingHistoryList.defaultProps = {
-  sightings: [],
-  onLogin: undefined,
-  unauthenticatedContent: null,
-};
