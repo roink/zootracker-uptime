@@ -29,5 +29,13 @@ afterEach(() => {
   clearStoredAuth();
 });
 
+if (typeof URL.createObjectURL !== 'function') {
+  Object.defineProperty(URL, 'createObjectURL', {
+    value: () => 'blob:mock-url',
+    writable: true,
+    configurable: true,
+  });
+}
+
 // Load default English translations for tests
 await loadLocale('en');
