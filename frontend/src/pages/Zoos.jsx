@@ -136,6 +136,10 @@ export default function ZoosPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const locationState = useLocation();
+  const listRequestRef = useRef(null);
+  const mapRequestRef = useRef(null);
+  const sentinelRef = useRef(null);
+  const zoosRef = useRef([]);
   // Determine whether the router state already includes a stored camera view.
   const locationHasMapView =
     locationState.state &&
@@ -158,9 +162,6 @@ export default function ZoosPage() {
       mapRequestRef.current.abort();
     }
   }, []);
-  const listRequestRef = useRef(null);
-  const mapRequestRef = useRef(null);
-  const sentinelRef = useRef(null);
   const [totalZoos, setTotalZoos] = useState(0);
   const [nextOffset, setNextOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
@@ -168,7 +169,6 @@ export default function ZoosPage() {
   const [listError, setListError] = useState(null);
   const [mapLoading, setMapLoading] = useState(false);
   const [mapError, setMapError] = useState(null);
-  const zoosRef = useRef([]);
 
   useEffect(() => {
     zoosRef.current = zoos;
@@ -304,6 +304,10 @@ export default function ZoosPage() {
     () => JSON.stringify(mapFilters),
     [mapFilters]
   );
+
+  const visitFilterActive = visitFilter === 'visited' || visitFilter === 'not';
+  const visitSegment = visitFilter === 'visited' ? 'visited' : 'not-visited';
+  const userId = user?.id ?? null;
 
   const listRequestConfig = useMemo(() => {
     if (isAuthenticated && visitFilterActive) {
@@ -457,10 +461,6 @@ export default function ZoosPage() {
     [listFilters]
   );
 
-  const visitFilterActive = visitFilter === 'visited' || visitFilter === 'not';
-  const visitSegment = visitFilter === 'visited' ? 'visited' : 'not-visited';
-  const userId = user?.id ?? null;
-
   useEffect(() => {
     if (listRequestRef.current) {
       listRequestRef.current.abort();
@@ -604,6 +604,7 @@ export default function ZoosPage() {
 
   useEffect(() => {
     if (viewMode !== 'list') return undefined;
+    if (typeof IntersectionObserver === 'undefined') return undefined;
     const node = sentinelRef.current;
     if (!node) return undefined;
 
