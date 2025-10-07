@@ -44,6 +44,7 @@ class ZooRead(BaseModel):
     name: str
     address: Optional[str] = None
     city: Optional[str] = None
+    is_favorite: bool = False
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 
@@ -60,6 +61,7 @@ class ZooDetail(BaseModel):
     description_de: Optional[str] = None
     description_en: Optional[str] = None
     distance_km: Optional[float] = None
+    is_favorite: bool = False
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 
@@ -74,6 +76,7 @@ class ZooSearchResult(BaseModel):
     country_name_de: Optional[str] = None
     country_name_en: Optional[str] = None
     distance_km: Optional[float] = None
+    is_favorite: bool = False
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 
@@ -85,6 +88,14 @@ class ZooSearchPage(BaseModel):
     total: int
     limit: int
     offset: int
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class FavoriteStatus(BaseModel):
+    """Response envelope describing whether an entity is favorited."""
+
+    favorite: bool
 
     model_config = ConfigDict(extra="forbid")
 
@@ -110,6 +121,7 @@ class AnimalRead(BaseModel):
     scientific_name: Optional[str] = None
     name_de: Optional[str] = None
     zoo_count: int = 0
+    is_favorite: bool = False
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 
@@ -127,6 +139,7 @@ class AnimalListItem(BaseModel):
     iucn_conservation_status: Optional[str] = None
     default_image_url: Optional[str] = None
     zoo_count: int = 0
+    is_favorite: bool = False
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 
@@ -270,6 +283,7 @@ class AnimalDetail(BaseModel):
     images: list[ImageRead] = Field(default_factory=list)
     # include full zoo details with distance information
     zoos: list[ZooDetail] = Field(default_factory=list)
+    is_favorite: bool = False
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 

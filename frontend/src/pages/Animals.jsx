@@ -22,6 +22,8 @@ export default function AnimalsPage() {
   const [classId, setClassId] = useState(searchParams.get('class') || '');
   const [orderId, setOrderId] = useState(searchParams.get('order') || '');
   const [familyId, setFamilyId] = useState(searchParams.get('family') || '');
+  const initialFavorites = searchParams.get('favorites') === '1';
+  const [favoritesOnly, setFavoritesOnly] = useState(initialFavorites);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -52,6 +54,7 @@ export default function AnimalsPage() {
     const urlClass = searchParams.get('class') || '';
     const urlOrder = searchParams.get('order') || '';
     const urlFamily = searchParams.get('family') || '';
+    const urlFavorites = searchParams.get('favorites') === '1';
     if (search !== urlSearch) {
       setSearch(urlSearch);
       setQuery(urlSearch);
@@ -59,6 +62,7 @@ export default function AnimalsPage() {
     if (classId !== urlClass) setClassId(urlClass);
     if (orderId !== urlOrder) setOrderId(urlOrder);
     if (familyId !== urlFamily) setFamilyId(urlFamily);
+    if (favoritesOnly !== urlFavorites) setFavoritesOnly(urlFavorites);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
@@ -69,12 +73,13 @@ export default function AnimalsPage() {
     if (classId) params.set('class', classId);
     if (orderId) params.set('order', orderId);
     if (familyId) params.set('family', familyId);
+    if (favoritesOnly) params.set('favorites', '1');
     const next = params.toString();
     if (next !== searchParams.toString()) {
       setSearchParams(params, { replace: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, classId, orderId, familyId]);
+  }, [query, classId, orderId, familyId, favoritesOnly]);
 
   // Fetch list of classes on mount
   useEffect(() => {
@@ -156,12 +161,13 @@ export default function AnimalsPage() {
       if (classId) params.append('class_id', classId);
       if (orderId) params.append('order_id', orderId);
       if (familyId) params.append('family_id', familyId);
+      if (favoritesOnly) params.append('favorites_only', 'true');
 
       const url = `${API}/animals?${params.toString()}`;
 
       (async () => {
         try {
-          const response = await fetch(url, { signal: controller.signal });
+          const response = await authFetch(url, { signal: controller.signal });
           if (!response.ok) {
             throw new Error('Failed to load');
           }
@@ -206,7 +212,7 @@ export default function AnimalsPage() {
 
       return controller;
     },
-    [classId, familyId, limit, orderId, query, t]
+    [authFetch, classId, familyId, favoritesOnly, limit, orderId, query, t]
   );
 
   // Initial load and reset when search or filters change
@@ -253,6 +259,12 @@ export default function AnimalsPage() {
       .then(setSeenAnimals)
       .catch(() => setSeenAnimals([]));
   }, [isAuthenticated, uid, authFetch]);
+
+  useEffect(() => {
+    if (!isAuthenticated && favoritesOnly) {
+      setFavoritesOnly(false);
+    }
+  }, [isAuthenticated, favoritesOnly]);
 
   const seenIds = useMemo(() => new Set(seenAnimals.map((a) => a.id)), [seenAnimals]);
 
@@ -330,6 +342,27 @@ export default function AnimalsPage() {
             ))}
           </select>
         </div>
+        {isAuthenticated && (
+          <div className="col-md-3 mb-2">
+            <div className="form-check mt-2">
+              <input
+                className="form-check-input"
+                type="checkbox"
+                id="animals-favorites-only"
+                checked={favoritesOnly}
+                onChange={(e) => {
+                  setFavoritesOnly(e.target.checked);
+                  setAnimals([]);
+                  offsetRef.current = 0;
+                  setHasMore(false);
+                }}
+              />
+              <label className="form-check-label" htmlFor="animals-favorites-only">
+                {t('animal.favoritesOnly')}
+              </label>
+            </div>
+          </div>
+        )}
       </div>
       {error && (
         <div className="alert alert-danger" role="alert">
@@ -355,8 +388,17 @@ export default function AnimalsPage() {
               />
             )}
             {/* Always show the localized name in bold */}
-            <div className="fw-bold">
+            <div className="fw-bold d-flex align-items-center gap-1">
               {lang === 'de' ? a.name_de || a.name_en : a.name_en || a.name_de}
+              {a.is_favorite && (
+                <span
+                  className="text-warning"
+                  role="img"
+                  aria-label={t('animal.favoriteBadge')}
+                >
+                  ★
+                </span>
+              )}
             </div>
             {a.scientific_name && (
               <div className="fst-italic small">{a.scientific_name}</div>

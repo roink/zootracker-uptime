@@ -1,19 +1,27 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import exists
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from sqlalchemy import exists, text
 from sqlalchemy.orm import Session, joinedload, load_only
 
 from .. import schemas, models
 from ..database import get_db
 from ..utils.geometry import query_zoos_with_distance
-from ..auth import get_current_user
+from ..auth import get_current_user, get_optional_user
 from .deps import resolve_coords
 from .common_filters import apply_zoo_filters, validate_region_filters
 
 router = APIRouter()
 
 
+def _set_private_cache_headers(response: Response) -> None:
+    """Prevent intermediaries from caching personalized favorite data."""
+
+    response.headers["Cache-Control"] = "private, no-store, max-age=0"
+    response.headers["Vary"] = "Authorization"
+
+
 @router.get("/zoos", response_model=schemas.ZooSearchPage)
 def search_zoos(
+    response: Response,
     q: str = "",
     continent_id: int | None = None,
     country_id: int | None = None,
@@ -21,18 +29,43 @@ def search_zoos(
     offset: int = Query(default=0, ge=0),
     coords: tuple[float | None, float | None] = Depends(resolve_coords),
     db: Session = Depends(get_db),
+    user: models.User | None = Depends(get_optional_user),
+    favorites_only: bool = False,
 ):
     """Search for zoos by name, region and optional distance."""
+
+    _set_private_cache_headers(response)
 
     validate_region_filters(db, continent_id, country_id)
 
     query = db.query(models.Zoo).options(joinedload(models.Zoo.country))
     query = apply_zoo_filters(query, q, continent_id, country_id)
 
+    if favorites_only:
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication required to filter favorites",
+            )
+        query = query.join(
+            models.UserFavoriteZoo,
+            models.UserFavoriteZoo.zoo_id == models.Zoo.id,
+        ).filter(models.UserFavoriteZoo.user_id == user.id)
+
     total = query.count()
     latitude, longitude = coords
 
     items: list[schemas.ZooSearchResult] = []
+    favorite_ids: set = set()
+    if user is not None:
+        favorite_ids = {
+            row[0]
+            for row in (
+                db.query(models.UserFavoriteZoo.zoo_id)
+                .filter(models.UserFavoriteZoo.user_id == user.id)
+                .all()
+            )
+        }
     if total and offset < total:
         results = query_zoos_with_distance(
             query,
@@ -50,6 +83,7 @@ def search_zoos(
                 distance_km=dist,
                 country_name_en=z.country.name_en if z.country else None,
                 country_name_de=z.country.name_de if z.country else None,
+                is_favorite=z.id in favorite_ids,
             )
             for z, dist in results
         ]
@@ -64,12 +98,17 @@ def search_zoos(
 
 @router.get("/zoos/map", response_model=list[schemas.ZooMapPoint])
 def list_zoos_for_map(
+    response: Response,
     q: str = "",
     continent_id: int | None = None,
     country_id: int | None = None,
     db: Session = Depends(get_db),
+    user: models.User | None = Depends(get_optional_user),
+    favorites_only: bool = False,
 ):
     """Return minimal data for plotting zoos on the world map."""
+
+    _set_private_cache_headers(response)
 
     validate_region_filters(db, continent_id, country_id)
 
@@ -87,6 +126,17 @@ def list_zoos_for_map(
         )
     )
     query = apply_zoo_filters(query, q, continent_id, country_id)
+
+    if favorites_only:
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication required to filter favorites",
+            )
+        query = query.join(
+            models.UserFavoriteZoo,
+            models.UserFavoriteZoo.zoo_id == models.Zoo.id,
+        ).filter(models.UserFavoriteZoo.user_id == user.id)
 
     zoos = query.order_by(models.Zoo.name).all()
     return [
@@ -146,10 +196,81 @@ def _get_zoo_or_404(zoo_slug: str, db: Session) -> models.Zoo:
 
 
 @router.get("/zoos/{zoo_slug}", response_model=schemas.ZooDetail)
-def get_zoo(zoo_slug: str, db: Session = Depends(get_db)):
+def get_zoo(
+    response: Response,
+    zoo_slug: str,
+    db: Session = Depends(get_db),
+    user: models.User | None = Depends(get_optional_user),
+):
     """Retrieve detailed information about a zoo."""
 
-    return _get_zoo_or_404(zoo_slug, db)
+    _set_private_cache_headers(response)
+
+    zoo = _get_zoo_or_404(zoo_slug, db)
+    if user is not None:
+        is_favorite = (
+            db.query(models.UserFavoriteZoo)
+            .filter(
+                models.UserFavoriteZoo.user_id == user.id,
+                models.UserFavoriteZoo.zoo_id == zoo.id,
+            )
+            .first()
+            is not None
+        )
+        setattr(zoo, "is_favorite", is_favorite)
+    return zoo
+
+
+@router.put(
+    "/zoos/{zoo_slug}/favorite",
+    response_model=schemas.FavoriteStatus,
+    status_code=status.HTTP_200_OK,
+)
+def mark_zoo_favorite(
+    zoo_slug: str,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    """Mark a zoo as a favorite for the authenticated user."""
+
+    zoo = _get_zoo_or_404(zoo_slug, db)
+    db.execute(
+        text(
+            """
+            INSERT INTO user_favorite_zoos (user_id, zoo_id)
+            VALUES (:user_id, :zoo_id)
+            ON CONFLICT DO NOTHING
+            """
+        ),
+        {"user_id": user.id, "zoo_id": zoo.id},
+    )
+    db.commit()
+    return schemas.FavoriteStatus(favorite=True)
+
+
+@router.delete(
+    "/zoos/{zoo_slug}/favorite",
+    response_model=schemas.FavoriteStatus,
+    status_code=status.HTTP_200_OK,
+)
+def unmark_zoo_favorite(
+    zoo_slug: str,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    """Remove a zoo from the authenticated user's favorites."""
+
+    zoo = _get_zoo_or_404(zoo_slug, db)
+    (
+        db.query(models.UserFavoriteZoo)
+        .filter(
+            models.UserFavoriteZoo.user_id == user.id,
+            models.UserFavoriteZoo.zoo_id == zoo.id,
+        )
+        .delete(synchronize_session=False)
+    )
+    db.commit()
+    return schemas.FavoriteStatus(favorite=False)
 
 
 @router.get("/zoos/{zoo_slug}/visited", response_model=schemas.Visited)
@@ -178,14 +299,43 @@ def has_visited_zoo(
 
 
 @router.get("/zoos/{zoo_slug}/animals", response_model=list[schemas.AnimalRead])
-def list_zoo_animals(zoo_slug: str, db: Session = Depends(get_db)):
+def list_zoo_animals(
+    response: Response,
+    zoo_slug: str,
+    db: Session = Depends(get_db),
+    user: models.User | None = Depends(get_optional_user),
+):
     """Return animals that are associated with a specific zoo."""
 
+    _set_private_cache_headers(response)
+
     zoo = _get_zoo_or_404(zoo_slug, db)
-    return (
+    favorites: set = set()
+    if user is not None:
+        favorites = {
+            row[0]
+            for row in (
+                db.query(models.UserFavoriteAnimal.animal_id)
+                .filter(models.UserFavoriteAnimal.user_id == user.id)
+                .all()
+            )
+        }
+    animals = (
         db.query(models.Animal)
         .join(models.ZooAnimal, models.Animal.id == models.ZooAnimal.animal_id)
         .filter(models.ZooAnimal.zoo_id == zoo.id)
         .order_by(models.Animal.zoo_count.desc())
         .all()
     )
+    return [
+        schemas.AnimalRead(
+            id=a.id,
+            slug=a.slug,
+            name_en=a.name_en,
+            scientific_name=a.scientific_name,
+            name_de=a.name_de,
+            zoo_count=a.zoo_count,
+            is_favorite=a.id in favorites,
+        )
+        for a in animals
+    ]

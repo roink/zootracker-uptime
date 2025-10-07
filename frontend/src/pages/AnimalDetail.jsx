@@ -97,6 +97,9 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
     viewMode: initialViewMode,
     mapView: initialMapView,
   });
+  const [favorite, setFavorite] = useState(false);
+  const [favoritePending, setFavoritePending] = useState(false);
+  const [favoriteError, setFavoriteError] = useState('');
 
   // Choose localized name for current language
   const animalName = useMemo(() => {
@@ -177,28 +180,33 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
     const controller = new AbortController();
     setLoading(true);
     setError(false);
+    setFavoriteError('');
     // fetch animal details and associated zoos (with distance when available)
-    fetch(
-      `${API}/animals/${slug}${params.length ? `?${params.join('&')}` : ''}`,
-      { signal: controller.signal }
-    )
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((data) => {
+    (async () => {
+      try {
+        const response = await authFetch(
+          `${API}/animals/${slug}${params.length ? `?${params.join('&')}` : ''}`,
+          { signal: controller.signal }
+        );
+        if (!response.ok) {
+          throw new Error('Failed to load');
+        }
+        const data = await response.json();
         setAnimal(data);
         setZoos(data.zoos || []);
         setLoading(false);
-      })
-      .catch(() => {
+      } catch (err) {
         if (!controller.signal.aborted) {
           setError(true);
           setLoading(false);
+          setAnimal(null);
+          setZoos([]);
         }
-        setAnimal(null);
-        setZoos([]);
-      });
+      }
+    })();
 
     return () => controller.abort();
-  }, [slug, userLocation]);
+  }, [slug, userLocation, authFetch]);
 
   const loadSightings = useCallback(() => {
     if (!isAuthenticated) return;
@@ -211,6 +219,11 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
   useEffect(() => {
     loadSightings();
   }, [loadSightings, refresh]);
+
+  useEffect(() => {
+    setFavorite(Boolean(animal?.is_favorite));
+    setFavoriteError('');
+  }, [animal?.is_favorite]);
 
   useEffect(() => {
     const navState = routerLocation.state || {};
@@ -335,6 +348,35 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
     },
     [mapView, persistViewState, viewMode]
   );
+
+  const handleFavoriteToggle = useCallback(async () => {
+    if (!animal) return;
+    if (!isAuthenticated) {
+      navigate(`${prefix}/login`, {
+        state: { redirectTo: routerLocation.pathname },
+      });
+      return;
+    }
+    setFavoritePending(true);
+    setFavoriteError('');
+    try {
+      const response = await authFetch(
+        `${API}/animals/${animal.slug}/favorite`,
+        { method: favorite ? 'DELETE' : 'PUT' }
+      );
+      if (!response.ok) {
+        throw new Error('Failed to toggle favorite');
+      }
+      const payload = await response.json();
+      const nextFavorite = Boolean(payload.favorite);
+      setFavorite(nextFavorite);
+      setAnimal((prev) => (prev ? { ...prev, is_favorite: nextFavorite } : prev));
+    } catch (err) {
+      setFavoriteError(t('animal.favoriteError'));
+    } finally {
+      setFavoritePending(false);
+    }
+  }, [animal, authFetch, favorite, isAuthenticated, navigate, prefix, routerLocation.pathname, t]);
 
   if (loading) return <div className="page-container">Loading...</div>;
   if (error) return (
@@ -597,7 +639,21 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
                 </span>
               );
             })()}
+            <button
+              type="button"
+              className={`btn btn-sm ${favorite ? 'btn-warning' : 'btn-outline-secondary'}`}
+              onClick={handleFavoriteToggle}
+              disabled={favoritePending}
+              aria-pressed={favorite}
+            >
+              {favorite ? t('animal.removeFavorite') : t('animal.addFavorite')}
+            </button>
           </div>
+          {favoriteError && (
+            <div className="text-danger small mt-1" role="status">
+              {favoriteError}
+            </div>
+          )}
           {gallery.length > 0 && (
             <div className="gallery">
               {gallery.map((g, idx) => (

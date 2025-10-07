@@ -16,6 +16,7 @@ export default function ZooDetail({
   headingLevel = 'h2',
   refresh,
   onLogged,
+  onFavoriteChange,
 }) {
   const [animals, setAnimals] = useState([]);
   const [visited, setVisited] = useState(false);
@@ -29,6 +30,9 @@ export default function ZooDetail({
   const { isAuthenticated, user } = useAuth();
   const userId = user?.id;
   const [descExpanded, setDescExpanded] = useState(false); // track full description visibility
+  const [favorite, setFavorite] = useState(false);
+  const [favoritePending, setFavoritePending] = useState(false);
+  const [favoriteError, setFavoriteError] = useState('');
   // Helper: pick animal name in current language
   const getAnimalName = useCallback(
     (a) =>
@@ -38,19 +42,48 @@ export default function ZooDetail({
     [lang]
   );
 
+  const handleFavoriteToggle = useCallback(async () => {
+    if (!zoo) return;
+    if (!isAuthenticated) {
+      navigate(`${prefix}/login`);
+      return;
+    }
+    setFavoritePending(true);
+    setFavoriteError('');
+    try {
+      const response = await authFetch(`${API}/zoos/${zoo.slug}/favorite`, {
+        method: favorite ? 'DELETE' : 'PUT',
+      });
+      if (!response.ok) {
+        throw new Error('Failed to toggle favorite');
+      }
+      const payload = await response.json();
+      const nextFavorite = Boolean(payload.favorite);
+      setFavorite(nextFavorite);
+      onFavoriteChange?.(nextFavorite);
+    } catch (err) {
+      setFavoriteError(t('zoo.favoriteError'));
+    } finally {
+      setFavoritePending(false);
+    }
+  }, [authFetch, favorite, isAuthenticated, navigate, onFavoriteChange, prefix, t, zoo]);
+
   // Load animals in this zoo (server already returns popularity order;
   // keep client-side sort as a fallback for robustness)
   useEffect(() => {
     if (!zoo?.slug) return;
-    fetch(`${API}/zoos/${zoo.slug}/animals`)
-      .then((r) => r.json())
+    authFetch(`${API}/zoos/${zoo.slug}/animals`)
+      .then((r) => (r.ok ? r.json() : []))
       .then((data) => {
-        setAnimals(
-          Array.isArray(data) ? data : []
-        );
+        setAnimals(Array.isArray(data) ? data : []);
       })
       .catch(() => setAnimals([]));
-  }, [zoo?.slug, refresh]);
+  }, [authFetch, zoo?.slug, refresh]);
+
+  useEffect(() => {
+    setFavorite(Boolean(zoo?.is_favorite));
+    setFavoriteError('');
+  }, [zoo?.is_favorite]);
 
   // Load whether user has visited this zoo
   useEffect(() => {
@@ -84,7 +117,14 @@ export default function ZooDetail({
 
   return (
     <div className="p-3">
-      <HeadingTag className="h3">{zooDisplayName}</HeadingTag>
+      <HeadingTag className="h3 d-flex align-items-center gap-2">
+        {zooDisplayName}
+        {favorite && (
+          <span className="text-warning" role="img" aria-label={t('zoo.favoriteBadge')}>
+            ★
+          </span>
+        )}
+      </HeadingTag>
       {zoo.address && <div className="text-muted">📍 {zoo.address}</div>}
       {Number.isFinite(zoo.latitude) && Number.isFinite(zoo.longitude) && (
         <div className="mt-1">
@@ -126,9 +166,25 @@ export default function ZooDetail({
           </div>
         </div>
       )}
-      <div className="mt-2">
-        {t('zoo.visited')} {visited ? `☑️ ${t('zoo.yes')}` : `✘ ${t('zoo.no')}`}
+      <div className="mt-2 d-flex flex-wrap gap-2 align-items-center">
+        <span>
+          {t('zoo.visited')} {visited ? `☑️ ${t('zoo.yes')}` : `✘ ${t('zoo.no')}`}
+        </span>
+        <button
+          type="button"
+          className={`btn btn-sm ${favorite ? 'btn-warning' : 'btn-outline-secondary'}`}
+          onClick={handleFavoriteToggle}
+          disabled={favoritePending}
+          aria-pressed={favorite}
+        >
+          {favorite ? t('zoo.removeFavorite') : t('zoo.addFavorite')}
+        </button>
       </div>
+      {favoriteError && (
+        <div className="text-danger small mt-1" role="status">
+          {favoriteError}
+        </div>
+      )}
       {/* visit logging removed - visits are created automatically from sightings */}
       <h4 className="mt-3">{t('zoo.animals')}</h4>
       <table className="table">
@@ -154,7 +210,18 @@ export default function ZooDetail({
               }}
             >
               <td>
-                <div>{getAnimalName(a)}</div>
+                <div className="d-flex align-items-center gap-1">
+                  {getAnimalName(a)}
+                  {a.is_favorite && (
+                    <span
+                      className="text-warning"
+                      role="img"
+                      aria-label={t('animal.favoriteBadge')}
+                    >
+                      ★
+                    </span>
+                  )}
+                </div>
                 {a.scientific_name && (
                   <div className="fst-italic small">{a.scientific_name}</div>
                 )}
@@ -197,12 +264,10 @@ export default function ZooDetail({
                 return;
               }
               onLogged && onLogged();
-              fetch(`${API}/zoos/${zoo.slug}/animals`)
-                .then((r) => r.json())
+              authFetch(`${API}/zoos/${zoo.slug}/animals`)
+                .then((r) => (r.ok ? r.json() : []))
                 .then((data) => {
-                  setAnimals(
-                    Array.isArray(data) ? data : []
-                  );
+                  setAnimals(Array.isArray(data) ? data : []);
                 })
                 .catch(() => setAnimals([]));
               if (isAuthenticated) {

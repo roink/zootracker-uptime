@@ -49,6 +49,12 @@ oauth2_scheme = OAuth2PasswordBearer(
     description=f"Access token expires in approximately {ACCESS_TOKEN_EXPIRE_MINUTES} minutes",
 )
 
+optional_oauth2_scheme = OAuth2PasswordBearer(
+    tokenUrl="auth/login",
+    description="Optional authentication for endpoints that personalize responses",
+    auto_error=False,
+)
+
 _PEPPER = TOKEN_PEPPER.encode("utf-8")
 _DECODE_SUPPORTS_LEEWAY = "leeway" in inspect.signature(jwt.decode).parameters
 
@@ -128,6 +134,40 @@ def get_current_user(
     db: Session = Depends(get_db),
 ) -> models.User:
     """Return the authenticated user based on the provided JWT token."""
+
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = decode_access_token(token)
+        user_id: str | None = payload.get("sub")
+        if user_id is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+
+    try:
+        uuid_val = uuid.UUID(str(user_id))
+    except ValueError:
+        raise credentials_exception
+
+    user = db.get(models.User, uuid_val)
+    if user is None:
+        raise credentials_exception
+    set_user_context(str(user.id))
+    return user
+
+
+def get_optional_user(
+    token: str | None = Depends(optional_oauth2_scheme),
+    db: Session = Depends(get_db),
+) -> models.User | None:
+    """Return the authenticated user when a bearer token is supplied."""
+
+    if not token:
+        return None
 
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
