@@ -305,6 +305,42 @@ export default function ZoosPage() {
     [mapFilters]
   );
 
+  const listRequestConfig = useMemo(() => {
+    if (isAuthenticated && visitFilterActive) {
+      if (!userId) {
+        return {
+          url: null,
+          requiresAuth: true,
+          ready: false,
+        };
+      }
+      return {
+        url: `${API}/users/${userId}/zoos/${visitSegment}`,
+        requiresAuth: true,
+        ready: true,
+      };
+    }
+    return {
+      url: `${API}/zoos`,
+      requiresAuth: false,
+      ready: true,
+    };
+  }, [isAuthenticated, visitFilterActive, userId, visitSegment]);
+
+  const mapRequestConfig = useMemo(() => {
+    if (isAuthenticated && visitFilterActive) {
+      if (!userId) {
+        return { url: null, requiresAuth: true, ready: false };
+      }
+      return {
+        url: `${API}/users/${userId}/zoos/${visitSegment}/map`,
+        requiresAuth: true,
+        ready: true,
+      };
+    }
+    return { url: `${API}/zoos/map`, requiresAuth: false, ready: true };
+  }, [isAuthenticated, visitFilterActive, userId, visitSegment]);
+
   useEffect(() => {
     if (mapRequestRef.current) {
       mapRequestRef.current.abort();
@@ -424,42 +460,6 @@ export default function ZoosPage() {
   const visitFilterActive = visitFilter === 'visited' || visitFilter === 'not';
   const visitSegment = visitFilter === 'visited' ? 'visited' : 'not-visited';
   const userId = user?.id ?? null;
-
-  const listRequestConfig = useMemo(() => {
-    if (isAuthenticated && visitFilterActive) {
-      if (!userId) {
-        return {
-          url: null,
-          requiresAuth: true,
-          ready: false,
-        };
-      }
-      return {
-        url: `${API}/users/${userId}/zoos/${visitSegment}`,
-        requiresAuth: true,
-        ready: true,
-      };
-    }
-    return {
-      url: `${API}/zoos`,
-      requiresAuth: false,
-      ready: true,
-    };
-  }, [isAuthenticated, visitFilterActive, userId, visitSegment]);
-
-  const mapRequestConfig = useMemo(() => {
-    if (isAuthenticated && visitFilterActive) {
-      if (!userId) {
-        return { url: null, requiresAuth: true, ready: false };
-      }
-      return {
-        url: `${API}/users/${userId}/zoos/${visitSegment}/map`,
-        requiresAuth: true,
-        ready: true,
-      };
-    }
-    return { url: `${API}/zoos/map`, requiresAuth: false, ready: true };
-  }, [isAuthenticated, visitFilterActive, userId, visitSegment]);
 
   useEffect(() => {
     if (listRequestRef.current) {
