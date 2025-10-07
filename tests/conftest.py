@@ -32,6 +32,25 @@ dotenv_path = PROJECT_ROOT / ".env"
 if dotenv_path.exists():
     load_dotenv(dotenv_path, override=False)
 
+# The pytest suite relies on specific security header and CORS behaviour. Local
+# `.env` files used for manual testing often disable or narrow those settings,
+# so normalise the values after loading environment variables. This preserves a
+# developer's custom database credentials while keeping the tests deterministic.
+if not (os.getenv("STRICT_TRANSPORT_SECURITY") or "").strip():
+    # Remove empty overrides so the application falls back to the secure
+    # default declared in `app.config.DEFAULT_STRICT_TRANSPORT_SECURITY`.
+    os.environ.pop("STRICT_TRANSPORT_SECURITY", None)
+
+_ALLOWED_ORIGIN = "http://allowed.example"
+existing_origins = os.getenv("ALLOWED_ORIGINS")
+if existing_origins:
+    origins = [origin.strip() for origin in existing_origins.split(",") if origin.strip()]
+    if _ALLOWED_ORIGIN not in origins:
+        origins.append(_ALLOWED_ORIGIN)
+    os.environ["ALLOWED_ORIGINS"] = ",".join(origins)
+else:
+    os.environ["ALLOWED_ORIGINS"] = _ALLOWED_ORIGIN
+
 # set up database url before importing app
 DEFAULT_TEST_DATABASE_URL = (
     "postgresql://zootracker_test:zootracker_test@localhost:5432/zootracker_test"
@@ -48,7 +67,6 @@ os.environ["GENERAL_RATE_LIMIT"] = "10000"
 os.environ.setdefault("SMTP_HOST", "smtp.test")
 os.environ.setdefault("CONTACT_EMAIL", "contact@zootracker.app")
 os.environ.pop("SMTP_SSL", None)
-os.environ.setdefault("ALLOWED_ORIGINS", "http://allowed.example")
 os.environ.setdefault(
     "SECRET_KEY",
     "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
