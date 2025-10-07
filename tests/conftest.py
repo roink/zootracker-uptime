@@ -36,10 +36,18 @@ if dotenv_path.exists():
 # `.env` files used for manual testing often disable or narrow those settings,
 # so normalise the values after loading environment variables. This preserves a
 # developer's custom database credentials while keeping the tests deterministic.
-if not (os.getenv("STRICT_TRANSPORT_SECURITY") or "").strip():
-    # Remove empty overrides so the application falls back to the secure
-    # default declared in `app.config.DEFAULT_STRICT_TRANSPORT_SECURITY`.
-    os.environ.pop("STRICT_TRANSPORT_SECURITY", None)
+# Keep this default in sync with `app.config.DEFAULT_STRICT_TRANSPORT_SECURITY`.
+_DEFAULT_STRICT_TRANSPORT_SECURITY = "max-age=63072000; includeSubDomains; preload"
+
+_strict_transport_security = os.getenv("STRICT_TRANSPORT_SECURITY")
+if _strict_transport_security is None:
+    os.environ["STRICT_TRANSPORT_SECURITY"] = _DEFAULT_STRICT_TRANSPORT_SECURITY
+else:
+    normalised_sts = _strict_transport_security.strip()
+    if not normalised_sts:
+        os.environ["STRICT_TRANSPORT_SECURITY"] = _DEFAULT_STRICT_TRANSPORT_SECURITY
+    else:
+        os.environ["STRICT_TRANSPORT_SECURITY"] = normalised_sts
 
 _ALLOWED_ORIGIN = "http://allowed.example"
 existing_origins = os.getenv("ALLOWED_ORIGINS")
