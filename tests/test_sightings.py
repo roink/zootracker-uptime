@@ -19,6 +19,45 @@ def test_post_sighting(data):
     body = resp.json()
     assert body["animal_id"] == str(animal_id)
 
+
+def test_sighting_notes_round_trip(data):
+    token, user_id = register_and_login()
+    zoo_id = data["zoo"].id
+    animal_id = data["animal"].id
+    sighting = {
+        "zoo_id": str(zoo_id),
+        "animal_id": str(animal_id),
+        "user_id": str(user_id),
+        "sighting_datetime": datetime.now(UTC).isoformat(),
+        "notes": "Feeding time observation",
+    }
+    resp = client.post(
+        "/sightings",
+        json=sighting,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    created = resp.json()
+    assert created["notes"] == "Feeding time observation"
+
+    sighting_id = created["id"]
+    resp = client.patch(
+        f"/sightings/{sighting_id}",
+        json={"notes": "Feeding time moved to afternoon"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    updated = resp.json()
+    assert updated["notes"] == "Feeding time moved to afternoon"
+
+    resp = client.get(
+        f"/sightings/{sighting_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    fetched = resp.json()
+    assert fetched["notes"] == "Feeding time moved to afternoon"
+
 def test_sighting_requires_auth(data):
     zoo_id = data["zoo"].id
     animal_id = data["animal"].id
@@ -233,6 +272,7 @@ def test_patch_sighting_forbidden(data):
         "animal_id": str(animal_id),
         "user_id": str(user1),
         "sighting_datetime": datetime.now(UTC).isoformat(),
+        "notes": "Original keeper note",
     }
     resp = client.post(
         "/sightings",
@@ -248,6 +288,13 @@ def test_patch_sighting_forbidden(data):
         headers={"Authorization": f"Bearer {token2}"},
     )
     assert resp.status_code == 403
+
+    resp = client.get(
+        f"/sightings/{sighting_id}",
+        headers={"Authorization": f"Bearer {token1}"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["notes"] == "Original keeper note"
 
 
 def test_get_sighting_owner_only(data):

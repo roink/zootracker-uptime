@@ -1,7 +1,7 @@
 """Pydantic schemas used for request and response models."""
 
 from datetime import date, datetime
-from typing import Optional
+from typing import Annotated, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, ConfigDict, Field, constr
@@ -181,7 +181,7 @@ class ZooVisitCreate(BaseModel):
     """Input data required to log a zoo visit."""
     zoo_id: UUID
     visit_date: date
-    notes: Optional[str] = Field(default=None, max_length=1000)
+    notes: Annotated[Optional[str], Field(default=None, max_length=1000)]
 
     model_config = ConfigDict(extra="forbid")
 
@@ -202,7 +202,7 @@ class AnimalSightingCreate(BaseModel):
     animal_id: UUID
     user_id: UUID
     sighting_datetime: datetime
-    notes: Optional[str] = Field(default=None, max_length=1000)
+    notes: Annotated[Optional[str], Field(default=None, max_length=1000)]
 
     model_config = ConfigDict(extra="forbid")
 
@@ -227,7 +227,7 @@ class ZooVisitUpdate(BaseModel):
     """Fields allowed when updating a zoo visit."""
 
     visit_date: Optional[date] = None
-    notes: Optional[str] = Field(default=None, max_length=1000)
+    notes: Annotated[Optional[str], Field(default=None, max_length=1000)]
 
     model_config = ConfigDict(extra="forbid")
 
@@ -238,7 +238,7 @@ class AnimalSightingUpdate(BaseModel):
     zoo_id: Optional[UUID] = None
     animal_id: Optional[UUID] = None
     sighting_datetime: Optional[datetime] = None
-    notes: Optional[str] = Field(default=None, max_length=1000)
+    notes: Annotated[Optional[str], Field(default=None, max_length=1000)]
     photo_url: Optional[str] = Field(default=None, max_length=512)
 
     model_config = ConfigDict(extra="forbid")
