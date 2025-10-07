@@ -830,7 +830,16 @@ export default function ZoosPage() {
   );
 
   useEffect(() => {
-    if (import.meta.env.DEV && mapFiltered.length > 0 && mapZoosWithCoordinates.length === 0) {
+    const importMetaEnv = typeof import.meta !== 'undefined' ? import.meta.env : undefined;
+    const isVitest = importMetaEnv?.MODE === 'test';
+    const isNodeTest = typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'test';
+    if (
+      importMetaEnv?.DEV &&
+      !isVitest &&
+      !isNodeTest &&
+      mapFiltered.length > 0 &&
+      mapZoosWithCoordinates.length === 0
+    ) {
       // eslint-disable-next-line no-console
       console.warn(
         'ZoosPage: no coordinate fields found on items. Example keys:',

@@ -61,6 +61,8 @@ const createZooFetchMock = ({
   });
 
 describe('ZoosPage', () => {
+  let consoleWarnSpy;
+
   beforeEach(() => {
     vi.stubGlobal('navigator', {
       geolocation: { getCurrentPosition: (_s, e) => e() },
@@ -73,9 +75,12 @@ describe('ZoosPage', () => {
     });
     const token = createTestToken();
     setStoredAuth({ token, user: { id: 'user-1', email: 'user@example.com' } });
+    consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
   });
 
   afterEach(() => {
+    expect(consoleWarnSpy).not.toHaveBeenCalled();
+    consoleWarnSpy.mockRestore();
     clearStoredAuth();
     vi.unstubAllGlobals();
   });

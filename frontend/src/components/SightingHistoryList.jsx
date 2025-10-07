@@ -3,6 +3,8 @@ import PropTypes from 'prop-types';
 import { groupSightingsByDay, formatSightingTime } from '../utils/sightingHistory';
 
 // Generic list component to render sighting history grouped by day.
+// NOTE: React plans to remove support for defaultProps on function components.
+// Use JS default parameters instead: https://react.dev/learn/passing-props-to-a-component
 export default function SightingHistoryList({
   sightings = [],
   locale,
