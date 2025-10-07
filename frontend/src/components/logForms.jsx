@@ -22,6 +22,7 @@ export function LogSighting({
   defaultDate = null,
   initialAnimalName = '',
   initialZooName = '',
+  defaultNotes = '',
   sightingId = null,
   titleId = '',
 
@@ -40,6 +41,7 @@ export function LogSighting({
   const [animalFocused, setAnimalFocused] = useState(false);
   const [zooActiveIndex, setZooActiveIndex] = useState(-1);
   const [animalActiveIndex, setAnimalActiveIndex] = useState(-1);
+  const [notes, setNotes] = useState(defaultNotes ?? '');
   const { zoos: zooSuggestions } = useSearchSuggestions(zooInput, zooFocused);
   const { animals: animalSuggestions } = useSearchSuggestions(
     animalInput,
@@ -64,6 +66,9 @@ export function LogSighting({
   const animalLabelId = `${animalFieldId}-label`;
   const dateBaseId = useId();
   const dateFieldId = `log-sighting-date-${dateBaseId.replace(/:/g, '')}`;
+  const notesBaseId = useId();
+  const notesFieldId = `log-sighting-notes-${notesBaseId.replace(/:/g, '')}`;
+  const notesHelperId = `${notesFieldId}-helper`;
   // Date input defaults to today
   const [sightingDate, setSightingDate] = useState(
     () => defaultDate || new Date().toISOString().split('T')[0]
@@ -83,6 +88,12 @@ export function LogSighting({
   useEffect(() => {
     if (defaultDate) setSightingDate(defaultDate);
   }, [defaultDate]);
+
+  useEffect(() => {
+    if (defaultNotes !== undefined) {
+      setNotes(defaultNotes ?? '');
+    }
+  }, [defaultNotes]);
 
 
   useEffect(() => {
@@ -264,6 +275,12 @@ export function LogSighting({
       animal_id: animalId,
       sighting_datetime: new Date(sightingDate).toISOString(),
     };
+    const trimmedNotes = notes.trim();
+    if (trimmedNotes) {
+      sighting.notes = trimmedNotes;
+    } else if (sightingId) {
+      sighting.notes = null;
+    }
     if (!sightingId) {
       // user_id is required only when creating a new sighting
       sighting.user_id = uid;
@@ -461,6 +478,24 @@ export function LogSighting({
           required
           id={dateFieldId}
         />
+      </div>
+      <div className="mb-3">
+        <label className="form-label" htmlFor={notesFieldId}>
+          {t('forms.sighting.notesLabel')}
+        </label>
+        <textarea
+          className="form-control"
+          id={notesFieldId}
+          placeholder={t('forms.sighting.notesPlaceholder')}
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          maxLength={1000}
+          rows={3}
+          aria-describedby={notesHelperId}
+        />
+        <div className="form-text" id={notesHelperId}>
+          {t('forms.sighting.notesHelper', { count: 1000 - notes.length })}
+        </div>
       </div>
       <div className="text-end">
         {onCancel && (

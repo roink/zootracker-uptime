@@ -13,6 +13,7 @@ export default function SightingModal({
   defaultAnimalId = '',
   defaultZooName = '',
   defaultAnimalName = '',
+  defaultNotes = '',
   // Optional pre-fetched lists to skip fetching inside the modal
   zoos: propZoos = null,
   animals: propAnimals = null,
@@ -237,6 +238,7 @@ export default function SightingModal({
                 ) || defaultAnimalName
               : defaultAnimalName
           }
+          defaultNotes={sighting ? sighting.notes ?? '' : defaultNotes}
           sightingId={sightingId}
           onLogged={handleDone}
           onDeleted={handleDone}
