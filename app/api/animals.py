@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import or_
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from sqlalchemy import or_, text
 from sqlalchemy.orm import Session, joinedload, load_only
 
 from .. import schemas, models
@@ -40,8 +40,16 @@ def _get_animal_or_404(animal_slug: str, db: Session) -> models.Animal:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Animal not found")
     return animal
 
+def _set_private_cache_headers(response: Response) -> None:
+    """Prevent intermediaries from caching personalized favorite data."""
+
+    response.headers["Cache-Control"] = "private, no-store, max-age=0"
+    response.headers["Vary"] = "Authorization"
+
+
 @router.get("/animals", response_model=list[schemas.AnimalListItem])
 def list_animals(
+    response: Response,
     q: str = "",
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
@@ -54,6 +62,8 @@ def list_animals(
     user: models.User | None = Depends(get_optional_user),
 ):
     """List animals filtered by search query, taxonomy and pagination."""
+
+    _set_private_cache_headers(response)
 
     # Ensure hierarchical taxonomy parameters are consistent
     if class_id is not None and order_id is not None:
@@ -208,12 +218,15 @@ def list_families(order_id: int, db: Session = Depends(get_db)):
 
 @router.get("/search", response_model=schemas.SearchResults)
 def combined_search(
+    response: Response,
     q: str = "",
     limit: int = 5,
     db: Session = Depends(get_db),
     user: models.User | None = Depends(get_optional_user),
 ):
     """Return top zoos and animals matching the query."""
+
+    _set_private_cache_headers(response)
     zoo_q = db.query(models.Zoo).options(
         load_only(models.Zoo.id, models.Zoo.slug, models.Zoo.name, models.Zoo.city)
     )
@@ -260,7 +273,7 @@ def combined_search(
     return {"zoos": zoos, "animals": animals}
 
 
-@router.post(
+@router.put(
     "/animals/{animal_slug}/favorite",
     response_model=schemas.FavoriteStatus,
     status_code=status.HTTP_200_OK,
@@ -273,17 +286,17 @@ def mark_animal_favorite(
     """Mark an animal as a favorite for the authenticated user."""
 
     animal = _get_animal_or_404(animal_slug, db)
-    exists = (
-        db.query(models.UserFavoriteAnimal)
-        .filter(
-            models.UserFavoriteAnimal.user_id == user.id,
-            models.UserFavoriteAnimal.animal_id == animal.id,
-        )
-        .first()
+    db.execute(
+        text(
+            """
+            INSERT INTO user_favorite_animals (user_id, animal_id)
+            VALUES (:user_id, :animal_id)
+            ON CONFLICT DO NOTHING
+            """
+        ),
+        {"user_id": user.id, "animal_id": animal.id},
     )
-    if exists is None:
-        db.add(models.UserFavoriteAnimal(user_id=user.id, animal_id=animal.id))
-        db.commit()
+    db.commit()
     return schemas.FavoriteStatus(favorite=True)
 
 
@@ -314,6 +327,7 @@ def unmark_animal_favorite(
 
 @router.get("/animals/{animal_slug}", response_model=schemas.AnimalDetail)
 def get_animal_detail(
+    response: Response,
     animal_slug: str,
     coords: tuple[float | None, float | None] = Depends(resolve_coords),
     db: Session = Depends(get_db),
@@ -325,6 +339,7 @@ def get_animal_detail(
     distance and include a ``distance_km`` field so the frontend only needs a
     single request.
     """
+    _set_private_cache_headers(response)
     animal = (
         db.query(models.Animal)
         .options(

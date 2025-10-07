@@ -307,7 +307,7 @@ def test_animal_favorites_flow(data):
     token, _ = register_and_login()
     headers = {"Authorization": f"Bearer {token}"}
 
-    resp = client.post(
+    resp = client.put(
         f"/animals/{data['animal'].slug}/favorite",
         headers=headers,
     )
@@ -344,6 +344,21 @@ def test_animal_favorites_flow(data):
 def test_animal_favorites_filter_requires_auth():
     resp = client.get("/animals", params={"favorites_only": "true"})
     assert resp.status_code == 401
+
+
+def test_animals_personalized_responses_disable_caching(data):
+    token, _ = register_and_login()
+    headers = {"Authorization": f"Bearer {token}"}
+
+    resp = client.get("/animals", headers=headers)
+    assert resp.status_code == 200
+    assert resp.headers["cache-control"] == "private, no-store, max-age=0"
+    assert "Authorization" in resp.headers["vary"]
+
+    detail = client.get(f"/animals/{data['animal'].slug}", headers=headers)
+    assert detail.status_code == 200
+    assert detail.headers["cache-control"] == "private, no-store, max-age=0"
+    assert "Authorization" in detail.headers["vary"]
 
 
 @pytest.mark.postgres

@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import exists
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from sqlalchemy import exists, text
 from sqlalchemy.orm import Session, joinedload, load_only
 
 from .. import schemas, models
@@ -12,8 +12,16 @@ from .common_filters import apply_zoo_filters, validate_region_filters
 router = APIRouter()
 
 
+def _set_private_cache_headers(response: Response) -> None:
+    """Prevent intermediaries from caching personalized favorite data."""
+
+    response.headers["Cache-Control"] = "private, no-store, max-age=0"
+    response.headers["Vary"] = "Authorization"
+
+
 @router.get("/zoos", response_model=schemas.ZooSearchPage)
 def search_zoos(
+    response: Response,
     q: str = "",
     continent_id: int | None = None,
     country_id: int | None = None,
@@ -25,6 +33,8 @@ def search_zoos(
     favorites_only: bool = False,
 ):
     """Search for zoos by name, region and optional distance."""
+
+    _set_private_cache_headers(response)
 
     validate_region_filters(db, continent_id, country_id)
 
@@ -88,6 +98,7 @@ def search_zoos(
 
 @router.get("/zoos/map", response_model=list[schemas.ZooMapPoint])
 def list_zoos_for_map(
+    response: Response,
     q: str = "",
     continent_id: int | None = None,
     country_id: int | None = None,
@@ -96,6 +107,8 @@ def list_zoos_for_map(
     favorites_only: bool = False,
 ):
     """Return minimal data for plotting zoos on the world map."""
+
+    _set_private_cache_headers(response)
 
     validate_region_filters(db, continent_id, country_id)
 
@@ -184,11 +197,14 @@ def _get_zoo_or_404(zoo_slug: str, db: Session) -> models.Zoo:
 
 @router.get("/zoos/{zoo_slug}", response_model=schemas.ZooDetail)
 def get_zoo(
+    response: Response,
     zoo_slug: str,
     db: Session = Depends(get_db),
     user: models.User | None = Depends(get_optional_user),
 ):
     """Retrieve detailed information about a zoo."""
+
+    _set_private_cache_headers(response)
 
     zoo = _get_zoo_or_404(zoo_slug, db)
     if user is not None:
@@ -205,7 +221,7 @@ def get_zoo(
     return zoo
 
 
-@router.post(
+@router.put(
     "/zoos/{zoo_slug}/favorite",
     response_model=schemas.FavoriteStatus,
     status_code=status.HTTP_200_OK,
@@ -218,17 +234,17 @@ def mark_zoo_favorite(
     """Mark a zoo as a favorite for the authenticated user."""
 
     zoo = _get_zoo_or_404(zoo_slug, db)
-    exists = (
-        db.query(models.UserFavoriteZoo)
-        .filter(
-            models.UserFavoriteZoo.user_id == user.id,
-            models.UserFavoriteZoo.zoo_id == zoo.id,
-        )
-        .first()
+    db.execute(
+        text(
+            """
+            INSERT INTO user_favorite_zoos (user_id, zoo_id)
+            VALUES (:user_id, :zoo_id)
+            ON CONFLICT DO NOTHING
+            """
+        ),
+        {"user_id": user.id, "zoo_id": zoo.id},
     )
-    if exists is None:
-        db.add(models.UserFavoriteZoo(user_id=user.id, zoo_id=zoo.id))
-        db.commit()
+    db.commit()
     return schemas.FavoriteStatus(favorite=True)
 
 
@@ -284,11 +300,14 @@ def has_visited_zoo(
 
 @router.get("/zoos/{zoo_slug}/animals", response_model=list[schemas.AnimalRead])
 def list_zoo_animals(
+    response: Response,
     zoo_slug: str,
     db: Session = Depends(get_db),
     user: models.User | None = Depends(get_optional_user),
 ):
     """Return animals that are associated with a specific zoo."""
+
+    _set_private_cache_headers(response)
 
     zoo = _get_zoo_or_404(zoo_slug, db)
     favorites: set = set()

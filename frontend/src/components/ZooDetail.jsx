@@ -52,7 +52,7 @@ export default function ZooDetail({
     setFavoriteError('');
     try {
       const response = await authFetch(`${API}/zoos/${zoo.slug}/favorite`, {
-        method: favorite ? 'DELETE' : 'POST',
+        method: favorite ? 'DELETE' : 'PUT',
       });
       if (!response.ok) {
         throw new Error('Failed to toggle favorite');

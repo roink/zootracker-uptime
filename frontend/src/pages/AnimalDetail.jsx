@@ -362,7 +362,7 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
     try {
       const response = await authFetch(
         `${API}/animals/${animal.slug}/favorite`,
-        { method: favorite ? 'DELETE' : 'POST' }
+        { method: favorite ? 'DELETE' : 'PUT' }
       );
       if (!response.ok) {
         throw new Error('Failed to toggle favorite');
