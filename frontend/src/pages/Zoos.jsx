@@ -147,6 +147,11 @@ export default function ZoosPage() {
   const [listError, setListError] = useState(null);
   const [mapLoading, setMapLoading] = useState(false);
   const [mapError, setMapError] = useState(null);
+  const zoosRef = useRef([]);
+
+  useEffect(() => {
+    zoosRef.current = zoos;
+  }, [zoos]);
 
   useEffect(() => {
     // Only react when the router explicitly sends a camera update.
@@ -385,15 +390,81 @@ export default function ZoosPage() {
       listRequestRef.current.abort();
       listRequestRef.current = null;
     }
-    setZoos([]);
-    setTotalZoos(0);
-    setNextOffset(0);
-    setHasMore(true);
+
+    const controller = new AbortController();
+    listRequestRef.current = controller;
     setListError(null);
-  }, [listFiltersKey]);
+    setHasMore(true);
+    setNextOffset(0);
+    setListLoading(zoosRef.current.length === 0);
+
+    const params = new URLSearchParams();
+    if (listFilters.q) params.set('q', listFilters.q);
+    if (listFilters.continent) params.set('continent_id', listFilters.continent);
+    if (listFilters.country) params.set('country_id', listFilters.country);
+    if (Number.isFinite(listFilters.latitude)) {
+      params.set('latitude', listFilters.latitude);
+    }
+    if (Number.isFinite(listFilters.longitude)) {
+      params.set('longitude', listFilters.longitude);
+    }
+    params.set('limit', String(PAGE_SIZE));
+    params.set('offset', '0');
+
+    let active = true;
+
+    fetch(`${API}/zoos${params.toString() ? `?${params.toString()}` : ''}`, {
+      signal: controller.signal,
+    })
+      .then((resp) => {
+        if (!resp.ok) {
+          throw new Error(`HTTP ${resp.status}`);
+        }
+        return resp.json();
+      })
+      .then((data) => {
+        if (!active || controller.signal.aborted) {
+          return;
+        }
+        const items = Array.isArray(data?.items)
+          ? data.items
+          : Array.isArray(data)
+            ? data
+            : [];
+        const newOffset = items.length;
+        const total = Number.isFinite(data?.total) ? data.total : newOffset;
+        setZoos(items);
+        setNextOffset(newOffset);
+        setTotalZoos(total);
+        setHasMore(newOffset < total && items.length > 0);
+      })
+      .catch((error) => {
+        if (!active || controller.signal.aborted) {
+          return;
+        }
+        setListError(error instanceof Error ? error.message : 'Failed to load zoos');
+      })
+      .finally(() => {
+        if (!active) {
+          return;
+        }
+        if (listRequestRef.current === controller) {
+          listRequestRef.current = null;
+        }
+        setListLoading(false);
+      });
+
+    return () => {
+      active = false;
+      if (listRequestRef.current === controller) {
+        listRequestRef.current = null;
+      }
+      controller.abort();
+    };
+  }, [listFiltersKey, listFilters]);
 
   const loadNextPage = useCallback(async () => {
-    if (listLoading || !hasMore) return;
+    if (listRequestRef.current || listLoading || !hasMore) return;
 
     const controller = new AbortController();
     listRequestRef.current = controller;
@@ -438,10 +509,10 @@ export default function ZoosPage() {
         setListError(error instanceof Error ? error.message : 'Failed to load zoos');
       }
     } finally {
-      if (!controller.signal.aborted) {
-        setListLoading(false);
+      if (listRequestRef.current === controller) {
         listRequestRef.current = null;
       }
+      setListLoading(false);
     }
   }, [
     listFilters,
@@ -449,12 +520,6 @@ export default function ZoosPage() {
     hasMore,
     nextOffset,
   ]);
-
-  useEffect(() => {
-    if (zoos.length === 0 && hasMore && !listLoading) {
-      loadNextPage();
-    }
-  }, [listFiltersKey, loadNextPage, zoos.length, hasMore, listLoading]);
 
   useEffect(() => {
     if (viewMode !== 'list') return undefined;
@@ -757,62 +822,86 @@ export default function ZoosPage() {
       </div>
       {viewMode === 'list' ? (
         <>
-          <div className="list-group">
-            {filtered.map((z) => {
-              const countryName = localizedCountry(z);
-              return (
-                <Link
-                  key={z.id}
-                  className="list-group-item list-group-item-action text-start w-100 text-decoration-none text-reset"
-                  to={`${prefix}/zoos/${z.slug || z.id}`}
+          {filtered.length === 0 ? (
+            <div className="my-4">
+              {listLoading ? (
+                <div
+                  className="d-flex justify-content-center"
+                  role="status"
+                  aria-live="polite"
                 >
-                  <div className="d-flex justify-content-between">
-                    <div>
-                      <div className="fw-bold">
-                        {getZooDisplayName(z)}
-                      </div>
-                      {countryName && (
-                        <div className="text-muted">{countryName}</div>
-                      )}
-                    </div>
-                    <div className="text-end">
-                      {z.distance_km != null && (
-                        <div className="small text-muted">
-                          {z.distance_km.toFixed(1)} km
+                  <div className="spinner-border text-primary" aria-hidden="true" />
+                  <span className="visually-hidden">{t('actions.loading')}</span>
+                </div>
+              ) : listError ? (
+                <div className="alert alert-warning" role="status">
+                  {t('zoo.loadingError')}
+                </div>
+              ) : !hasMore ? (
+                <div className="alert alert-info" role="status">
+                  {t('zoo.noResults')}
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <>
+              <div className="list-group">
+                {filtered.map((z) => {
+                  const countryName = localizedCountry(z);
+                  return (
+                    <Link
+                      key={z.id}
+                      className="list-group-item list-group-item-action text-start w-100 text-decoration-none text-reset"
+                      to={`${prefix}/zoos/${z.slug || z.id}`}
+                    >
+                      <div className="d-flex justify-content-between">
+                        <div>
+                          <div className="fw-bold">
+                            {getZooDisplayName(z)}
+                          </div>
+                          {countryName && (
+                            <div className="text-muted">{countryName}</div>
+                          )}
                         </div>
-                      )}
-                      {visitedSet.has(String(z.id)) && (
-                        <span className="badge bg-success mt-1">
-                          {t('zoo.visitedOnly')}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </Link>
-              );
-            })}
-            {filtered.length === 0 && !listLoading && !hasMore && (
-              <div className="list-group-item text-muted" role="status">
-                {t('zoo.noResults')}
+                        <div className="text-end">
+                          {z.distance_km != null && (
+                            <div className="small text-muted">
+                              {z.distance_km.toFixed(1)} km
+                            </div>
+                          )}
+                          {visitedSet.has(String(z.id)) && (
+                            <span className="badge bg-success mt-1">
+                              {t('zoo.visitedOnly')}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </Link>
+                  );
+                })}
               </div>
-            )}
-          </div>
-          <div ref={sentinelRef} aria-hidden="true" style={{ height: '1px' }} />
-          {listLoading && (
-            <div className="d-flex justify-content-center my-3" role="status" aria-live="polite">
-              <div className="spinner-border text-primary" aria-hidden="true" />
-              <span className="visually-hidden">{t('zoo.loadingMore')}</span>
-            </div>
-          )}
-          {listError && !listLoading && (
-            <div className="alert alert-warning mt-3" role="status">
-              {t('zoo.loadingError')}
-            </div>
-          )}
-          {!listLoading && !listError && !hasMore && totalZoos > 0 && filtered.length > 0 && (
-            <div className="text-muted text-center my-3" role="status">
-              {t('zoo.noMoreResults')}
-            </div>
+              <div ref={sentinelRef} aria-hidden="true" style={{ height: '1px' }} />
+              {listLoading && (
+                <div
+                  className="d-flex justify-content-center my-3"
+                  role="status"
+                  aria-live="polite"
+                >
+                  <div className="spinner-border text-primary" aria-hidden="true" />
+                  <span className="visually-hidden">{t('zoo.loadingMore')}</span>
+                </div>
+              )}
+              {listError && !listLoading && (
+                <div className="alert alert-warning mt-3" role="status">
+                  {t('zoo.loadingError')}
+                </div>
+              )}
+              {!listLoading && !listError && !hasMore && totalZoos > 0 && (
+                <div className="text-muted text-center my-3" role="status">
+                  {t('zoo.noMoreResults')}
+                </div>
+              )}
+            </>
           )}
         </>
       ) : (
