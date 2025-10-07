@@ -120,7 +120,6 @@ export default function ZoosPage() {
     Object.prototype.hasOwnProperty.call(locationState.state, 'mapView');
   const mapViewRef = useRef(locationHasMapView ? locationState.state.mapView ?? null : null);
   const [mapView, setMapView] = useState(() => mapViewRef.current);
-  const initialMapViewRef = useRef(mapViewRef.current);
   const [preferStoredView, setPreferStoredView] = useState(
     () => Array.isArray(mapViewRef.current?.center)
   );
@@ -910,7 +909,8 @@ export default function ZoosPage() {
             zoos={mapZoosWithCoordinates}
             center={preferStoredView ? null : activeLocation}
             onSelect={handleSelectZoo}
-            initialView={initialMapViewRef.current}
+            initialView={mapViewRef.current}
+            suppressAutoFit={Boolean(mapViewRef.current)}
             onViewChange={updateMapView}
             resizeToken={mapResizeToken}
           />

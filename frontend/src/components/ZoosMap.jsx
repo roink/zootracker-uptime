@@ -31,6 +31,7 @@ export default function ZoosMap({
   onSelect,
   resizeToken,
   initialView,
+  suppressAutoFit,
   onViewChange,
   ariaLabel,
 }) {
@@ -554,6 +555,10 @@ export default function ZoosMap({
   useEffect(() => {
     if (!mapRef.current || !mapReady || !maplibreRef.current) return;
     if (persistentInitialView) return;
+    if (suppressAutoFit) {
+      hasFitToZoosRef.current = false;
+      return;
+    }
 
     const hasCenter = Number.isFinite(centerLat) && Number.isFinite(centerLon);
     if (hasCenter) {
@@ -588,6 +593,7 @@ export default function ZoosMap({
     centerLon,
     mapReady,
     persistentInitialView,
+    suppressAutoFit,
   ]);
 
   useEffect(() => {
@@ -680,6 +686,7 @@ ZoosMap.propTypes = {
     bearing: PropTypes.number,
     pitch: PropTypes.number,
   }),
+  suppressAutoFit: PropTypes.bool,
   onViewChange: PropTypes.func,
   ariaLabel: PropTypes.string,
 };
@@ -690,6 +697,7 @@ ZoosMap.defaultProps = {
   onSelect: undefined,
   resizeToken: 0,
   initialView: null,
+  suppressAutoFit: false,
   onViewChange: undefined,
   ariaLabel: undefined,
 };
