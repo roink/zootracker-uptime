@@ -120,6 +120,7 @@ export default function ZoosPage() {
     Object.prototype.hasOwnProperty.call(locationState.state, 'mapView');
   const mapViewRef = useRef(locationHasMapView ? locationState.state.mapView ?? null : null);
   const [mapView, setMapView] = useState(() => mapViewRef.current);
+  const initialMapViewRef = useRef(mapViewRef.current);
   const [preferStoredView, setPreferStoredView] = useState(
     () => Array.isArray(mapViewRef.current?.center)
   );
@@ -814,31 +815,48 @@ export default function ZoosPage() {
             </div>
           )}
         </>
-      ) : mapLoading ? (
-        <div className="d-flex justify-content-center my-3" role="status" aria-live="polite">
-          <div className="spinner-border text-primary" aria-hidden="true" />
-          <span className="visually-hidden">{t('zoo.mapLoading')}</span>
-        </div>
-      ) : mapError ? (
-        <div className="alert alert-warning" role="status">
-          {t('zoo.mapLoadingError')}
-        </div>
-      ) : mapFiltered.length === 0 ? (
-        <div className="alert alert-info" role="status">
-          {t('zoo.noResults')}
-        </div>
-      ) : mapZoosWithCoordinates.length > 0 ? (
-        <ZoosMap
-          zoos={mapZoosWithCoordinates}
-          center={preferStoredView ? null : activeLocation}
-          onSelect={handleSelectZoo}
-          initialView={mapView}
-          onViewChange={updateMapView}
-          resizeToken={mapResizeToken}
-        />
       ) : (
-        <div className="alert alert-info" role="status">
-          {t('zoo.noMapResults')}
+        <div className="position-relative">
+          <ZoosMap
+            zoos={mapZoosWithCoordinates}
+            center={preferStoredView ? null : activeLocation}
+            onSelect={handleSelectZoo}
+            initialView={initialMapViewRef.current}
+            onViewChange={updateMapView}
+            resizeToken={mapResizeToken}
+          />
+          {mapLoading && (
+            <div
+              className="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
+              style={{ pointerEvents: 'none' }}
+              role="status"
+              aria-live="polite"
+            >
+              <div className="spinner-border text-primary" aria-hidden="true" />
+              <span className="visually-hidden">{t('zoo.mapLoading')}</span>
+            </div>
+          )}
+          {!mapLoading && mapError && (
+            <div className="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center">
+              <div className="alert alert-warning mb-0" role="status">
+                {t('zoo.mapLoadingError')}
+              </div>
+            </div>
+          )}
+          {!mapLoading && !mapError && mapFiltered.length === 0 && (
+            <div className="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center">
+              <div className="alert alert-info mb-0" role="status">
+                {t('zoo.noResults')}
+              </div>
+            </div>
+          )}
+          {!mapLoading && !mapError && mapFiltered.length > 0 && mapZoosWithCoordinates.length === 0 && (
+            <div className="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center">
+              <div className="alert alert-info mb-0" role="status">
+                {t('zoo.noMapResults')}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
