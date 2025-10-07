@@ -118,6 +118,38 @@ describe('ZoosPage', () => {
     expect(await screen.findByText(/^Germany$/)).toBeInTheDocument();
   });
 
+  it('shows favorite badges even when the favorites filter is off', async () => {
+    const listZoos = [
+      {
+        id: 'fav-1',
+        slug: 'favorite-zoo',
+        name: 'Favorite Zoo',
+        city: 'Metropolis',
+        country_name_en: 'Germany',
+        country_name_de: 'Deutschland',
+        distance_km: 3.2,
+        is_favorite: true,
+      },
+    ];
+    const mapZoos = [
+      {
+        id: 'fav-1',
+        slug: 'favorite-zoo',
+        name: 'Favorite Zoo',
+        city: 'Metropolis',
+        latitude: 48.1,
+        longitude: 11.6,
+      },
+    ];
+    const fetchMock = createZooFetchMock({ listZoos, mapZoos });
+    global.fetch = fetchMock;
+
+    renderWithRouter(<ZoosPage />);
+
+    expect(await screen.findByText(/Favorite Zoo/)).toBeInTheDocument();
+    expect(screen.getByLabelText('Favorite')).toBeInTheDocument();
+  });
+
   it('filters zoos by visit status', async () => {
     const zoos = [
       {

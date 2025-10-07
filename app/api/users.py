@@ -10,6 +10,7 @@ from ..database import get_db
 from .deps import require_json, resolve_coords
 from .common_filters import apply_zoo_filters, validate_region_filters
 from ..utils.geometry import query_zoos_with_distance
+from ..utils.http import set_personalized_cache_headers
 
 router = APIRouter()
 
@@ -157,8 +158,7 @@ def list_user_visited_zoos(
     query = apply_zoo_filters(query, q, continent_id, country_id)
 
     latitude, longitude = coords
-    response.headers["Cache-Control"] = "private, no-store, max-age=0"
-    response.headers["Vary"] = "Authorization"
+    set_personalized_cache_headers(response)
     favorite_ids = _favorite_zoo_ids(db, user_id)
     return _build_user_zoo_page(
         query, latitude, longitude, limit, offset, favorite_ids=favorite_ids
@@ -192,8 +192,7 @@ def list_user_not_visited_zoos(
     query = apply_zoo_filters(query, q, continent_id, country_id)
 
     latitude, longitude = coords
-    response.headers["Cache-Control"] = "private, no-store, max-age=0"
-    response.headers["Vary"] = "Authorization"
+    set_personalized_cache_headers(response)
     favorite_ids = _favorite_zoo_ids(db, user_id)
     return _build_user_zoo_page(
         query, latitude, longitude, limit, offset, favorite_ids=favorite_ids
@@ -235,8 +234,7 @@ def list_user_visited_zoos_for_map(
     )
     query = apply_zoo_filters(query, q, continent_id, country_id)
     zoos = query.order_by(models.Zoo.name).all()
-    response.headers["Cache-Control"] = "private, no-store, max-age=0"
-    response.headers["Vary"] = "Authorization"
+    set_personalized_cache_headers(response)
     return _serialize_map_points(zoos)
 
 
@@ -275,8 +273,7 @@ def list_user_not_visited_zoos_for_map(
     )
     query = apply_zoo_filters(query, q, continent_id, country_id)
     zoos = query.order_by(models.Zoo.name).all()
-    response.headers["Cache-Control"] = "private, no-store, max-age=0"
-    response.headers["Vary"] = "Authorization"
+    set_personalized_cache_headers(response)
     return _serialize_map_points(zoos)
 
 @router.get("/users/{user_id}/animals", response_model=list[schemas.AnimalRead])

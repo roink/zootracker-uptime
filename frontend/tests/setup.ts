@@ -1,7 +1,24 @@
 import '@testing-library/jest-dom/vitest';
-import { beforeEach, afterEach } from 'vitest';
+import { beforeEach, afterEach, vi } from 'vitest';
 import { loadLocale } from '../src/i18n.js';
 import { clearStoredAuth } from '../src/test-utils/auth.js';
+
+// Provide a minimal URL API so maplibre can initialize in the test environment.
+if (typeof window !== 'undefined') {
+  type URLWithBlobHelpers = typeof window.URL & {
+    createObjectURL?: (...args: unknown[]) => string;
+    revokeObjectURL?: (...args: unknown[]) => void;
+  };
+  class MockURL {}
+  const URLConstructor = (window.URL ?? MockURL) as URLWithBlobHelpers;
+  if (!URLConstructor.createObjectURL) {
+    URLConstructor.createObjectURL = vi.fn(() => 'blob:mock-url');
+  }
+  if (!URLConstructor.revokeObjectURL) {
+    URLConstructor.revokeObjectURL = vi.fn();
+  }
+  window.URL = URLConstructor;
+}
 
 beforeEach(() => {
   localStorage.clear();

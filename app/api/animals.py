@@ -9,6 +9,7 @@ from ..database import get_db
 from ..auth import get_current_user, get_optional_user
 from ..utils.geometry import query_zoos_with_distance
 from ..utils.images import build_unique_variants
+from ..utils.http import set_personalized_cache_headers
 from .deps import resolve_coords
 
 
@@ -45,13 +46,6 @@ def _get_animal_or_404(animal_slug: str, db: Session) -> models.Animal:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Animal not found")
     return animal
 
-def _set_private_cache_headers(response: Response) -> None:
-    """Prevent intermediaries from caching personalized favorite data."""
-
-    response.headers["Cache-Control"] = "private, no-store, max-age=0"
-    response.headers["Vary"] = "Authorization"
-
-
 @router.get("/animals", response_model=list[schemas.AnimalListItem])
 def list_animals(
     response: Response,
@@ -68,7 +62,7 @@ def list_animals(
 ):
     """List animals filtered by search query, taxonomy and pagination."""
 
-    _set_private_cache_headers(response)
+    set_personalized_cache_headers(response)
 
     # Ensure hierarchical taxonomy parameters are consistent
     if class_id is not None and order_id is not None:
@@ -231,7 +225,7 @@ def combined_search(
 ):
     """Return top zoos and animals matching the query."""
 
-    _set_private_cache_headers(response)
+    set_personalized_cache_headers(response)
     zoo_q = db.query(models.Zoo).options(
         load_only(models.Zoo.id, models.Zoo.slug, models.Zoo.name, models.Zoo.city)
     )
@@ -344,7 +338,7 @@ def get_animal_detail(
     distance and include a ``distance_km`` field so the frontend only needs a
     single request.
     """
-    _set_private_cache_headers(response)
+    set_personalized_cache_headers(response)
     animal = (
         db.query(models.Animal)
         .options(
@@ -362,7 +356,6 @@ def get_animal_detail(
 
     animal_id = animal.id
     is_favorite = False
-    favorite_zoo_ids: set[uuid.UUID] = set()
     if user is not None:
         is_favorite = (
             db.query(models.UserFavoriteAnimal)
@@ -373,14 +366,6 @@ def get_animal_detail(
             .first()
             is not None
         )
-        favorite_zoo_ids = {
-            row[0]
-            for row in (
-                db.query(models.UserFavoriteZoo.zoo_id)
-                .filter(models.UserFavoriteZoo.user_id == user.id)
-                .all()
-            )
-        }
     latitude, longitude = coords
 
     query = (
@@ -403,6 +388,17 @@ def get_animal_detail(
     )
 
     results = query_zoos_with_distance(query, latitude, longitude, include_no_coords=True)
+
+    favorite_zoo_ids: set[uuid.UUID] = set()
+    if user is not None:
+        favorite_zoo_ids = {
+            row[0]
+            for row in (
+                db.query(models.UserFavoriteZoo.zoo_id)
+                .filter(models.UserFavoriteZoo.user_id == user.id)
+                .all()
+            )
+        }
 
     zoos = [
         to_zoodetail(z, dist, is_favorite=z.id in favorite_zoo_ids)
