@@ -22,6 +22,13 @@ class AnimalSighting(Base):
             text("sighting_datetime DESC"),
             text("created_at DESC"),
         ),
+        Index(
+            "idx_sightings_user_zoo_datetime",
+            "user_id",
+            "zoo_id",
+            text("sighting_datetime DESC"),
+            text("created_at DESC"),
+        ),
     )
 
     id = Column(

@@ -35,6 +35,12 @@ def create_triggers(engine: Engine) -> None:
         )
         conn.execute(
             text(
+                "CREATE INDEX IF NOT EXISTS idx_sightings_user_zoo_datetime "
+                "ON animal_sightings (user_id, zoo_id, sighting_datetime DESC, created_at DESC);"
+            )
+        )
+        conn.execute(
+            text(
                 "CREATE INDEX IF NOT EXISTS idx_zoo_animals_zoo_id ON zoo_animals(zoo_id);"
             )
         )

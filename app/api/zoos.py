@@ -327,7 +327,7 @@ def list_zoo_sightings(
         )
     )
 
-    total = query.count()
+    total = query.order_by(None).count()
     items = (
         query.order_by(
             models.AnimalSighting.sighting_datetime.desc(),

@@ -216,6 +216,8 @@ CREATE TABLE animal_sightings (
 CREATE INDEX IF NOT EXISTS idx_animalsighting_user_animal ON animal_sightings(user_id, animal_id);
 CREATE INDEX IF NOT EXISTS idx_sightings_user_day_created
   ON animal_sightings (user_id, sighting_datetime DESC, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_sightings_user_zoo_datetime
+  ON animal_sightings (user_id, zoo_id, sighting_datetime DESC, created_at DESC);
 
 
 -- 8. Achievements / Badges
