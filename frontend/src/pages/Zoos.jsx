@@ -6,7 +6,7 @@ import {
   useNavigate,
   useLocation,
 } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
+import { useTranslation, Trans } from 'react-i18next';
 import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
 import Seo from '../components/Seo';
@@ -909,63 +909,80 @@ export default function ZoosPage() {
       </div>
       <div className="row mb-3">
         <div className="col-md-4 mb-2">
-          <fieldset
-            className="btn-group w-100"
-            role="group"
-            aria-label="Visit filter"
-          >
-            <legend className="visually-hidden">Visit filter</legend>
-            <input
-              type="radio"
-              className="btn-check"
-              name="visit-filter"
-              id="visit-all"
-              autoComplete="off"
-              checked={visitFilter === 'all'}
-              onChange={() => updateVisitFilter('all')}
-              disabled={visitedLoading}
-            />
-            <label className="btn btn-outline-primary" htmlFor="visit-all">
-              {t('zoo.all')}
-            </label>
+          {isAuthenticated ? (
+            <>
+              <fieldset
+                className="btn-group w-100"
+                role="group"
+                aria-label="Visit filter"
+              >
+                <legend className="visually-hidden">Visit filter</legend>
+                <input
+                  type="radio"
+                  className="btn-check"
+                  name="visit-filter"
+                  id="visit-all"
+                  autoComplete="off"
+                  checked={visitFilter === 'all'}
+                  onChange={() => updateVisitFilter('all')}
+                  disabled={visitedLoading}
+                />
+                <label
+                  className="btn btn-outline-primary"
+                  htmlFor="visit-all"
+                >
+                  {t('zoo.all')}
+                </label>
 
-            <input
-              type="radio"
-              className="btn-check"
-              name="visit-filter"
-              id="visit-visited"
-              autoComplete="off"
-              checked={visitFilter === 'visited'}
-              onChange={() => updateVisitFilter('visited')}
-              disabled={visitedLoading || !isAuthenticated}
-            />
-            <label
-              className="btn btn-outline-primary"
-              htmlFor="visit-visited"
-            >
-              {t('zoo.visitedOnly')}
-            </label>
+                <input
+                  type="radio"
+                  className="btn-check"
+                  name="visit-filter"
+                  id="visit-visited"
+                  autoComplete="off"
+                  checked={visitFilter === 'visited'}
+                  onChange={() => updateVisitFilter('visited')}
+                  disabled={visitedLoading || !isAuthenticated}
+                />
+                <label
+                  className="btn btn-outline-primary"
+                  htmlFor="visit-visited"
+                >
+                  {t('zoo.visitedOnly')}
+                </label>
 
-            <input
-              type="radio"
-              className="btn-check"
-              name="visit-filter"
-              id="visit-not"
-              autoComplete="off"
-              checked={visitFilter === 'not'}
-              onChange={() => updateVisitFilter('not')}
-              disabled={visitedLoading || !isAuthenticated}
-            />
-            <label className="btn btn-outline-primary" htmlFor="visit-not">
-              {t('zoo.notVisited')}
-            </label>
-          </fieldset>
-          {visitFilter !== 'all' && visitedLoading && (
-            <div
-              className="spinner-border spinner-border-sm text-primary ms-2"
-              role="status"
-              aria-label="Loading visited"
-            />
+                <input
+                  type="radio"
+                  className="btn-check"
+                  name="visit-filter"
+                  id="visit-not"
+                  autoComplete="off"
+                  checked={visitFilter === 'not'}
+                  onChange={() => updateVisitFilter('not')}
+                  disabled={visitedLoading || !isAuthenticated}
+                />
+                <label className="btn btn-outline-primary" htmlFor="visit-not">
+                  {t('zoo.notVisited')}
+                </label>
+              </fieldset>
+              {visitFilter !== 'all' && visitedLoading && (
+                <div
+                  className="spinner-border spinner-border-sm text-primary ms-2"
+                  role="status"
+                  aria-label="Loading visited"
+                />
+              )}
+            </>
+          ) : (
+            <div className="alert alert-info mb-0" role="alert">
+              <Trans
+                i18nKey="zoo.visitFilterLoginPrompt"
+                components={{
+                  login: <Link className="alert-link" to={`${prefix}/login`} />,
+                  signup: <Link className="alert-link" to={`${prefix}/login`} />,
+                }}
+              />
+            </div>
           )}
         </div>
         {isAuthenticated && (
