@@ -5,6 +5,7 @@ import { renderWithRouter } from '../test-utils/router.jsx';
 import ZooDetail from './ZooDetail';
 import { API } from '../api';
 import { createTestToken } from '../test-utils/auth.js';
+import { toLocalYMD } from '../utils/sightingHistory.js';
 vi.mock('./LazyMap', () => ({ default: () => <div data-testid="map" /> }));
 
 const originalFetch = global.fetch;
@@ -194,13 +195,13 @@ describe('ZooDetail component', () => {
 
   it('groups history by day and shows relative headings', async () => {
     const today = new Date();
-    const isoToday = today.toISOString().slice(0, 10);
+    const isoToday = toLocalYMD(today);
     const yesterday = new Date(today);
-    yesterday.setUTCDate(yesterday.getUTCDate() - 1);
-    const isoYesterday = yesterday.toISOString().slice(0, 10);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const isoYesterday = toLocalYMD(yesterday);
     const earlier = new Date(today);
-    earlier.setUTCDate(earlier.getUTCDate() - 5);
-    const isoEarlier = earlier.toISOString().slice(0, 10);
+    earlier.setDate(earlier.getDate() - 5);
+    const isoEarlier = toLocalYMD(earlier);
     const historyData = {
       items: [
         {
