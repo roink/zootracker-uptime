@@ -9,6 +9,7 @@ from ..utils.http import set_personalized_cache_headers
 from ..auth import get_current_user, get_optional_user
 from .deps import resolve_coords
 from .common_filters import apply_zoo_filters, validate_region_filters
+from .common_sightings import apply_recent_first_order, build_user_sightings_query
 
 router = APIRouter()
 
@@ -106,17 +107,14 @@ def list_zoos_for_map(
 
     validate_region_filters(db, continent_id, country_id)
 
-    query = (
-        db.query(models.Zoo)
-        .options(
-            load_only(
-                models.Zoo.id,
-                models.Zoo.slug,
-                models.Zoo.name,
-                models.Zoo.city,
-                models.Zoo.latitude,
-                models.Zoo.longitude,
-            )
+    query = db.query(models.Zoo).options(
+        load_only(
+            models.Zoo.id,
+            models.Zoo.slug,
+            models.Zoo.name,
+            models.Zoo.city,
+            models.Zoo.latitude,
+            models.Zoo.longitude,
         )
     )
     query = apply_zoo_filters(query, q, continent_id, country_id)
@@ -179,6 +177,7 @@ def list_countries(continent_id: int, db: Session = Depends(get_db)):
         schemas.TaxonName(id=c.id, name_de=c.name_de, name_en=c.name_en)
         for c in countries
     ]
+
 
 def _get_zoo_or_404(zoo_slug: str, db: Session) -> models.Zoo:
     """Return a zoo by slug or raise a 404 error."""
@@ -306,31 +305,15 @@ def list_zoo_sightings(
 ):
     """Return the authenticated user's sightings for a specific zoo."""
 
-    _set_private_cache_headers(response)
-
     zoo = _get_zoo_or_404(zoo_slug, db)
-    query = (
-        db.query(models.AnimalSighting)
-        .options(
-            joinedload(models.AnimalSighting.animal),
-            joinedload(models.AnimalSighting.zoo),
-        )
-        .filter(
-            models.AnimalSighting.user_id == user.id,
-            models.AnimalSighting.zoo_id == zoo.id,
-        )
+    set_personalized_cache_headers(response)
+
+    query = build_user_sightings_query(db, user.id).filter(
+        models.AnimalSighting.zoo_id == zoo.id
     )
 
     total = query.order_by(None).count()
-    items = (
-        query.order_by(
-            models.AnimalSighting.sighting_datetime.desc(),
-            models.AnimalSighting.created_at.desc(),
-        )
-        .limit(limit)
-        .offset(offset)
-        .all()
-    )
+    items = apply_recent_first_order(query).limit(limit).offset(offset).all()
 
     response.headers["X-Total-Count"] = str(total)
 

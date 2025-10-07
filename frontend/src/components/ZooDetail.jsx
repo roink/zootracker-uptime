@@ -1,12 +1,14 @@
-import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
 import SightingModal from './SightingModal';
 import LazyMap from './LazyMap';
+import SightingHistoryList from './SightingHistoryList.jsx';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { getZooDisplayName } from '../utils/zooDisplayName.js';
+import { formatSightingDayLabel } from '../utils/sightingHistory.js';
 
 // Detailed view for a single zoo with a list of resident animals.
 // Used by the ZooDetailPage component.
@@ -55,17 +57,36 @@ export default function ZooDetail({
     [lang]
   );
 
-  const localYMD = useCallback((value) => {
-    if (!value) return '';
-    const date = typeof value === 'string' ? new Date(value) : value;
-    if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
-      return '';
-    }
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  }, []);
+  const formatHistoryDay = useCallback(
+    (day) =>
+      formatSightingDayLabel(day, locale, {
+        today: t('dashboard.today'),
+        yesterday: t('dashboard.yesterday'),
+      }),
+    [locale, t]
+  );
+
+  const renderHistoryItem = useCallback(
+    (sighting, helpers) => {
+      const animalName = getSightingAnimalName(sighting);
+      const timeLabel = helpers.formatTime(sighting.sighting_datetime);
+      const message = timeLabel
+        ? t('zoo.visitHistoryItemWithTime', {
+            animal: animalName,
+            time: timeLabel,
+          })
+        : t('zoo.visitHistoryItem', { animal: animalName });
+      return (
+        <>
+          <div>{message}</div>
+          {sighting.notes && (
+            <div className="small text-muted mt-1">{sighting.notes}</div>
+          )}
+        </>
+      );
+    },
+    [getSightingAnimalName, t]
+  );
 
   const handleFavoriteToggle = useCallback(async () => {
     if (!zoo) return;
@@ -220,66 +241,6 @@ export default function ZooDetail({
     return () => controller.abort();
   }, [loadHistory, refresh]);
 
-  const groupedHistory = useMemo(() => {
-    if (!history || history.length === 0) {
-      return [];
-    }
-    const sorted = [...history].sort((a, b) => {
-      const aTime = new Date(a?.sighting_datetime ?? 0).getTime();
-      const bTime = new Date(b?.sighting_datetime ?? 0).getTime();
-      if (aTime !== bTime) {
-        return bTime - aTime;
-      }
-      const aCreated = new Date(a?.created_at ?? 0).getTime();
-      const bCreated = new Date(b?.created_at ?? 0).getTime();
-      return bCreated - aCreated;
-    });
-    const groups = [];
-    sorted.forEach((item) => {
-      const day = item?.sighting_datetime ? localYMD(item.sighting_datetime) : '';
-      const last = groups[groups.length - 1];
-      if (!last || last.day !== day) {
-        groups.push({ day, items: [item] });
-      } else {
-        last.items.push(item);
-      }
-    });
-    return groups;
-  }, [history, localYMD]);
-
-  const formatDay = useCallback(
-    (day) => {
-      if (!day) return '';
-      const today = localYMD(new Date());
-      const yesterdayDate = new Date();
-      yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-      const yesterdayIso = localYMD(yesterdayDate);
-      if (day === today) {
-        return t('dashboard.today');
-      }
-      if (day === yesterdayIso) {
-        return t('dashboard.yesterday');
-      }
-      const parsed = new Date(`${day}T00:00:00`);
-      if (!Number.isNaN(parsed.getTime())) {
-        return parsed.toLocaleDateString(locale);
-      }
-      return day;
-    },
-    [locale, localYMD, t]
-  );
-
-  const formatTime = useCallback(
-    (value) => {
-      if (!value) return null;
-      const date = new Date(value);
-      if (Number.isNaN(date.getTime())) {
-        return null;
-      }
-      return date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
-    },
-    [locale]
-  );
   // pick description based on current language with fallback to generic text
   const zooDescription =
     lang === 'de' ? zoo.description_de : zoo.description_en;
@@ -365,56 +326,23 @@ export default function ZooDetail({
       )}
       <div className="mt-3">
         <h4>{t('zoo.visitHistoryHeading')}</h4>
-        {!isAuthenticated ? (
-          <div className="alert alert-info mt-2" role="status" aria-live="polite">
-            <p className="mb-2">{t('zoo.visitHistoryLogin')}</p>
-            <button
-              type="button"
-              className="btn btn-primary btn-sm"
-              onClick={() => navigate(`${prefix}/login`)}
-            >
-              {t('nav.login')}
-            </button>
-          </div>
-        ) : historyLoading ? (
-          <div className="text-muted" role="status" aria-live="polite">
-            {t('zoo.visitHistoryLoading')}
-          </div>
-        ) : historyError ? (
-          <div className="text-danger" role="status" aria-live="polite">
-            {t('zoo.visitHistoryError')}
-          </div>
-        ) : groupedHistory.length === 0 ? (
-          <div className="text-muted" role="status" aria-live="polite">
-            {t('zoo.visitHistoryEmpty')}
-          </div>
-        ) : (
-          <ul className="list-group mb-3">
-            {groupedHistory.map((group, idx) => (
-              <Fragment key={`${group.day || 'unknown'}:${idx}`}>
-                <li className="list-group-item active">{formatDay(group.day)}</li>
-                {group.items.map((sighting) => {
-                  const animalName = getSightingAnimalName(sighting);
-                  const timeLabel = formatTime(sighting.sighting_datetime);
-                  const message = timeLabel
-                    ? t('zoo.visitHistoryItemWithTime', {
-                        animal: animalName,
-                        time: timeLabel,
-                      })
-                    : t('zoo.visitHistoryItem', { animal: animalName });
-                  return (
-                    <li key={sighting.id} className="list-group-item">
-                      <div>{message}</div>
-                      {sighting.notes && (
-                        <div className="small text-muted mt-1">{sighting.notes}</div>
-                      )}
-                    </li>
-                  );
-                })}
-              </Fragment>
-            ))}
-          </ul>
-        )}
+        <SightingHistoryList
+          sightings={history}
+          locale={locale}
+          isAuthenticated={isAuthenticated}
+          loading={historyLoading}
+          error={historyError}
+          messages={{
+            login: t('zoo.visitHistoryLogin'),
+            loginCta: t('nav.login'),
+            loading: t('zoo.visitHistoryLoading'),
+            error: t('zoo.visitHistoryError'),
+            empty: t('zoo.visitHistoryEmpty'),
+          }}
+          onLogin={() => navigate(`${prefix}/login`)}
+          formatDay={formatHistoryDay}
+          renderSighting={renderHistoryItem}
+        />
       </div>
       {/* visit logging removed - visits are created automatically from sightings */}
       <h4 className="mt-3">{t('zoo.animals')}</h4>

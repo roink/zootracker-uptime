@@ -5,13 +5,13 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
-from sqlalchemy import Date, cast
 from sqlalchemy.orm import Session, joinedload
 
 from .. import models, schemas
 from ..auth import get_current_user
 from ..database import get_db
 from .deps import require_json
+from .common_sightings import apply_recent_first_order, build_user_sightings_query
 
 
 audit_logger = logging.getLogger("app.audit")
@@ -33,10 +33,14 @@ def create_sighting(
     """Record an animal sighting for the authenticated user."""
 
     if db.get(models.Zoo, sighting_in.zoo_id) is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Zoo not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Zoo not found"
+        )
 
     if db.get(models.Animal, sighting_in.animal_id) is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Animal not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Animal not found"
+        )
 
     data = sighting_in.model_dump(exclude_unset=True)
     data["user_id"] = user.id
@@ -102,7 +106,9 @@ def update_sighting(
 
     sighting = db.get(models.AnimalSighting, sighting_id)
     if sighting is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sighting not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Sighting not found"
+        )
     if sighting.user_id != user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -112,10 +118,14 @@ def update_sighting(
     data = sighting_in.model_dump(exclude_unset=True)
 
     if "zoo_id" in data and db.get(models.Zoo, data["zoo_id"]) is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Zoo not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Zoo not found"
+        )
 
     if "animal_id" in data and db.get(models.Animal, data["animal_id"]) is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Animal not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Animal not found"
+        )
 
     for key, value in data.items():
         setattr(sighting, key, value)
@@ -143,19 +153,8 @@ def list_sightings(
 ):
     """Retrieve all animal sightings recorded by the current user."""
 
-    return (
-        db.query(models.AnimalSighting)
-        .options(
-            joinedload(models.AnimalSighting.animal),
-            joinedload(models.AnimalSighting.zoo),
-        )
-        .filter_by(user_id=user.id)
-        .order_by(
-            cast(models.AnimalSighting.sighting_datetime, Date).desc(),
-            models.AnimalSighting.created_at.desc(),
-        )
-        .all()
-    )
+    query = build_user_sightings_query(db, user.id)
+    return apply_recent_first_order(query).all()
 
 
 @router.delete("/sightings/{sighting_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -168,7 +167,9 @@ def delete_sighting(
 
     sighting = db.get(models.AnimalSighting, sighting_id)
     if sighting is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sighting not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Sighting not found"
+        )
 
     if sighting.user_id != user.id:
         raise HTTPException(
