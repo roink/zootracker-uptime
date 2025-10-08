@@ -271,7 +271,12 @@ export default function LoginPage() {
               i18nKey="auth.signup.acceptLabel"
               components={{
                 link: (
-                  <Link className="text-decoration-underline" to={dataProtectionHref} />
+                  <Link
+                    className="text-decoration-underline"
+                    to={dataProtectionHref}
+                  >
+                    {t('auth.signup.linkText')}
+                  </Link>
                 ),
               }}
             />

@@ -43,6 +43,11 @@ describe('LoginPage', () => {
 
     expect(fetchSpy).not.toHaveBeenCalled();
 
+    const consentLink = formUtils.getByRole('link', {
+      name: /data protection statement/i,
+    });
+    expect(consentLink).toHaveAttribute('href', '/en/data-protection');
+
     const consentCheckbox = formUtils.getByRole('checkbox', {
       name: /data protection/i,
     });
