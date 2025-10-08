@@ -1,4 +1,7 @@
-from .conftest import client, register_and_login, TEST_PASSWORD
+from app import models
+from app.database import SessionLocal
+
+from .conftest import CONSENT_VERSION, client, register_and_login, TEST_PASSWORD
 
 _counter = 0  # used to generate unique email addresses
 
@@ -11,7 +14,13 @@ def test_create_user_empty_fields():
     """Empty strings for required user fields should fail."""
     resp = client.post(
         "/users",
-        json={"name": "", "email": "", "password": ""},
+        json={
+            "name": "",
+            "email": "",
+            "password": "",
+            "accepted_data_protection": True,
+            "privacy_consent_version": CONSENT_VERSION,
+        },
     )
     assert resp.status_code == 422
 
@@ -23,6 +32,8 @@ def test_create_user_extra_field_rejected():
             "name": "Bob",
             "email": "bob@example.com",
             "password": TEST_PASSWORD,
+            "accepted_data_protection": True,
+            "privacy_consent_version": CONSENT_VERSION,
             "unexpected": "boom",
         },
     )
@@ -32,7 +43,13 @@ def test_create_user_name_too_long():
     long_name = "a" * 256
     resp = client.post(
         "/users",
-        json={"name": long_name, "email": "toolong@example.com", "password": TEST_PASSWORD},
+        json={
+            "name": long_name,
+            "email": "toolong@example.com",
+            "password": TEST_PASSWORD,
+            "accepted_data_protection": True,
+            "privacy_consent_version": CONSENT_VERSION,
+        },
     )
     assert resp.status_code == 422
 
@@ -42,7 +59,13 @@ def test_create_user_email_too_long():
     long_email = f"{local_part}@example.com"
     resp = client.post(
         "/users",
-        json={"name": "Alice", "email": long_email, "password": TEST_PASSWORD},
+        json={
+            "name": "Alice",
+            "email": long_email,
+            "password": TEST_PASSWORD,
+            "accepted_data_protection": True,
+            "privacy_consent_version": CONSENT_VERSION,
+        },
     )
     assert resp.status_code == 422
 
@@ -50,7 +73,13 @@ def test_create_user_password_too_long():
     long_pw = "p" * 256
     resp = client.post(
         "/users",
-        json={"name": "Alice", "email": "alice@example.com", "password": long_pw},
+        json={
+            "name": "Alice",
+            "email": "alice@example.com",
+            "password": long_pw,
+            "accepted_data_protection": True,
+            "privacy_consent_version": CONSENT_VERSION,
+        },
     )
     assert resp.status_code == 422
 
@@ -58,9 +87,49 @@ def test_create_user_password_too_short():
     """Passwords shorter than 8 characters should be rejected."""
     resp = client.post(
         "/users",
-        json={"name": "Alice", "email": "shortpw@example.com", "password": "short"},
+        json={
+            "name": "Alice",
+            "email": "shortpw@example.com",
+            "password": "short",
+            "accepted_data_protection": True,
+            "privacy_consent_version": CONSENT_VERSION,
+        },
     )
     assert resp.status_code == 422
+
+
+def test_create_user_requires_data_protection_consent():
+    """Registrations must include consent to the data protection statement."""
+    resp = client.post(
+        "/users",
+        json={
+            "name": "Alice",
+            "email": "privacy@example.com",
+            "password": TEST_PASSWORD,
+            "accepted_data_protection": False,
+            "privacy_consent_version": CONSENT_VERSION,
+        },
+    )
+    assert resp.status_code == 422
+
+
+def test_consent_validation_error_points_to_field():
+    """Consent validation errors should reference the consent field path."""
+    resp = client.post(
+        "/users",
+        json={
+            "name": "Alice",
+            "email": "privacy-loc@example.com",
+            "password": TEST_PASSWORD,
+            "accepted_data_protection": False,
+            "privacy_consent_version": CONSENT_VERSION,
+        },
+    )
+    assert resp.status_code == 422
+    detail = resp.json()["detail"]
+    assert any(
+        error.get("loc") == ["body", "accepted_data_protection"] for error in detail
+    )
 
 def test_create_user_requires_json():
     global _counter
@@ -68,7 +137,13 @@ def test_create_user_requires_json():
     _counter += 1
     resp = client.post(
         "/users",
-        json={"name": "Alice", "email": email, "password": TEST_PASSWORD},
+        json={
+            "name": "Alice",
+            "email": email,
+            "password": TEST_PASSWORD,
+            "accepted_data_protection": True,
+            "privacy_consent_version": CONSENT_VERSION,
+        },
         headers={"content-type": "text/plain"},
     )
     assert resp.status_code == 415
@@ -80,7 +155,13 @@ def test_create_user_accepts_charset():
     _counter += 1
     resp = client.post(
         "/users",
-        json={"name": "Alice", "email": email, "password": TEST_PASSWORD},
+        json={
+            "name": "Alice",
+            "email": email,
+            "password": TEST_PASSWORD,
+            "accepted_data_protection": True,
+            "privacy_consent_version": CONSENT_VERSION,
+        },
         headers={"content-type": "application/json; charset=utf-8"},
     )
     assert resp.status_code == 200
@@ -94,7 +175,13 @@ def test_create_user_response_fields():
     _counter += 1
     resp = client.post(
         "/users",
-        json={"name": "Alice", "email": email, "password": TEST_PASSWORD},
+        json={
+            "name": "Alice",
+            "email": email,
+            "password": TEST_PASSWORD,
+            "accepted_data_protection": True,
+            "privacy_consent_version": CONSENT_VERSION,
+        },
     )
     assert resp.status_code == 200
     assert set(resp.json().keys()) == {"id", "name", "email"}
@@ -114,7 +201,13 @@ def test_login_endpoint():
     _counter += 1
     resp = client.post(
         "/users",
-        json={"name": "Alias", "email": email, "password": TEST_PASSWORD},
+        json={
+            "name": "Alias",
+            "email": email,
+            "password": TEST_PASSWORD,
+            "accepted_data_protection": True,
+            "privacy_consent_version": CONSENT_VERSION,
+        },
     )
     assert resp.status_code == 200
     resp = client.post(
@@ -138,7 +231,13 @@ def test_login_response_excludes_password_fields():
     _counter += 1
     resp = client.post(
         "/users",
-        json={"name": "Token", "email": email, "password": TEST_PASSWORD},
+        json={
+            "name": "Token",
+            "email": email,
+            "password": TEST_PASSWORD,
+            "accepted_data_protection": True,
+            "privacy_consent_version": CONSENT_VERSION,
+        },
     )
     assert resp.status_code == 200
     resp = client.post(
@@ -175,6 +274,35 @@ def test_register_response_sanitized():
     assert set(data.keys()) == {"id", "name", "email"}
 
 
+def test_registration_persists_privacy_consent_metadata():
+    """Registration should persist consent metadata for compliance audits."""
+    global _counter
+    email = f"consentmeta{_counter}@example.com"
+    _counter += 1
+    resp = client.post(
+        "/users",
+        json={
+            "name": "Consent",
+            "email": email,
+            "password": TEST_PASSWORD,
+            "accepted_data_protection": True,
+            "privacy_consent_version": CONSENT_VERSION,
+        },
+    )
+    assert resp.status_code == 200
+
+    db = SessionLocal()
+    try:
+        user = db.query(models.User).filter(models.User.email == email).one()
+        assert user.privacy_consent_version == CONSENT_VERSION
+        assert user.privacy_consent_at is not None
+        assert user.privacy_consent_at.tzinfo is not None
+        assert user.privacy_consent_ip is not None
+        assert user.privacy_consent_ip != ""
+    finally:
+        db.close()
+
+
 def test_register_rejects_email_with_different_case():
     """Email uniqueness should be case-insensitive."""
     global _counter
@@ -182,12 +310,24 @@ def test_register_rejects_email_with_different_case():
     _counter += 1
     first = client.post(
         "/users",
-        json={"name": "Case", "email": email, "password": TEST_PASSWORD},
+        json={
+            "name": "Case",
+            "email": email,
+            "password": TEST_PASSWORD,
+            "accepted_data_protection": True,
+            "privacy_consent_version": CONSENT_VERSION,
+        },
     )
     assert first.status_code == 200
     duplicate = client.post(
         "/users",
-        json={"name": "Case", "email": email.upper(), "password": TEST_PASSWORD},
+        json={
+            "name": "Case",
+            "email": email.upper(),
+            "password": TEST_PASSWORD,
+            "accepted_data_protection": True,
+            "privacy_consent_version": CONSENT_VERSION,
+        },
     )
     assert duplicate.status_code == 400
     assert duplicate.json()["detail"] == "Email already registered"

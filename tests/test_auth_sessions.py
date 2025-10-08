@@ -11,14 +11,20 @@ from app.database import SessionLocal
 
 from httpx import Cookies
 
-from .conftest import client, register_and_login
+from .conftest import CONSENT_VERSION, client, register_and_login
 
 
 def _login_and_get_response(email: str, password: str):
     client.cookies.clear()
     register = client.post(
         "/users",
-        json={"name": "Auth", "email": email, "password": password},
+        json={
+            "name": "Auth",
+            "email": email,
+            "password": password,
+            "accepted_data_protection": True,
+            "privacy_consent_version": CONSENT_VERSION,
+        },
     )
     assert register.status_code == 200
     response = client.post(
@@ -36,7 +42,13 @@ def test_login_accepts_email_case_variations():
     client.cookies.clear()
     register = client.post(
         "/users",
-        json={"name": "Case", "email": email, "password": password},
+        json={
+            "name": "Case",
+            "email": email,
+            "password": password,
+            "accepted_data_protection": True,
+            "privacy_consent_version": CONSENT_VERSION,
+        },
     )
     assert register.status_code == 200
 
@@ -69,7 +81,13 @@ def test_login_updates_activity_timestamps():
     client.cookies.clear()
     register = client.post(
         "/users",
-        json={"name": "Active", "email": email, "password": password},
+        json={
+            "name": "Active",
+            "email": email,
+            "password": password,
+            "accepted_data_protection": True,
+            "privacy_consent_version": CONSENT_VERSION,
+        },
     )
     assert register.status_code == 200
 

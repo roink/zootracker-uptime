@@ -273,7 +273,7 @@
   "dataProtectionPage": {
     "title": "Datenschutz",
     "seoDescription": "Erfahren Sie, wie ZooTracker DSGVO-Grundsätze umsetzt, Protokolle verarbeitet und Sichtungen speichert.",
-    "lastUpdated": "Zuletzt aktualisiert: 22. September 2025.",
+    "lastUpdated": "Zuletzt aktualisiert: {{date}}.",
     "intro": "Wir schützen Ihre personenbezogenen Daten und halten uns an die DSGVO. Auf dieser Seite erklären wir, welche Daten wir speichern, wie lange wir sie aufbewahren und zu welchem Zweck wir sie verarbeiten.",
     "controller": {
       "title": "Verantwortlicher & Kontakt",
@@ -398,6 +398,42 @@
       "validation": "Bitte prüfen Sie das Formular und versuchen Sie es erneut.",
       "tooFast": "Bitte nehmen Sie sich einen Moment, bevor Sie Ihre Nachricht senden.",
       "error": "Ups, etwas ist schiefgelaufen."
+    }
+  },
+  "auth": {
+    "seo": {
+      "loginTitle": "Anmelden / Registrieren",
+      "loginDescription": "Greifen Sie auf Ihr ZooTracker-Konto zu oder erstellen Sie ein neues, um Besuche und Sichtungen zu protokollieren."
+    },
+    "common": {
+      "networkError": "Netzwerkfehler: {{message}}"
+    },
+    "errors": {
+      "passwordTooShort": "Das Passwort muss mindestens 8 Zeichen lang sein",
+      "passwordMismatch": "Die Passwörter stimmen nicht überein",
+      "consentRequired": "Bitte akzeptieren Sie die Datenschutzerklärung, um ein Konto zu erstellen."
+    },
+    "login": {
+      "heading": "Anmelden",
+      "emailPlaceholder": "E-Mail-Adresse",
+      "passwordPlaceholder": "Passwort",
+      "submit": "Anmelden",
+      "submitting": "Anmeldung läuft…",
+      "error": "Anmeldung fehlgeschlagen"
+    },
+    "signup": {
+      "heading": "Registrieren",
+      "namePlaceholder": "Name",
+      "emailPlaceholder": "E-Mail-Adresse",
+      "passwordPlaceholder": "Passwort",
+      "passwordHelp": "Mindestens 8 Zeichen.",
+      "confirmPlaceholder": "Passwort bestätigen",
+      "submit": "Konto erstellen",
+      "submitting": "Registrierung läuft…",
+      "success": "Registrierung erfolgreich, bitte melden Sie sich an.",
+      "error": "Registrierung fehlgeschlagen",
+      "acceptLabel": "Ich habe die Hinweise in der <link/> gelesen und akzeptiere sie.",
+      "linkText": "Datenschutzerklärung"
     }
   },
   "legalNoticePage": {

@@ -273,7 +273,7 @@
   "dataProtectionPage": {
     "title": "Data Protection",
     "seoDescription": "Learn how ZooTracker applies GDPR principles, handles logs, and stores user sightings.",
-    "lastUpdated": "Last updated: 22 September 2025.",
+    "lastUpdated": "Last updated: {{date}}.",
     "intro": "We protect your personal data and follow the GDPR. This page outlines what we store, how long we keep it, and why we process it.",
     "controller": {
       "title": "Controller & Contact",
@@ -433,6 +433,42 @@
       "validation": "Please check the form and try again.",
       "tooFast": "Please take a moment before sending your message.",
       "error": "Oops, something went wrong."
+    }
+  },
+  "auth": {
+    "seo": {
+      "loginTitle": "Log In / Sign Up",
+      "loginDescription": "Access your ZooTracker account or create a new one to log visits and sightings."
+    },
+    "common": {
+      "networkError": "Network error: {{message}}"
+    },
+    "errors": {
+      "passwordTooShort": "Password must be at least 8 characters",
+      "passwordMismatch": "Passwords do not match",
+      "consentRequired": "Please accept the data protection statement to create an account."
+    },
+    "login": {
+      "heading": "Login",
+      "emailPlaceholder": "Email",
+      "passwordPlaceholder": "Password",
+      "submit": "Login",
+      "submitting": "Logging in…",
+      "error": "Login failed"
+    },
+    "signup": {
+      "heading": "Sign Up",
+      "namePlaceholder": "Name",
+      "emailPlaceholder": "Email",
+      "passwordPlaceholder": "Password",
+      "passwordHelp": "Minimum 8 characters.",
+      "confirmPlaceholder": "Confirm Password",
+      "submit": "Create Account",
+      "submitting": "Signing up…",
+      "success": "Signed up successfully, please log in.",
+      "error": "Sign up failed",
+      "acceptLabel": "I read and accept the terms in the <link/>.",
+      "linkText": "data protection statement"
     }
   }
 }

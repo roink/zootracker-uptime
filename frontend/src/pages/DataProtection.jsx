@@ -3,12 +3,20 @@ import { useParams } from 'react-router-dom';
 import Seo from '../components/Seo';
 import { ORG } from '../config/org';
 
+// Update this date whenever the data protection statement content changes so consent records stay accurate.
+export const DATA_PROTECTION_VERSION = '2025-09-22';
+
 // Detailed data protection information for the application.
 export default function DataProtectionPage() {
   const { t, i18n } = useTranslation();
   const { lang } = useParams();
   const locale = (lang ?? i18n.language ?? 'en');
   const langSegment = locale.split('-')[0] || 'en';
+  const versionDate = new Date(`${DATA_PROTECTION_VERSION}T00:00:00Z`);
+  const formattedVersionDate = new Intl.DateTimeFormat(
+    langSegment === 'de' ? 'de-DE' : 'en-GB',
+    { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' },
+  ).format(versionDate);
   const legalNoticeHref = `/${langSegment}/legal-notice`;
 
   return (
@@ -18,7 +26,9 @@ export default function DataProtectionPage() {
         description={t('dataProtectionPage.seoDescription')}
       />
       <h2 className="text-2xl font-semibold">{t('dataProtectionPage.title')}</h2>
-      <p className="text-sm text-gray-600">{t('dataProtectionPage.lastUpdated')}</p>
+      <p className="text-sm text-gray-600">
+        {t('dataProtectionPage.lastUpdated', { date: formattedVersionDate })}
+      </p>
       <p>{t('dataProtectionPage.intro')}</p>
 
       {/* Controller & Contact (no DPO) */}

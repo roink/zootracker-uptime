@@ -27,6 +27,9 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)
     last_login_at = Column(DateTime(timezone=True), nullable=True)
     last_active_at = Column(DateTime(timezone=True), nullable=True)
+    privacy_consent_version = Column(String(64), nullable=True)
+    privacy_consent_at = Column(DateTime(timezone=True), nullable=True)
+    privacy_consent_ip = Column(String(64), nullable=True)
     created_at = Column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
