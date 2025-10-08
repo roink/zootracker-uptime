@@ -368,6 +368,9 @@ def get_animal_detail(
             status_code=status.HTTP_404_NOT_FOUND, detail="Animal not found"
         )
 
+    # NOTE: We intentionally query direct children once and reuse the result for both:
+    #  (1) the aggregated zoo target list (for parent species pages) and
+    #  (2) the subspecies list rendered in the response.
     animal_id = animal.id
     is_favorite = False
     if user is not None:
@@ -381,6 +384,50 @@ def get_animal_detail(
             is not None
         )
     latitude, longitude = coords
+
+    target_animal_ids: set[uuid.UUID] = {animal_id}
+
+    subspecies: list[schemas.AnimalRelation] = []
+    child_ids: list[uuid.UUID] = []  # derived from the same child query as subspecies
+    if animal.art is not None:
+        children = (
+            db.query(models.Animal)
+            .options(
+                load_only(
+                    models.Animal.id,
+                    models.Animal.slug,
+                    models.Animal.name_en,
+                    models.Animal.name_de,
+                    models.Animal.scientific_name,
+                )
+            )
+            .filter(models.Animal.parent_art == animal.art)
+            .order_by(models.Animal.name_en.asc(), models.Animal.id.asc())
+            .all()
+        )
+        subspecies = [
+            schemas.AnimalRelation(
+                slug=child.slug,
+                name_en=child.name_en,
+                name_de=child.name_de,
+                scientific_name=child.scientific_name,
+            )
+            for child in children
+        ]
+        child_ids = [child.id for child in children]
+
+    if animal.parent_art is None and child_ids:
+        target_animal_ids.update(child_ids)
+
+    # Ensure .in_() receives a plain list/tuple (not a set)
+    target_animal_ids_list = list(target_animal_ids)
+
+    zoo_ids_subquery = (
+        db.query(models.ZooAnimal.zoo_id)
+        .filter(models.ZooAnimal.animal_id.in_(target_animal_ids_list))
+        .distinct()
+        .subquery()
+    )
 
     query = (
         db.query(models.Zoo)
@@ -397,8 +444,7 @@ def get_animal_detail(
                 models.Zoo.description_en,
             )
         )
-        .join(models.ZooAnimal, models.Zoo.id == models.ZooAnimal.zoo_id)
-        .filter(models.ZooAnimal.animal_id == animal_id)
+        .join(zoo_ids_subquery, zoo_ids_subquery.c.zoo_id == models.Zoo.id)
     )
 
     results = query_zoos_with_distance(
@@ -443,32 +489,6 @@ def get_animal_detail(
                 name_de=parent.name_de,
                 scientific_name=parent.scientific_name,
             )
-
-    subspecies: list[schemas.AnimalRelation] = []
-    if animal.art is not None:
-        children = (
-            db.query(models.Animal)
-            .options(
-                load_only(
-                    models.Animal.slug,
-                    models.Animal.name_en,
-                    models.Animal.name_de,
-                    models.Animal.scientific_name,
-                )
-            )
-            .filter(models.Animal.parent_art == animal.art)
-            .order_by(models.Animal.name_en.asc(), models.Animal.id.asc())
-            .all()
-        )
-        subspecies = [
-            schemas.AnimalRelation(
-                slug=child.slug,
-                name_en=child.name_en,
-                name_de=child.name_de,
-                scientific_name=child.scientific_name,
-            )
-            for child in children
-        ]
 
     images = [
         schemas.ImageRead(

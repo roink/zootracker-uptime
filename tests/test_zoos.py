@@ -23,9 +23,12 @@ def test_get_animals_for_zoo(data):
     resp = client.get(f"/zoos/{data['zoo'].slug}/animals")
     assert resp.status_code == 200
     animals = resp.json()
-    assert len(animals) == 1
-    assert animals[0]["id"] == str(data["animal"].id)
-    assert animals[0]["is_favorite"] is False
+    # With enriched seed, the zoo keeps both the parent species and a subspecies
+    assert len(animals) == 2
+    slugs = {animal["slug"] for animal in animals}
+    assert slugs == {data["animal"].slug, data["lion_subspecies"].slug}
+    lion_entry = next(a for a in animals if a["id"] == str(data["animal"].id))
+    assert lion_entry["is_favorite"] is False
 
 def test_get_zoo_details(data):
     resp = client.get(f"/zoos/{data['zoo'].slug}")

@@ -9,6 +9,11 @@ from app.database import SessionLocal
 from .conftest import client, register_and_login
 
 
+# Helper to get a specific zoo entry without depending on overall order
+def _get_zoo(zoos: list[dict], slug: str) -> dict:
+    return next(z for z in zoos if z["slug"] == slug)
+
+
 def test_get_animal_detail_success(data):
     resp = client.get(f"/animals/{data['animal'].slug}")
     assert resp.status_code == 200
@@ -21,6 +26,12 @@ def test_get_animal_detail_success(data):
     assert body["zoos"][0]["distance_km"] is None
     assert body["zoos"][0]["city"] == "Metropolis"
     assert body["is_favorite"] is False
+
+    # With enriched seed, parent+subspecies aggregation should include both zoos
+    assert {z["id"] for z in body["zoos"]} == {
+        str(data["zoo"].id),
+        str(data["far_zoo"].id),
+    }
 
 
 def test_get_animal_detail_includes_name_de(data):
@@ -102,6 +113,148 @@ def test_parent_species_lists_subspecies(data):
     assert child_entry["scientific_name"] == data["lion_subspecies"].scientific_name
 
 
+def test_parent_species_includes_subspecies_zoos_deduped(data):
+    """
+    If a zoo keeps both the parent species and a subspecies, it should appear only once
+    in the parent's aggregated zoos list.
+    """
+    session = SessionLocal()
+    combo = None
+    try:
+        combo = models.Zoo(
+            name="Combo Zoo",
+            slug="combo-zoo",
+            city="Overlap City",
+            continent_id=data["zoo"].continent_id,
+            country_id=data["zoo"].country_id,
+            latitude=30.0,
+            longitude=40.0,
+        )
+        session.add(combo)
+        session.commit()
+        session.refresh(combo)
+        session.add_all(
+            [
+                models.ZooAnimal(zoo_id=combo.id, animal_id=data["animal"].id),
+                models.ZooAnimal(
+                    zoo_id=combo.id, animal_id=data["lion_subspecies"].id
+                ),
+            ]
+        )
+        session.commit()
+
+        resp = client.get(f"/animals/{data['animal'].slug}")
+        assert resp.status_code == 200
+        slugs = [z["slug"] for z in resp.json()["zoos"]]
+        assert slugs.count("combo-zoo") == 1
+    finally:
+        if combo is not None:
+            session.query(models.ZooAnimal).filter(
+                models.ZooAnimal.zoo_id == combo.id
+            ).delete(synchronize_session=False)
+            session.query(models.Zoo).filter(models.Zoo.id == combo.id).delete()
+            session.commit()
+        session.close()
+
+
+def test_subspecies_only_lists_own_zoos(data):
+    resp = client.get(f"/animals/{data['lion_subspecies'].slug}")
+    assert resp.status_code == 200
+    zoos = resp.json()["zoos"]
+    assert {z["id"] for z in zoos} == {
+        str(data["zoo"].id),
+        str(data["far_zoo"].id),
+    }
+
+
+def test_subspecies_ignores_parent_only_zoos(data):
+    """
+    A zoo that keeps only the parent species should NOT appear on a subspecies page.
+    """
+    session = SessionLocal()
+    parent_only_zoo = models.Zoo(
+        name="Parent Only Habitat",
+        slug="parent-only-habitat",
+        address="789 Parent St",
+        latitude=15.0,
+        longitude=25.0,
+        description_en="Parent species only",
+        description_de="Nur Eltern",
+        city="Parentville",
+        continent_id=data["zoo"].continent_id,
+        country_id=data["zoo"].country_id,
+    )
+    try:
+        session.add(parent_only_zoo)
+        session.commit()
+        session.refresh(parent_only_zoo)
+        session.add(
+            models.ZooAnimal(zoo_id=parent_only_zoo.id, animal_id=data["animal"].id)
+        )
+        session.commit()
+
+        parent_resp = client.get(f"/animals/{data['animal'].slug}")
+        assert parent_resp.status_code == 200
+        parent_slugs = {z["slug"] for z in parent_resp.json()["zoos"]}
+        assert parent_only_zoo.slug in parent_slugs
+
+        subspecies_resp = client.get(f"/animals/{data['lion_subspecies'].slug}")
+        assert subspecies_resp.status_code == 200
+        subspecies_slugs = {z["slug"] for z in subspecies_resp.json()["zoos"]}
+        assert parent_only_zoo.slug not in subspecies_slugs
+    finally:
+        session.query(models.ZooAnimal).filter(
+            models.ZooAnimal.zoo_id == parent_only_zoo.id
+        ).delete(synchronize_session=False)
+        session.query(models.Zoo).filter(
+            models.Zoo.id == parent_only_zoo.id
+        ).delete()
+        session.commit()
+        session.close()
+
+
+def test_parent_species_without_direct_zoos_uses_subspecies(data):
+    """
+    If a parent species has no direct zoo links, the parent's page should still
+    surface zoos via its subspecies.
+    """
+    session = SessionLocal()
+    parent = models.Animal(
+        name_en="Ghost Lion",
+        scientific_name="Panthera leo ghost",
+        category_id=data["animal"].category_id,
+        slug="ghost-lion",
+        art=9001,
+    )
+    child = models.Animal(
+        name_en="Ghost Lion Subspecies",
+        scientific_name="Panthera leo ghost subspecies",
+        category_id=data["animal"].category_id,
+        slug="ghost-lion-sub",
+        art=9002,
+        parent_art=9001,
+    )
+    try:
+        session.add_all([parent, child])
+        session.commit()
+        session.refresh(parent)
+        session.refresh(child)
+        session.add(models.ZooAnimal(zoo_id=data["far_zoo"].id, animal_id=child.id))
+        session.commit()
+
+        resp = client.get(f"/animals/{parent.slug}")
+        assert resp.status_code == 200
+        slugs = {z["slug"] for z in resp.json()["zoos"]}
+        assert data["far_zoo"].slug in slugs
+    finally:
+        session.query(models.ZooAnimal).filter(
+            models.ZooAnimal.animal_id == child.id
+        ).delete(synchronize_session=False)
+        session.query(models.Animal).filter(
+            models.Animal.id.in_([child.id, parent.id])
+        ).delete(synchronize_session=False)
+        session.commit()
+        session.close()
 def test_list_animals_includes_name_de(data):
     resp = client.get("/animals", params={"limit": 1})
     assert resp.status_code == 200
@@ -115,11 +268,48 @@ def test_get_animal_detail_with_distance(data):
     resp = client.get(f"/animals/{data['animal'].slug}", params=params)
     assert resp.status_code == 200
     body = resp.json()
-    assert len(body["zoos"]) == 1
-    assert body["zoos"][0]["id"] == str(data["zoo"].id)
-    assert body["zoos"][0]["slug"] == data["zoo"].slug
-    assert body["zoos"][0]["distance_km"] == 0
-    assert body["zoos"][0]["city"] == "Metropolis"
+    assert len(body["zoos"]) >= 2, "expect aggregated zoos for parent species"
+    first = _get_zoo(body["zoos"], data["zoo"].slug)
+    assert first["id"] == str(data["zoo"].id)
+    assert first["slug"] == data["zoo"].slug
+    # nearest first when coordinates are present
+    assert first["distance_km"] == 0
+    assert first["city"] == "Metropolis"
+    ids = [z["id"] for z in body["zoos"]]
+    assert str(data["far_zoo"].id) in ids
+
+
+def test_parent_species_distance_sorting_with_subspecies(data):
+    """
+    When distance sorting is active, verify nearest zoo is first and the farther
+    child-only zoo has distance > 0 in the aggregated view.
+    """
+    session = SessionLocal()
+    try:
+        # Ensure the subspecies is present in both central and far zoos
+        session.merge(
+            models.ZooAnimal(
+                zoo_id=data["zoo"].id, animal_id=data["lion_subspecies"].id
+            )
+        )
+        session.merge(
+            models.ZooAnimal(
+                zoo_id=data["far_zoo"].id, animal_id=data["lion_subspecies"].id
+            )
+        )
+        session.commit()
+
+        params = {
+            "latitude": data["zoo"].latitude,
+            "longitude": data["zoo"].longitude,
+        }
+        resp = client.get(f"/animals/{data['animal'].slug}", params=params)
+        assert resp.status_code == 200
+        zoos = resp.json()["zoos"]
+        assert _get_zoo(zoos, data["zoo"].slug)["distance_km"] == 0
+        assert _get_zoo(zoos, data["far_zoo"].slug)["distance_km"] > 0
+    finally:
+        session.close()
 
 
 def test_get_animal_detail_invalid_params(data):
@@ -324,16 +514,17 @@ def test_list_animals_returns_details_and_pagination(data):
     assert resp.status_code == 200
     body = resp.json()
     assert [a["slug"] for a in body] == [
-        data["animal"].slug,
         data["lion_subspecies"].slug,
+        data["animal"].slug,
     ]
-    lion = body[0]
+    entries = {item["slug"]: item for item in body}
+    lion = entries[data["animal"].slug]
     assert lion["zoo_count"] == 1
     assert lion["slug"]
     assert lion["is_favorite"] is False
 
-    subspecies = body[1]
-    assert subspecies["zoo_count"] == 0
+    subspecies = entries[data["lion_subspecies"].slug]
+    assert subspecies["zoo_count"] == 2  # now present in two zoos in seed
     assert subspecies["scientific_name"] == data["lion_subspecies"].scientific_name
     assert subspecies["category"] == "Mammal"
     assert subspecies["slug"]
@@ -416,7 +607,7 @@ def test_list_animals_category_filter():
     resp = client.get("/animals", params={"category": "Mammal"})
     assert resp.status_code == 200
     names = [a["name_en"] for a in resp.json()]
-    assert names == ["Lion", "Asiatic Lion", "Tiger"]
+    assert names == ["Asiatic Lion", "Lion", "Tiger"]
 
     resp = client.get("/animals", params={"category": "Bird"})
     assert resp.status_code == 200
