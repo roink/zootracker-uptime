@@ -3,6 +3,9 @@ import { useParams } from 'react-router-dom';
 import Seo from '../components/Seo';
 import { ORG } from '../config/org';
 
+// Update this date whenever the data protection statement content changes so consent records stay accurate.
+export const DATA_PROTECTION_VERSION = '2025-10-01';
+
 // Detailed data protection information for the application.
 export default function DataProtectionPage() {
   const { t, i18n } = useTranslation();

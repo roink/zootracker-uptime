@@ -4,8 +4,7 @@ import { Trans, useTranslation } from 'react-i18next';
 import { API } from '../api';
 import Seo from '../components/Seo';
 import { useAuth } from '../auth/AuthContext.jsx';
-
-const DATA_PROTECTION_VERSION = '2025-10-01';
+import { DATA_PROTECTION_VERSION } from './DataProtection.jsx';
 
 // Combined authentication page with log in on top and sign up below.
 export default function LoginPage() {
