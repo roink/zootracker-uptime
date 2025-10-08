@@ -229,6 +229,42 @@ def test_search_zoos_by_city(data):
     assert "Central Zoo" in names
 
 
+def test_search_zoos_accepts_combined_terms(data):
+    """Search queries should match across zoo name and city flexibly."""
+
+    with SessionLocal() as db:
+        duisburg = models.Zoo(
+            name="Tierpark Duisburg",
+            slug="tierpark-duisburg",
+            address="M\u00fclheimer Str. 273",
+            latitude=51.438,
+            longitude=6.775,
+            description_en="Zoo in Duisburg",
+            description_de="Zoo in Duisburg",
+            city="Duisburg",
+            continent_id=data["zoo"].continent_id,
+            country_id=data["zoo"].country_id,
+        )
+        db.add(duisburg)
+        db.commit()
+        db.refresh(duisburg)
+
+    try:
+        resp = client.get("/zoos", params={"q": "Zoo Duisburg"})
+        assert resp.status_code == 200
+        items, _ = _extract_items(resp.json())
+        assert any(z["slug"] == "tierpark-duisburg" for z in items)
+
+        resp = client.get("/zoos", params={"q": "Duisburger Zoo"})
+        assert resp.status_code == 200
+        items, _ = _extract_items(resp.json())
+        assert any(z["slug"] == "tierpark-duisburg" for z in items)
+    finally:
+        with SessionLocal() as db:
+            db.query(models.Zoo).filter(models.Zoo.slug == "tierpark-duisburg").delete()
+            db.commit()
+
+
 def test_list_continents_and_countries():
     resp = client.get("/zoos/continents")
     assert resp.status_code == 200
