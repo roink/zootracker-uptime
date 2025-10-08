@@ -53,25 +53,6 @@ class Zoo(Base):
     """A zoo location that can be visited."""
 
     __tablename__ = "zoos"
-    __table_args__ = (
-        CheckConstraint("animal_count >= 0"),
-        Index("idx_zoos_location_gist", "location", postgresql_using="gist"),
-        Index("idx_zoos_slug", "slug", unique=True),
-        Index(
-            "idx_zoos_name_trgm",
-            "name",
-            postgresql_using="gin",
-            postgresql_ops={"name": "gin_trgm_ops"},
-        ),
-        Index(
-            "idx_zoos_city_trgm",
-            "city",
-            postgresql_using="gin",
-            postgresql_ops={"city": "gin_trgm_ops"},
-        ),
-        Index("idx_zoos_country_id", "country_id"),
-        Index("idx_zoos_continent_id", "continent_id"),
-    )
 
     id = Column(
         UUID(as_uuid=True),
@@ -134,3 +115,28 @@ class Zoo(Base):
     @validates("location")
     def _no_user_location(self, key, value):
         raise ValueError("location is managed automatically; set latitude and longitude instead")
+
+    __table_args__ = (
+        CheckConstraint("animal_count >= 0"),
+        Index("idx_zoos_location_gist", "location", postgresql_using="gist"),
+        Index("idx_zoos_slug", "slug", unique=True),
+        Index(
+            "idx_zoos_name_trgm",
+            text("f_unaccent(name) gin_trgm_ops"),
+            postgresql_using="gin",
+        ),
+        Index(
+            "idx_zoos_city_trgm",
+            text("f_unaccent(city) gin_trgm_ops"),
+            postgresql_using="gin",
+        ),
+        Index(
+            "idx_zoos_name_city_trgm",
+            text(
+                "f_unaccent(coalesce(name, '') || ' ' || coalesce(city, '')) gin_trgm_ops"
+            ),
+            postgresql_using="gin",
+        ),
+        Index("idx_zoos_country_id", "country_id"),
+        Index("idx_zoos_continent_id", "continent_id"),
+    )

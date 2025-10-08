@@ -11,6 +11,7 @@ from ..utils.geometry import query_zoos_with_distance
 from ..utils.images import build_unique_variants
 from ..utils.http import set_personalized_cache_headers
 from .deps import resolve_coords
+from .common_filters import apply_tokenized_text_filter, GENERIC_ZOO_TERMS
 from .common_sightings import (
     apply_recent_first_order,
     build_user_sightings_query,
@@ -241,22 +242,19 @@ def combined_search(
     zoo_q = db.query(models.Zoo).options(
         load_only(models.Zoo.id, models.Zoo.slug, models.Zoo.name, models.Zoo.city)
     )
-    if q:
-        pattern = f"%{q}%"
-        zoo_q = zoo_q.filter(
-            or_(models.Zoo.name.ilike(pattern), models.Zoo.city.ilike(pattern))
-        )
+    zoo_q = apply_tokenized_text_filter(
+        zoo_q,
+        q,
+        columns=(models.Zoo.name, models.Zoo.city),
+        ignored_terms=GENERIC_ZOO_TERMS,
+    )
     zoos = zoo_q.limit(limit).all()
 
-    animal_q = db.query(models.Animal)
-    if q:
-        pattern = f"%{q}%"
-        animal_q = animal_q.filter(
-            or_(
-                models.Animal.name_en.ilike(pattern),
-                models.Animal.name_de.ilike(pattern),
-            )
-        )
+    animal_q = apply_tokenized_text_filter(
+        db.query(models.Animal),
+        q,
+        columns=(models.Animal.name_en, models.Animal.name_de),
+    )
     animals = animal_q.limit(limit).all()
 
     if user is not None:
