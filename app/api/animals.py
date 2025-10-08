@@ -368,6 +368,9 @@ def get_animal_detail(
             status_code=status.HTTP_404_NOT_FOUND, detail="Animal not found"
         )
 
+    # NOTE: We intentionally query direct children once and reuse the result for both:
+    #  (1) the aggregated zoo target list (for parent species pages) and
+    #  (2) the subspecies list rendered in the response.
     animal_id = animal.id
     is_favorite = False
     if user is not None:
@@ -385,7 +388,7 @@ def get_animal_detail(
     target_animal_ids: set[uuid.UUID] = {animal_id}
 
     subspecies: list[schemas.AnimalRelation] = []
-    child_ids: list[uuid.UUID] = []
+    child_ids: list[uuid.UUID] = []  # derived from the same child query as subspecies
     if animal.art is not None:
         children = (
             db.query(models.Animal)
@@ -416,6 +419,7 @@ def get_animal_detail(
     if animal.parent_art is None and child_ids:
         target_animal_ids.update(child_ids)
 
+    # Ensure .in_() receives a plain list/tuple (not a set)
     target_animal_ids_list = list(target_animal_ids)
 
     zoo_ids_subquery = (

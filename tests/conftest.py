@@ -275,8 +275,14 @@ def seed_data():
     db.commit()
 
     link = models.ZooAnimal(zoo_id=zoo.id, animal_id=animal.id)
-    subspecies_link = models.ZooAnimal(zoo_id=far_zoo.id, animal_id=asiatic_lion.id)
-    db.add_all([link, subspecies_link])
+    # Enrich seed: link the subspecies to TWO zoos to exercise aggregation + dedupe.
+    subspecies_link_far = models.ZooAnimal(
+        zoo_id=far_zoo.id, animal_id=asiatic_lion.id
+    )
+    subspecies_link_central = models.ZooAnimal(
+        zoo_id=zoo.id, animal_id=asiatic_lion.id
+    )
+    db.add_all([link, subspecies_link_far, subspecies_link_central])
     db.commit()
 
     db.close()
