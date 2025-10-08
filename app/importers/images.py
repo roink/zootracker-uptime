@@ -35,6 +35,8 @@ def import_images(
     images: list[models.Image] = []
     mid_to_animal: Dict[str, uuid.UUID] = {}
     existing = {img.mid: img for img in dst.execute(select(models.Image)).scalars()}
+    banned_license_skips = 0
+
     for row in img_rows:
         mid = row.get("mid")
         if mid in BANNED_MIDS:
@@ -80,9 +82,7 @@ def import_images(
         license_name = _clean_text(row.get("license"))
         license_short = _clean_text(row.get("license_short"))
         if license_short in BANNED_LICENSE_SHORTS:
-            logger.warning(
-                "Skipping image %s due to banned license %s", mid, license_short
-            )
+            banned_license_skips += 1
             continue
 
         data = {
@@ -123,6 +123,9 @@ def import_images(
         mid_to_animal[mid] = animal_id
     if images:
         dst.bulk_save_objects(images)
+
+    if banned_license_skips:
+        logger.info("Skipped %d images due to banned licenses", banned_license_skips)
 
     var_rows = list(src.execute(select(variant_table)).mappings())
     variants: list[models.ImageVariant] = []
