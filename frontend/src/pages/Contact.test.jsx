@@ -30,10 +30,10 @@ describe('ContactPage translations', () => {
       name: 'Contact',
     });
     expect(headingEn).toBeInTheDocument();
-    const privacyEn = screen.getByRole('link', { name: 'Data Protection' });
+    const privacyEn = screen.getByRole('link', { name: 'Data Protection Statement' });
     expect(privacyEn).toHaveAttribute('href', '/en/data-protection');
-    const impressumEn = screen.getByRole('link', { name: 'Impressum' });
-    expect(impressumEn).toHaveAttribute('href', '/en/impress');
+    const legalNoticeEn = screen.getByRole('link', { name: 'Legal Notice' });
+    expect(legalNoticeEn).toHaveAttribute('href', '/en/legal-notice');
     english.unmount();
     cleanup();
 
@@ -44,10 +44,10 @@ describe('ContactPage translations', () => {
       name: 'Kontakt',
     });
     expect(headingDe).toBeInTheDocument();
-    const privacyDe = screen.getByRole('link', { name: 'Datenschutz' });
+    const privacyDe = screen.getByRole('link', { name: 'Datenschutzerklärung' });
     expect(privacyDe).toHaveAttribute('href', '/de/data-protection');
     const impressumDe = screen.getByRole('link', { name: 'Impressum' });
-    expect(impressumDe).toHaveAttribute('href', '/de/impress');
+    expect(impressumDe).toHaveAttribute('href', '/de/legal-notice');
     german.unmount();
   });
 });
