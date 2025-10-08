@@ -186,7 +186,7 @@ def seed_data():
         ordnung=1,
         familie=1,
         slug="lion",
-        art="Panthera leo",
+        art=1001,
     )
     tiger = models.Animal(
         name_en="Tiger",
@@ -195,7 +195,7 @@ def seed_data():
         default_image_url="http://example.com/tiger.jpg",
         name_de="Tiger",
         slug="tiger",
-        art="Panthera tigris",
+        art=1002,
     )
     eagle = models.Animal(
         name_en="Eagle",
@@ -204,7 +204,7 @@ def seed_data():
         default_image_url="http://example.com/eagle.jpg",
         name_de="Adler",
         slug="eagle",
-        art="Aquila chrysaetos",
+        art=2001,
     )
     asiatic_lion = models.Animal(
         name_en="Asiatic Lion",
@@ -212,8 +212,8 @@ def seed_data():
         category_id=mammal.id,
         name_de="Asiatischer L\u00f6we",
         slug="asiatic-lion",
-        art="Panthera leo persica",
-        parent_art="Panthera leo",
+        art=1003,
+        parent_art=1001,
     )
     db.add_all([animal, tiger, eagle, asiatic_lion])
     db.commit()

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import re
 import uuid
 from typing import Dict
 
@@ -11,7 +10,7 @@ from sqlalchemy import Table, exists, func, select, text
 from sqlalchemy.orm import Session
 
 from app import models
-from app.import_utils import _clean_text
+from app.import_utils import _clean_text, normalize_art_value
 from app.utils.iucn import normalize_status
 
 logger = logging.getLogger(__name__)
@@ -25,20 +24,16 @@ def import_animals(
     category_map: Dict[int | None, uuid.UUID],
     *,
     overwrite: bool = False,
-) -> Dict[str, uuid.UUID]:
+) -> Dict[int | str, uuid.UUID]:
     """Insert animals and build id mapping keyed by ``art``."""
 
-    def _normalize_art(value: str | None) -> str | None:
-        if not isinstance(value, str):
-            return None
-        value = value.strip()
-        return value or None
-
-    existing = {
-        art: row.id
-        for row in dst.execute(select(models.Animal.id, models.Animal.art)).mappings()
-        if (art := _normalize_art(row.art)) is not None
-    }
+    existing: Dict[int | str, uuid.UUID] = {}
+    for row in dst.execute(select(models.Animal.id, models.Animal.art)).mappings():
+        art = normalize_art_value(row.art)
+        if art is None:
+            continue
+        existing[art] = row.id
+        existing[str(art)] = row.id
 
     zoo_count_col = getattr(animal_table.c, "zoo_count", None)
     parent_art_col = getattr(animal_table.c, "parent_art", None)
@@ -66,13 +61,13 @@ def import_animals(
     main_art_values = {
         art
         for row in main_rows
-        if (art := _normalize_art(row.get("art"))) is not None
+        if (art := normalize_art_value(row.get("art"))) is not None
     }
     parent_targets = {
         parent
         for row in main_rows
         if parent_art_col is not None
-        and (parent := _normalize_art(row.get("parent_art"))) is not None
+        and (parent := normalize_art_value(row.get("parent_art"))) is not None
     }
     parent_rows = []
     if parent_targets and parent_art_col is not None:
@@ -89,7 +84,7 @@ def import_animals(
     n_zoo_animals = len(main_art_values)
     n_parent_animals = len(parent_targets)
     animals = []
-    id_map: Dict[str, uuid.UUID] = {}
+    id_map: Dict[int | str, uuid.UUID] = {}
     n_inserted = 0
     n_updated = 0
     n_skipped = 0
@@ -102,11 +97,11 @@ def import_animals(
         # Best effort – SQLite and older PostgreSQL releases may not support deferrable constraints.
         pass
 
-    processed_arts: set[str] = set()
+    processed_arts: set[int] = set()
     # Insert parent taxa before main rows; duplicates are skipped via processed_arts.
     for row in parent_rows + main_rows:
         raw_art = row.get("art")
-        art = _normalize_art(raw_art)
+        art = normalize_art_value(raw_art)
         if art is None:
             continue
         if art in processed_arts:
@@ -118,12 +113,12 @@ def import_animals(
         taxon_rank = row.get("taxon_rank")
         if taxon_rank:
             taxon_rank = taxon_rank.strip()
-        parent_art = _normalize_art(row.get("parent_art"))
+        parent_art = normalize_art_value(row.get("parent_art"))
         slug = row.get("slug")
         if isinstance(slug, str):
             slug = slug.strip() or None
         if slug is None and art:
-            fallback = re.sub(r"[^a-z0-9]+", "-", art.lower()).strip("-")
+            fallback = str(art)
             slug = fallback or None
         if art in existing:
             animal_id = existing[art]
@@ -157,8 +152,9 @@ def import_animals(
             else:
                 n_skipped += 1
             id_map[art] = animal_id
-            if isinstance(raw_art, str) and raw_art.strip() and raw_art != art:
-                id_map[raw_art] = animal_id
+            id_map[str(art)] = animal_id
+            if isinstance(raw_art, str) and raw_art.strip():
+                id_map[raw_art.strip()] = animal_id
             continue
         if not row.get("latin_name") or not row.get("name_de"):
             logger.warning("Animal %s missing latin or German name", art)
@@ -198,6 +194,9 @@ def import_animals(
             )
         )
         id_map[art] = animal_id
+        id_map[str(art)] = animal_id
+        if isinstance(raw_art, str) and raw_art.strip():
+            id_map[raw_art.strip()] = animal_id
         if isinstance(raw_art, str) and raw_art.strip() and raw_art != art:
             id_map[raw_art] = animal_id
         n_inserted += 1

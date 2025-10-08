@@ -422,7 +422,7 @@ def get_animal_detail(
     ]
 
     parent_entry: schemas.AnimalRelation | None = None
-    if animal.parent_art:
+    if animal.parent_art is not None:
         parent = (
             db.query(models.Animal)
             .options(
@@ -445,7 +445,7 @@ def get_animal_detail(
             )
 
     subspecies: list[schemas.AnimalRelation] = []
-    if animal.art:
+    if animal.art is not None:
         children = (
             db.query(models.Animal)
             .options(
