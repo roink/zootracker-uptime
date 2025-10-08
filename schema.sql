@@ -125,7 +125,7 @@ CREATE TABLE animals (
   CONSTRAINT fk_animals_parent_art
       FOREIGN KEY (parent_art) REFERENCES animals(art) DEFERRABLE INITIALLY DEFERRED,
   CONSTRAINT ck_animals_parent_not_self CHECK (parent_art IS NULL OR parent_art <> art),
-  CONSTRAINT idx_animals_art UNIQUE (art),
+  CONSTRAINT uq_animals_art UNIQUE (art),
   english_label      TEXT,
   german_label       TEXT,
   latin_name         TEXT,
@@ -140,8 +140,8 @@ CREATE TABLE animals (
 );
 
 CREATE INDEX IF NOT EXISTS idx_animals_zoo_count ON animals (zoo_count DESC);
-CREATE INDEX IF NOT EXISTS idx_animals_parent_art ON animals(parent_art);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_animals_art ON animals(art);
+CREATE INDEX IF NOT EXISTS idx_animals_parent_art ON animals USING BTREE (parent_art);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_animals_art ON animals USING BTREE (art);
 CREATE INDEX IF NOT EXISTS idx_animal_popularity
     ON animals (zoo_count DESC, name_en ASC, id ASC);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_animals_slug ON animals(slug);

@@ -80,6 +80,28 @@ def test_get_animal_detail_variants_sorted(data):
     assert 320 in widths and 640 in widths
 
 
+def test_get_animal_detail_includes_parent_metadata(data):
+    subspecies = data["lion_subspecies"]
+    resp = client.get(f"/animals/{subspecies.slug}")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["parent"] is not None
+    assert body["parent"]["slug"] == data["animal"].slug
+    assert body["parent"]["scientific_name"] == data["animal"].scientific_name
+    assert body["subspecies"] == []
+
+
+def test_parent_species_lists_subspecies(data):
+    resp = client.get(f"/animals/{data['animal'].slug}")
+    assert resp.status_code == 200
+    subspecies = resp.json()["subspecies"]
+    assert any(child["slug"] == data["lion_subspecies"].slug for child in subspecies)
+    child_entry = next(
+        child for child in subspecies if child["slug"] == data["lion_subspecies"].slug
+    )
+    assert child_entry["scientific_name"] == data["lion_subspecies"].scientific_name
+
+
 def test_list_animals_includes_name_de(data):
     resp = client.get("/animals", params={"limit": 1})
     assert resp.status_code == 200
@@ -301,28 +323,39 @@ def test_list_animals_returns_details_and_pagination(data):
     resp = client.get("/animals", params={"limit": 2, "offset": 0})
     assert resp.status_code == 200
     body = resp.json()
-    assert [a["slug"] for a in body] == [data["animal"].slug, data["eagle"].slug]
+    assert [a["slug"] for a in body] == [
+        data["animal"].slug,
+        data["lion_subspecies"].slug,
+    ]
     lion = body[0]
     assert lion["zoo_count"] == 1
     assert lion["slug"]
     assert lion["is_favorite"] is False
 
-    eagle = body[1]
-    assert eagle["zoo_count"] == 0
-    assert eagle["scientific_name"] == "Aquila chrysaetos"
-    assert eagle["category"] == "Bird"
-    assert eagle["default_image_url"].startswith("http://example.com/")
-    assert eagle["slug"]
-    assert eagle["is_favorite"] is False
+    subspecies = body[1]
+    assert subspecies["zoo_count"] == 0
+    assert subspecies["scientific_name"] == data["lion_subspecies"].scientific_name
+    assert subspecies["category"] == "Mammal"
+    assert subspecies["slug"]
+    assert subspecies["is_favorite"] is False
 
     resp2 = client.get("/animals", params={"limit": 2, "offset": 2})
     assert resp2.status_code == 200
     body2 = resp2.json()
-    assert len(body2) == 1
-    assert body2[0]["scientific_name"] == "Panthera tigris"
-    assert body2[0]["slug"]
-    assert body2[0]["zoo_count"] == 0
-    assert body2[0]["is_favorite"] is False
+    assert len(body2) == 2
+    eagle = body2[0]
+    assert eagle["scientific_name"] == "Aquila chrysaetos"
+    assert eagle["category"] == "Bird"
+    assert eagle["default_image_url"].startswith("http://example.com/")
+    assert eagle["slug"]
+    assert eagle["zoo_count"] == 0
+    assert eagle["is_favorite"] is False
+
+    tiger = body2[1]
+    assert tiger["scientific_name"] == "Panthera tigris"
+    assert tiger["slug"]
+    assert tiger["zoo_count"] == 0
+    assert tiger["is_favorite"] is False
 
 
 def test_list_animals_tiebreaker_uses_id_when_names_match(data):
@@ -383,7 +416,7 @@ def test_list_animals_category_filter():
     resp = client.get("/animals", params={"category": "Mammal"})
     assert resp.status_code == 200
     names = [a["name_en"] for a in resp.json()]
-    assert names == ["Lion", "Tiger"]
+    assert names == ["Lion", "Asiatic Lion", "Tiger"]
 
     resp = client.get("/animals", params={"category": "Bird"})
     assert resp.status_code == 200

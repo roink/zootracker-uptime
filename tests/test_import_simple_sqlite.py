@@ -62,6 +62,7 @@ def _build_source_db(path: Path, mid: str = "M1") -> Path:
                 klasse INTEGER,
                 ordnung INTEGER,
                 familie INTEGER,
+                parent_art TEXT,
                 latin_name TEXT,
                 zootierliste_description TEXT,
                 name_de TEXT,
@@ -190,17 +191,17 @@ def _build_source_db(path: Path, mid: str = "M1") -> Path:
         ))
         conn.execute(
             text(
-                "INSERT INTO animal (art, klasse, ordnung, familie, latin_name, name_de, name_en, slug, description_de, description_en, iucn_conservation_status, taxon_rank) VALUES ('Panthera leo',1,1,1,'Panthera leo','L\u00f6we','Lion','lion','Deutsche Beschreibung','English description','VU','species');"
+                "INSERT INTO animal (art, klasse, ordnung, familie, parent_art, latin_name, name_de, name_en, slug, description_de, description_en, iucn_conservation_status, taxon_rank) VALUES ('Panthera leo',1,1,1,NULL,'Panthera leo','L\u00f6we','Lion','lion','Deutsche Beschreibung','English description','VU','species');"
             )
         )
         conn.execute(
             text(
-                "INSERT INTO animal (art, klasse, ordnung, familie, latin_name, name_de, slug) VALUES ('Aquila chrysaetos',2,1,1,'Aquila chrysaetos','Adler','golden-eagle');"
+                "INSERT INTO animal (art, klasse, ordnung, familie, parent_art, latin_name, name_de, slug) VALUES ('Aquila chrysaetos',2,1,1,'Panthera leo','Aquila chrysaetos','Adler','golden-eagle');"
             )
         )
         conn.execute(
             text(
-                "INSERT INTO animal (art, latin_name, zootierliste_description, slug) VALUES ('Unknownus testus','Unknownus testus','Legacy description','unknownus-testus');"
+                "INSERT INTO animal (art, latin_name, parent_art, zootierliste_description, slug) VALUES ('Unknownus testus','Unknownus testus','Panthera leo','Legacy description','unknownus-testus');"
             )
         )
         conn.execute(text("INSERT INTO continent_name (id, name_de, name_en) VALUES (1,'Europa','Europe');"))
@@ -283,6 +284,7 @@ def test_import_simple_sqlite(tmp_path, session_factory):
         assert lion.conservation_state == "VU"
         assert lion.taxon_rank == "species"
         assert lion.slug == "lion"
+        assert lion.parent_art is None
         assert db.query(models.Image).count() == 1
         assert db.query(models.ImageVariant).count() == 1
         assert lion.default_image_url == "http://example.com/lion.jpg"
@@ -306,6 +308,9 @@ def test_import_simple_sqlite(tmp_path, session_factory):
         assert image.retrieved_at == datetime(2024, 1, 2, tzinfo=image.retrieved_at.tzinfo)
         unknown = db.query(models.Animal).filter_by(scientific_name="Unknownus testus").one()
         assert unknown.description_de is None
+        assert unknown.parent_art == "Panthera leo"
+        eagle = db.query(models.Animal).filter_by(scientific_name="Aquila chrysaetos").one()
+        assert eagle.parent_art == "Panthera leo"
         cls = db.query(models.ClassName).filter_by(klasse=1).one()
         assert cls.name_en == "Mammals"
         ordn = db.query(models.OrderName).filter_by(ordnung=1).one()
@@ -343,6 +348,11 @@ def test_import_simple_updates_existing_animals(tmp_path, session_factory):
             ),
             {"de": " Neue Beschreibung \x00", "en": "New description\r\n"},
         )
+        conn.execute(
+            text(
+                "UPDATE animal SET parent_art='Aquila chrysaetos' WHERE art='Unknownus testus'"
+            )
+        )
 
     import_simple_sqlite_data.main(str(src2_path))
 
@@ -352,6 +362,8 @@ def test_import_simple_updates_existing_animals(tmp_path, session_factory):
         assert eagle.description_en == "New description"
         assert eagle.conservation_state == "EN"
         assert eagle.taxon_rank == "species"
+        unknown = db.query(models.Animal).filter_by(scientific_name="Unknownus testus").one()
+        assert unknown.parent_art == "Panthera leo"
 
 
 def test_import_simple_overwrites_when_requested(tmp_path, session_factory):
@@ -366,12 +378,19 @@ def test_import_simple_overwrites_when_requested(tmp_path, session_factory):
                 "UPDATE animal SET description_de=' Neue Beschreibung ' WHERE art='Panthera leo'"
             )
         )
+        conn.execute(
+            text(
+                "UPDATE animal SET parent_art=NULL WHERE art='Unknownus testus'"
+            )
+        )
 
     import_simple_sqlite_data.main(str(src2_path), overwrite=True)
 
     with session_factory() as db:
         lion = db.query(models.Animal).filter_by(scientific_name="Panthera leo").one()
         assert lion.description_de == "Neue Beschreibung"
+        unknown = db.query(models.Animal).filter_by(scientific_name="Unknownus testus").one()
+        assert unknown.parent_art is None
 
 
 def test_import_simple_clear_fields_with_overwrite(tmp_path, session_factory):

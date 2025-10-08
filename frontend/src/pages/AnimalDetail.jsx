@@ -177,6 +177,37 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
     };
   }, [animal, prefix]);
 
+  const parentDetails = useMemo(() => {
+    if (!animal?.parent) {
+      return null;
+    }
+    const parent = animal.parent;
+    const name =
+      lang === 'de'
+        ? parent.name_de || parent.name_en
+        : parent.name_en || parent.name_de;
+    return {
+      slug: parent.slug,
+      name: name || parent.scientific_name || parent.slug,
+      scientific: parent.scientific_name || null,
+    };
+  }, [animal?.parent, lang]);
+
+  const subspeciesLinks = useMemo(() => {
+    const entries = Array.isArray(animal?.subspecies) ? animal.subspecies : [];
+    return entries.map((entry) => {
+      const name =
+        lang === 'de'
+          ? entry.name_de || entry.name_en
+          : entry.name_en || entry.name_de;
+      return {
+        slug: entry.slug,
+        name: name || entry.scientific_name || entry.slug,
+        scientific: entry.scientific_name || null,
+      };
+    });
+  }, [animal?.subspecies, lang]);
+
   useEffect(() => {
     const params = [];
     if (userLocation) {
@@ -743,6 +774,51 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
                 </>
               )}
             </dl>
+          )}
+          {(parentDetails || subspeciesLinks.length > 0) && (
+            // Surface parent and subspecies metadata once available.
+            <div className="taxonomy-relations mt-3">
+              {parentDetails && (
+                <div className="taxonomy-parent">
+                  <div className="relation-heading text-muted text-uppercase small mb-1">
+                    {t('animal.parentSpecies')}
+                  </div>
+                  <Link
+                    className="relation-link"
+                    to={`${prefix}/animals/${parentDetails.slug}`}
+                    aria-label={t('animal.viewParent', { name: parentDetails.name })}
+                  >
+                    {parentDetails.name}
+                  </Link>
+                  {parentDetails.scientific && (
+                    <span className="relation-scientific">{parentDetails.scientific}</span>
+                  )}
+                </div>
+              )}
+              {subspeciesLinks.length > 0 && (
+                <div className="taxonomy-subspecies">
+                  <div className="relation-heading text-muted text-uppercase small mb-1">
+                    {t('animal.subspeciesHeading')}
+                  </div>
+                  <ul className="subspecies-list">
+                    {subspeciesLinks.map((entry) => (
+                      <li key={entry.slug}>
+                        <Link
+                          className="relation-link"
+                          to={`${prefix}/animals/${entry.slug}`}
+                          aria-label={t('animal.viewSubspecies', { name: entry.name })}
+                        >
+                          {entry.name}
+                        </Link>
+                        {entry.scientific && (
+                          <span className="relation-scientific">{entry.scientific}</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
           )}
           <div className="spaced-top d-flex flex-wrap gap-2 align-items-center">
             <span className={`badge ${seen ? 'bg-success' : 'bg-secondary'}`}>

@@ -79,7 +79,7 @@ class Animal(Base):
             name="ck_animals_parent_not_self",
         ),
         Index("idx_animals_slug", "slug", unique=True),
-        UniqueConstraint("art", name="idx_animals_art"),
+        UniqueConstraint("art", name="uq_animals_art"),
         Index("idx_animals_parent_art", "parent_art"),
         Index("idx_animals_klasse", "klasse"),
         Index("idx_animals_ordnung", "ordnung"),
