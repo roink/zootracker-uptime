@@ -275,7 +275,8 @@ def seed_data():
     db.commit()
 
     link = models.ZooAnimal(zoo_id=zoo.id, animal_id=animal.id)
-    db.add(link)
+    subspecies_link = models.ZooAnimal(zoo_id=far_zoo.id, animal_id=asiatic_lion.id)
+    db.add_all([link, subspecies_link])
     db.commit()
 
     db.close()

@@ -15,6 +15,10 @@ def test_get_animal_detail_success(data):
     body = resp.json()
     assert body["id"] == str(data["animal"].id)
     assert body["slug"] == data["animal"].slug
+    assert {z["id"] for z in body["zoos"]} == {
+        str(data["zoo"].id),
+        str(data["far_zoo"].id),
+    }
     assert body["zoos"][0]["id"] == str(data["zoo"].id)
     assert body["zoos"][0]["slug"] == data["zoo"].slug
     # distance should be included but undefined without coordinates
@@ -102,6 +106,64 @@ def test_parent_species_lists_subspecies(data):
     assert child_entry["scientific_name"] == data["lion_subspecies"].scientific_name
 
 
+def test_parent_species_includes_subspecies_zoos(data):
+    resp = client.get(f"/animals/{data['animal'].slug}")
+    assert resp.status_code == 200
+    zoos = resp.json()["zoos"]
+    assert {z["id"] for z in zoos} == {
+        str(data["zoo"].id),
+        str(data["far_zoo"].id),
+    }
+
+
+def test_subspecies_only_lists_own_zoos(data):
+    resp = client.get(f"/animals/{data['lion_subspecies'].slug}")
+    assert resp.status_code == 200
+    zoos = resp.json()["zoos"]
+    assert [z["id"] for z in zoos] == [str(data["far_zoo"].id)]
+
+
+def test_parent_species_deduplicates_zoo_results(data):
+    session = SessionLocal()
+    combo = None
+    try:
+        combo = models.Zoo(
+            name="Combo Zoo",
+            slug="combo-zoo",
+            city="Overlap City",
+            continent_id=data["zoo"].continent_id,
+            country_id=data["zoo"].country_id,
+            latitude=30.0,
+            longitude=40.0,
+        )
+        session.add(combo)
+        session.commit()
+        session.refresh(combo)
+
+        session.add_all(
+            [
+                models.ZooAnimal(zoo_id=combo.id, animal_id=data["animal"].id),
+                models.ZooAnimal(zoo_id=combo.id, animal_id=data["lion_subspecies"].id),
+            ]
+        )
+        session.commit()
+
+        resp = client.get(f"/animals/{data['animal'].slug}")
+        assert resp.status_code == 200
+        slugs = [z["slug"] for z in resp.json()["zoos"]]
+        assert slugs.count("combo-zoo") == 1
+    finally:
+        if combo is not None:
+            (
+                session.query(models.ZooAnimal)
+                .filter(models.ZooAnimal.zoo_id == combo.id)
+                .delete(synchronize_session=False)
+            )
+            session.query(models.Zoo).filter(models.Zoo.id == combo.id).delete()
+            session.commit()
+        session.close()
+
+
 def test_list_animals_includes_name_de(data):
     resp = client.get("/animals", params={"limit": 1})
     assert resp.status_code == 200
@@ -115,11 +177,14 @@ def test_get_animal_detail_with_distance(data):
     resp = client.get(f"/animals/{data['animal'].slug}", params=params)
     assert resp.status_code == 200
     body = resp.json()
-    assert len(body["zoos"]) == 1
-    assert body["zoos"][0]["id"] == str(data["zoo"].id)
-    assert body["zoos"][0]["slug"] == data["zoo"].slug
-    assert body["zoos"][0]["distance_km"] == 0
-    assert body["zoos"][0]["city"] == "Metropolis"
+    assert len(body["zoos"]) >= 2
+    first = body["zoos"][0]
+    assert first["id"] == str(data["zoo"].id)
+    assert first["slug"] == data["zoo"].slug
+    assert first["distance_km"] == 0
+    assert first["city"] == "Metropolis"
+    ids = [z["id"] for z in body["zoos"]]
+    assert str(data["far_zoo"].id) in ids
 
 
 def test_get_animal_detail_invalid_params(data):
@@ -324,16 +389,17 @@ def test_list_animals_returns_details_and_pagination(data):
     assert resp.status_code == 200
     body = resp.json()
     assert [a["slug"] for a in body] == [
-        data["animal"].slug,
         data["lion_subspecies"].slug,
+        data["animal"].slug,
     ]
-    lion = body[0]
+    entries = {item["slug"]: item for item in body}
+    lion = entries[data["animal"].slug]
     assert lion["zoo_count"] == 1
     assert lion["slug"]
     assert lion["is_favorite"] is False
 
-    subspecies = body[1]
-    assert subspecies["zoo_count"] == 0
+    subspecies = entries[data["lion_subspecies"].slug]
+    assert subspecies["zoo_count"] == 1
     assert subspecies["scientific_name"] == data["lion_subspecies"].scientific_name
     assert subspecies["category"] == "Mammal"
     assert subspecies["slug"]
@@ -416,7 +482,7 @@ def test_list_animals_category_filter():
     resp = client.get("/animals", params={"category": "Mammal"})
     assert resp.status_code == 200
     names = [a["name_en"] for a in resp.json()]
-    assert names == ["Lion", "Asiatic Lion", "Tiger"]
+    assert names == ["Asiatic Lion", "Lion", "Tiger"]
 
     resp = client.get("/animals", params={"category": "Bird"})
     assert resp.status_code == 200
