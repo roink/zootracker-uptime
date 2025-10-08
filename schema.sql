@@ -5,6 +5,13 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE EXTENSION IF NOT EXISTS postgis;
 -- Enable trigram search support
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
+-- Enable accent-insensitive comparisons
+CREATE EXTENSION IF NOT EXISTS unaccent;
+
+CREATE OR REPLACE FUNCTION f_unaccent(text)
+RETURNS text
+LANGUAGE sql IMMUTABLE PARALLEL SAFE AS
+$$ SELECT public.unaccent('public.unaccent', $1) $$;
 
 -- 1. Users
 CREATE TABLE users (
@@ -74,9 +81,13 @@ CREATE TABLE zoos (
 );
 CREATE INDEX IF NOT EXISTS idx_zoos_location_gist ON zoos USING GIST (location);
 CREATE INDEX IF NOT EXISTS idx_zoos_name_trgm
-  ON zoos USING gin (name gin_trgm_ops);
+  ON zoos USING gin (f_unaccent(name) gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_zoos_city_trgm
-  ON zoos USING gin (city gin_trgm_ops);
+  ON zoos USING gin (f_unaccent(city) gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_zoos_name_city_trgm
+  ON zoos USING gin (
+    f_unaccent(coalesce(name, '') || ' ' || coalesce(city, '')) gin_trgm_ops
+  );
 CREATE INDEX IF NOT EXISTS idx_zoos_country_id   ON zoos(country_id);
 CREATE INDEX IF NOT EXISTS idx_zoos_continent_id ON zoos(continent_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_zoos_slug ON zoos(slug);

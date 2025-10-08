@@ -245,9 +245,22 @@ def test_search_zoos_accepts_combined_terms(data):
             continent_id=data["zoo"].continent_id,
             country_id=data["zoo"].country_id,
         )
-        db.add(duisburg)
+        mulheim = models.Zoo(
+            name="Zoo M\u00fclheim",
+            slug="zoo-muelheim",
+            address="M\u00fclheim Street",
+            latitude=51.43,
+            longitude=6.85,
+            description_en="City zoo",
+            description_de="Stadtzoo",
+            city="M\u00fclheim an der Ruhr",
+            continent_id=data["zoo"].continent_id,
+            country_id=data["zoo"].country_id,
+        )
+        db.add_all([duisburg, mulheim])
         db.commit()
         db.refresh(duisburg)
+        db.refresh(mulheim)
 
     try:
         resp = client.get("/zoos", params={"q": "Zoo Duisburg"})
@@ -259,9 +272,26 @@ def test_search_zoos_accepts_combined_terms(data):
         assert resp.status_code == 200
         items, _ = _extract_items(resp.json())
         assert any(z["slug"] == "tierpark-duisburg" for z in items)
+
+        resp = client.get("/zoos", params={"q": "Mulheim"})
+        assert resp.status_code == 200
+        items, _ = _extract_items(resp.json())
+        assert any(z["slug"] == "zoo-muelheim" for z in items)
+
+        resp = client.get("/zoos", params={"q": "Mulheimer Zoo"})
+        assert resp.status_code == 200
+        items, _ = _extract_items(resp.json())
+        assert any(z["slug"] == "zoo-muelheim" for z in items)
+
+        resp = client.get("/search", params={"q": "Duisburger Zoo"})
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert any(zoo["slug"] == "tierpark-duisburg" for zoo in payload["zoos"])
     finally:
         with SessionLocal() as db:
-            db.query(models.Zoo).filter(models.Zoo.slug == "tierpark-duisburg").delete()
+            db.query(models.Zoo).filter(
+                models.Zoo.slug.in_(["tierpark-duisburg", "zoo-muelheim"])
+            ).delete(synchronize_session=False)
             db.commit()
 
 
