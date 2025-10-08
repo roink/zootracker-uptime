@@ -154,6 +154,10 @@ def login(
             detail="Incorrect username or password",
         )
 
+    login_time = _now()
+    user.last_login_at = login_time
+    user.last_active_at = login_time
+
     raw_refresh, refresh_record = issue_refresh_token(
         db,
         user,

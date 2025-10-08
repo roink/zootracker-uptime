@@ -3,7 +3,7 @@
 import uuid
 
 from sqlalchemy import Column, DateTime, String, Text, text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import CITEXT, UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -22,19 +22,14 @@ class User(Base):
         server_default=text("gen_random_uuid()"),
     )
     name = Column(String(255), nullable=False)
-    email = Column(String(255), nullable=False, unique=True)
+    email = Column(CITEXT(), nullable=False, unique=True)
     # Allow extra room for bcrypt_sha256 and future password hashing schemes
     password_hash = Column(String(255), nullable=False)
+    last_login_at = Column(DateTime(timezone=True), nullable=True)
+    last_active_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
-    updated_at = Column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
-        nullable=False,
-    )
-
     zoo_visits = relationship("ZooVisit", back_populates="user")
     animal_sightings = relationship("AnimalSighting", back_populates="user")
     achievements = relationship("UserAchievement", back_populates="user")

@@ -7,6 +7,8 @@ CREATE EXTENSION IF NOT EXISTS postgis;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 -- Enable accent-insensitive comparisons
 CREATE EXTENSION IF NOT EXISTS unaccent;
+-- Enable case-insensitive text comparisons
+CREATE EXTENSION IF NOT EXISTS citext;
 
 CREATE OR REPLACE FUNCTION f_unaccent(text)
 RETURNS text
@@ -17,10 +19,11 @@ $$ SELECT public.unaccent('public.unaccent', $1) $$;
 CREATE TABLE users (
   id              UUID       PRIMARY KEY DEFAULT gen_random_uuid(),
   name            VARCHAR(255) NOT NULL,
-  email           VARCHAR(255) NOT NULL UNIQUE,
+  email           CITEXT NOT NULL UNIQUE,
   password_hash   VARCHAR(255) NOT NULL,
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+  last_login_at   TIMESTAMPTZ,
+  last_active_at  TIMESTAMPTZ,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- 1b. Refresh tokens

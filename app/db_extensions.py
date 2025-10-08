@@ -9,6 +9,7 @@ def ensure_pg_extensions(engine) -> None:
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS postgis"))
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS unaccent"))
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS citext"))
         conn.execute(
             text(
                 """
