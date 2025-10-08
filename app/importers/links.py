@@ -11,6 +11,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from app import models
+from app.import_utils import normalize_art_value
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +21,7 @@ def import_links(
     dst: Session,
     link_table: Table,
     zoo_map: Dict[int, uuid.UUID],
-    animal_map: Dict[str, uuid.UUID],
+    animal_map: Dict[int | str, uuid.UUID],
 ) -> None:
     rows = src.execute(select(link_table)).mappings()
     stmt = pg_insert(models.ZooAnimal.__table__).on_conflict_do_nothing()
@@ -29,7 +30,14 @@ def import_links(
     processed = 0
     for row in rows:
         zoo_id = zoo_map.get(row["zoo_id"])
-        animal_id = animal_map.get(row["art"])
+        art_value = normalize_art_value(row.get("art"))
+        animal_id = None
+        if art_value is not None:
+            animal_id = animal_map.get(art_value) or animal_map.get(str(art_value))
+        if animal_id is None:
+            raw_art = row.get("art")
+            if isinstance(raw_art, str):
+                animal_id = animal_map.get(raw_art.strip())
         if zoo_id and animal_id:
             batch.append({"zoo_id": zoo_id, "animal_id": animal_id})
             if len(batch) >= batch_size:

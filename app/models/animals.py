@@ -79,8 +79,13 @@ class Animal(Base):
             name="ck_animals_parent_not_self",
         ),
         Index("idx_animals_slug", "slug", unique=True),
-        UniqueConstraint("art", name="idx_animals_art"),
-        Index("idx_animals_parent_art", "parent_art"),
+        UniqueConstraint("art", name="uq_animals_art"),
+        Index(
+            "idx_animals_parent_art_name_en_id",
+            "parent_art",
+            "name_en",
+            "id",
+        ),
         Index("idx_animals_klasse", "klasse"),
         Index("idx_animals_ordnung", "ordnung"),
         Index("idx_animals_familie", "familie"),
@@ -106,12 +111,12 @@ class Animal(Base):
     name_fallback = Column(Text)
     name_en = Column(String(255), nullable=False)
     name_de = Column(Text)
-    art = Column(Text)
+    art = Column(Integer)
     english_label = Column(Text)
     german_label = Column(Text)
     latin_name = Column(Text)
     parent_art = Column(
-        Text,
+        Integer,
         ForeignKey(
             "animals.art",
             name="fk_animals_parent_art",

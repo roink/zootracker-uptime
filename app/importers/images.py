@@ -12,7 +12,7 @@ from sqlalchemy import Table, bindparam, select
 from sqlalchemy.orm import Session
 
 from app import models
-from app.import_utils import _clean_text, _parse_datetime
+from app.import_utils import _clean_text, _parse_datetime, normalize_art_value
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ def import_images(
     dst: Session,
     image_table: Table,
     variant_table: Table,
-    animal_map: Dict[str, uuid.UUID],
+    animal_map: Dict[int | str, uuid.UUID],
     *,
     overwrite: bool = False,
 ) -> None:
@@ -41,7 +41,14 @@ def import_images(
         mid = row.get("mid")
         if mid in BANNED_MIDS:
             continue
-        animal_id = animal_map.get(row.get("animal_art"))
+        art_value = normalize_art_value(row.get("animal_art"))
+        animal_id = None
+        if art_value is not None:
+            animal_id = animal_map.get(art_value) or animal_map.get(str(art_value))
+        if animal_id is None:
+            raw_art = row.get("animal_art")
+            if isinstance(raw_art, str):
+                animal_id = animal_map.get(raw_art.strip())
         if not animal_id:
             continue
 

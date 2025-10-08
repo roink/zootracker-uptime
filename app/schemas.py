@@ -285,6 +285,17 @@ class AnimalSightingUpdate(BaseModel):
         return value or None
 
 
+class AnimalRelation(BaseModel):
+    """Lightweight reference to a related animal used for taxonomy links."""
+
+    slug: str
+    name_en: Optional[str] = None
+    name_de: Optional[str] = None
+    scientific_name: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
+
+
 class AnimalDetail(BaseModel):
     """Detailed information about an animal including available zoos."""
 
@@ -312,6 +323,8 @@ class AnimalDetail(BaseModel):
     # include full zoo details with distance information
     zoos: list[ZooDetail] = Field(default_factory=list)
     is_favorite: bool = False
+    parent: Optional[AnimalRelation] = None
+    subspecies: list[AnimalRelation] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 

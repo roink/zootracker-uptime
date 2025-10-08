@@ -421,6 +421,55 @@ def get_animal_detail(
         for z, dist in results
     ]
 
+    parent_entry: schemas.AnimalRelation | None = None
+    if animal.parent_art is not None:
+        parent = (
+            db.query(models.Animal)
+            .options(
+                load_only(
+                    models.Animal.slug,
+                    models.Animal.name_en,
+                    models.Animal.name_de,
+                    models.Animal.scientific_name,
+                )
+            )
+            .filter(models.Animal.art == animal.parent_art)
+            .first()
+        )
+        if parent is not None:
+            parent_entry = schemas.AnimalRelation(
+                slug=parent.slug,
+                name_en=parent.name_en,
+                name_de=parent.name_de,
+                scientific_name=parent.scientific_name,
+            )
+
+    subspecies: list[schemas.AnimalRelation] = []
+    if animal.art is not None:
+        children = (
+            db.query(models.Animal)
+            .options(
+                load_only(
+                    models.Animal.slug,
+                    models.Animal.name_en,
+                    models.Animal.name_de,
+                    models.Animal.scientific_name,
+                )
+            )
+            .filter(models.Animal.parent_art == animal.art)
+            .order_by(models.Animal.name_en.asc(), models.Animal.id.asc())
+            .all()
+        )
+        subspecies = [
+            schemas.AnimalRelation(
+                slug=child.slug,
+                name_en=child.name_en,
+                name_de=child.name_de,
+                scientific_name=child.scientific_name,
+            )
+            for child in children
+        ]
+
     images = [
         schemas.ImageRead(
             mid=i.mid,
@@ -454,6 +503,8 @@ def get_animal_detail(
         images=images,
         zoos=zoos,
         is_favorite=is_favorite,
+        parent=parent_entry,
+        subspecies=subspecies,
     )
 
 

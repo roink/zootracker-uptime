@@ -35,6 +35,8 @@ describe('AnimalDetailPage', () => {
     family_name_en: 'Cats',
     family_name_de: 'Katzen',
     zoos: [],
+    parent: null,
+    subspecies: [],
   };
 
   beforeEach(async () => {
@@ -91,6 +93,72 @@ describe('AnimalDetailPage', () => {
     expect(
       screen.getByRole('link', { name: 'Tiere nach Familie filtern: Katzen' })
     ).toHaveAttribute('href', '/de/animals?class=1&order=2&family=3');
+  });
+
+  it('renders the parent species link when available', async () => {
+    const withParent = {
+      ...animal,
+      parent: {
+        slug: 'panthera',
+        name_en: 'Panthera',
+        name_de: 'Panthera',
+        scientific_name: 'Panthera',
+      },
+    };
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: () => Promise.resolve(withParent) });
+
+    renderWithRouter(
+      <Routes>
+        <Route path="/:lang/animals/:slug" element={<AnimalDetailPage />} />
+      </Routes>,
+      { route: '/en/animals/lion' }
+    );
+
+    const parentLink = await screen.findByRole('link', {
+      name: 'View parent species Panthera',
+    });
+    expect(screen.getByText('Parent species')).toBeInTheDocument();
+    expect(parentLink).toHaveAttribute('href', '/en/animals/panthera');
+    expect(parentLink).toHaveTextContent('Panthera');
+    expect(screen.getByText('Panthera', { selector: 'span.relation-scientific' })).toBeInTheDocument();
+  });
+
+  it('lists subspecies with localized names', async () => {
+    await loadLocale('de');
+    const withSubspecies = {
+      ...animal,
+      subspecies: [
+        {
+          slug: 'asiatischer-loewe',
+          name_en: 'Asiatic Lion',
+          name_de: 'Asiatischer Löwe',
+          scientific_name: 'Panthera leo persica',
+        },
+      ],
+    };
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: () => Promise.resolve(withSubspecies) });
+
+    renderWithRouter(
+      <Routes>
+        <Route path="/:lang/animals/:slug" element={<AnimalDetailPage />} />
+      </Routes>,
+      { route: '/de/animals/lion' }
+    );
+
+    await screen.findByText('Unterarten');
+    const subspeciesLink = screen.getByRole('link', {
+      name: 'Unterart anzeigen: Asiatischer Löwe',
+    });
+    expect(subspeciesLink).toHaveAttribute('href', '/de/animals/asiatischer-loewe');
+    expect(
+      screen.getByText('Panthera leo persica', {
+        selector: 'span.relation-scientific',
+      })
+    ).toBeInTheDocument();
   });
 
   it('omits taxonomy links when identifiers are missing', async () => {
