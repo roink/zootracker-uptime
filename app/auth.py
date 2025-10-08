@@ -17,6 +17,7 @@ from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from passlib.handlers.bcrypt import _BcryptBackend
+import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
 from . import models
@@ -57,10 +58,35 @@ optional_oauth2_scheme = OAuth2PasswordBearer(
 
 _PEPPER = TOKEN_PEPPER.encode("utf-8")
 _DECODE_SUPPORTS_LEEWAY = "leeway" in inspect.signature(jwt.decode).parameters
+_ACTIVE_UPDATE_INTERVAL = timedelta(minutes=10)
 
 
 def _now() -> datetime:
     return datetime.now(UTC)
+
+
+def _maybe_touch_last_active(
+    db: Session, user: models.User, *, current_time: datetime | None = None
+) -> None:
+    """Update ``last_active_at`` when the stored value is stale."""
+
+    now = current_time or _now()
+    cutoff = now - _ACTIVE_UPDATE_INTERVAL
+    stmt = (
+        sa.update(models.User)
+        .where(models.User.id == user.id)
+        .where(
+            sa.or_(
+                models.User.last_active_at.is_(None),
+                models.User.last_active_at <= cutoff,
+            )
+        )
+        .values(last_active_at=now)
+    )
+    result = db.execute(stmt)
+    if result.rowcount:
+        db.commit()
+        user.last_active_at = now
 
 
 def hash_password(password: str) -> str:
@@ -157,6 +183,7 @@ def get_current_user(
     if user is None:
         raise credentials_exception
     set_user_context(str(user.id))
+    _maybe_touch_last_active(db, user)
     return user
 
 
@@ -191,6 +218,7 @@ def get_optional_user(
     if user is None:
         raise credentials_exception
     set_user_context(str(user.id))
+    _maybe_touch_last_active(db, user)
     return user
 
 

@@ -174,3 +174,21 @@ def test_register_response_sanitized():
     # Only expected fields are present
     assert set(data.keys()) == {"id", "name", "email"}
 
+
+def test_register_rejects_email_with_different_case():
+    """Email uniqueness should be case-insensitive."""
+    global _counter
+    email = f"case{_counter}@example.com"
+    _counter += 1
+    first = client.post(
+        "/users",
+        json={"name": "Case", "email": email, "password": TEST_PASSWORD},
+    )
+    assert first.status_code == 200
+    duplicate = client.post(
+        "/users",
+        json={"name": "Case", "email": email.upper(), "password": TEST_PASSWORD},
+    )
+    assert duplicate.status_code == 400
+    assert duplicate.json()["detail"] == "Email already registered"
+
