@@ -277,11 +277,6 @@ export default function LoginPage() {
               }}
             />
           </label>
-          <div className="form-text">
-            {t('auth.signup.consentVersionNote', {
-              version: DATA_PROTECTION_VERSION,
-            })}
-          </div>
           <div className="mt-1" aria-live="polite">
             {acceptError && (
               <div
