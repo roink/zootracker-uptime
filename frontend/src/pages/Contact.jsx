@@ -125,7 +125,7 @@ export default function ContactPage() {
   const statusClassName = statusTone ? statusClassMap[statusTone] || 'alert-info' : 'alert-info';
 
   const dataProtectionHref = `${langPrefix}/data-protection`;
-  const impressumHref = `${langPrefix}/impress`;
+  const legalNoticeHref = `${langPrefix}/legal-notice`;
 
   return (
     <div className="container py-4">
@@ -225,7 +225,7 @@ export default function ContactPage() {
             i18nKey="contactPage.privacyNotice"
             components={{
               dataProtection: <Link to={dataProtectionHref} className="link-underline" />,
-              impressum: <Link to={impressumHref} className="link-underline" />,
+              legalNotice: <Link to={legalNoticeHref} className="link-underline" />,
             }}
           />
         </p>
