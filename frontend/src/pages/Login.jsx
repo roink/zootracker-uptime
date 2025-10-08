@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { Trans, useTranslation } from 'react-i18next';
 import { API } from '../api';
 import Seo from '../components/Seo';
 import { useAuth } from '../auth/AuthContext.jsx';
+
+const DATA_PROTECTION_VERSION = '2025-10-01';
 
 // Combined authentication page with log in on top and sign up below.
 export default function LoginPage() {
@@ -25,6 +27,7 @@ export default function LoginPage() {
   const [pwError, setPwError] = useState('');
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [acceptError, setAcceptError] = useState('');
+  const consentCheckboxRef = useRef(null);
   // Show a success message after signing up
   const [successMessage, setSuccessMessage] = useState('');
   // Prevent double submits while network requests are pending
@@ -43,9 +46,17 @@ export default function LoginPage() {
   useEffect(() => {
     if (location.hash === '#signup') {
       const el = document.getElementById('signup');
-      el && el.scrollIntoView();
+      if (el && typeof el.scrollIntoView === 'function') {
+        el.scrollIntoView();
+      }
     }
   }, [location.hash]);
+
+  useEffect(() => {
+    if (acceptError && consentCheckboxRef.current) {
+      consentCheckboxRef.current.focus();
+    }
+  }, [acceptError]);
 
   // Submit credentials to the backend and store auth data. If the
   // request fails entirely (e.g. when the API URL is unreachable) an
@@ -88,18 +99,18 @@ export default function LoginPage() {
     e.preventDefault();
     if (signingUp) return;
     if (!acceptTerms) {
-      setAcceptError(t('auth.signup.acceptError'));
+      setAcceptError(t('auth.errors.consentRequired'));
       return;
     }
     if (regPassword.length < 8) {
-      setPwError(t('auth.signup.passwordTooShort'));
+      setPwError(t('auth.errors.passwordTooShort'));
+      return;
+    }
+    if (regPassword !== confirm) {
+      setPwError(t('auth.errors.passwordMismatch'));
       return;
     }
     setPwError('');
-    if (regPassword !== confirm) {
-      alert(t('auth.signup.passwordMismatch'));
-      return;
-    }
     setAcceptError('');
     setSigningUp(true);
     const cleanEmail = regEmail.trim();
@@ -112,6 +123,7 @@ export default function LoginPage() {
           email: cleanEmail,
           password: regPassword,
           accepted_data_protection: acceptTerms,
+          privacy_consent_version: DATA_PROTECTION_VERSION,
         }),
       });
       if (resp.ok) {
@@ -208,7 +220,12 @@ export default function LoginPage() {
             required
             autoComplete="new-password"
             value={regPassword}
-            onChange={(e) => setRegPassword(e.target.value)}
+            onChange={(e) => {
+              setRegPassword(e.target.value);
+              if (pwError) {
+                setPwError('');
+              }
+            }}
           />
           <div className="form-text">{t('auth.signup.passwordHelp')}</div>
           {pwError && <div className="invalid-feedback">{pwError}</div>}
@@ -221,7 +238,12 @@ export default function LoginPage() {
             required
             autoComplete="new-password"
             value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
+            onChange={(e) => {
+              setConfirm(e.target.value);
+              if (pwError) {
+                setPwError('');
+              }
+            }}
           />
         </div>
         <div className="form-check mb-3">
@@ -230,13 +252,20 @@ export default function LoginPage() {
             className={`form-check-input${acceptError ? ' is-invalid' : ''}`}
             id="signup-data-protection"
             checked={acceptTerms}
+            ref={consentCheckboxRef}
             onChange={(e) => {
               setAcceptTerms(e.target.checked);
               if (e.target.checked) {
                 setAcceptError('');
               }
             }}
+            required
+            aria-invalid={acceptError ? 'true' : undefined}
             aria-describedby={acceptError ? 'signup-data-protection-error' : undefined}
+            onInvalid={(event) => {
+              event.preventDefault();
+              setAcceptError(t('auth.errors.consentRequired'));
+            }}
           />
           <label className="form-check-label" htmlFor="signup-data-protection">
             <Trans
@@ -248,11 +277,22 @@ export default function LoginPage() {
               }}
             />
           </label>
-          {acceptError && (
-            <div id="signup-data-protection-error" className="invalid-feedback d-block">
-              {acceptError}
-            </div>
-          )}
+          <div className="form-text">
+            {t('auth.signup.consentVersionNote', {
+              version: DATA_PROTECTION_VERSION,
+            })}
+          </div>
+          <div className="mt-1" aria-live="polite">
+            {acceptError && (
+              <div
+                id="signup-data-protection-error"
+                className="invalid-feedback d-block"
+                role="alert"
+              >
+                {acceptError}
+              </div>
+            )}
+          </div>
         </div>
         <button
           className="btn btn-primary w-100"

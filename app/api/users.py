@@ -1,12 +1,14 @@
 import uuid
+from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload, load_only
 
 from .. import schemas, models
 from ..auth import hash_password, get_user, get_current_user
 from ..database import get_db
+from ..logging import anonymize_ip
 from .deps import require_json, resolve_coords
 from .common_filters import apply_zoo_filters, validate_region_filters
 from ..utils.geometry import query_zoos_with_distance
@@ -112,15 +114,30 @@ def _serialize_map_points(zoos: list[models.Zoo]):
     ]
 
 @router.post("/users", response_model=schemas.UserRead, dependencies=[Depends(require_json)])
-def create_user(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
+def create_user(
+    user_in: schemas.UserCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+):
     """Register a new user with a hashed password."""
     if get_user(db, user_in.email):
         raise HTTPException(status_code=400, detail="Email already registered")
     hashed = hash_password(user_in.password)
+    consent_at = datetime.now(timezone.utc)
+    anonymized_ip = getattr(request.state, "client_ip_anonymized", None)
+    raw_ip = getattr(request.state, "client_ip", None)
+    if anonymized_ip is None:
+        client_host = raw_ip
+        if client_host is None and request.client is not None:
+            client_host = request.client.host
+        anonymized_ip = anonymize_ip(client_host, mode="anonymized")
     user = models.User(
         name=user_in.name,
         email=user_in.email,
         password_hash=hashed,
+        privacy_consent_version=user_in.privacy_consent_version,
+        privacy_consent_at=consent_at,
+        privacy_consent_ip=anonymized_ip,
     )
     db.add(user)
     db.commit()

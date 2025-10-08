@@ -307,6 +307,7 @@ _counter = 0  # used to create unique email addresses
 
 
 TEST_PASSWORD = "supersecret"
+CONSENT_VERSION = "2025-10-01"
 
 
 def register_and_login(return_register_resp: bool = False):
@@ -326,6 +327,7 @@ def register_and_login(return_register_resp: bool = False):
             "email": email,
             "password": TEST_PASSWORD,
             "accepted_data_protection": True,
+            "privacy_consent_version": CONSENT_VERSION,
         },
     )
     assert register_resp.status_code == 200

@@ -1,4 +1,7 @@
-from .conftest import client, register_and_login, TEST_PASSWORD
+from app import models
+from app.database import SessionLocal
+
+from .conftest import CONSENT_VERSION, client, register_and_login, TEST_PASSWORD
 
 _counter = 0  # used to generate unique email addresses
 
@@ -16,6 +19,7 @@ def test_create_user_empty_fields():
             "email": "",
             "password": "",
             "accepted_data_protection": True,
+            "privacy_consent_version": CONSENT_VERSION,
         },
     )
     assert resp.status_code == 422
@@ -29,6 +33,7 @@ def test_create_user_extra_field_rejected():
             "email": "bob@example.com",
             "password": TEST_PASSWORD,
             "accepted_data_protection": True,
+            "privacy_consent_version": CONSENT_VERSION,
             "unexpected": "boom",
         },
     )
@@ -43,6 +48,7 @@ def test_create_user_name_too_long():
             "email": "toolong@example.com",
             "password": TEST_PASSWORD,
             "accepted_data_protection": True,
+            "privacy_consent_version": CONSENT_VERSION,
         },
     )
     assert resp.status_code == 422
@@ -58,6 +64,7 @@ def test_create_user_email_too_long():
             "email": long_email,
             "password": TEST_PASSWORD,
             "accepted_data_protection": True,
+            "privacy_consent_version": CONSENT_VERSION,
         },
     )
     assert resp.status_code == 422
@@ -71,6 +78,7 @@ def test_create_user_password_too_long():
             "email": "alice@example.com",
             "password": long_pw,
             "accepted_data_protection": True,
+            "privacy_consent_version": CONSENT_VERSION,
         },
     )
     assert resp.status_code == 422
@@ -84,6 +92,7 @@ def test_create_user_password_too_short():
             "email": "shortpw@example.com",
             "password": "short",
             "accepted_data_protection": True,
+            "privacy_consent_version": CONSENT_VERSION,
         },
     )
     assert resp.status_code == 422
@@ -98,9 +107,29 @@ def test_create_user_requires_data_protection_consent():
             "email": "privacy@example.com",
             "password": TEST_PASSWORD,
             "accepted_data_protection": False,
+            "privacy_consent_version": CONSENT_VERSION,
         },
     )
     assert resp.status_code == 422
+
+
+def test_consent_validation_error_points_to_field():
+    """Consent validation errors should reference the consent field path."""
+    resp = client.post(
+        "/users",
+        json={
+            "name": "Alice",
+            "email": "privacy-loc@example.com",
+            "password": TEST_PASSWORD,
+            "accepted_data_protection": False,
+            "privacy_consent_version": CONSENT_VERSION,
+        },
+    )
+    assert resp.status_code == 422
+    detail = resp.json()["detail"]
+    assert any(
+        error.get("loc") == ["body", "accepted_data_protection"] for error in detail
+    )
 
 def test_create_user_requires_json():
     global _counter
@@ -113,6 +142,7 @@ def test_create_user_requires_json():
             "email": email,
             "password": TEST_PASSWORD,
             "accepted_data_protection": True,
+            "privacy_consent_version": CONSENT_VERSION,
         },
         headers={"content-type": "text/plain"},
     )
@@ -130,6 +160,7 @@ def test_create_user_accepts_charset():
             "email": email,
             "password": TEST_PASSWORD,
             "accepted_data_protection": True,
+            "privacy_consent_version": CONSENT_VERSION,
         },
         headers={"content-type": "application/json; charset=utf-8"},
     )
@@ -149,6 +180,7 @@ def test_create_user_response_fields():
             "email": email,
             "password": TEST_PASSWORD,
             "accepted_data_protection": True,
+            "privacy_consent_version": CONSENT_VERSION,
         },
     )
     assert resp.status_code == 200
@@ -174,6 +206,7 @@ def test_login_endpoint():
             "email": email,
             "password": TEST_PASSWORD,
             "accepted_data_protection": True,
+            "privacy_consent_version": CONSENT_VERSION,
         },
     )
     assert resp.status_code == 200
@@ -203,6 +236,7 @@ def test_login_response_excludes_password_fields():
             "email": email,
             "password": TEST_PASSWORD,
             "accepted_data_protection": True,
+            "privacy_consent_version": CONSENT_VERSION,
         },
     )
     assert resp.status_code == 200
@@ -240,6 +274,35 @@ def test_register_response_sanitized():
     assert set(data.keys()) == {"id", "name", "email"}
 
 
+def test_registration_persists_privacy_consent_metadata():
+    """Registration should persist consent metadata for compliance audits."""
+    global _counter
+    email = f"consentmeta{_counter}@example.com"
+    _counter += 1
+    resp = client.post(
+        "/users",
+        json={
+            "name": "Consent",
+            "email": email,
+            "password": TEST_PASSWORD,
+            "accepted_data_protection": True,
+            "privacy_consent_version": CONSENT_VERSION,
+        },
+    )
+    assert resp.status_code == 200
+
+    db = SessionLocal()
+    try:
+        user = db.query(models.User).filter(models.User.email == email).one()
+        assert user.privacy_consent_version == CONSENT_VERSION
+        assert user.privacy_consent_at is not None
+        assert user.privacy_consent_at.tzinfo is not None
+        assert user.privacy_consent_ip is not None
+        assert user.privacy_consent_ip != ""
+    finally:
+        db.close()
+
+
 def test_register_rejects_email_with_different_case():
     """Email uniqueness should be case-insensitive."""
     global _counter
@@ -252,6 +315,7 @@ def test_register_rejects_email_with_different_case():
             "email": email,
             "password": TEST_PASSWORD,
             "accepted_data_protection": True,
+            "privacy_consent_version": CONSENT_VERSION,
         },
     )
     assert first.status_code == 200
@@ -262,6 +326,7 @@ def test_register_rejects_email_with_different_case():
             "email": email.upper(),
             "password": TEST_PASSWORD,
             "accepted_data_protection": True,
+            "privacy_consent_version": CONSENT_VERSION,
         },
     )
     assert duplicate.status_code == 400

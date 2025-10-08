@@ -11,7 +11,7 @@ from app.database import SessionLocal
 
 from httpx import Cookies
 
-from .conftest import client, register_and_login
+from .conftest import CONSENT_VERSION, client, register_and_login
 
 
 def _login_and_get_response(email: str, password: str):
@@ -23,6 +23,7 @@ def _login_and_get_response(email: str, password: str):
             "email": email,
             "password": password,
             "accepted_data_protection": True,
+            "privacy_consent_version": CONSENT_VERSION,
         },
     )
     assert register.status_code == 200
@@ -46,6 +47,7 @@ def test_login_accepts_email_case_variations():
             "email": email,
             "password": password,
             "accepted_data_protection": True,
+            "privacy_consent_version": CONSENT_VERSION,
         },
     )
     assert register.status_code == 200
@@ -84,6 +86,7 @@ def test_login_updates_activity_timestamps():
             "email": email,
             "password": password,
             "accepted_data_protection": True,
+            "privacy_consent_version": CONSENT_VERSION,
         },
     )
     assert register.status_code == 200

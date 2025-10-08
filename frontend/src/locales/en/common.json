@@ -443,6 +443,11 @@
     "common": {
       "networkError": "Network error: {{message}}"
     },
+    "errors": {
+      "passwordTooShort": "Password must be at least 8 characters",
+      "passwordMismatch": "Passwords do not match",
+      "consentRequired": "Please accept the data protection statement to create an account."
+    },
     "login": {
       "heading": "Login",
       "emailPlaceholder": "Email",
@@ -461,11 +466,9 @@
       "submit": "Create Account",
       "submitting": "Signing up…",
       "success": "Signed up successfully, please log in.",
-      "passwordTooShort": "Password must be at least 8 characters",
-      "passwordMismatch": "Passwords do not match",
       "error": "Sign up failed",
       "acceptLabel": "I read and accept the terms in the <link>data protection statement</link>.",
-      "acceptError": "Please accept the data protection statement to create an account."
+      "consentVersionNote": "Current data protection statement version: {{version}}."
     }
   }
 }

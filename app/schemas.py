@@ -17,6 +17,13 @@ class UserCreate(BaseModel):
     accepted_data_protection: Literal[True] = Field(
         ..., alias="acceptedDataProtection", description="User accepted privacy terms."
     )
+    privacy_consent_version: str = Field(
+        ...,
+        min_length=1,
+        max_length=64,
+        alias="privacyConsentVersion",
+        description="Version identifier of the accepted privacy notice.",
+    )
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
