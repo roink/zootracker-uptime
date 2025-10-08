@@ -1,7 +1,7 @@
 """Pydantic schemas used for request and response models."""
 
 from datetime import date, datetime
-from typing import Optional
+from typing import Optional, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, ConfigDict, Field, constr, field_validator
@@ -9,12 +9,16 @@ from pydantic import BaseModel, EmailStr, ConfigDict, Field, constr, field_valid
 
 class UserCreate(BaseModel):
     """Schema for user registration."""
+
     name: str = Field(..., min_length=1, max_length=255)
     email: EmailStr = Field(..., min_length=1, max_length=255)
     # Enforce stronger passwords by requiring at least 8 characters
     password: str = Field(..., min_length=8, max_length=255)
+    accepted_data_protection: Literal[True] = Field(
+        ..., alias="acceptedDataProtection", description="User accepted privacy terms."
+    )
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
 
 class UserRead(BaseModel):

@@ -1,15 +1,18 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useLocation, useParams } from 'react-router-dom';
+import { Link, useNavigate, useLocation, useParams } from 'react-router-dom';
+import { Trans, useTranslation } from 'react-i18next';
 import { API } from '../api';
 import Seo from '../components/Seo';
 import { useAuth } from '../auth/AuthContext.jsx';
 
 // Combined authentication page with log in on top and sign up below.
 export default function LoginPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const { lang } = useParams();
-  const prefix = `/${lang}`;
+  const prefix = lang ? `/${lang}` : '';
+  const dataProtectionHref = `${prefix}/data-protection`;
   const { login } = useAuth();
   // State for the login form
   const [inputEmail, setInputEmail] = useState('');
@@ -20,6 +23,8 @@ export default function LoginPage() {
   const [regPassword, setRegPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [pwError, setPwError] = useState('');
+  const [acceptTerms, setAcceptTerms] = useState(false);
+  const [acceptError, setAcceptError] = useState('');
   // Show a success message after signing up
   const [successMessage, setSuccessMessage] = useState('');
   // Prevent double submits while network requests are pending
@@ -69,10 +74,10 @@ export default function LoginPage() {
         });
         navigate(prefix, { replace: true });
       } else {
-        alert('Login failed');
+        alert(t('auth.login.error'));
       }
     } catch (err) {
-      alert('Network error: ' + err.message);
+      alert(t('auth.common.networkError', { message: err.message }));
     } finally {
       setLoggingIn(false);
     }
@@ -82,37 +87,48 @@ export default function LoginPage() {
   const handleSignup = async (e) => {
     e.preventDefault();
     if (signingUp) return;
+    if (!acceptTerms) {
+      setAcceptError(t('auth.signup.acceptError'));
+      return;
+    }
     if (regPassword.length < 8) {
-      setPwError('Password must be at least 8 characters');
+      setPwError(t('auth.signup.passwordTooShort'));
       return;
     }
     setPwError('');
     if (regPassword !== confirm) {
-      alert('Passwords do not match');
+      alert(t('auth.signup.passwordMismatch'));
       return;
     }
+    setAcceptError('');
     setSigningUp(true);
     const cleanEmail = regEmail.trim();
     try {
       const resp = await fetch(`${API}/users`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email: cleanEmail, password: regPassword }),
+        body: JSON.stringify({
+          name,
+          email: cleanEmail,
+          password: regPassword,
+          accepted_data_protection: acceptTerms,
+        }),
       });
       if (resp.ok) {
         await resp.json();
         setInputEmail(cleanEmail);
-        setSuccessMessage('Signed up successfully, please log in.');
+        setSuccessMessage(t('auth.signup.success'));
         setName('');
         setRegEmail('');
         setRegPassword('');
         setConfirm('');
+        setAcceptTerms(false);
         window.scrollTo(0, 0);
       } else {
-        alert('Sign up failed');
+        alert(t('auth.signup.error'));
       }
     } catch (err) {
-      alert('Network error: ' + err.message);
+      alert(t('auth.common.networkError', { message: err.message }));
     } finally {
       setSigningUp(false);
     }
@@ -121,8 +137,8 @@ export default function LoginPage() {
   return (
     <>
       <Seo
-        title="Log In / Sign Up"
-        description="Access your ZooTracker account or create a new one to log visits and sightings."
+        title={t('auth.seo.loginTitle')}
+        description={t('auth.seo.loginDescription')}
       />
       {/* Log in section */}
       <form onSubmit={handleLogin} className="container auth-form">
@@ -131,12 +147,12 @@ export default function LoginPage() {
             {successMessage}
           </div>
         )}
-        <h2 className="mb-3">Login</h2>
+        <h2 className="mb-3">{t('auth.login.heading')}</h2>
         <div className="mb-3">
           <input
             type="email"
             className="form-control"
-            placeholder="Email"
+            placeholder={t('auth.login.emailPlaceholder')}
             required
             autoComplete="email"
             value={inputEmail}
@@ -147,7 +163,7 @@ export default function LoginPage() {
           <input
             type="password"
             className="form-control"
-            placeholder="Password"
+            placeholder={t('auth.login.passwordPlaceholder')}
             required
             autoComplete="current-password"
             value={password}
@@ -155,18 +171,18 @@ export default function LoginPage() {
           />
         </div>
         <button className="btn btn-primary w-100" type="submit" disabled={loggingIn}>
-          {loggingIn ? 'Logging in…' : 'Login'}
+          {loggingIn ? t('auth.login.submitting') : t('auth.login.submit')}
         </button>
       </form>
 
       {/* Sign up section */}
       <form id="signup" onSubmit={handleSignup} className="container auth-form mt-5">
-        <h2 className="mb-3">Sign Up</h2>
+        <h2 className="mb-3">{t('auth.signup.heading')}</h2>
         <div className="mb-3">
           <input
             type="text"
             className="form-control"
-            placeholder="Name"
+            placeholder={t('auth.signup.namePlaceholder')}
             required
             autoComplete="name"
             value={name}
@@ -177,7 +193,7 @@ export default function LoginPage() {
           <input
             type="email"
             className="form-control"
-            placeholder="Email"
+            placeholder={t('auth.signup.emailPlaceholder')}
             required
             autoComplete="email"
             value={regEmail}
@@ -188,32 +204,62 @@ export default function LoginPage() {
           <input
             type="password"
             className={`form-control${pwError ? ' is-invalid' : ''}`}
-            placeholder="Password"
+            placeholder={t('auth.signup.passwordPlaceholder')}
             required
             autoComplete="new-password"
             value={regPassword}
             onChange={(e) => setRegPassword(e.target.value)}
           />
-          <div className="form-text">Minimum 8 characters.</div>
+          <div className="form-text">{t('auth.signup.passwordHelp')}</div>
           {pwError && <div className="invalid-feedback">{pwError}</div>}
         </div>
         <div className="mb-3">
           <input
             type="password"
             className="form-control"
-            placeholder="Confirm Password"
+            placeholder={t('auth.signup.confirmPlaceholder')}
             required
             autoComplete="new-password"
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
           />
         </div>
+        <div className="form-check mb-3">
+          <input
+            type="checkbox"
+            className={`form-check-input${acceptError ? ' is-invalid' : ''}`}
+            id="signup-data-protection"
+            checked={acceptTerms}
+            onChange={(e) => {
+              setAcceptTerms(e.target.checked);
+              if (e.target.checked) {
+                setAcceptError('');
+              }
+            }}
+            aria-describedby={acceptError ? 'signup-data-protection-error' : undefined}
+          />
+          <label className="form-check-label" htmlFor="signup-data-protection">
+            <Trans
+              i18nKey="auth.signup.acceptLabel"
+              components={{
+                link: (
+                  <Link className="text-decoration-underline" to={dataProtectionHref} />
+                ),
+              }}
+            />
+          </label>
+          {acceptError && (
+            <div id="signup-data-protection-error" className="invalid-feedback d-block">
+              {acceptError}
+            </div>
+          )}
+        </div>
         <button
           className="btn btn-primary w-100"
           type="submit"
           disabled={signingUp}
         >
-          {signingUp ? 'Signing up…' : 'Create Account'}
+          {signingUp ? t('auth.signup.submitting') : t('auth.signup.submit')}
         </button>
       </form>
     </>

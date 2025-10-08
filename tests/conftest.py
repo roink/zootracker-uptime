@@ -321,7 +321,12 @@ def register_and_login(return_register_resp: bool = False):
     client.cookies.clear()
     register_resp = client.post(
         "/users",
-        json={"name": "Alice", "email": email, "password": TEST_PASSWORD},
+        json={
+            "name": "Alice",
+            "email": email,
+            "password": TEST_PASSWORD,
+            "accepted_data_protection": True,
+        },
     )
     assert register_resp.status_code == 200
     user_id = register_resp.json()["id"]
