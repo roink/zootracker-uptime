@@ -47,6 +47,19 @@ export default function AnimalsPage() {
     [prefersManualLoading, supportsIntersectionObserver]
   );
   const { t } = useTranslation();
+  // Derive stable storage keys so we can remember pagination state per filter set
+  const searchParamKey = searchParams.toString();
+  const storageKey = `animals-page:${lang || 'unknown'}:${searchParamKey}`;
+  const restoreFlagKey = `${storageKey}:restore`;
+  const skipInitialFetchRef = useRef(false);
+  const latestStateRef = useRef({
+    animals: [],
+    hasMore: false,
+    statusMessage: '',
+    prefersManualLoading: false,
+  });
+  const scrollPositionRef = useRef(0);
+  const [restoreScrollPosition, setRestoreScrollPosition] = useState(null);
 
   // Hydrate local state from the URL whenever search params change
   useEffect(() => {
@@ -88,6 +101,124 @@ export default function AnimalsPage() {
       .then(setClasses)
       .catch(() => setClasses([]));
   }, []);
+
+  // Remember the latest list data so we can persist it to session storage when needed
+  useEffect(() => {
+    latestStateRef.current = {
+      animals,
+      hasMore,
+      statusMessage,
+      prefersManualLoading,
+    };
+  }, [animals, hasMore, statusMessage, prefersManualLoading]);
+
+  // Track the scroll position so it can be restored after returning from a detail page
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+
+    const handleScroll = () => {
+      scrollPositionRef.current = window.scrollY;
+    };
+
+    handleScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Persist the currently loaded animals along with the scroll position
+  const storePageState = useCallback(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const snapshot = latestStateRef.current;
+    try {
+      sessionStorage.setItem(
+        storageKey,
+        JSON.stringify({
+          animals: snapshot.animals ?? [],
+          hasMore: Boolean(snapshot.hasMore),
+          statusMessage: snapshot.statusMessage ?? '',
+          prefersManualLoading: Boolean(snapshot.prefersManualLoading),
+          offset: offsetRef.current,
+          scrollY: scrollPositionRef.current,
+        })
+      );
+    } catch (err) {
+      // Ignore storage failures (e.g., Safari private mode)
+    }
+  }, [storageKey]);
+
+  // Mark that the page should restore its state before navigating to a detail page
+  const markRestorePending = useCallback(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    storePageState();
+    try {
+      sessionStorage.setItem(restoreFlagKey, '1');
+    } catch (err) {
+      // Ignore storage failures so navigation is not blocked
+    }
+  }, [restoreFlagKey, storePageState]);
+
+  // Restore the previous scroll position and loaded animals when coming back via history
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const shouldRestore = sessionStorage.getItem(restoreFlagKey) === '1';
+    if (!shouldRestore) {
+      sessionStorage.removeItem(storageKey);
+      return;
+    }
+
+    const raw = sessionStorage.getItem(storageKey);
+    if (!raw) {
+      sessionStorage.removeItem(restoreFlagKey);
+      return;
+    }
+
+    try {
+      const cached = JSON.parse(raw);
+      setAnimals(cached.animals ?? []);
+      offsetRef.current =
+        typeof cached.offset === 'number'
+          ? cached.offset
+          : (cached.animals?.length ?? 0);
+      setHasMore(Boolean(cached.hasMore));
+      setStatusMessage(cached.statusMessage ?? '');
+      setPrefersManualLoading(Boolean(cached.prefersManualLoading));
+      setLoading(false);
+      loadingRef.current = false;
+      controllerRef.current = null;
+      setError('');
+      if (typeof cached.scrollY === 'number') {
+        setRestoreScrollPosition(cached.scrollY);
+      }
+      skipInitialFetchRef.current = true;
+    } catch (err) {
+      sessionStorage.removeItem(storageKey);
+    } finally {
+      sessionStorage.removeItem(restoreFlagKey);
+    }
+  }, [restoreFlagKey, storageKey]);
+
+  useEffect(() => {
+    if (restoreScrollPosition == null || typeof window === 'undefined') {
+      return undefined;
+    }
+
+    const id = window.requestAnimationFrame(() => {
+      window.scrollTo(0, restoreScrollPosition);
+    });
+
+    return () => window.cancelAnimationFrame(id);
+  }, [restoreScrollPosition]);
 
   // Fetch orders whenever class changes
   useEffect(() => {
@@ -217,6 +348,11 @@ export default function AnimalsPage() {
 
   // Initial load and reset when search or filters change
   useEffect(() => {
+    if (skipInitialFetchRef.current) {
+      skipInitialFetchRef.current = false;
+      return () => {};
+    }
+
     const controller = loadAnimals(true);
     return () => {
       controller?.abort();
@@ -226,6 +362,21 @@ export default function AnimalsPage() {
   useEffect(() => () => {
     controllerRef.current?.abort();
   }, []);
+
+  useEffect(
+    () => () => {
+      if (typeof window === 'undefined') {
+        return;
+      }
+
+      if (sessionStorage.getItem(restoreFlagKey) === '1') {
+        storePageState();
+      } else {
+        sessionStorage.removeItem(storageKey);
+      }
+    },
+    [restoreFlagKey, storageKey, storePageState]
+  );
 
   // Observe when the user nears the end of the list and fetch the next page
   useEffect(() => {
@@ -379,6 +530,7 @@ export default function AnimalsPage() {
             key={a.id}
             className="animal-card d-block text-decoration-none text-reset"
             to={`${prefix}/animals/${a.slug || a.id}`}
+            onClick={markRestorePending}
           >
             {a.default_image_url && (
               <img
