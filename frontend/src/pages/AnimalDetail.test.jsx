@@ -42,6 +42,19 @@ describe('AnimalDetailPage', () => {
   beforeEach(async () => {
     await loadLocale('en');
     vi.stubGlobal('navigator', { geolocation: { getCurrentPosition: (_s, e) => e() } });
+    Object.defineProperty(global.window, 'matchMedia', {
+      writable: true,
+      value: vi.fn().mockImplementation((query) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    });
     mapMock.mockClear();
   });
 
@@ -49,12 +62,17 @@ describe('AnimalDetailPage', () => {
     global.fetch = vi
       .fn()
       .mockResolvedValue({ ok: true, json: () => Promise.resolve(animal) });
+    const user = userEvent.setup();
     const { container } = renderWithRouter(
       <Routes>
         <Route path="/:lang/animals/:slug" element={<AnimalDetailPage />} />
       </Routes>,
       { route: '/en/animals/lion' }
     );
+    const taxonomyToggle = await screen.findByRole('button', {
+      name: /Classification & relations/i,
+    });
+    await user.click(taxonomyToggle);
     await screen.findByText('Mammals');
     expect(screen.getByText('Carnivorans')).toBeInTheDocument();
     expect(screen.getByText('Cats')).toBeInTheDocument();
@@ -75,12 +93,17 @@ describe('AnimalDetailPage', () => {
     global.fetch = vi
       .fn()
       .mockResolvedValue({ ok: true, json: () => Promise.resolve(animal) });
+    const user = userEvent.setup();
     renderWithRouter(
       <Routes>
         <Route path="/:lang/animals/:slug" element={<AnimalDetailPage />} />
       </Routes>,
       { route: '/de/animals/lion' }
     );
+    const taxonomyToggle = await screen.findByRole('button', {
+      name: /Klassifikation & Beziehungen/i,
+    });
+    await user.click(taxonomyToggle);
     await screen.findByText('Säugetiere');
     expect(screen.getByText('Raubtiere')).toBeInTheDocument();
     expect(screen.getByText('Katzen')).toBeInTheDocument();
@@ -109,12 +132,18 @@ describe('AnimalDetailPage', () => {
       .fn()
       .mockResolvedValue({ ok: true, json: () => Promise.resolve(withParent) });
 
+    const user = userEvent.setup();
     renderWithRouter(
       <Routes>
         <Route path="/:lang/animals/:slug" element={<AnimalDetailPage />} />
       </Routes>,
       { route: '/en/animals/lion' }
     );
+
+    const taxonomyToggle = await screen.findByRole('button', {
+      name: /Classification & relations/i,
+    });
+    await user.click(taxonomyToggle);
 
     const parentLink = await screen.findByRole('link', {
       name: 'View parent species Panthera',
@@ -142,12 +171,18 @@ describe('AnimalDetailPage', () => {
       .fn()
       .mockResolvedValue({ ok: true, json: () => Promise.resolve(withSubspecies) });
 
+    const user = userEvent.setup();
     renderWithRouter(
       <Routes>
         <Route path="/:lang/animals/:slug" element={<AnimalDetailPage />} />
       </Routes>,
       { route: '/de/animals/lion' }
     );
+
+    const taxonomyToggle = await screen.findByRole('button', {
+      name: /Klassifikation & Beziehungen/i,
+    });
+    await user.click(taxonomyToggle);
 
     await screen.findByText('Unterarten');
     const subspeciesLink = screen.getByRole('link', {
@@ -171,6 +206,7 @@ describe('AnimalDetailPage', () => {
       .fn()
       .mockResolvedValue({ ok: true, json: () => Promise.resolve(partialAnimal) });
 
+    const user = userEvent.setup();
     renderWithRouter(
       <Routes>
         <Route path="/:lang/animals/:slug" element={<AnimalDetailPage />} />
@@ -178,6 +214,10 @@ describe('AnimalDetailPage', () => {
       { route: '/en/animals/lion' }
     );
 
+    const taxonomyToggle = await screen.findByRole('button', {
+      name: /Classification & relations/i,
+    });
+    await user.click(taxonomyToggle);
     await screen.findByText('Mammals');
     expect(
       screen.getByRole('link', { name: 'Filter animals by class: Mammals' })

@@ -68,6 +68,32 @@ function cameraViewsEqual(a, b) {
   return pitchA === pitchB;
 }
 
+function useMediaQuery(query) {
+  const [matches, setMatches] = useState(() => {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+    return window.matchMedia(query).matches;
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return () => {};
+    }
+    const mediaQueryList = window.matchMedia(query);
+    const handleChange = (event) => setMatches(event.matches);
+    handleChange(mediaQueryList);
+    if (typeof mediaQueryList.addEventListener === 'function') {
+      mediaQueryList.addEventListener('change', handleChange);
+      return () => mediaQueryList.removeEventListener('change', handleChange);
+    }
+    mediaQueryList.addListener(handleChange);
+    return () => mediaQueryList.removeListener(handleChange);
+  }, [query]);
+
+  return matches;
+}
+
 // Detailed page showing an animal along with nearby zoos and user sightings
 
 export default function AnimalDetailPage({ refresh, onLogged }) {
@@ -106,6 +132,11 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
   const [favorite, setFavorite] = useState(false);
   const [favoritePending, setFavoritePending] = useState(false);
   const [favoriteError, setFavoriteError] = useState('');
+  const isDesktop = useMediaQuery('(min-width: 992px)');
+  const [activeSection, setActiveSection] = useState('overview');
+  const [openSections, setOpenSections] = useState(() => new Set(['overview']));
+  const tabRefs = useRef([]);
+  const [taxonomyOpen, setTaxonomyOpen] = useState(false);
 
   // Choose localized name for current language
   const animalName = useMemo(() => {
@@ -315,6 +346,12 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
   }, [animal?.is_favorite]);
 
   useEffect(() => {
+    setActiveSection('overview');
+    setOpenSections(new Set(['overview']));
+    setTaxonomyOpen(false);
+  }, [slug]);
+
+  useEffect(() => {
     const navState = routerLocation.state || {};
     const nextMode = navState.animalViewMode === 'map' ? 'map' : 'list';
     const nextView = sanitizeCameraView(navState.animalMapView);
@@ -508,18 +545,6 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
     [animalName, t]
   );
 
-  if (loading) return <div className="page-container">Loading...</div>;
-  if (error) return (
-    <div className="page-container">
-      <p className="text-danger">Unable to load animal.</p>
-    </div>
-  );
-  if (!animal) return (
-    <div className="page-container">
-      <p>Animal not found.</p>
-    </div>
-  );
-
   const userSightings = Array.isArray(history) ? history : [];
   const seen = userSightings.length > 0;
   const firstSeen = seen
@@ -530,7 +555,8 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
       ).toLocaleDateString()
     : null;
   const gallery = userSightings.filter((s) => s.photo_url);
-  const hasGallery = animal.images && animal.images.length > 0;
+  const animalImages = Array.isArray(animal?.images) ? animal.images : [];
+  const hasGallery = animalImages.length > 0;
 
   const closestZoo = filteredZoos[0] ?? zoos[0];
 
@@ -564,11 +590,458 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
     const h = v?.height || img?.height;
     return w && h ? `${w} / ${h}` : '4 / 3';
   };
-  const aspect =
-    animal.images && animal.images.length ? computeAspect(animal.images[0]) : '4 / 3';
+  const aspect = hasGallery ? computeAspect(animalImages[0]) : '4 / 3';
+  const taxonomyHasDetails = Boolean(
+    className ||
+      orderName ||
+      familyName ||
+      parentDetails ||
+      subspeciesLinks.length > 0
+  );
+  const taxonomyContentId = 'animal-taxonomy-details';
+
+  const renderOverviewPanel = () => (
+    <div className="animal-section-panel card">
+      <div className="card-body">
+        {animalDesc && (
+          <div>
+            <h3 className="h5">{t('animal.aboutHeading')}</h3>
+            <p
+              id="animal-description"
+              className={`mb-3 ${descOpen ? '' : 'line-clamp-6'}`}
+            >
+              {animalDesc}
+            </p>
+            <button
+              className="btn btn-link p-0"
+              onClick={() => setDescOpen((v) => !v)}
+              aria-expanded={descOpen}
+              aria-controls="animal-description"
+            >
+              {descOpen ? t('zoo.showLess') : t('zoo.showMore')}
+            </button>
+          </div>
+        )}
+        {taxonomyHasDetails && (
+          <div className="taxonomy-disclosure mt-4">
+            <button
+              type="button"
+              className="taxonomy-toggle btn btn-link p-0 text-start"
+              onClick={() => setTaxonomyOpen((value) => !value)}
+              aria-expanded={taxonomyOpen}
+              aria-controls={taxonomyContentId}
+            >
+              <span className="fw-semibold d-block">
+                {t('animal.taxonomyDisclosureLabel')}
+              </span>
+              <span className="small text-muted">
+                {taxonomyOpen
+                  ? t('animal.taxonomyDisclosureHide')
+                  : t('animal.taxonomyDisclosureShow')}
+              </span>
+            </button>
+            <div
+              id={taxonomyContentId}
+              className="taxonomy-content mt-3"
+              hidden={!taxonomyOpen}
+            >
+              {(className || orderName || familyName) && (
+                <dl className="small taxonomy-list mb-0">
+                  {className && (
+                    <>
+                      <dt className="fw-semibold">{t('animal.class')}</dt>
+                      <dd className="mb-0">
+                        {classificationLinks.class ? (
+                          <Link
+                            className="link-underline link-underline-opacity-0 link-underline-opacity-75-hover"
+                            to={classificationLinks.class}
+                            aria-label={t('animal.filterByClass', {
+                              classification: className,
+                            })}
+                          >
+                            {className}
+                          </Link>
+                        ) : (
+                          className
+                        )}
+                      </dd>
+                    </>
+                  )}
+                  {orderName && (
+                    <>
+                      <dt className="fw-semibold">{t('animal.order')}</dt>
+                      <dd className="mb-0">
+                        {classificationLinks.order ? (
+                          <Link
+                            className="link-underline link-underline-opacity-0 link-underline-opacity-75-hover"
+                            to={classificationLinks.order}
+                            aria-label={t('animal.filterByOrder', {
+                              classification: orderName,
+                            })}
+                          >
+                            {orderName}
+                          </Link>
+                        ) : (
+                          orderName
+                        )}
+                      </dd>
+                    </>
+                  )}
+                  {familyName && (
+                    <>
+                      <dt className="fw-semibold">{t('animal.family')}</dt>
+                      <dd className="mb-0">
+                        {classificationLinks.family ? (
+                          <Link
+                            className="link-underline link-underline-opacity-0 link-underline-opacity-75-hover"
+                            to={classificationLinks.family}
+                            aria-label={t('animal.filterByFamily', {
+                              classification: familyName,
+                            })}
+                          >
+                            {familyName}
+                          </Link>
+                        ) : (
+                          familyName
+                        )}
+                      </dd>
+                    </>
+                  )}
+                </dl>
+              )}
+              {(parentDetails || subspeciesLinks.length > 0) && (
+                <div className="taxonomy-relations mt-3">
+                  {parentDetails && (
+                    <div className="taxonomy-parent">
+                      <div className="relation-heading text-muted text-uppercase small mb-1">
+                        {t('animal.parentSpecies')}
+                      </div>
+                      <Link
+                        className="relation-link"
+                        to={`${prefix}/animals/${parentDetails.slug}`}
+                        aria-label={t('animal.viewParent', { name: parentDetails.name })}
+                      >
+                        {parentDetails.name}
+                      </Link>
+                      {parentDetails.scientific && (
+                        <span className="relation-scientific">{parentDetails.scientific}</span>
+                      )}
+                    </div>
+                  )}
+                  {subspeciesLinks.length > 0 && (
+                    <div className="taxonomy-subspecies">
+                      <div className="relation-heading text-muted text-uppercase small mb-1">
+                        {t('animal.subspeciesHeading')}
+                      </div>
+                      <ul className="subspecies-list">
+                        {subspeciesLinks.map((entry) => (
+                          <li key={entry.slug}>
+                            <Link
+                              className="relation-link"
+                              to={`${prefix}/animals/${entry.slug}`}
+                              aria-label={t('animal.viewSubspecies', { name: entry.name })}
+                            >
+                              {entry.name}
+                            </Link>
+                            {entry.scientific && (
+                              <span className="relation-scientific">{entry.scientific}</span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  const renderWherePanel = () => (
+    <div className="animal-section-panel card">
+      <div className="card-body pb-2">
+        <div className="where-toolbar d-flex flex-column flex-lg-row gap-3 align-items-stretch align-items-lg-center">
+          <div className="flex-grow-1">
+            <div className="input-group input-group-sm">
+              <span className="input-group-text">{t('actions.filter')}</span>
+              <input
+                type="search"
+                className="form-control"
+                placeholder={t('animal.filterPlaceholder')}
+                value={zooFilter}
+                onChange={(e) => setZooFilter(e.target.value)}
+                aria-label={t('animal.filterAria')}
+              />
+            </div>
+          </div>
+          <fieldset className="btn-group" role="group" aria-label={t('zoo.viewToggle')}>
+            <legend className="visually-hidden">{t('zoo.viewToggle')}</legend>
+            <input
+              type="radio"
+              className="btn-check"
+              name="animal-zoo-view"
+              id="animal-zoo-view-list"
+              autoComplete="off"
+              checked={viewMode === 'list'}
+              onChange={() => handleViewModeChange('list')}
+            />
+            <label className="btn btn-outline-primary" htmlFor="animal-zoo-view-list">
+              {t('zoo.viewList')}
+            </label>
+            <input
+              type="radio"
+              className="btn-check"
+              name="animal-zoo-view"
+              id="animal-zoo-view-map"
+              autoComplete="off"
+              checked={viewMode === 'map'}
+              onChange={() => handleViewModeChange('map')}
+            />
+            <label className="btn btn-outline-primary" htmlFor="animal-zoo-view-map">
+              {t('zoo.viewMap')}
+            </label>
+          </fieldset>
+        </div>
+        {viewMode === 'list' && (
+          <div className="d-flex flex-wrap gap-2 mt-3" role="group" aria-label={t('animal.sortZoos')}>
+            <div className="btn-group btn-group-sm" role="group">
+              <button
+                className={`btn btn-outline-secondary ${sortBy === 'name' ? 'active' : ''}`}
+                onClick={() => setSortBy('name')}
+              >
+                {t('actions.sortByName')}
+              </button>
+              <button
+                className={`btn btn-outline-secondary ${sortBy === 'distance' ? 'active' : ''}`}
+                onClick={() => setSortBy('distance')}
+                disabled={!userLocation}
+                title={!userLocation ? t('animal.enableLocationSort') : undefined}
+              >
+                {t('actions.sortByDistance')}
+              </button>
+            </div>
+          </div>
+        )}
+        <div className="small text-muted mt-3" aria-live="polite">
+          {t('animal.filteredCount', { count: filteredZoos.length, total: zoos.length })}
+        </div>
+      </div>
+      {viewMode === 'list' ? (
+        <div className="table-responsive">
+          <table className="table table-hover align-middle mb-0">
+            <thead className="table-light">
+              <tr>
+                <th scope="col">Zoo</th>
+                {userLocation && (
+                  <th scope="col" className="text-end">
+                    {t('animal.distanceColumnLabel')}
+                  </th>
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {filteredZoos.map((z) => {
+                const displayName = getZooDisplayName(z);
+                return (
+                  <tr
+                    key={z.id}
+                    className="pointer-row"
+                    role="link"
+                    aria-label={t('animal.openZoo', { zoo: displayName })}
+                    onClick={() => navigate(`${prefix}/zoos/${z.slug || z.id}`)}
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        navigate(`${prefix}/zoos/${z.slug || z.id}`);
+                      }
+                    }}
+                  >
+                    <td>
+                      <span className="d-inline-flex align-items-center gap-1">
+                        {displayName}
+                        <FavoriteBadge isFavorite={Boolean(z.is_favorite)} />
+                      </span>
+                    </td>
+                    {userLocation && (
+                      <td className="text-end">
+                        {z.distance_km != null ? z.distance_km.toFixed(1) : ''}
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="card-body pt-0">
+          {zoosWithCoordinates.length > 0 ? (
+            <ZoosMap
+              zoos={zoosWithCoordinates}
+              center={
+                userLocation
+                  ? {
+                      lat: userLocation.lat,
+                      lon: userLocation.lon,
+                    }
+                  : null
+              }
+              onSelect={handleMapSelect}
+              initialView={mapView}
+              onViewChange={handleMapViewChange}
+              resizeToken={mapResizeToken}
+              ariaLabel={t('animal.mapAriaLabel', { animal: animalName })}
+            />
+          ) : (
+            <div className="alert alert-info mb-0" role="status">
+              {t('zoo.noMapResults')}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
+  const renderSightingsPanel = () => (
+    <div className="animal-section-panel card">
+      <div className="card-body">
+        {gallery.length > 0 && (
+          <div className="sightings-gallery mb-4">
+            <h3 className="h6 text-uppercase text-muted mb-2">
+              {t('animal.sightingsGalleryHeading')}
+            </h3>
+            <div className="gallery">
+              {gallery.map((g, idx) => (
+                <img
+                  key={idx}
+                  src={g.photo_url}
+                  alt={t('animal.sightingsGalleryAlt', { animal: animalName })}
+                  className="gallery-img"
+                />
+              ))}
+            </div>
+          </div>
+        )}
+        <SightingHistoryList
+          sightings={history}
+          locale={locale}
+          isAuthenticated={isAuthenticated}
+          loading={historyLoading}
+          error={historyError}
+          messages={historyMessages}
+          onLogin={handleLoginRedirect}
+          formatDay={formatHistoryDay}
+          renderSighting={renderHistoryItem}
+          unauthenticatedContent={unauthenticatedHistory}
+        />
+      </div>
+    </div>
+  );
+
+  const sections = [
+    { id: 'overview', label: t('animal.overviewTab'), render: renderOverviewPanel },
+    { id: 'where', label: t('animal.whereToSee'), render: renderWherePanel },
+    {
+      id: 'sightings',
+      label: t('animal.sightingHistoryHeading'),
+      render: renderSightingsPanel,
+    },
+  ];
+
+  useEffect(() => {
+    if (!sections.length) {
+      return;
+    }
+    const ids = sections.map((section) => section.id);
+    if (!ids.includes(activeSection)) {
+      setActiveSection(ids[0]);
+    }
+    setOpenSections((prev) => {
+      const next = new Set();
+      prev.forEach((id) => {
+        if (ids.includes(id)) {
+          next.add(id);
+        }
+      });
+      if (next.size === 0) {
+        next.add(ids[0]);
+      }
+      if (next.size === prev.size && [...next].every((id) => prev.has(id))) {
+        return prev;
+      }
+      return next;
+    });
+  }, [sections, activeSection]);
+
+  const handleTabKeyDown = useCallback(
+    (event, index) => {
+      if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') {
+        return;
+      }
+      event.preventDefault();
+      const direction = event.key === 'ArrowRight' ? 1 : -1;
+      const nextIndex = (index + direction + sections.length) % sections.length;
+      const nextSection = sections[nextIndex];
+      setActiveSection(nextSection.id);
+      const node = tabRefs.current[nextIndex];
+      if (node) {
+        node.focus();
+      }
+    },
+    [sections]
+  );
+
+  const toggleAccordion = useCallback((id) => {
+    setOpenSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  const animalId = animal?.id ?? null;
+
+  const handleLogSightingClick = useCallback(() => {
+    if (!animal) {
+      return;
+    }
+    if (!isAuthenticated) {
+      handleLoginRedirect();
+      return;
+    }
+    const defaultZoo = closestZoo;
+    setModalData({
+      animalId: animalId,
+      animalName: animalName,
+      zooId: defaultZoo ? defaultZoo.id : undefined,
+      zooName: defaultZoo ? getZooDisplayName(defaultZoo) : undefined,
+    });
+  }, [animal, animalId, animalName, closestZoo, handleLoginRedirect, isAuthenticated]);
+
+  tabRefs.current = sections.map((_, index) => tabRefs.current[index] || null);
+
+  if (loading) return <div className="page-container">Loading...</div>;
+  if (error) return (
+    <div className="page-container">
+      <p className="text-danger">Unable to load animal.</p>
+    </div>
+  );
+  if (!animal) return (
+    <div className="page-container">
+      <p>Animal not found.</p>
+    </div>
+  );
 
   return (
-    <div className="page-container">
+    <div className="page-container animal-detail-page">
       <Seo
         title={animal ? animalName : 'Animal'}
         description={
@@ -577,13 +1050,64 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
             : 'Animal details on ZooTracker.'
         }
       />
-      {/* Image above on mobile, swapped to the right on large screens */}
-      <div className="row g-3">
+      <header className="animal-header d-flex flex-column flex-lg-row gap-3 align-items-lg-start">
+        <div className="flex-grow-1">
+          <h1 className="mb-1">{animalName}</h1>
+          {animal.scientific_name && (
+            <div className="fst-italic text-muted">{animal.scientific_name}</div>
+          )}
+          {animal.taxon_rank && (
+            <div className="mt-2">
+              <span className="badge bg-light text-muted border">{animal.taxon_rank}</span>
+            </div>
+          )}
+        </div>
+        <button
+          type="button"
+          className="btn btn-primary btn-lg log-sighting-button"
+          onClick={handleLogSightingClick}
+        >
+          {t('actions.logSighting')}
+        </button>
+      </header>
+      <div className="animal-meta d-flex flex-wrap align-items-center gap-2 mt-3">
+        <span className={`badge ${seen ? 'bg-success' : 'bg-secondary'}`}>
+          {seen ? t('animal.seenOn', { date: firstSeen }) : t('animal.notSeen')}
+        </span>
+        {animal.iucn_conservation_status && (() => {
+          const code = animal.iucn_conservation_status.toUpperCase();
+          const meta = IUCN[code] || { label: code, badge: 'bg-secondary' };
+          return (
+            <span className={`badge ${meta.badge}`} title={meta.label}>
+              IUCN: {code}
+            </span>
+          );
+        })()}
+        <button
+          type="button"
+          className={`btn btn-sm favorite-toggle ${favorite ? 'btn-warning text-dark' : 'btn-outline-secondary'}`}
+          onClick={handleFavoriteToggle}
+          disabled={favoritePending}
+          aria-pressed={favorite}
+        >
+          <span aria-hidden="true" className="favorite-icon">★</span>
+          <span className="ms-1">{t('animal.favoriteToggle')}</span>
+          <span className="visually-hidden">
+            {favorite
+              ? t('animal.favoriteSelected')
+              : t('animal.favoriteNotSelected')}
+          </span>
+        </button>
+      </div>
+      {favoriteError && (
+        <div className="text-danger small mt-2" role="status">
+          {favoriteError}
+        </div>
+      )}
+      <div className="row g-4 g-lg-5 align-items-start mt-2">
         <div className="col-12 col-lg-6 order-lg-2 sticky-lg-top" style={{ top: '1rem' }}>
-          {/* Stable image stage: fixed aspect ratio, no jumping controls */}
           {hasGallery ? (
             <div className="animal-media" style={{ '--ar': aspect }}>
-              {/* Render image gallery using Bootstrap carousel */}
               <div
                 id="animalCarousel"
                 className="carousel slide h-100"
@@ -594,55 +1118,50 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
                 data-bs-interval="false"
                 data-bs-touch="true"
               >
-                {animal.images.length > 1 && (
+                {animalImages.length > 1 && (
                   <div className="carousel-indicators">
-                    {animal.images.map((_, i) => (
+                    {animalImages.map((_, i) => (
                       <button
                         key={i}
                         type="button"
                         data-bs-target="#animalCarousel"
                         data-bs-slide-to={i}
                         className={i === 0 ? 'active' : ''}
-                        aria-label={`Slide ${i + 1} of ${animal.images.length}`}
+                        aria-label={`Slide ${i + 1} of ${animalImages.length}`}
                       />
                     ))}
                   </div>
                 )}
                 <div className="carousel-inner h-100">
-                  {animal.images.map((img, idx) => {
-                    // Sort variants so the smallest width comes first
+                  {animalImages.map((img, idx) => {
                     const sorted = [...(img.variants || [])].sort(
                       (a, b) => a.width - b.width
                     );
                     const fallback = sorted[0];
                     const fallbackSrc = fallback?.thumb_url || img.original_url;
-                    // Deduplicate widths to keep srcset concise
                     const uniqueByWidth = [];
-                    const seen = new Set();
+                    const seenSet = new Set();
                     for (const v of sorted) {
-                      if (!seen.has(v.width)) {
+                      if (!seenSet.has(v.width)) {
                         uniqueByWidth.push(v);
-                        seen.add(v.width);
+                        seenSet.add(v.width);
                       }
                     }
                     const srcSet = uniqueByWidth
                       .map((v) => `${v.thumb_url} ${v.width}w`)
                       .join(', ');
-                    // First slide is likely LCP: prioritize it; others can be lazy/low
                     const isFirst = idx === 0;
                     const loadingAttr = isFirst ? 'eager' : 'lazy';
                     const fetchPri = isFirst ? 'high' : 'low';
                     const sizes =
-                      '(min-width: 1200px) 540px, (min-width: 992px) 50vw, 100vw'; // matches 2-col layout
+                      '(min-width: 1200px) 540px, (min-width: 992px) 50vw, 100vw';
 
-                    // Each image links to its Commons description page
                     return (
                       <div
                         key={img.mid}
                         className={`carousel-item ${idx === 0 ? 'active' : ''}`}
-                        aria-label={`Slide ${idx + 1} of ${animal.images.length}`}
+                        aria-label={`Slide ${idx + 1} of ${animalImages.length}`}
                       >
-                        {/* Clicking the image opens the attribution page */}
                         <Link
                           to={`${prefix}/images/${img.mid}`}
                           state={{ name: animalName }}
@@ -663,7 +1182,7 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
                     );
                   })}
                 </div>
-                {animal.images.length > 1 && (
+                {animalImages.length > 1 && (
                   <>
                     <button
                       className="carousel-control-prev"
@@ -702,370 +1221,72 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
           )}
         </div>
         <div className="col-12 col-lg-6 order-lg-1">
-          <h2 className="mb-1">{animalName}</h2>
-          {animal.scientific_name && (
-            <div className="fst-italic">{animal.scientific_name}</div>
-          )}
-          {animal.taxon_rank && (
-            <div className="mt-1">
-              <span className="badge bg-light text-muted border">{animal.taxon_rank}</span>
-            </div>
-          )}
-          {(className || orderName || familyName) && (
-            <dl className="small mt-2 mb-0">
-              {className && (
-                <>
-                  <dt className="fw-semibold">{t('animal.class')}</dt>
-                  <dd className="mb-0">
-                    {classificationLinks.class ? (
-                      <Link
-                        className="link-underline link-underline-opacity-0 link-underline-opacity-75-hover"
-                        to={classificationLinks.class}
-                        aria-label={t('animal.filterByClass', {
-                          classification: className,
-                        })}
-                      >
-                        {className}
-                      </Link>
-                    ) : (
-                      className
-                    )}
-                  </dd>
-                </>
-              )}
-              {orderName && (
-                <>
-                  <dt className="fw-semibold">{t('animal.order')}</dt>
-                  <dd className="mb-0">
-                    {classificationLinks.order ? (
-                      <Link
-                        className="link-underline link-underline-opacity-0 link-underline-opacity-75-hover"
-                        to={classificationLinks.order}
-                        aria-label={t('animal.filterByOrder', {
-                          classification: orderName,
-                        })}
-                      >
-                        {orderName}
-                      </Link>
-                    ) : (
-                      orderName
-                    )}
-                  </dd>
-                </>
-              )}
-              {familyName && (
-                <>
-                  <dt className="fw-semibold">{t('animal.family')}</dt>
-                  <dd className="mb-0">
-                    {classificationLinks.family ? (
-                      <Link
-                        className="link-underline link-underline-opacity-0 link-underline-opacity-75-hover"
-                        to={classificationLinks.family}
-                        aria-label={t('animal.filterByFamily', {
-                          classification: familyName,
-                        })}
-                      >
-                        {familyName}
-                      </Link>
-                    ) : (
-                      familyName
-                    )}
-                  </dd>
-                </>
-              )}
-            </dl>
-          )}
-          {(parentDetails || subspeciesLinks.length > 0) && (
-            // Surface parent and subspecies metadata once available.
-            <div className="taxonomy-relations mt-3">
-              {parentDetails && (
-                <div className="taxonomy-parent">
-                  <div className="relation-heading text-muted text-uppercase small mb-1">
-                    {t('animal.parentSpecies')}
-                  </div>
-                  <Link
-                    className="relation-link"
-                    to={`${prefix}/animals/${parentDetails.slug}`}
-                    aria-label={t('animal.viewParent', { name: parentDetails.name })}
+          {isDesktop ? (
+            <div className="animal-tabs" role="region" aria-label={t('animal.sectionNavigationLabel')}>
+              <div className="nav nav-tabs" role="tablist">
+                {sections.map((section, index) => (
+                  <button
+                    key={section.id}
+                    type="button"
+                    role="tab"
+                    className={`nav-link ${activeSection === section.id ? 'active' : ''}`}
+                    id={`${section.id}-tab`}
+                    aria-controls={`${section.id}-panel`}
+                    aria-selected={activeSection === section.id}
+                    onClick={() => setActiveSection(section.id)}
+                    onKeyDown={(event) => handleTabKeyDown(event, index)}
+                    ref={(node) => {
+                      tabRefs.current[index] = node;
+                    }}
                   >
-                    {parentDetails.name}
-                  </Link>
-                  {parentDetails.scientific && (
-                    <span className="relation-scientific">{parentDetails.scientific}</span>
-                  )}
+                    {section.label}
+                  </button>
+                ))}
+              </div>
+              {sections.map((section) => (
+                <div
+                  key={section.id}
+                  id={`${section.id}-panel`}
+                  role="tabpanel"
+                  aria-labelledby={`${section.id}-tab`}
+                  className="animal-tabpanel mt-3"
+                  hidden={activeSection !== section.id}
+                >
+                  {section.render()}
                 </div>
-              )}
-              {subspeciesLinks.length > 0 && (
-                <div className="taxonomy-subspecies">
-                  <div className="relation-heading text-muted text-uppercase small mb-1">
-                    {t('animal.subspeciesHeading')}
-                  </div>
-                  <ul className="subspecies-list">
-                    {subspeciesLinks.map((entry) => (
-                      <li key={entry.slug}>
-                        <Link
-                          className="relation-link"
-                          to={`${prefix}/animals/${entry.slug}`}
-                          aria-label={t('animal.viewSubspecies', { name: entry.name })}
-                        >
-                          {entry.name}
-                        </Link>
-                        {entry.scientific && (
-                          <span className="relation-scientific">{entry.scientific}</span>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          )}
-          <div className="spaced-top d-flex flex-wrap gap-2 align-items-center">
-            <span className={`badge ${seen ? 'bg-success' : 'bg-secondary'}`}>
-              {seen
-                ? t('animal.seenOn', { date: firstSeen })
-                : t('animal.notSeen')}
-            </span>
-            {animal.iucn_conservation_status && (() => {
-              const code = animal.iucn_conservation_status.toUpperCase();
-              const meta = IUCN[code] || { label: code, badge: 'bg-secondary' };
-              return (
-                <span className={`badge ${meta.badge}`} title={meta.label}>
-                  IUCN: {code}
-                </span>
-              );
-            })()}
-            <button
-              type="button"
-              className={`btn btn-sm ${favorite ? 'btn-warning' : 'btn-outline-secondary'}`}
-              onClick={handleFavoriteToggle}
-              disabled={favoritePending}
-              aria-pressed={favorite}
-            >
-              {favorite ? t('animal.removeFavorite') : t('animal.addFavorite')}
-            </button>
-          </div>
-          {favoriteError && (
-            <div className="text-danger small mt-1" role="status">
-              {favoriteError}
-            </div>
-          )}
-          {gallery.length > 0 && (
-            <div className="gallery">
-              {gallery.map((g, idx) => (
-                <img
-                  key={idx}
-                  src={g.photo_url}
-                  alt="sighting"
-                  className="gallery-img"
-                />
               ))}
             </div>
-          )}
-          {animalDesc && (
-            <div className="card mt-3">
-              <div className="card-body">
-                <h5 className="card-title">{t('zoo.description')}</h5>
-                <p
-                  id="animal-description"
-                  className={`card-text ${descOpen ? '' : 'line-clamp-6'}`}
-                >
-                  {animalDesc}
-                </p>
-                <button
-                  className="btn btn-link p-0"
-                  onClick={() => setDescOpen((v) => !v)}
-                  aria-expanded={descOpen}
-                  aria-controls="animal-description"
-                >
-                  {descOpen ? t('zoo.showLess') : t('zoo.showMore')}
-                </button>
-              </div>
-            </div>
-          )}
-          <section
-            className={`mt-${animalDesc ? '4' : '3'} w-100`}
-            aria-labelledby="animal-sighting-history-heading"
-          >
-            <h4 id="animal-sighting-history-heading" className="mb-3">
-              {t('animal.sightingHistoryHeading')}
-            </h4>
-            <SightingHistoryList
-              sightings={history}
-              locale={locale}
-              isAuthenticated={isAuthenticated}
-              loading={historyLoading}
-              error={historyError}
-              messages={historyMessages}
-              onLogin={handleLoginRedirect}
-              formatDay={formatHistoryDay}
-              renderSighting={renderHistoryItem}
-              unauthenticatedContent={unauthenticatedHistory}
-            />
-          </section>
-        </div>
-      </div>
-      <div className="card spaced-top-lg">
-        <div className="card-body pb-2">
-          <div className="d-flex flex-wrap gap-2 align-items-center">
-            <h4 className="mb-0 me-auto">{t('animal.whereToSee')}</h4>
-            <div className="input-group input-group-sm" style={{ maxWidth: 280 }}>
-              <span className="input-group-text">{t('actions.filter')}</span>
-              <input
-                type="search"
-                className="form-control"
-                placeholder={t('animal.filterPlaceholder')}
-                value={zooFilter}
-                onChange={(e) => setZooFilter(e.target.value)}
-                aria-label={t('animal.filterAria')}
-              />
-            </div>
-            {/* Sorting controls only apply to the table view */}
-            {viewMode === 'list' && (
-              <div className="btn-group btn-group-sm" role="group" aria-label="Sort zoos">
-                <button
-                  className={`btn btn-outline-secondary ${sortBy === 'name' ? 'active' : ''}`}
-                  onClick={() => setSortBy('name')}
-                >
-                  {t('actions.sortByName')}
-                </button>
-                <button
-                  className={`btn btn-outline-secondary ${sortBy === 'distance' ? 'active' : ''}`}
-                  onClick={() => setSortBy('distance')}
-                  disabled={!userLocation}
-                  title={!userLocation ? t('animal.enableLocationSort') : undefined}
-                >
-                  {t('actions.sortByDistance')}
-                </button>
-              </div>
-            )}
-          </div>
-          <div className="d-flex justify-content-end flex-wrap gap-2 mt-3">
-            <fieldset className="btn-group" role="group" aria-label={t('zoo.viewToggle')}>
-              <legend className="visually-hidden">{t('zoo.viewToggle')}</legend>
-              <input
-                type="radio"
-                className="btn-check"
-                name="animal-zoo-view"
-                id="animal-zoo-view-list"
-                autoComplete="off"
-                checked={viewMode === 'list'}
-                onChange={() => handleViewModeChange('list')}
-              />
-              <label className="btn btn-outline-primary" htmlFor="animal-zoo-view-list">
-                {t('zoo.viewList')}
-              </label>
-              <input
-                type="radio"
-                className="btn-check"
-                name="animal-zoo-view"
-                id="animal-zoo-view-map"
-                autoComplete="off"
-                checked={viewMode === 'map'}
-                onChange={() => handleViewModeChange('map')}
-              />
-              <label className="btn btn-outline-primary" htmlFor="animal-zoo-view-map">
-                {t('zoo.viewMap')}
-              </label>
-            </fieldset>
-          </div>
-          <div className="small text-muted mt-2" aria-live="polite">
-            Showing {filteredZoos.length} of {zoos.length}
-          </div>
-        </div>
-        {viewMode === 'list' ? (
-          <div className="table-responsive">
-            <table className="table table-hover align-middle mb-0">
-              <thead className="table-light">
-                <tr>
-                  <th scope="col">Zoo</th>
-                  {userLocation && (
-                    <th scope="col" className="text-end">Distance (km)</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredZoos.map((z) => {
-                  const displayName = getZooDisplayName(z);
-                  return (
-                    <tr
-                      key={z.id}
-                      className="pointer-row"
-                      role="link"
-                      aria-label={`Open ${displayName}`}
-                      onClick={() => navigate(`${prefix}/zoos/${z.slug || z.id}`)}
-                      tabIndex={0}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          navigate(`${prefix}/zoos/${z.slug || z.id}`);
-                        }
-                      }}
+          ) : (
+            <div className="accordion animal-accordion" id="animal-detail-sections">
+              {sections.map((section) => {
+                const open = openSections.has(section.id);
+                return (
+                  <div className="accordion-item" key={section.id}>
+                    <h2 className="accordion-header" id={`${section.id}-heading`}>
+                      <button
+                        className={`accordion-button ${open ? '' : 'collapsed'}`}
+                        type="button"
+                        aria-expanded={open}
+                        aria-controls={`${section.id}-collapse`}
+                        onClick={() => toggleAccordion(section.id)}
+                      >
+                        {section.label}
+                      </button>
+                    </h2>
+                    <div
+                      id={`${section.id}-collapse`}
+                      className={`accordion-collapse collapse ${open ? 'show' : ''}`}
+                      aria-labelledby={`${section.id}-heading`}
                     >
-                      <td>
-                        <span className="d-inline-flex align-items-center gap-1">
-                          {displayName}
-                          {/* Highlight favorite zoos with a shared badge component. */}
-                          <FavoriteBadge isFavorite={Boolean(z.is_favorite)} />
-                        </span>
-                      </td>
-                      {userLocation && (
-                        <td className="text-end">
-                          {z.distance_km != null ? z.distance_km.toFixed(1) : ''}
-                        </td>
-                      )}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="card-body pt-0">
-            {zoosWithCoordinates.length > 0 ? (
-              <ZoosMap
-                zoos={zoosWithCoordinates}
-                center={
-                  userLocation
-                    ? {
-                        lat: userLocation.lat,
-                        lon: userLocation.lon,
-                      }
-                    : null
-                }
-                onSelect={handleMapSelect}
-                initialView={mapView}
-                onViewChange={handleMapViewChange}
-                resizeToken={mapResizeToken}
-                ariaLabel={t('animal.mapAriaLabel', { animal: animalName })}
-              />
-            ) : (
-              <div className="alert alert-info mb-0" role="status">
-                {t('zoo.noMapResults')}
-              </div>
-            )}
-          </div>
-        )}
+                      <div className="accordion-body">{section.render()}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
-      <button
-        onClick={() => {
-          if (!isAuthenticated) {
-            navigate(`${prefix}/login`);
-            return;
-          }
-          setModalData({
-            animalId: animal.id,
-            animalName: animalName,
-            zooId: closestZoo ? closestZoo.id : undefined,
-            zooName: closestZoo
-              ? getZooDisplayName(closestZoo)
-              : undefined,
-          });
-        }}
-        className="spaced-top btn btn-primary"
-      >
-        {t('actions.logSighting')}
-      </button>
       {modalData && (
         <SightingModal
           zoos={zoos}
