@@ -1082,7 +1082,7 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
           next.add(id);
         }
       });
-      if (next.size === 0) {
+      if (prev.size > 0 && next.size === 0) {
         next.add(ids[0]);
       }
       if (next.size === prev.size && [...next].every((id) => prev.has(id))) {
@@ -1112,13 +1112,10 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
 
   const toggleAccordion = useCallback((id) => {
     setOpenSections((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
+      if (prev.has(id)) {
+        return new Set();
       }
-      return next;
+      return new Set([id]);
     });
   }, []);
 
@@ -1255,7 +1252,7 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
                   id={`${section.id}-panel`}
                   role="tabpanel"
                   aria-labelledby={`${section.id}-tab`}
-                  className="animal-tabpanel mt-3"
+                  className="animal-tabpanel"
                   hidden={activeSection !== section.id}
                 >
                   {section.render()}

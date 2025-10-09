@@ -196,6 +196,56 @@ describe('AnimalDetailPage', () => {
     ).toBeInTheDocument();
   });
 
+  it('opens the overview accordion by default and allows closing all sections', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: () => Promise.resolve(animal) });
+
+    const user = userEvent.setup();
+    renderWithRouter(
+      <Routes>
+        <Route path="/:lang/animals/:slug" element={<AnimalDetailPage />} />
+      </Routes>,
+      { route: '/en/animals/lion' }
+    );
+
+    const overviewToggle = await screen.findByRole('button', { name: /Overview/i });
+    expect(overviewToggle).toHaveAttribute('aria-expanded', 'true');
+
+    await user.click(overviewToggle);
+    expect(overviewToggle).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('only keeps one accordion section open on mobile when switching sections', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: () => Promise.resolve(animal) });
+
+    const user = userEvent.setup();
+    renderWithRouter(
+      <Routes>
+        <Route path="/:lang/animals/:slug" element={<AnimalDetailPage />} />
+      </Routes>,
+      { route: '/en/animals/lion' }
+    );
+
+    const overviewToggle = await screen.findByRole('button', { name: /Overview/i });
+    const whereToggle = await screen.findByRole('button', { name: /Where to See/i });
+    const sightingsToggle = await screen.findByRole('button', { name: /Your sightings/i });
+
+    expect(overviewToggle).toHaveAttribute('aria-expanded', 'true');
+    expect(whereToggle).toHaveAttribute('aria-expanded', 'false');
+    expect(sightingsToggle).toHaveAttribute('aria-expanded', 'false');
+
+    await user.click(whereToggle);
+    expect(whereToggle).toHaveAttribute('aria-expanded', 'true');
+    expect(overviewToggle).toHaveAttribute('aria-expanded', 'false');
+
+    await user.click(sightingsToggle);
+    expect(sightingsToggle).toHaveAttribute('aria-expanded', 'true');
+    expect(whereToggle).toHaveAttribute('aria-expanded', 'false');
+  });
+
   it('omits taxonomy links when identifiers are missing', async () => {
     const partialAnimal = {
       ...animal,
