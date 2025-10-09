@@ -715,6 +715,9 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
   );
   const taxonomyContentId = 'animal-taxonomy-details';
 
+  const showDescriptionToggle = !isDesktop && Boolean(animalDesc);
+  const descriptionCollapsed = !isDesktop && !descOpen;
+
   const renderOverviewPanel = () => (
     <div className="animal-section-panel card">
       <div className="card-body">
@@ -723,18 +726,20 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
             <h3 className="h5">{t('animal.aboutHeading')}</h3>
             <p
               id="animal-description"
-              className={`mb-3 ${descOpen ? '' : 'line-clamp-6'}`}
+              className={`mb-3 ${descriptionCollapsed ? 'line-clamp-6' : ''}`}
             >
               {animalDesc}
             </p>
-            <button
-              className="btn btn-link p-0"
-              onClick={() => setDescOpen((v) => !v)}
-              aria-expanded={descOpen}
-              aria-controls="animal-description"
-            >
-              {descOpen ? t('zoo.showLess') : t('zoo.showMore')}
-            </button>
+            {showDescriptionToggle && (
+              <button
+                className="btn btn-link p-0"
+                onClick={() => setDescOpen((v) => !v)}
+                aria-expanded={descOpen}
+                aria-controls="animal-description"
+              >
+                {descOpen ? t('zoo.showLess') : t('zoo.showMore')}
+              </button>
+            )}
           </div>
         )}
         {taxonomyHasDetails && (

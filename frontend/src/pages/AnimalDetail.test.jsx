@@ -88,6 +88,38 @@ describe('AnimalDetailPage', () => {
     ).toHaveAttribute('href', '/en/animals?class=1&order=2&family=3');
   });
 
+  it('shows the full description on desktop without a toggle', async () => {
+    const desktopAnimal = {
+      ...animal,
+      description_en: 'The lion is a large cat of the genus Panthera and a member of the family Felidae.',
+    };
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: () => Promise.resolve(desktopAnimal) });
+
+    window.matchMedia = vi.fn().mockImplementation((query) => ({
+      matches: query.includes('(min-width: 992px)'),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+
+    renderWithRouter(
+      <Routes>
+        <Route path="/:lang/animals/:slug" element={<AnimalDetailPage />} />
+      </Routes>,
+      { route: '/en/animals/lion' }
+    );
+
+    const description = await screen.findByText(desktopAnimal.description_en);
+    expect(description).not.toHaveClass('line-clamp-6');
+    expect(screen.queryByRole('button', { name: /Show more/i })).not.toBeInTheDocument();
+  });
+
   it('shows classification names in German', async () => {
     await loadLocale('de');
     global.fetch = vi
