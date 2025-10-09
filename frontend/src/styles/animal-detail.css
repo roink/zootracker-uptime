@@ -125,3 +125,86 @@
   color: var(--bs-secondary-color);
   font-style: italic;
 }
+
+.animal-detail-page {
+  position: relative;
+  padding-bottom: 5rem;
+}
+
+.animal-header h1 {
+  font-size: clamp(2rem, 3vw, 2.75rem);
+}
+
+.animal-meta {
+  gap: 0.75rem;
+}
+
+.favorite-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.favorite-toggle .favorite-icon {
+  font-size: 1rem;
+}
+
+.animal-desktop-sections .nav-tabs {
+  width: 100%;
+}
+
+.animal-desktop-sections .nav-link {
+  cursor: pointer;
+}
+
+.animal-tabpanel > .animal-section-panel {
+  margin-top: 0;
+}
+
+.animal-accordion .accordion-body {
+  padding: var(--bs-card-spacer-y) var(--bs-card-spacer-x);
+}
+
+.taxonomy-disclosure {
+  border-top: 1px solid var(--bs-border-color);
+  padding-top: 1.5rem;
+}
+
+.taxonomy-toggle {
+  color: inherit;
+  text-decoration: none;
+}
+
+.taxonomy-toggle:hover,
+.taxonomy-toggle:focus-visible {
+  text-decoration: none;
+}
+
+.taxonomy-content[hidden] {
+  display: none;
+}
+
+.where-toolbar {
+  gap: 1rem;
+}
+
+.sightings-gallery .gallery {
+  margin-top: 0;
+}
+
+.log-sighting-button {
+  align-self: flex-start;
+  position: relative;
+  z-index: 2;
+}
+
+@media (max-width: 991.98px) {
+  .log-sighting-button {
+    position: fixed;
+    right: 1rem;
+    bottom: 1rem;
+    border-radius: 999px;
+    padding-inline: 1.75rem;
+    box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.2);
+  }
+}

@@ -42,6 +42,19 @@ describe('AnimalDetailPage', () => {
   beforeEach(async () => {
     await loadLocale('en');
     vi.stubGlobal('navigator', { geolocation: { getCurrentPosition: (_s, e) => e() } });
+    Object.defineProperty(global.window, 'matchMedia', {
+      writable: true,
+      value: vi.fn().mockImplementation((query) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    });
     mapMock.mockClear();
   });
 
@@ -49,12 +62,17 @@ describe('AnimalDetailPage', () => {
     global.fetch = vi
       .fn()
       .mockResolvedValue({ ok: true, json: () => Promise.resolve(animal) });
+    const user = userEvent.setup();
     const { container } = renderWithRouter(
       <Routes>
         <Route path="/:lang/animals/:slug" element={<AnimalDetailPage />} />
       </Routes>,
       { route: '/en/animals/lion' }
     );
+    const taxonomyToggle = await screen.findByRole('button', {
+      name: /Classification & relations/i,
+    });
+    await user.click(taxonomyToggle);
     await screen.findByText('Mammals');
     expect(screen.getByText('Carnivorans')).toBeInTheDocument();
     expect(screen.getByText('Cats')).toBeInTheDocument();
@@ -70,17 +88,54 @@ describe('AnimalDetailPage', () => {
     ).toHaveAttribute('href', '/en/animals?class=1&order=2&family=3');
   });
 
+  it('shows the full description on desktop without a toggle', async () => {
+    const desktopAnimal = {
+      ...animal,
+      description_en: 'The lion is a large cat of the genus Panthera and a member of the family Felidae.',
+    };
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: () => Promise.resolve(desktopAnimal) });
+
+    window.matchMedia = vi.fn().mockImplementation((query) => ({
+      matches: query.includes('(min-width: 992px)'),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+
+    renderWithRouter(
+      <Routes>
+        <Route path="/:lang/animals/:slug" element={<AnimalDetailPage />} />
+      </Routes>,
+      { route: '/en/animals/lion' }
+    );
+
+    const description = await screen.findByText(desktopAnimal.description_en);
+    expect(description).not.toHaveClass('line-clamp-6');
+    expect(screen.queryByRole('button', { name: /Show more/i })).not.toBeInTheDocument();
+  });
+
   it('shows classification names in German', async () => {
     await loadLocale('de');
     global.fetch = vi
       .fn()
       .mockResolvedValue({ ok: true, json: () => Promise.resolve(animal) });
+    const user = userEvent.setup();
     renderWithRouter(
       <Routes>
         <Route path="/:lang/animals/:slug" element={<AnimalDetailPage />} />
       </Routes>,
       { route: '/de/animals/lion' }
     );
+    const taxonomyToggle = await screen.findByRole('button', {
+      name: /Klassifikation & Beziehungen/i,
+    });
+    await user.click(taxonomyToggle);
     await screen.findByText('Säugetiere');
     expect(screen.getByText('Raubtiere')).toBeInTheDocument();
     expect(screen.getByText('Katzen')).toBeInTheDocument();
@@ -109,12 +164,18 @@ describe('AnimalDetailPage', () => {
       .fn()
       .mockResolvedValue({ ok: true, json: () => Promise.resolve(withParent) });
 
+    const user = userEvent.setup();
     renderWithRouter(
       <Routes>
         <Route path="/:lang/animals/:slug" element={<AnimalDetailPage />} />
       </Routes>,
       { route: '/en/animals/lion' }
     );
+
+    const taxonomyToggle = await screen.findByRole('button', {
+      name: /Classification & relations/i,
+    });
+    await user.click(taxonomyToggle);
 
     const parentLink = await screen.findByRole('link', {
       name: 'View parent species Panthera',
@@ -142,12 +203,18 @@ describe('AnimalDetailPage', () => {
       .fn()
       .mockResolvedValue({ ok: true, json: () => Promise.resolve(withSubspecies) });
 
+    const user = userEvent.setup();
     renderWithRouter(
       <Routes>
         <Route path="/:lang/animals/:slug" element={<AnimalDetailPage />} />
       </Routes>,
       { route: '/de/animals/lion' }
     );
+
+    const taxonomyToggle = await screen.findByRole('button', {
+      name: /Klassifikation & Beziehungen/i,
+    });
+    await user.click(taxonomyToggle);
 
     await screen.findByText('Unterarten');
     const subspeciesLink = screen.getByRole('link', {
@@ -161,6 +228,56 @@ describe('AnimalDetailPage', () => {
     ).toBeInTheDocument();
   });
 
+  it('opens the overview accordion by default and allows closing all sections', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: () => Promise.resolve(animal) });
+
+    const user = userEvent.setup();
+    renderWithRouter(
+      <Routes>
+        <Route path="/:lang/animals/:slug" element={<AnimalDetailPage />} />
+      </Routes>,
+      { route: '/en/animals/lion' }
+    );
+
+    const overviewToggle = await screen.findByRole('button', { name: /Overview/i });
+    expect(overviewToggle).toHaveAttribute('aria-expanded', 'true');
+
+    await user.click(overviewToggle);
+    expect(overviewToggle).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('only keeps one accordion section open on mobile when switching sections', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: () => Promise.resolve(animal) });
+
+    const user = userEvent.setup();
+    renderWithRouter(
+      <Routes>
+        <Route path="/:lang/animals/:slug" element={<AnimalDetailPage />} />
+      </Routes>,
+      { route: '/en/animals/lion' }
+    );
+
+    const overviewToggle = await screen.findByRole('button', { name: /Overview/i });
+    const whereToggle = await screen.findByRole('button', { name: /Where to See/i });
+    const sightingsToggle = await screen.findByRole('button', { name: /Your sightings/i });
+
+    expect(overviewToggle).toHaveAttribute('aria-expanded', 'true');
+    expect(whereToggle).toHaveAttribute('aria-expanded', 'false');
+    expect(sightingsToggle).toHaveAttribute('aria-expanded', 'false');
+
+    await user.click(whereToggle);
+    expect(whereToggle).toHaveAttribute('aria-expanded', 'true');
+    expect(overviewToggle).toHaveAttribute('aria-expanded', 'false');
+
+    await user.click(sightingsToggle);
+    expect(sightingsToggle).toHaveAttribute('aria-expanded', 'true');
+    expect(whereToggle).toHaveAttribute('aria-expanded', 'false');
+  });
+
   it('omits taxonomy links when identifiers are missing', async () => {
     const partialAnimal = {
       ...animal,
@@ -171,6 +288,7 @@ describe('AnimalDetailPage', () => {
       .fn()
       .mockResolvedValue({ ok: true, json: () => Promise.resolve(partialAnimal) });
 
+    const user = userEvent.setup();
     renderWithRouter(
       <Routes>
         <Route path="/:lang/animals/:slug" element={<AnimalDetailPage />} />
@@ -178,6 +296,10 @@ describe('AnimalDetailPage', () => {
       { route: '/en/animals/lion' }
     );
 
+    const taxonomyToggle = await screen.findByRole('button', {
+      name: /Classification & relations/i,
+    });
+    await user.click(taxonomyToggle);
     await screen.findByText('Mammals');
     expect(
       screen.getByRole('link', { name: 'Filter animals by class: Mammals' })
