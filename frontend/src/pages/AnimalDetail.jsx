@@ -591,6 +591,121 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
     return w && h ? `${w} / ${h}` : '4 / 3';
   };
   const aspect = hasGallery ? computeAspect(animalImages[0]) : '4 / 3';
+  const mediaSection = hasGallery
+    ? (
+        <div className="animal-media" style={{ '--ar': aspect }}>
+          <div
+            id="animalCarousel"
+            className="carousel slide h-100"
+            role="region"
+            aria-roledescription="carousel"
+            aria-label={`${animalName} image gallery`}
+            data-bs-ride="false"
+            data-bs-interval="false"
+            data-bs-touch="true"
+          >
+            {animalImages.length > 1 && (
+              <div className="carousel-indicators">
+                {animalImages.map((_, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    data-bs-target="#animalCarousel"
+                    data-bs-slide-to={i}
+                    className={i === 0 ? 'active' : ''}
+                    aria-label={`Slide ${i + 1} of ${animalImages.length}`}
+                  />
+                ))}
+              </div>
+            )}
+            <div className="carousel-inner h-100">
+              {animalImages.map((img, idx) => {
+                const sorted = [...(img.variants || [])].sort(
+                  (a, b) => a.width - b.width
+                );
+                const fallback = sorted[0];
+                const fallbackSrc = fallback?.thumb_url || img.original_url;
+                const uniqueByWidth = [];
+                const seenSet = new Set();
+                for (const v of sorted) {
+                  if (!seenSet.has(v.width)) {
+                    uniqueByWidth.push(v);
+                    seenSet.add(v.width);
+                  }
+                }
+                const srcSet = uniqueByWidth
+                  .map((v) => `${v.thumb_url} ${v.width}w`)
+                  .join(', ');
+                const isFirst = idx === 0;
+                const loadingAttr = isFirst ? 'eager' : 'lazy';
+                const fetchPri = isFirst ? 'high' : 'low';
+                const sizes =
+                  '(min-width: 1200px) 540px, (min-width: 992px) 50vw, 100vw';
+
+                return (
+                  <div
+                    key={img.mid}
+                    className={`carousel-item ${idx === 0 ? 'active' : ''}`}
+                    aria-label={`Slide ${idx + 1} of ${animalImages.length}`}
+                  >
+                    <Link
+                      to={`${prefix}/images/${img.mid}`}
+                      state={{ name: animalName }}
+                      className="d-block"
+                    >
+                      <img
+                        src={fallbackSrc}
+                        srcSet={srcSet}
+                        sizes={sizes}
+                        decoding="async"
+                        loading={loadingAttr}
+                        fetchpriority={fetchPri}
+                        alt={animalName}
+                        draggable="false"
+                      />
+                    </Link>
+                  </div>
+                );
+              })}
+            </div>
+            {animalImages.length > 1 && (
+              <>
+                <button
+                  className="carousel-control-prev"
+                  type="button"
+                  data-bs-target="#animalCarousel"
+                  data-bs-slide="prev"
+                >
+                  <span className="carousel-control-prev-icon" aria-hidden="true"></span>
+                  <span className="visually-hidden">Previous</span>
+                </button>
+                <button
+                  className="carousel-control-next"
+                  type="button"
+                  data-bs-target="#animalCarousel"
+                  data-bs-slide="next"
+                >
+                  <span className="carousel-control-next-icon" aria-hidden="true"></span>
+                  <span className="visually-hidden">Next</span>
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )
+    : animal?.default_image_url
+    ? (
+        <div className="animal-media" style={{ '--ar': aspect }}>
+          <img
+            src={animal.default_image_url}
+            alt={animalName}
+            decoding="async"
+            loading="lazy"
+            draggable="false"
+          />
+        </div>
+      )
+    : null;
   const taxonomyHasDetails = Boolean(
     className ||
       orderName ||
@@ -1104,145 +1219,36 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
           {favoriteError}
         </div>
       )}
-      <div className="row g-4 g-lg-5 align-items-start mt-2">
-        <div className="col-12 col-lg-6 order-lg-2 sticky-lg-top" style={{ top: '1rem' }}>
-          {hasGallery ? (
-            <div className="animal-media" style={{ '--ar': aspect }}>
-              <div
-                id="animalCarousel"
-                className="carousel slide h-100"
-                role="region"
-                aria-roledescription="carousel"
-                aria-label={`${animalName} image gallery`}
-                data-bs-ride="false"
-                data-bs-interval="false"
-                data-bs-touch="true"
+      {isDesktop ? (
+        <div
+          className="animal-desktop-sections mt-3"
+          role="region"
+          aria-label={t('animal.sectionNavigationLabel')}
+        >
+          <div className="nav nav-tabs w-100" role="tablist">
+            {sections.map((section, index) => (
+              <button
+                key={section.id}
+                type="button"
+                role="tab"
+                className={`nav-link ${activeSection === section.id ? 'active' : ''}`}
+                id={`${section.id}-tab`}
+                aria-controls={`${section.id}-panel`}
+                aria-selected={activeSection === section.id}
+                onClick={() => setActiveSection(section.id)}
+                onKeyDown={(event) => handleTabKeyDown(event, index)}
+                ref={(node) => {
+                  tabRefs.current[index] = node;
+                }}
               >
-                {animalImages.length > 1 && (
-                  <div className="carousel-indicators">
-                    {animalImages.map((_, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        data-bs-target="#animalCarousel"
-                        data-bs-slide-to={i}
-                        className={i === 0 ? 'active' : ''}
-                        aria-label={`Slide ${i + 1} of ${animalImages.length}`}
-                      />
-                    ))}
-                  </div>
-                )}
-                <div className="carousel-inner h-100">
-                  {animalImages.map((img, idx) => {
-                    const sorted = [...(img.variants || [])].sort(
-                      (a, b) => a.width - b.width
-                    );
-                    const fallback = sorted[0];
-                    const fallbackSrc = fallback?.thumb_url || img.original_url;
-                    const uniqueByWidth = [];
-                    const seenSet = new Set();
-                    for (const v of sorted) {
-                      if (!seenSet.has(v.width)) {
-                        uniqueByWidth.push(v);
-                        seenSet.add(v.width);
-                      }
-                    }
-                    const srcSet = uniqueByWidth
-                      .map((v) => `${v.thumb_url} ${v.width}w`)
-                      .join(', ');
-                    const isFirst = idx === 0;
-                    const loadingAttr = isFirst ? 'eager' : 'lazy';
-                    const fetchPri = isFirst ? 'high' : 'low';
-                    const sizes =
-                      '(min-width: 1200px) 540px, (min-width: 992px) 50vw, 100vw';
-
-                    return (
-                      <div
-                        key={img.mid}
-                        className={`carousel-item ${idx === 0 ? 'active' : ''}`}
-                        aria-label={`Slide ${idx + 1} of ${animalImages.length}`}
-                      >
-                        <Link
-                          to={`${prefix}/images/${img.mid}`}
-                          state={{ name: animalName }}
-                          className="d-block"
-                        >
-                          <img
-                            src={fallbackSrc}
-                            srcSet={srcSet}
-                            sizes={sizes}
-                            decoding="async"
-                            loading={loadingAttr}
-                            fetchpriority={fetchPri}
-                            alt={animalName}
-                            draggable="false"
-                          />
-                        </Link>
-                      </div>
-                    );
-                  })}
-                </div>
-                {animalImages.length > 1 && (
-                  <>
-                    <button
-                      className="carousel-control-prev"
-                      type="button"
-                      data-bs-target="#animalCarousel"
-                      data-bs-slide="prev"
-                    >
-                      <span className="carousel-control-prev-icon" aria-hidden="true"></span>
-                      <span className="visually-hidden">Previous</span>
-                    </button>
-                    <button
-                      className="carousel-control-next"
-                      type="button"
-                      data-bs-target="#animalCarousel"
-                      data-bs-slide="next"
-                    >
-                      <span className="carousel-control-next-icon" aria-hidden="true"></span>
-                      <span className="visually-hidden">Next</span>
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          ) : (
-            animal.default_image_url && (
-              <div className="animal-media" style={{ '--ar': aspect }}>
-                <img
-                  src={animal.default_image_url}
-                  alt={animalName}
-                  decoding="async"
-                  loading="lazy"
-                  draggable="false"
-                />
-              </div>
-            )
-          )}
-        </div>
-        <div className="col-12 col-lg-6 order-lg-1">
-          {isDesktop ? (
-            <div className="animal-tabs" role="region" aria-label={t('animal.sectionNavigationLabel')}>
-              <div className="nav nav-tabs" role="tablist">
-                {sections.map((section, index) => (
-                  <button
-                    key={section.id}
-                    type="button"
-                    role="tab"
-                    className={`nav-link ${activeSection === section.id ? 'active' : ''}`}
-                    id={`${section.id}-tab`}
-                    aria-controls={`${section.id}-panel`}
-                    aria-selected={activeSection === section.id}
-                    onClick={() => setActiveSection(section.id)}
-                    onKeyDown={(event) => handleTabKeyDown(event, index)}
-                    ref={(node) => {
-                      tabRefs.current[index] = node;
-                    }}
-                  >
-                    {section.label}
-                  </button>
-                ))}
-              </div>
+                {section.label}
+              </button>
+            ))}
+          </div>
+          <div className="row g-4 g-lg-5 align-items-start mt-3">
+            <div
+              className={`col-12 ${mediaSection ? 'col-lg-6 order-lg-1' : ''}`}
+            >
               {sections.map((section) => (
                 <div
                   key={section.id}
@@ -1256,37 +1262,47 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
                 </div>
               ))}
             </div>
-          ) : (
-            <div className="accordion animal-accordion" id="animal-detail-sections">
-              {sections.map((section) => {
-                const open = openSections.has(section.id);
-                return (
-                  <div className="accordion-item" key={section.id}>
-                    <h2 className="accordion-header" id={`${section.id}-heading`}>
-                      <button
-                        className={`accordion-button ${open ? '' : 'collapsed'}`}
-                        type="button"
-                        aria-expanded={open}
-                        aria-controls={`${section.id}-collapse`}
-                        onClick={() => toggleAccordion(section.id)}
-                      >
-                        {section.label}
-                      </button>
-                    </h2>
-                    <div
-                      id={`${section.id}-collapse`}
-                      className={`accordion-collapse collapse ${open ? 'show' : ''}`}
-                      aria-labelledby={`${section.id}-heading`}
-                    >
-                      <div className="accordion-body">{section.render()}</div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+            {mediaSection && (
+              <div className="col-12 col-lg-6 order-lg-2">
+                <div className="sticky-lg-top" style={{ top: '1rem' }}>
+                  {mediaSection}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      ) : (
+        <>
+          {mediaSection && <div className="mt-3">{mediaSection}</div>}
+          <div className="accordion animal-accordion mt-3" id="animal-detail-sections">
+            {sections.map((section) => {
+              const open = openSections.has(section.id);
+              return (
+                <div className="accordion-item" key={section.id}>
+                  <h2 className="accordion-header" id={`${section.id}-heading`}>
+                    <button
+                      className={`accordion-button ${open ? '' : 'collapsed'}`}
+                      type="button"
+                      aria-expanded={open}
+                      aria-controls={`${section.id}-collapse`}
+                      onClick={() => toggleAccordion(section.id)}
+                    >
+                      {section.label}
+                    </button>
+                  </h2>
+                  <div
+                    id={`${section.id}-collapse`}
+                    className={`accordion-collapse collapse ${open ? 'show' : ''}`}
+                    aria-labelledby={`${section.id}-heading`}
+                  >
+                    <div className="accordion-body">{section.render()}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
       {modalData && (
         <SightingModal
           zoos={zoos}
