@@ -24,7 +24,7 @@ from __future__ import annotations
 import argparse
 import sqlite3
 import sys
-from typing import Iterable, List, Optional, Sequence, Tuple
+from typing import Iterable, Optional, Sequence, Tuple
 
 from google_places_lookup import ApiError, lookup_coords
 from zootier_scraper_sqlite import DB_FILE
@@ -37,7 +37,7 @@ def ensure_google_columns(conn: sqlite3.Connection) -> None:
 
     cur = conn.execute("PRAGMA table_info(zoo)")
     columns = {row[1] for row in cur.fetchall()}
-    statements: List[str] = []
+    statements: list[str] = []
     if "latitude_google" not in columns:
         statements.append("ALTER TABLE zoo ADD COLUMN latitude_google REAL")
     if "longitude_google" not in columns:
@@ -87,7 +87,6 @@ def update_google_coordinates(
     *,
     dry_run: bool,
 ) -> int:
-    updates: List[Tuple[float, float, int]] = []
     success_count = 0
     for row in rows:
         query = build_query(row)
@@ -112,14 +111,11 @@ def update_google_coordinates(
         )
         success_count += 1
         if not dry_run:
-            updates.append((lat, lng, zoo_id))
-
-    if updates and not dry_run:
-        with conn:
-            conn.executemany(
+            conn.execute(
                 "UPDATE zoo SET latitude_google=?, longitude_google=? WHERE zoo_id=?",
-                updates,
+                (lat, lng, zoo_id),
             )
+            conn.commit()
     return success_count
 
 
