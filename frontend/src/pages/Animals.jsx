@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
@@ -11,46 +11,22 @@ export default function AnimalsPage() {
   const { lang } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const prefix = `/${lang}`;
-  const [animals, setAnimals] = useState([]);
-  const [seenAnimals, setSeenAnimals] = useState([]);
   const initialQ = searchParams.get('q') || '';
-  const [search, setSearch] = useState(initialQ);
-  const [query, setQuery] = useState(initialQ);
-  const [classes, setClasses] = useState([]);
-  const [orders, setOrders] = useState([]);
-  const [families, setFamilies] = useState([]);
-  const [classId, setClassId] = useState(searchParams.get('class') || '');
-  const [orderId, setOrderId] = useState(searchParams.get('order') || '');
-  const [familyId, setFamilyId] = useState(searchParams.get('family') || '');
   const initialFavorites = searchParams.get('favorites') === '1';
-  const [favoritesOnly, setFavoritesOnly] = useState(initialFavorites);
-  const [hasMore, setHasMore] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const { t } = useTranslation();
+
+  // ------- Snapshot keys (per language + filters) -------
+  const searchParamKey = searchParams.toString();
+  const storageKey = `animals-page:${lang || 'unknown'}:${searchParamKey}`;
+  const restoreFlagKey = `${storageKey}:restore`;
+
   // Track pagination state without triggering renders on every increment
   const offsetRef = useRef(0);
   const sentinelRef = useRef(null);
   const requestIdRef = useRef(0);
   const loadingRef = useRef(false);
   const controllerRef = useRef(null);
-  const authFetch = useAuthFetch();
-  const { isAuthenticated, user } = useAuth();
-  const uid = user?.id;
-  const limit = 20; // number of animals per page
-  const [statusMessage, setStatusMessage] = useState('');
-  const [prefersManualLoading, setPrefersManualLoading] = useState(false);
-  const [supportsIntersectionObserver] = useState(
-    () => typeof window !== 'undefined' && 'IntersectionObserver' in window
-  );
-  const autoLoadingEnabled = useMemo(
-    () => supportsIntersectionObserver && !prefersManualLoading,
-    [prefersManualLoading, supportsIntersectionObserver]
-  );
-  const { t } = useTranslation();
-  // Derive stable storage keys so we can remember pagination state per filter set
-  const searchParamKey = searchParams.toString();
-  const storageKey = `animals-page:${lang || 'unknown'}:${searchParamKey}`;
-  const restoreFlagKey = `${storageKey}:restore`;
+  const initialScrollYRef = useRef(0);
   const skipInitialFetchRef = useRef(false);
   const latestStateRef = useRef({
     animals: [],
@@ -59,7 +35,73 @@ export default function AnimalsPage() {
     prefersManualLoading: false,
   });
   const scrollPositionRef = useRef(0);
-  const [restoreScrollPosition, setRestoreScrollPosition] = useState(null);
+
+  // ------- Synchronous restore seed (prevents visible jump) -------
+  let seeded = false;
+  if (typeof window !== 'undefined') {
+    try {
+      if (sessionStorage.getItem(restoreFlagKey) === '1') {
+        const raw = sessionStorage.getItem(storageKey);
+        if (raw) {
+          const cached = JSON.parse(raw);
+          seeded = true;
+          offsetRef.current =
+            typeof cached.offset === 'number'
+              ? cached.offset
+              : (cached.animals?.length ?? 0);
+          initialScrollYRef.current =
+            typeof cached.scrollY === 'number' ? cached.scrollY : 0;
+          skipInitialFetchRef.current = true;
+          window.__ANIMALS_SYNC_SEED__ = cached;
+        }
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }
+
+  const seed = (key, fallback) => {
+    if (typeof window === 'undefined') return fallback;
+    const cached = window.__ANIMALS_SYNC_SEED__;
+    return seeded ? cached?.[key] ?? fallback : fallback;
+  };
+
+  const [animals, setAnimals] = useState(() => seed('animals', []));
+  const [hasMore, setHasMore] = useState(() => Boolean(seed('hasMore', false)));
+  const [statusMessage, setStatusMessage] = useState(() => seed('statusMessage', ''));
+  const [prefersManualLoading, setPrefersManualLoading] = useState(() =>
+    Boolean(seed('prefersManualLoading', false))
+  );
+  const [seenAnimals, setSeenAnimals] = useState([]);
+  const [search, setSearch] = useState(initialQ);
+  const [query, setQuery] = useState(initialQ);
+  const [classes, setClasses] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const [families, setFamilies] = useState([]);
+  const [classId, setClassId] = useState(searchParams.get('class') || '');
+  const [orderId, setOrderId] = useState(searchParams.get('order') || '');
+  const [familyId, setFamilyId] = useState(searchParams.get('family') || '');
+  const [favoritesOnly, setFavoritesOnly] = useState(initialFavorites);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const authFetch = useAuthFetch();
+  const { isAuthenticated, user } = useAuth();
+  const uid = user?.id;
+  const limit = 20; // number of animals per page
+  const [supportsIntersectionObserver] = useState(
+    () => typeof window !== 'undefined' && 'IntersectionObserver' in window
+  );
+  const autoLoadingEnabled = useMemo(
+    () => supportsIntersectionObserver && !prefersManualLoading,
+    [prefersManualLoading, supportsIntersectionObserver]
+  );
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      delete window.__ANIMALS_SYNC_SEED__;
+    }
+  }, []);
 
   // Hydrate local state from the URL whenever search params change
   useEffect(() => {
@@ -146,7 +188,7 @@ export default function AnimalsPage() {
           scrollY: scrollPositionRef.current,
         })
       );
-    } catch (err) {
+    } catch {
       // Ignore storage failures (e.g., Safari private mode)
     }
   }, [storageKey]);
@@ -160,13 +202,50 @@ export default function AnimalsPage() {
     storePageState();
     try {
       sessionStorage.setItem(restoreFlagKey, '1');
-    } catch (err) {
+    } catch {
       // Ignore storage failures so navigation is not blocked
     }
   }, [restoreFlagKey, storePageState]);
 
-  // Restore the previous scroll position and loaded animals when coming back via history
+  const onItemKeyDown = useCallback(
+    (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        markRestorePending();
+      }
+    },
+    [markRestorePending]
+  );
+
   useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+
+    const handlePageHide = () => {
+      storePageState();
+    };
+
+    window.addEventListener('pagehide', handlePageHide);
+    return () => window.removeEventListener('pagehide', handlePageHide);
+  }, [storePageState]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+
+    const handlePageShow = (event) => {
+      if (event.persisted) {
+        storePageState();
+      }
+    };
+
+    window.addEventListener('pageshow', handlePageShow);
+    return () => window.removeEventListener('pageshow', handlePageShow);
+  }, [storePageState]);
+
+  // Pre-paint scroll restoration to avoid visible jumps
+  useLayoutEffect(() => {
     if (typeof window === 'undefined') {
       return;
     }
@@ -177,48 +256,13 @@ export default function AnimalsPage() {
       return;
     }
 
-    const raw = sessionStorage.getItem(storageKey);
-    if (!raw) {
-      sessionStorage.removeItem(restoreFlagKey);
-      return;
+    const y = initialScrollYRef.current || 0;
+    if (y > 0) {
+      window.scrollTo(0, y);
     }
 
-    try {
-      const cached = JSON.parse(raw);
-      setAnimals(cached.animals ?? []);
-      offsetRef.current =
-        typeof cached.offset === 'number'
-          ? cached.offset
-          : (cached.animals?.length ?? 0);
-      setHasMore(Boolean(cached.hasMore));
-      setStatusMessage(cached.statusMessage ?? '');
-      setPrefersManualLoading(Boolean(cached.prefersManualLoading));
-      setLoading(false);
-      loadingRef.current = false;
-      controllerRef.current = null;
-      setError('');
-      if (typeof cached.scrollY === 'number') {
-        setRestoreScrollPosition(cached.scrollY);
-      }
-      skipInitialFetchRef.current = true;
-    } catch (err) {
-      sessionStorage.removeItem(storageKey);
-    } finally {
-      sessionStorage.removeItem(restoreFlagKey);
-    }
+    sessionStorage.removeItem(restoreFlagKey);
   }, [restoreFlagKey, storageKey]);
-
-  useEffect(() => {
-    if (restoreScrollPosition == null || typeof window === 'undefined') {
-      return undefined;
-    }
-
-    const id = window.requestAnimationFrame(() => {
-      window.scrollTo(0, restoreScrollPosition);
-    });
-
-    return () => window.cancelAnimationFrame(id);
-  }, [restoreScrollPosition]);
 
   // Fetch orders whenever class changes
   useEffect(() => {
@@ -362,21 +406,6 @@ export default function AnimalsPage() {
   useEffect(() => () => {
     controllerRef.current?.abort();
   }, []);
-
-  useEffect(
-    () => () => {
-      if (typeof window === 'undefined') {
-        return;
-      }
-
-      if (sessionStorage.getItem(restoreFlagKey) === '1') {
-        storePageState();
-      } else {
-        sessionStorage.removeItem(storageKey);
-      }
-    },
-    [restoreFlagKey, storageKey, storePageState]
-  );
 
   // Observe when the user nears the end of the list and fetch the next page
   useEffect(() => {
@@ -531,6 +560,7 @@ export default function AnimalsPage() {
             className="animal-card d-block text-decoration-none text-reset"
             to={`${prefix}/animals/${a.slug || a.id}`}
             onClick={markRestorePending}
+            onKeyDown={onItemKeyDown}
           >
             {a.default_image_url && (
               <img
