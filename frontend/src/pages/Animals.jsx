@@ -98,6 +98,40 @@ export default function AnimalsPage() {
   );
 
   useEffect(() => {
+    if (typeof window === 'undefined' || !('scrollRestoration' in window.history)) {
+      return undefined;
+    }
+
+    const previous = window.history.scrollRestoration;
+    window.history.scrollRestoration = 'manual';
+
+    return () => {
+      window.history.scrollRestoration = previous || 'auto';
+    };
+  }, []);
+
+  const withInstantScroll = useCallback((fn) => {
+    if (typeof window === 'undefined') {
+      fn();
+      return;
+    }
+
+    const root = typeof document !== 'undefined' ? document.documentElement : null;
+    if (!root) {
+      fn();
+      return;
+    }
+
+    const previousBehavior = root.style.scrollBehavior;
+    root.style.scrollBehavior = 'auto';
+    try {
+      fn();
+    } finally {
+      root.style.scrollBehavior = previousBehavior || '';
+    }
+  }, []);
+
+  useEffect(() => {
     if (typeof window !== 'undefined') {
       delete window.__ANIMALS_SYNC_SEED__;
     }
@@ -256,13 +290,15 @@ export default function AnimalsPage() {
       return;
     }
 
-    const y = initialScrollYRef.current || 0;
-    if (y > 0) {
-      window.scrollTo(0, y);
+    const y = initialScrollYRef.current;
+    if (typeof y === 'number' && y > 0) {
+      withInstantScroll(() => {
+        window.scrollTo(0, y);
+      });
     }
 
     sessionStorage.removeItem(restoreFlagKey);
-  }, [restoreFlagKey, storageKey]);
+  }, [restoreFlagKey, storageKey, withInstantScroll]);
 
   // Fetch orders whenever class changes
   useEffect(() => {
@@ -563,11 +599,16 @@ export default function AnimalsPage() {
             onKeyDown={onItemKeyDown}
           >
             {a.default_image_url && (
-              <img
-                src={a.default_image_url}
-                alt={lang === 'de' ? a.name_de || a.name_en : a.name_en || a.name_de}
-                className="card-img"
-              />
+              <div className="animal-card-img-wrapper">
+                <img
+                  src={a.default_image_url}
+                  alt={lang === 'de' ? a.name_de || a.name_en : a.name_en || a.name_de}
+                  className="card-img animal-card-img"
+                  loading="lazy"
+                  width={800}
+                  height={600}
+                />
+              </div>
             )}
             {/* Always show the localized name in bold */}
             <div className="fw-bold d-flex align-items-center gap-1">

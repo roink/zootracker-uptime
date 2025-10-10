@@ -228,6 +228,26 @@
   text-align: left;
 }
 
+/* Reserve image space so scroll restoration is stable */
+.animal-card-img-wrapper {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background-color: #f8f9fa;
+}
+
+.animal-card-img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+}
+
 .infinite-scroll-sentinel {
   /* IntersectionObserver target for infinite scrolling */
   width: 100%;
