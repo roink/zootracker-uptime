@@ -138,6 +138,8 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
   const [taxonomyOpen, setTaxonomyOpen] = useState(false);
 
   // Choose localized name for current language
+  // Collator for locale-aware, stable tie-break sorting in lists/tables
+  const collator = useMemo(() => new Intl.Collator(locale), [locale]);
   const animalName = useMemo(() => {
     if (!animal) return '';
     return lang === 'de' ? animal.name_de || animal.name_en : animal.name_en || animal.name_de;
@@ -384,17 +386,17 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
       );
     }
     list.sort((a, b) => {
-      const da = a.distance_km ?? Number.POSITIVE_INFINITY;
-      const db = b.distance_km ?? Number.POSITIVE_INFINITY;
+      const da = Number.isFinite(a.distance_km) ? a.distance_km : Number.POSITIVE_INFINITY;
+      const db = Number.isFinite(b.distance_km) ? b.distance_km : Number.POSITIVE_INFINITY;
       if (da !== db) {
         return da - db;
       }
       const an = getZooDisplayName(a) || '';
       const bn = getZooDisplayName(b) || '';
-      return an.localeCompare(bn);
+      return collator.compare(an, bn);
     });
     return list;
-  }, [zoos, zooFilter]);
+  }, [zoos, zooFilter, collator]);
 
   const zoosWithCoordinates = useMemo(
     () => filteredZoos.filter((zoo) => normalizeCoordinates(zoo)),
@@ -890,6 +892,12 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
         <div className="small text-muted mt-3" aria-live="polite">
           {t('animal.filteredCount', { count: filteredZoos.length, total: zoos.length })}
         </div>
+        {!userLocation && (
+          <div className="small text-muted mt-1">
+            {/* Reuse existing translation key used previously as a tooltip to provide a visible hint. */}
+            {t('animal.enableLocationSort')}
+          </div>
+        )}
       </div>
       {viewMode === 'list' ? (
         <div className="table-responsive">
