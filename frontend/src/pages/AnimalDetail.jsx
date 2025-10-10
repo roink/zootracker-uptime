@@ -116,7 +116,6 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
   const [zoos, setZoos] = useState([]);
   const [modalData, setModalData] = useState(null);
   const [zooFilter, setZooFilter] = useState('');
-  const [sortBy, setSortBy] = useState('name'); // 'name' | 'distance'
   const [descOpen, setDescOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -376,10 +375,6 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
   }, []);
 
   // Keep sort default in sync with location availability
-  useEffect(() => {
-    if (userLocation) setSortBy('distance');
-  }, [userLocation]);
-
   const filteredZoos = useMemo(() => {
     const q = zooFilter.trim().toLowerCase();
     let list = [...zoos];
@@ -389,9 +384,9 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
       );
     }
     list.sort((a, b) => {
-      if (sortBy === 'distance' && userLocation) {
-        const da = a.distance_km ?? Number.POSITIVE_INFINITY;
-        const db = b.distance_km ?? Number.POSITIVE_INFINITY;
+      const da = a.distance_km ?? Number.POSITIVE_INFINITY;
+      const db = b.distance_km ?? Number.POSITIVE_INFINITY;
+      if (da !== db) {
         return da - db;
       }
       const an = getZooDisplayName(a) || '';
@@ -399,7 +394,7 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
       return an.localeCompare(bn);
     });
     return list;
-  }, [zoos, zooFilter, sortBy, userLocation]);
+  }, [zoos, zooFilter]);
 
   const zoosWithCoordinates = useMemo(
     () => filteredZoos.filter((zoo) => normalizeCoordinates(zoo)),
@@ -453,17 +448,6 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
       });
     },
     [mapView, navigate, persistViewState, prefix]
-  );
-
-  const handleViewModeChange = useCallback(
-    (mode) => {
-      setViewMode(mode);
-      if (mode === 'map') {
-        setMapResizeToken((token) => token + 1);
-      }
-      persistViewState(mode, mapView);
-    },
-    [mapView, persistViewState]
   );
 
   const handleMapViewChange = useCallback(
@@ -897,52 +881,10 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
               />
             </div>
           </div>
-          <fieldset className="btn-group" role="group" aria-label={t('zoo.viewToggle')}>
-            <legend className="visually-hidden">{t('zoo.viewToggle')}</legend>
-            <input
-              type="radio"
-              className="btn-check"
-              name="animal-zoo-view"
-              id="animal-zoo-view-list"
-              autoComplete="off"
-              checked={viewMode === 'list'}
-              onChange={() => handleViewModeChange('list')}
-            />
-            <label className="btn btn-outline-primary" htmlFor="animal-zoo-view-list">
-              {t('zoo.viewList')}
-            </label>
-            <input
-              type="radio"
-              className="btn-check"
-              name="animal-zoo-view"
-              id="animal-zoo-view-map"
-              autoComplete="off"
-              checked={viewMode === 'map'}
-              onChange={() => handleViewModeChange('map')}
-            />
-            <label className="btn btn-outline-primary" htmlFor="animal-zoo-view-map">
-              {t('zoo.viewMap')}
-            </label>
-          </fieldset>
         </div>
         {viewMode === 'list' && (
-          <div className="d-flex flex-wrap gap-2 mt-3" role="group" aria-label={t('animal.sortZoos')}>
-            <div className="btn-group btn-group-sm" role="group">
-              <button
-                className={`btn btn-outline-secondary ${sortBy === 'name' ? 'active' : ''}`}
-                onClick={() => setSortBy('name')}
-              >
-                {t('actions.sortByName')}
-              </button>
-              <button
-                className={`btn btn-outline-secondary ${sortBy === 'distance' ? 'active' : ''}`}
-                onClick={() => setSortBy('distance')}
-                disabled={!userLocation}
-                title={!userLocation ? t('animal.enableLocationSort') : undefined}
-              >
-                {t('actions.sortByDistance')}
-              </button>
-            </div>
+          <div className="d-flex flex-wrap gap-2 mt-3">
+            <span className="badge bg-secondary">{t('actions.sortByDistance')}</span>
           </div>
         )}
         <div className="small text-muted mt-3" aria-live="polite">

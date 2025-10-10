@@ -318,7 +318,7 @@ describe('AnimalDetailPage', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('renders the zoo map when map view is selected', async () => {
+  it('defaults to the list view without a map toggle', async () => {
     const fetchResponse = {
       ...animal,
       zoos: [
@@ -336,7 +336,6 @@ describe('AnimalDetailPage', () => {
       .fn()
       .mockResolvedValue({ ok: true, json: () => Promise.resolve(fetchResponse) });
 
-    const user = userEvent.setup();
     renderWithRouter(
       <Routes>
         <Route path="/:lang/animals/:slug" element={<AnimalDetailPage />} />
@@ -346,11 +345,8 @@ describe('AnimalDetailPage', () => {
 
     await screen.findByText('Mammals');
     expect(screen.queryByTestId('zoos-map')).not.toBeInTheDocument();
-
-    const mapToggle = screen.getByRole('radio', { name: 'Map' });
-    await user.click(mapToggle);
-
-    expect(await screen.findByTestId('zoos-map')).toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: 'Map' })).not.toBeInTheDocument();
+    expect(screen.getByRole('table')).toBeInTheDocument();
   });
 
   it('restores the map view from navigation state', async () => {
@@ -394,9 +390,6 @@ describe('AnimalDetailPage', () => {
 
     await screen.findByText('Mammals');
 
-    const mapRadio = screen.getByRole('radio', { name: 'Map' });
-    expect(mapRadio).toBeChecked();
-
     expect(mapMock).toHaveBeenCalled();
     const mapProps = mapMock.mock.calls[mapMock.mock.calls.length - 1][0];
     expect(mapProps.initialView).toMatchObject({
@@ -406,5 +399,7 @@ describe('AnimalDetailPage', () => {
       pitch: savedView.pitch,
     });
     expect(mapProps.resizeToken).toBe(1);
+
+    expect(screen.getByTestId('zoos-map')).toBeInTheDocument();
   });
 });
