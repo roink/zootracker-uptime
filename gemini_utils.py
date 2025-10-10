@@ -52,8 +52,7 @@ Zoo name: {name}
 Search for the precise location of this zoo and report its geographic coordinates.
 Provide latitude and longitude in decimal degrees using the WGS84 coordinate system.
 Always use a dot as the decimal separator (for example, 47.1234) and include the
-labels "Latitude:" and "Longitude:" next to the values in your response. Mention the
-source you relied on when possible.
+labels "Latitude:" and "Longitude:" next to the values in your response.
 """
 
 ANIMAL_PROMPT_TEMPLATE = """Research the following animal to provide factual information for a zoo information website.
@@ -156,53 +155,6 @@ class ZooCoordinateRecord(BaseModel):
 
     latitude: Optional[float] = None
     longitude: Optional[float] = None
-    source: Optional[str] = None
-
-    @staticmethod
-    def _clean_coordinate(value: str) -> Optional[float]:
-        text = value.strip()
-        if not text:
-            return None
-
-        cleaned = text.lower()
-        for suffix in ("north", "south", "east", "west"):
-            if cleaned.endswith(suffix):
-                cleaned = cleaned[: -len(suffix)].strip()
-        if cleaned and cleaned[-1] in {"n", "s", "e", "w"}:
-            cleaned = cleaned[:-1].strip()
-        cleaned = (
-            cleaned.replace("°", " ")
-            .replace("degrees", " ")
-            .replace("latitude", " ")
-            .replace("longitude", " ")
-        )
-        cleaned = cleaned.replace(",", ".")
-        parts = cleaned.split()
-        if parts:
-            cleaned = parts[0]
-
-        try:
-            return float(cleaned)
-        except ValueError:
-            return None
-
-    @field_validator("latitude", "longitude", mode="before")
-    @classmethod
-    def _parse_coordinate(cls, value: Optional[str | float | int]) -> Optional[float]:
-        if value is None:
-            return None
-        if isinstance(value, (int, float)):
-            return float(value)
-        parsed = cls._clean_coordinate(str(value))
-        return parsed
-
-    @field_validator("source", mode="before")
-    @classmethod
-    def _clean_source(cls, value: Optional[str]) -> Optional[str]:
-        if value is None:
-            return None
-        text = str(value).strip()
-        return text or None
 
 
 @dataclass
@@ -647,8 +599,7 @@ class GeminiCoordinateClient(GeminiClientBase):
     def structure_response(self, partially_structured_text: str) -> ZooCoordinateRecord:
         extra_instructions = (
             "Extract the decimal latitude and longitude in WGS84 format. "
-            "Return them as floating point numbers (use null if you cannot confirm a value). "
-            "Include the primary source or leave it null."
+            "Return them as JSON numbers (use null if you cannot confirm a value)."
         )
         return cast(
             ZooCoordinateRecord,
@@ -667,8 +618,7 @@ class GeminiCoordinateClient(GeminiClientBase):
     ) -> ZooCoordinateRecord:
         extra_instructions = (
             "Extract the decimal latitude and longitude in WGS84 format. "
-            "Return them as floating point numbers (use null if you cannot confirm a value). "
-            "Include the primary source or leave it null."
+            "Return them as JSON numbers (use null if you cannot confirm a value)."
         )
         result = await self._structure_async(
             partially_structured_text,

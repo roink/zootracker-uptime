@@ -27,8 +27,8 @@ INITIAL_BACKOFF = 1.0
 MAX_BACKOFF = 30.0
 
 REQUIRED_COLUMNS: dict[str, str] = {
-    "latitude_gemini": "REAL",
-    "longitude_gemini": "REAL",
+    "latitude_gemini": "REAL CHECK(latitude_gemini BETWEEN -90 AND 90)",
+    "longitude_gemini": "REAL CHECK(longitude_gemini BETWEEN -180 AND 180)",
 }
 
 
@@ -192,8 +192,6 @@ def update_database(db_path: Path, zoo_id: int, record: ZooCoordinateRecord) -> 
         latitude,
         longitude,
     )
-    if record.source:
-        logging.info("Source for zoo_id %s coordinates: %s", zoo_id, record.source)
 
 
 async def process_zoos(
