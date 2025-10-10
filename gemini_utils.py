@@ -44,6 +44,18 @@ wikipedia_en:
 wikipedia_de:
 """
 
+COORDINATE_PROMPT_TEMPLATE = """You are a research assistant that specialises in geocoding.
+Country: {country_en}
+City: {city}
+Zoo name: {name}
+
+Search for the precise location of this zoo and report its geographic coordinates.
+Provide latitude and longitude in decimal degrees using the WGS84 coordinate system.
+Always use a dot as the decimal separator (for example, 47.1234) and include the
+labels "Latitude:" and "Longitude:" next to the values in your response. Mention the
+source you relied on when possible.
+"""
+
 ANIMAL_PROMPT_TEMPLATE = """Research the following animal to provide factual information for a zoo information website.
 
 Latin name: {latin_name}
@@ -139,6 +151,60 @@ class ZooRecord(BaseModel):
         return _normalise_url(value)
 
 
+class ZooCoordinateRecord(BaseModel):
+    """Structured Gemini response for zoo coordinate lookups."""
+
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    source: Optional[str] = None
+
+    @staticmethod
+    def _clean_coordinate(value: str) -> Optional[float]:
+        text = value.strip()
+        if not text:
+            return None
+
+        cleaned = text.lower()
+        for suffix in ("north", "south", "east", "west"):
+            if cleaned.endswith(suffix):
+                cleaned = cleaned[: -len(suffix)].strip()
+        if cleaned and cleaned[-1] in {"n", "s", "e", "w"}:
+            cleaned = cleaned[:-1].strip()
+        cleaned = (
+            cleaned.replace("°", " ")
+            .replace("degrees", " ")
+            .replace("latitude", " ")
+            .replace("longitude", " ")
+        )
+        cleaned = cleaned.replace(",", ".")
+        parts = cleaned.split()
+        if parts:
+            cleaned = parts[0]
+
+        try:
+            return float(cleaned)
+        except ValueError:
+            return None
+
+    @field_validator("latitude", "longitude", mode="before")
+    @classmethod
+    def _parse_coordinate(cls, value: Optional[str | float | int]) -> Optional[float]:
+        if value is None:
+            return None
+        if isinstance(value, (int, float)):
+            return float(value)
+        parsed = cls._clean_coordinate(str(value))
+        return parsed
+
+    @field_validator("source", mode="before")
+    @classmethod
+    def _clean_source(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        text = str(value).strip()
+        return text or None
+
+
 @dataclass
 class ZooMetadata:
     """Minimal zoo information loaded from the SQLite database."""
@@ -151,6 +217,13 @@ class ZooMetadata:
 
     def to_prompt(self) -> str:
         return PROMPT_TEMPLATE.format(
+            country_en=self.country_en or "",
+            city=self.city,
+            name=self.name,
+        )
+
+    def to_coordinate_prompt(self) -> str:
+        return COORDINATE_PROMPT_TEMPLATE.format(
             country_en=self.country_en or "",
             city=self.city,
             name=self.name,
@@ -563,6 +636,46 @@ class GeminiZooClient(GeminiClientBase):
             extra_instructions=extra_instructions,
         )
         return cast(ZooRecord, result)
+
+
+class GeminiCoordinateClient(GeminiClientBase):
+    """Gemini helper specialised for zoo coordinate discovery."""
+
+    def research_coordinates(self, prompt: str) -> str:
+        return self._research(prompt)
+
+    def structure_response(self, partially_structured_text: str) -> ZooCoordinateRecord:
+        extra_instructions = (
+            "Extract the decimal latitude and longitude in WGS84 format. "
+            "Return them as floating point numbers (use null if you cannot confirm a value). "
+            "Include the primary source or leave it null."
+        )
+        return cast(
+            ZooCoordinateRecord,
+            self._structure(
+                partially_structured_text,
+                ZooCoordinateRecord,
+                extra_instructions=extra_instructions,
+            ),
+        )
+
+    async def research_coordinates_async(self, prompt: str) -> str:
+        return await self._research_async(prompt)
+
+    async def structure_response_async(
+        self, partially_structured_text: str
+    ) -> ZooCoordinateRecord:
+        extra_instructions = (
+            "Extract the decimal latitude and longitude in WGS84 format. "
+            "Return them as floating point numbers (use null if you cannot confirm a value). "
+            "Include the primary source or leave it null."
+        )
+        result = await self._structure_async(
+            partially_structured_text,
+            ZooCoordinateRecord,
+            extra_instructions=extra_instructions,
+        )
+        return cast(ZooCoordinateRecord, result)
 
 
 class GeminiAnimalClient(GeminiClientBase):
