@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
-import random
 import sqlite3
 import sys
 from dataclasses import dataclass
@@ -17,15 +16,12 @@ from gemini_utils import (
     GeminiCoordinateClient,
     ZooCoordinateRecord,
     ZooMetadata,
+    call_with_backoff,
     get_database_path,
     get_gemini_api_key,
 )
 
 DEFAULT_CONCURRENCY = 20
-MAX_RETRIES = 5
-INITIAL_BACKOFF = 1.0
-MAX_BACKOFF = 30.0
-
 REQUIRED_COLUMNS: dict[str, str] = {
     "latitude_gemini": "REAL CHECK(latitude_gemini BETWEEN -90 AND 90)",
     "longitude_gemini": "REAL CHECK(longitude_gemini BETWEEN -180 AND 180)",
@@ -37,47 +33,6 @@ class TargetZoo(ZooMetadata):
     """Zoo metadata together with sort order fields."""
 
     species_count: int
-
-
-async def call_with_backoff(func, *args, **kwargs):
-    """Execute *func* with exponential backoff for transient failures."""
-
-    delay = INITIAL_BACKOFF
-    for attempt in range(1, MAX_RETRIES + 1):
-        try:
-            return await func(*args, **kwargs)
-        except Exception as exc:  # pragma: no cover - network errors are non-deterministic
-            if attempt == MAX_RETRIES or not is_retryable_exception(exc):
-                raise
-            jitter = random.uniform(0, delay / 2)
-            await asyncio.sleep(min(MAX_BACKOFF, delay) + jitter)
-            delay *= 2
-
-
-def is_retryable_exception(exc: Exception) -> bool:
-    """Return True if the exception looks like a transient API failure."""
-
-    status = getattr(exc, "status", None) or getattr(exc, "status_code", None)
-    if isinstance(status, int) and (status in (408, 429, 500, 502, 503, 504) or status >= 500):
-        return True
-
-    message = str(exc).lower()
-    for marker in (
-        "408",
-        "429",
-        "rate limit",
-        "timeout",
-        "timed out",
-        "temporarily unavailable",
-        "502",
-        "503",
-        "504",
-        "deadline",
-        "connection reset",
-    ):
-        if marker in message:
-            return True
-    return False
 
 
 def ensure_columns_exist(db_path: Path) -> None:
