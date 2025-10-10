@@ -12,7 +12,7 @@ load_dotenv()
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import ORJSONResponse, Response
 
 from .config import ALLOWED_ORIGINS, SECURITY_HEADERS, CSRF_HEADER_NAME
 
@@ -40,7 +40,11 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Zoo Tracker API", lifespan=lifespan)
+app = FastAPI(
+    title="Zoo Tracker API",
+    lifespan=lifespan,
+    default_response_class=ORJSONResponse,
+)
 app.add_middleware(SecureHeadersMiddleware, headers=SECURITY_HEADERS)
 app.add_middleware(LoggingMiddleware)
 
@@ -60,6 +64,7 @@ def _set_request_id_header(response: Response, request: Request) -> None:
     request_id = getattr(request.state, "request_id", None)
     if request_id:
         response.headers["X-Request-ID"] = request_id
+
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     """Log validation errors and return the standard 422 response."""
@@ -79,7 +84,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
             "validation_error_count": len(errors),
         },
     )
-    response = JSONResponse(
+    response = ORJSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content={"detail": errors}
     )
     _set_request_id_header(response, request)
@@ -105,7 +110,7 @@ async def http_exception_handler_logged(request: Request, exc: HTTPException):
             "error_message": detail[:256],
         },
     )
-    response = JSONResponse(
+    response = ORJSONResponse(
         status_code=exc.status_code,
         content={"detail": exc.detail},
         headers=exc.headers,
@@ -118,7 +123,7 @@ async def http_exception_handler_logged(request: Request, exc: HTTPException):
 async def unhandled_exception_handler(request: Request, exc: Exception):
     """Ensure all responses include the request id header on failure."""
 
-    response = JSONResponse(
+    response = ORJSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={"detail": "Internal Server Error"},
     )

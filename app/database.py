@@ -32,7 +32,15 @@ if placeholder in DATABASE_URL:
 
 # Global engine and session factory used by the application.  Zoo Tracker relies
 # on PostgreSQL/PostGIS; fail fast if another backend is configured.
-engine = create_engine(DATABASE_URL)
+engine = create_engine(
+    DATABASE_URL,
+    pool_size=10,
+    max_overflow=20,
+    pool_timeout=30,
+    pool_recycle=1800,
+    pool_pre_ping=True,  # refresh dead/stale conns automatically
+    future=True,
+)
 if engine.dialect.name != "postgresql":  # pragma: no cover - defensive guardrail
     raise RuntimeError("Zoo Tracker requires a PostgreSQL/PostGIS database")
 

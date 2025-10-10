@@ -70,6 +70,31 @@ startup.
 * **APP\_DIR** (`/opt/zoo_tracker`) and **WEB\_ROOT** (`/var/www/zootracker`) can be changed in the script to suit your environment.
 * Edit `zoo_tracker.service` or `zoo_tracker.nginx` templates if you need extra configuration (logging paths, worker counts, SSL settings, etc.).
 
+### PostgreSQL configuration
+
+Tune PostgreSQL with the same defaults used in development. Append the
+following block to `/etc/postgresql/15/main/postgresql.conf` (adjust the path
+for your distribution) and restart the database service:
+
+```
+max_connections = 200
+shared_buffers = 1GB
+effective_cache_size = 3GB
+maintenance_work_mem = 256MB
+checkpoint_completion_target = 0.9
+wal_buffers = 16MB
+default_statistics_target = 100
+random_page_cost = 1.1
+effective_io_concurrency = 200
+work_mem = 5041kB
+huge_pages = off
+min_wal_size = 1GB
+max_wal_size = 4GB
+```
+
+These values mirror the container bootstrap script under `docker/db/init/` so
+production and development behave consistently.
+
 ### Dual logging streams & logrotate
 
 The drop-in `zootracker-service-logs.conf` sets two environment variables so the
