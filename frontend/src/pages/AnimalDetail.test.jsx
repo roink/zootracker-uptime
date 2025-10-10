@@ -318,7 +318,7 @@ describe('AnimalDetailPage', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('renders the zoo map when map view is selected', async () => {
+  it('defaults to the list view and exposes view mode toggle', async () => {
     const fetchResponse = {
       ...animal,
       zoos: [
@@ -336,7 +336,6 @@ describe('AnimalDetailPage', () => {
       .fn()
       .mockResolvedValue({ ok: true, json: () => Promise.resolve(fetchResponse) });
 
-    const user = userEvent.setup();
     renderWithRouter(
       <Routes>
         <Route path="/:lang/animals/:slug" element={<AnimalDetailPage />} />
@@ -345,12 +344,12 @@ describe('AnimalDetailPage', () => {
     );
 
     await screen.findByText('Mammals');
+    const listRadio = await screen.findByRole('radio', { name: 'List' });
+    const mapRadio = screen.getByRole('radio', { name: 'Map' });
+    expect(listRadio).toBeChecked();
+    expect(mapRadio).not.toBeChecked();
     expect(screen.queryByTestId('zoos-map')).not.toBeInTheDocument();
-
-    const mapToggle = screen.getByRole('radio', { name: 'Map' });
-    await user.click(mapToggle);
-
-    expect(await screen.findByTestId('zoos-map')).toBeInTheDocument();
+    expect(screen.getByRole('table')).toBeInTheDocument();
   });
 
   it('restores the map view from navigation state', async () => {
@@ -394,9 +393,6 @@ describe('AnimalDetailPage', () => {
 
     await screen.findByText('Mammals');
 
-    const mapRadio = screen.getByRole('radio', { name: 'Map' });
-    expect(mapRadio).toBeChecked();
-
     expect(mapMock).toHaveBeenCalled();
     const mapProps = mapMock.mock.calls[mapMock.mock.calls.length - 1][0];
     expect(mapProps.initialView).toMatchObject({
@@ -406,5 +402,64 @@ describe('AnimalDetailPage', () => {
       pitch: savedView.pitch,
     });
     expect(mapProps.resizeToken).toBe(1);
+
+    expect(screen.getByTestId('zoos-map')).toBeInTheDocument();
+  });
+
+  it('lists zoos sorted by distance by default (nulls last) and ties by name using locale rules', async () => {
+    const fetchResponse = {
+      ...animal,
+      zoos: [
+        { id: 'a', slug: 'aa', name: 'Ä Zoo', city: 'CityA', distance_km: 10 },
+        { id: 'b', slug: 'ab', name: 'A Zoo', city: 'CityA', distance_km: 10 },
+        { id: 'c', slug: 'near', name: 'Near Zoo', city: 'CityN', distance_km: 2 },
+        { id: 'd', slug: 'unknown', name: 'Unknown Zoo', city: 'CityU', distance_km: null },
+      ],
+    };
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: () => Promise.resolve(fetchResponse) });
+
+    renderWithRouter(
+      <Routes>
+        <Route path="/:lang/animals/:slug" element={<AnimalDetailPage />} />
+      </Routes>,
+      { route: '/de/animals/lion' }
+    );
+
+    await screen.findByText('Säugetiere');
+
+    const table = await screen.findByRole('table');
+    const rows = Array.from(table.querySelectorAll('tbody tr'));
+    const firstColTexts = rows.map((row) => row.querySelector('td')?.textContent.trim());
+
+    expect(firstColTexts).toEqual([
+      'CityN: Near Zoo',
+      'CityA: A Zoo',
+      'CityA: Ä Zoo',
+      'CityU: Unknown Zoo',
+    ]);
+  });
+
+  it('shows a helpful hint when location is not available', async () => {
+    const fetchResponse = {
+      ...animal,
+      zoos: [
+        { id: 'x', slug: 'x', name: 'Example Zoo', city: 'Somewhere', distance_km: null },
+      ],
+    };
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: () => Promise.resolve(fetchResponse) });
+
+    renderWithRouter(
+      <Routes>
+        <Route path="/:lang/animals/:slug" element={<AnimalDetailPage />} />
+      </Routes>,
+      { route: '/en/animals/lion' }
+    );
+
+    await screen.findByText('Mammals');
+    expect(screen.getByText(/enable location/i)).toBeInTheDocument();
   });
 });

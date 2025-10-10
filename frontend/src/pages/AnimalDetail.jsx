@@ -116,7 +116,6 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
   const [zoos, setZoos] = useState([]);
   const [modalData, setModalData] = useState(null);
   const [zooFilter, setZooFilter] = useState('');
-  const [sortBy, setSortBy] = useState('name'); // 'name' | 'distance'
   const [descOpen, setDescOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -139,6 +138,8 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
   const [taxonomyOpen, setTaxonomyOpen] = useState(false);
 
   // Choose localized name for current language
+  // Collator for locale-aware, stable tie-break sorting in lists/tables
+  const collator = useMemo(() => new Intl.Collator(locale), [locale]);
   const animalName = useMemo(() => {
     if (!animal) return '';
     return lang === 'de' ? animal.name_de || animal.name_en : animal.name_en || animal.name_de;
@@ -376,10 +377,6 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
   }, []);
 
   // Keep sort default in sync with location availability
-  useEffect(() => {
-    if (userLocation) setSortBy('distance');
-  }, [userLocation]);
-
   const filteredZoos = useMemo(() => {
     const q = zooFilter.trim().toLowerCase();
     let list = [...zoos];
@@ -389,17 +386,17 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
       );
     }
     list.sort((a, b) => {
-      if (sortBy === 'distance' && userLocation) {
-        const da = a.distance_km ?? Number.POSITIVE_INFINITY;
-        const db = b.distance_km ?? Number.POSITIVE_INFINITY;
+      const da = Number.isFinite(a.distance_km) ? a.distance_km : Number.POSITIVE_INFINITY;
+      const db = Number.isFinite(b.distance_km) ? b.distance_km : Number.POSITIVE_INFINITY;
+      if (da !== db) {
         return da - db;
       }
       const an = getZooDisplayName(a) || '';
       const bn = getZooDisplayName(b) || '';
-      return an.localeCompare(bn);
+      return collator.compare(an, bn);
     });
     return list;
-  }, [zoos, zooFilter, sortBy, userLocation]);
+  }, [zoos, zooFilter, collator]);
 
   const zoosWithCoordinates = useMemo(
     () => filteredZoos.filter((zoo) => normalizeCoordinates(zoo)),
@@ -925,29 +922,15 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
             </label>
           </fieldset>
         </div>
-        {viewMode === 'list' && (
-          <div className="d-flex flex-wrap gap-2 mt-3" role="group" aria-label={t('animal.sortZoos')}>
-            <div className="btn-group btn-group-sm" role="group">
-              <button
-                className={`btn btn-outline-secondary ${sortBy === 'name' ? 'active' : ''}`}
-                onClick={() => setSortBy('name')}
-              >
-                {t('actions.sortByName')}
-              </button>
-              <button
-                className={`btn btn-outline-secondary ${sortBy === 'distance' ? 'active' : ''}`}
-                onClick={() => setSortBy('distance')}
-                disabled={!userLocation}
-                title={!userLocation ? t('animal.enableLocationSort') : undefined}
-              >
-                {t('actions.sortByDistance')}
-              </button>
-            </div>
-          </div>
-        )}
         <div className="small text-muted mt-3" aria-live="polite">
           {t('animal.filteredCount', { count: filteredZoos.length, total: zoos.length })}
         </div>
+        {!userLocation && (
+          <div className="small text-muted mt-1">
+            {/* Reuse existing translation key used previously as a tooltip to provide a visible hint. */}
+            {t('animal.enableLocationSort')}
+          </div>
+        )}
       </div>
       {viewMode === 'list' ? (
         <div className="table-responsive">
