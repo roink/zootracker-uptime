@@ -1173,11 +1173,6 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
           {animal.scientific_name && (
             <div className="fst-italic text-muted">{animal.scientific_name}</div>
           )}
-          {animal.taxon_rank && (
-            <div className="mt-2">
-              <span className="badge bg-light text-muted border">{animal.taxon_rank}</span>
-            </div>
-          )}
         </div>
         <button
           type="button"
