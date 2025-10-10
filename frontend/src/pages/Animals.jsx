@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
@@ -11,9 +11,68 @@ export default function AnimalsPage() {
   const { lang } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const prefix = `/${lang}`;
-  const [animals, setAnimals] = useState([]);
-  const [seenAnimals, setSeenAnimals] = useState([]);
   const initialQ = searchParams.get('q') || '';
+  const initialFavorites = searchParams.get('favorites') === '1';
+  const { t } = useTranslation();
+
+  // ------- Snapshot keys (per language + filters) -------
+  const searchParamKey = searchParams.toString();
+  const storageKey = `animals-page:${lang || 'unknown'}:${searchParamKey}`;
+  const restoreFlagKey = `${storageKey}:restore`;
+
+  // Track pagination state without triggering renders on every increment
+  const offsetRef = useRef(0);
+  const sentinelRef = useRef(null);
+  const requestIdRef = useRef(0);
+  const loadingRef = useRef(false);
+  const controllerRef = useRef(null);
+  const initialScrollYRef = useRef(0);
+  const skipInitialFetchRef = useRef(false);
+  const latestStateRef = useRef({
+    animals: [],
+    hasMore: false,
+    statusMessage: '',
+    prefersManualLoading: false,
+  });
+  const scrollPositionRef = useRef(0);
+
+  // ------- Synchronous restore seed (prevents visible jump) -------
+  let seeded = false;
+  if (typeof window !== 'undefined') {
+    try {
+      if (sessionStorage.getItem(restoreFlagKey) === '1') {
+        const raw = sessionStorage.getItem(storageKey);
+        if (raw) {
+          const cached = JSON.parse(raw);
+          seeded = true;
+          offsetRef.current =
+            typeof cached.offset === 'number'
+              ? cached.offset
+              : (cached.animals?.length ?? 0);
+          initialScrollYRef.current =
+            typeof cached.scrollY === 'number' ? cached.scrollY : 0;
+          skipInitialFetchRef.current = true;
+          window.__ANIMALS_SYNC_SEED__ = cached;
+        }
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }
+
+  const seed = (key, fallback) => {
+    if (typeof window === 'undefined') return fallback;
+    const cached = window.__ANIMALS_SYNC_SEED__;
+    return seeded ? cached?.[key] ?? fallback : fallback;
+  };
+
+  const [animals, setAnimals] = useState(() => seed('animals', []));
+  const [hasMore, setHasMore] = useState(() => Boolean(seed('hasMore', false)));
+  const [statusMessage, setStatusMessage] = useState(() => seed('statusMessage', ''));
+  const [prefersManualLoading, setPrefersManualLoading] = useState(() =>
+    Boolean(seed('prefersManualLoading', false))
+  );
+  const [seenAnimals, setSeenAnimals] = useState([]);
   const [search, setSearch] = useState(initialQ);
   const [query, setQuery] = useState(initialQ);
   const [classes, setClasses] = useState([]);
@@ -22,23 +81,14 @@ export default function AnimalsPage() {
   const [classId, setClassId] = useState(searchParams.get('class') || '');
   const [orderId, setOrderId] = useState(searchParams.get('order') || '');
   const [familyId, setFamilyId] = useState(searchParams.get('family') || '');
-  const initialFavorites = searchParams.get('favorites') === '1';
   const [favoritesOnly, setFavoritesOnly] = useState(initialFavorites);
-  const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  // Track pagination state without triggering renders on every increment
-  const offsetRef = useRef(0);
-  const sentinelRef = useRef(null);
-  const requestIdRef = useRef(0);
-  const loadingRef = useRef(false);
-  const controllerRef = useRef(null);
+
   const authFetch = useAuthFetch();
   const { isAuthenticated, user } = useAuth();
   const uid = user?.id;
   const limit = 20; // number of animals per page
-  const [statusMessage, setStatusMessage] = useState('');
-  const [prefersManualLoading, setPrefersManualLoading] = useState(false);
   const [supportsIntersectionObserver] = useState(
     () => typeof window !== 'undefined' && 'IntersectionObserver' in window
   );
@@ -46,7 +96,46 @@ export default function AnimalsPage() {
     () => supportsIntersectionObserver && !prefersManualLoading,
     [prefersManualLoading, supportsIntersectionObserver]
   );
-  const { t } = useTranslation();
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('scrollRestoration' in window.history)) {
+      return undefined;
+    }
+
+    const previous = window.history.scrollRestoration;
+    window.history.scrollRestoration = 'manual';
+
+    return () => {
+      window.history.scrollRestoration = previous || 'auto';
+    };
+  }, []);
+
+  const withInstantScroll = useCallback((fn) => {
+    if (typeof window === 'undefined') {
+      fn();
+      return;
+    }
+
+    const root = typeof document !== 'undefined' ? document.documentElement : null;
+    if (!root) {
+      fn();
+      return;
+    }
+
+    const previousBehavior = root.style.scrollBehavior;
+    root.style.scrollBehavior = 'auto';
+    try {
+      fn();
+    } finally {
+      root.style.scrollBehavior = previousBehavior || '';
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      delete window.__ANIMALS_SYNC_SEED__;
+    }
+  }, []);
 
   // Hydrate local state from the URL whenever search params change
   useEffect(() => {
@@ -88,6 +177,128 @@ export default function AnimalsPage() {
       .then(setClasses)
       .catch(() => setClasses([]));
   }, []);
+
+  // Remember the latest list data so we can persist it to session storage when needed
+  useEffect(() => {
+    latestStateRef.current = {
+      animals,
+      hasMore,
+      statusMessage,
+      prefersManualLoading,
+    };
+  }, [animals, hasMore, statusMessage, prefersManualLoading]);
+
+  // Track the scroll position so it can be restored after returning from a detail page
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+
+    const handleScroll = () => {
+      scrollPositionRef.current = window.scrollY;
+    };
+
+    handleScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Persist the currently loaded animals along with the scroll position
+  const storePageState = useCallback(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const snapshot = latestStateRef.current;
+    try {
+      sessionStorage.setItem(
+        storageKey,
+        JSON.stringify({
+          animals: snapshot.animals ?? [],
+          hasMore: Boolean(snapshot.hasMore),
+          statusMessage: snapshot.statusMessage ?? '',
+          prefersManualLoading: Boolean(snapshot.prefersManualLoading),
+          offset: offsetRef.current,
+          scrollY: scrollPositionRef.current,
+        })
+      );
+    } catch {
+      // Ignore storage failures (e.g., Safari private mode)
+    }
+  }, [storageKey]);
+
+  // Mark that the page should restore its state before navigating to a detail page
+  const markRestorePending = useCallback(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    storePageState();
+    try {
+      sessionStorage.setItem(restoreFlagKey, '1');
+    } catch {
+      // Ignore storage failures so navigation is not blocked
+    }
+  }, [restoreFlagKey, storePageState]);
+
+  const onItemKeyDown = useCallback(
+    (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        markRestorePending();
+      }
+    },
+    [markRestorePending]
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+
+    const handlePageHide = () => {
+      storePageState();
+    };
+
+    window.addEventListener('pagehide', handlePageHide);
+    return () => window.removeEventListener('pagehide', handlePageHide);
+  }, [storePageState]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+
+    const handlePageShow = (event) => {
+      if (event.persisted) {
+        storePageState();
+      }
+    };
+
+    window.addEventListener('pageshow', handlePageShow);
+    return () => window.removeEventListener('pageshow', handlePageShow);
+  }, [storePageState]);
+
+  // Pre-paint scroll restoration to avoid visible jumps
+  useLayoutEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const shouldRestore = sessionStorage.getItem(restoreFlagKey) === '1';
+    if (!shouldRestore) {
+      sessionStorage.removeItem(storageKey);
+      return;
+    }
+
+    const y = initialScrollYRef.current;
+    if (typeof y === 'number' && y > 0) {
+      withInstantScroll(() => {
+        window.scrollTo(0, y);
+      });
+    }
+
+    sessionStorage.removeItem(restoreFlagKey);
+  }, [restoreFlagKey, storageKey, withInstantScroll]);
 
   // Fetch orders whenever class changes
   useEffect(() => {
@@ -217,6 +428,11 @@ export default function AnimalsPage() {
 
   // Initial load and reset when search or filters change
   useEffect(() => {
+    if (skipInitialFetchRef.current) {
+      skipInitialFetchRef.current = false;
+      return () => {};
+    }
+
     const controller = loadAnimals(true);
     return () => {
       controller?.abort();
@@ -379,13 +595,20 @@ export default function AnimalsPage() {
             key={a.id}
             className="animal-card d-block text-decoration-none text-reset"
             to={`${prefix}/animals/${a.slug || a.id}`}
+            onClick={markRestorePending}
+            onKeyDown={onItemKeyDown}
           >
             {a.default_image_url && (
-              <img
-                src={a.default_image_url}
-                alt={lang === 'de' ? a.name_de || a.name_en : a.name_en || a.name_de}
-                className="card-img"
-              />
+              <div className="animal-card-img-wrapper">
+                <img
+                  src={a.default_image_url}
+                  alt={lang === 'de' ? a.name_de || a.name_en : a.name_en || a.name_de}
+                  className="card-img animal-card-img"
+                  loading="lazy"
+                  width={800}
+                  height={600}
+                />
+              </div>
             )}
             {/* Always show the localized name in bold */}
             <div className="fw-bold d-flex align-items-center gap-1">
