@@ -452,6 +452,17 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
     [mapView, navigate, persistViewState, prefix]
   );
 
+  const handleViewModeChange = useCallback(
+    (mode) => {
+      setViewMode(mode);
+      if (mode === 'map') {
+        setMapResizeToken((token) => token + 1);
+      }
+      persistViewState(mode, mapView);
+    },
+    [mapView, persistViewState]
+  );
+
   const handleMapViewChange = useCallback(
     (view) => {
       const sanitizedView = sanitizeCameraView(view) ?? mapView;
@@ -883,12 +894,34 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
               />
             </div>
           </div>
+          <fieldset className="btn-group" role="group" aria-label={t('zoo.viewToggle')}>
+            <legend className="visually-hidden">{t('zoo.viewToggle')}</legend>
+            <input
+              type="radio"
+              className="btn-check"
+              name="animal-zoo-view"
+              id="animal-zoo-view-list"
+              autoComplete="off"
+              checked={viewMode === 'list'}
+              onChange={() => handleViewModeChange('list')}
+            />
+            <label className="btn btn-outline-primary" htmlFor="animal-zoo-view-list">
+              {t('zoo.viewList')}
+            </label>
+            <input
+              type="radio"
+              className="btn-check"
+              name="animal-zoo-view"
+              id="animal-zoo-view-map"
+              autoComplete="off"
+              checked={viewMode === 'map'}
+              onChange={() => handleViewModeChange('map')}
+            />
+            <label className="btn btn-outline-primary" htmlFor="animal-zoo-view-map">
+              {t('zoo.viewMap')}
+            </label>
+          </fieldset>
         </div>
-        {viewMode === 'list' && (
-          <div className="d-flex flex-wrap gap-2 mt-3">
-            <span className="badge bg-secondary">{t('actions.sortByDistance')}</span>
-          </div>
-        )}
         <div className="small text-muted mt-3" aria-live="polite">
           {t('animal.filteredCount', { count: filteredZoos.length, total: zoos.length })}
         </div>

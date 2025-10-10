@@ -318,7 +318,7 @@ describe('AnimalDetailPage', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('defaults to the list view without a map toggle', async () => {
+  it('defaults to the list view and exposes view mode toggle', async () => {
     const fetchResponse = {
       ...animal,
       zoos: [
@@ -344,8 +344,11 @@ describe('AnimalDetailPage', () => {
     );
 
     await screen.findByText('Mammals');
+    const listRadio = await screen.findByRole('radio', { name: 'List' });
+    const mapRadio = screen.getByRole('radio', { name: 'Map' });
+    expect(listRadio).toBeChecked();
+    expect(mapRadio).not.toBeChecked();
     expect(screen.queryByTestId('zoos-map')).not.toBeInTheDocument();
-    expect(screen.queryByRole('radio', { name: 'Map' })).not.toBeInTheDocument();
     expect(screen.getByRole('table')).toBeInTheDocument();
   });
 
