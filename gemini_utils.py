@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import os
+import random
 import re
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
-from typing import ClassVar, Dict, Literal, Optional, Type, cast
+from typing import Awaitable, Callable, ClassVar, Dict, Literal, Optional, Type, TypeVar, cast
 from google import genai
 from google.genai import types
 from pydantic import BaseModel, HttpUrl, field_validator
@@ -42,6 +43,17 @@ visitors:
 website:
 wikipedia_en:
 wikipedia_de:
+"""
+
+COORDINATE_PROMPT_TEMPLATE = """You are a research assistant that specialises in geocoding.
+Country: {country_en}
+City: {city}
+Zoo name: {name}
+
+Search for the precise location of this zoo and report its geographic coordinates.
+Provide latitude and longitude in decimal degrees using the WGS84 coordinate system.
+Always use a dot as the decimal separator (for example, 47.1234) and include the
+labels "Latitude:" and "Longitude:" next to the values in your response.
 """
 
 ANIMAL_PROMPT_TEMPLATE = """Research the following animal to provide factual information for a zoo information website.
@@ -139,6 +151,13 @@ class ZooRecord(BaseModel):
         return _normalise_url(value)
 
 
+class ZooCoordinateRecord(BaseModel):
+    """Structured Gemini response for zoo coordinate lookups."""
+
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+
+
 @dataclass
 class ZooMetadata:
     """Minimal zoo information loaded from the SQLite database."""
@@ -151,6 +170,13 @@ class ZooMetadata:
 
     def to_prompt(self) -> str:
         return PROMPT_TEMPLATE.format(
+            country_en=self.country_en or "",
+            city=self.city,
+            name=self.name,
+        )
+
+    def to_coordinate_prompt(self) -> str:
+        return COORDINATE_PROMPT_TEMPLATE.format(
             country_en=self.country_en or "",
             city=self.city,
             name=self.name,
@@ -565,6 +591,44 @@ class GeminiZooClient(GeminiClientBase):
         return cast(ZooRecord, result)
 
 
+class GeminiCoordinateClient(GeminiClientBase):
+    """Gemini helper specialised for zoo coordinate discovery."""
+
+    def research_coordinates(self, prompt: str) -> str:
+        return self._research(prompt)
+
+    def structure_response(self, partially_structured_text: str) -> ZooCoordinateRecord:
+        extra_instructions = (
+            "Extract the decimal latitude and longitude in WGS84 format. "
+            "Return them as JSON numbers (use null if you cannot confirm a value)."
+        )
+        return cast(
+            ZooCoordinateRecord,
+            self._structure(
+                partially_structured_text,
+                ZooCoordinateRecord,
+                extra_instructions=extra_instructions,
+            ),
+        )
+
+    async def research_coordinates_async(self, prompt: str) -> str:
+        return await self._research_async(prompt)
+
+    async def structure_response_async(
+        self, partially_structured_text: str
+    ) -> ZooCoordinateRecord:
+        extra_instructions = (
+            "Extract the decimal latitude and longitude in WGS84 format. "
+            "Return them as JSON numbers (use null if you cannot confirm a value)."
+        )
+        result = await self._structure_async(
+            partially_structured_text,
+            ZooCoordinateRecord,
+            extra_instructions=extra_instructions,
+        )
+        return cast(ZooCoordinateRecord, result)
+
+
 class GeminiAnimalClient(GeminiClientBase):
     """Gemini helper specialised for animal enrichment."""
 
@@ -604,4 +668,60 @@ class GeminiAnimalClient(GeminiClientBase):
             extra_instructions=extra_instructions,
         )
         return cast(AnimalRecord, result)
+
+DEFAULT_MAX_RETRIES = 5
+DEFAULT_INITIAL_BACKOFF = 1.0
+DEFAULT_MAX_BACKOFF = 30.0
+
+T = TypeVar("T")
+
+
+def is_retryable_exception(exc: Exception) -> bool:
+    """Return True if the exception looks like a transient API failure."""
+
+    status = getattr(exc, "status", None) or getattr(exc, "status_code", None)
+    if isinstance(status, int) and (status in (408, 429, 500, 502, 503, 504) or status >= 500):
+        return True
+
+    message = str(exc).lower()
+    for marker in (
+        "408",
+        "429",
+        "rate limit",
+        "timeout",
+        "timed out",
+        "temporarily unavailable",
+        "502",
+        "503",
+        "504",
+        "deadline",
+        "connection reset",
+    ):
+        if marker in message:
+            return True
+    return False
+
+
+async def call_with_backoff(
+    func: Callable[..., Awaitable[T]],
+    /,
+    *args,
+    max_retries: int = DEFAULT_MAX_RETRIES,
+    initial_backoff: float = DEFAULT_INITIAL_BACKOFF,
+    max_backoff: float = DEFAULT_MAX_BACKOFF,
+    retry_predicate: Callable[[Exception], bool] = is_retryable_exception,
+    **kwargs,
+) -> T:
+    """Execute *func* with exponential backoff for transient failures."""
+
+    delay = initial_backoff
+    for attempt in range(1, max_retries + 1):
+        try:
+            return await func(*args, **kwargs)
+        except Exception as exc:  # pragma: no cover - network errors are non-deterministic
+            if attempt == max_retries or not retry_predicate(exc):
+                raise
+            jitter = random.uniform(0, delay / 2)
+            await asyncio.sleep(min(max_backoff, delay) + jitter)
+            delay *= 2
 
