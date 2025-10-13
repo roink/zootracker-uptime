@@ -31,10 +31,11 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres pytest --pg
 ```
 
 Frontend clustering is covered by dedicated tests. To confirm the structural
-setup of the clustered GeoJSON source and layers, run:
+setup of the clustered GeoJSON source and layers, run the standard frontend
+suite:
 
 ```bash
-npm --prefix frontend test -- ZoosMap.cluster.struct
+npm --prefix frontend test
 ```
 
 End-to-end MapLibre checks that exercise WebGL clustering live in the

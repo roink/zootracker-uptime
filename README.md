@@ -73,10 +73,11 @@ MapLibre clustering is guarded by two dedicated test suites:
 * Structural assertions (runs in jsdom):
 
   ```bash
-  npm --prefix frontend test -- ZoosMap.cluster.struct
+  npm --prefix frontend test
   ```
 
-  Omit the trailing filter to execute the entire frontend test suite.
+  The ZoosMap clustering spec lives in the default frontend test suite, so no
+  additional pattern or filter is required.
 
 * Playwright WebGL checks (Chromium only):
 
