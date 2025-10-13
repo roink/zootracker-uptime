@@ -221,11 +221,22 @@
 .animal-card {
   border: 1px solid #ccc;
   padding: 10px;
-  width: 150px;
+  width: 100%;
   cursor: pointer;
   background: #fff;
   border-radius: 4px;
   text-align: left;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Responsive grid for the animal overview */
+.animals-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.5rem;
+  align-items: stretch;
 }
 
 /* Reserve image space so scroll restoration is stable */

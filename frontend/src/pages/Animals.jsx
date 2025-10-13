@@ -586,7 +586,7 @@ export default function AnimalsPage() {
         </div>
       )}
       <div
-        className="d-flex flex-wrap gap-2"
+        className="animals-grid"
         aria-describedby="animals-status"
         aria-busy={loading}
       >
