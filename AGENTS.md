@@ -32,17 +32,17 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres pytest --pg
 
 Frontend clustering is covered by dedicated tests. To confirm the structural
 setup of the clustered GeoJSON source and layers, run the standard frontend
-suite:
+suite (Vitest followed by Playwright):
 
 ```bash
 npm --prefix frontend test
 ```
 
-End-to-end MapLibre checks that exercise WebGL clustering live in the
-Playwright suite and can be executed with:
+Run the suites individually when needed:
 
 ```bash
-npm run test:e2e
+npm --prefix frontend run test:unit
+npm --prefix frontend run test:e2e
 ```
 
 Always run the relevant tests after making changes.

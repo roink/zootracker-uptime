@@ -70,24 +70,30 @@ clean state. The old `--pg` flag is still accepted but no longer required.
 
 MapLibre clustering is guarded by two dedicated test suites:
 
-* Structural assertions (runs in jsdom):
+* Run the full suite (Vitest + Playwright) in one go:
 
   ```bash
   npm --prefix frontend test
   ```
 
-  The ZoosMap clustering spec lives in the default frontend test suite, so no
-  additional pattern or filter is required.
+  This command first executes the structural ZoosMap clustering spec in Vitest
+  and then launches the Chromium Playwright checks against the harness page.
 
-* Playwright WebGL checks (Chromium only):
+* To run only the structural assertions:
 
   ```bash
-  npm run test:e2e
+  npm --prefix frontend run test:unit
   ```
 
-  The Playwright project is defined in the repository root and boots a minimal
-  harness page. Ensure Chromium dependencies are installed when running in CI
-  containers or headless environments.
+* To run only the WebGL checks (Chromium only):
+
+  ```bash
+  npm --prefix frontend run test:e2e
+  ```
+
+  The Playwright project now resides under `frontend/` next to the Vite app.
+  Ensure Chromium dependencies are installed when running in CI containers or
+  other headless environments.
 
 ### Running the Frontend
 
