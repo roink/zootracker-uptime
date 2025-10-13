@@ -30,7 +30,22 @@ docker compose up -d db
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres pytest --pg
 ```
 
-Always run the tests after making changes.
+Frontend clustering is covered by dedicated tests. To confirm the structural
+setup of the clustered GeoJSON source and layers, run the standard frontend
+suite (Vitest followed by Playwright):
+
+```bash
+npm --prefix frontend test
+```
+
+Run the suites individually when needed:
+
+```bash
+npm --prefix frontend run test:unit
+npm --prefix frontend run test:e2e
+```
+
+Always run the relevant tests after making changes.
 
 ## Environment setup
 

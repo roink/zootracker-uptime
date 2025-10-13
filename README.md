@@ -66,6 +66,35 @@ pytest
 Running tests against PostgreSQL will drop and recreate all tables to ensure a
 clean state. The old `--pg` flag is still accepted but no longer required.
 
+#### Frontend clustering tests
+
+MapLibre clustering is guarded by two dedicated test suites:
+
+* Run the full suite (Vitest + Playwright) in one go:
+
+  ```bash
+  npm --prefix frontend test
+  ```
+
+  This command first executes the structural ZoosMap clustering spec in Vitest
+  and then launches the Chromium Playwright checks against the harness page.
+
+* To run only the structural assertions:
+
+  ```bash
+  npm --prefix frontend run test:unit
+  ```
+
+* To run only the WebGL checks (Chromium only):
+
+  ```bash
+  npm --prefix frontend run test:e2e
+  ```
+
+  The Playwright project now resides under `frontend/` next to the Vite app.
+  Ensure Chromium dependencies are installed when running in CI containers or
+  other headless environments.
+
 ### Running the Frontend
 
 The frontend uses [Vite](https://vitejs.dev/) during development. Install the
