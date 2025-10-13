@@ -156,9 +156,12 @@ def import_animals(
             if isinstance(raw_art, str) and raw_art.strip():
                 id_map[raw_art.strip()] = animal_id
             continue
-        if not row.get("latin_name") or not row.get("name_de"):
+        normalized_latin_name = (
+            row.get("normalized_latin_name") or row.get("latin_name")
+        )
+        if not normalized_latin_name or not row.get("name_de"):
             logger.warning("Animal %s missing latin or German name", art)
-        name_en = row.get("name_en") or row.get("latin_name") or art
+        name_en = row.get("name_en") or normalized_latin_name or art
         if slug is None:
             logger.warning("Skipping animal %s due to missing slug", art)
             n_skipped += 1
@@ -176,11 +179,11 @@ def import_animals(
         animals.append(
             models.Animal(
                 id=animal_id,
-                scientific_name=row.get("latin_name"),
+                scientific_name=normalized_latin_name,
                 slug=slug,
                 name_de=row.get("name_de"),
                 name_en=name_en,
-                latin_name=row.get("latin_name"),
+                latin_name=normalized_latin_name,
                 art=art,
                 parent_art=parent_art,
                 klasse=row.get("klasse"),
