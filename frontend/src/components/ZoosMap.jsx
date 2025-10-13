@@ -36,6 +36,8 @@ export default function ZoosMap({
   suppressAutoFit = false,
   onViewChange = () => {},
   ariaLabel,
+  onMapReady = null,
+  disableClusterCount = false,
 } = {}) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
@@ -44,6 +46,7 @@ export default function ZoosMap({
   const setDataFrameRef = useRef(null);
   const onSelectRef = useRef(onSelect);
   const onViewChangeRef = useRef(onViewChange);
+  const onMapReadyRef = useRef(onMapReady);
   const zooLookupRef = useRef(new Map());
   const previousFeatureIdsRef = useRef([]);
   const hasFitToZoosRef = useRef(false);
@@ -75,6 +78,10 @@ export default function ZoosMap({
   useEffect(() => {
     onViewChangeRef.current = onViewChange;
   }, [onViewChange]);
+
+  useEffect(() => {
+    onMapReadyRef.current = onMapReady;
+  }, [onMapReady]);
 
   useEffect(() => {
     const lookup = new Map();
@@ -226,6 +233,9 @@ export default function ZoosMap({
         setMapReady(true);
         triggerResize();
         emitViewChange(event);
+        if (onMapReadyRef.current && mapRef.current) {
+          onMapReadyRef.current(mapRef.current);
+        }
       };
 
       if (mapRef.current?.once) {
@@ -393,7 +403,12 @@ export default function ZoosMap({
       });
     }
 
-    if (hasAddLayer && hasGetLayer && !map.getLayer(CLUSTER_COUNT_LAYER_ID)) {
+    if (
+      !disableClusterCount &&
+      hasAddLayer &&
+      hasGetLayer &&
+      !map.getLayer(CLUSTER_COUNT_LAYER_ID)
+    ) {
       map.addLayer({
         id: CLUSTER_COUNT_LAYER_ID,
         type: 'symbol',
@@ -691,5 +706,7 @@ ZoosMap.propTypes = {
   suppressAutoFit: PropTypes.bool,
   onViewChange: PropTypes.func,
   ariaLabel: PropTypes.string,
+  onMapReady: PropTypes.func,
+  disableClusterCount: PropTypes.bool,
 };
 
