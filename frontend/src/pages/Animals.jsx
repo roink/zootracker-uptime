@@ -627,10 +627,6 @@ export default function AnimalsPage() {
               {a.scientific_name && (
                 <div className="fst-italic small">{a.scientific_name}</div>
               )}
-              {/* Display the number of zoos to explain the sort order */}
-              <div className="small text-muted">
-                {t('animal.keptInZoos', { count: a.zoo_count ?? 0 })}
-              </div>
               {seenIds.has(a.id) && (
                 <span className="seen-badge">{t('animal.seen')}</span>
               )}
