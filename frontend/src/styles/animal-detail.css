@@ -91,6 +91,7 @@
   display: block;
   user-select: none;
   z-index: 2;
+  pointer-events: none; /* allow clicks to reach carousel controls/link */
 }
 
 /* Controls + indicators: consistent, subtle */
@@ -98,12 +99,18 @@
 .animal-media .carousel-control-next {
   width: 3rem;
   opacity: .8;
+  z-index: 5; /* ensure controls render above ambient layers */
 }
 
 .animal-media .carousel-indicators [data-bs-target] {
   width: .5rem;
   height: .5rem;
   border-radius: 50%;
+}
+
+/* Keep indicator tray above the media stack */
+.animal-media .carousel-indicators {
+  z-index: 6;
 }
 
 /* Respect reduced motion */
