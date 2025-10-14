@@ -230,7 +230,6 @@
 /* Card style used for clickable animal entries */
 .animal-card {
   border: 1px solid #ccc;
-  padding: 10px;
   width: 100%;
   height: 100%;
   cursor: pointer;
@@ -239,7 +238,7 @@
   text-align: left;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  overflow: hidden;
 }
 
 /* Reserve image space so scroll restoration is stable */
@@ -247,7 +246,6 @@
   width: 100%;
   overflow: hidden;
   background-color: #fff;
-  border-radius: 4px;
 }
 
 .animal-card-img {
@@ -259,6 +257,7 @@
 }
 
 .animal-card-body {
+  padding: 0.75rem;
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
