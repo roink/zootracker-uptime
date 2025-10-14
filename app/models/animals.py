@@ -114,7 +114,6 @@ class Animal(Base):
     art = Column(Integer)
     english_label = Column(Text)
     german_label = Column(Text)
-    latin_name = Column(Text)
     parent_art = Column(
         Integer,
         ForeignKey(

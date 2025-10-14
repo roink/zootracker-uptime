@@ -158,7 +158,9 @@ def import_animals(
             continue
         normalized_latin_name = row.get("normalized_latin_name")
         if not normalized_latin_name or not row.get("name_de"):
-            logger.warning("Animal %s missing latin or German name", art)
+            logger.warning(
+                "Animal %s missing normalized Latin or German name", art
+            )
         name_en = row.get("name_en")
         if slug is None:
             logger.warning("Skipping animal %s due to missing slug", art)
@@ -181,7 +183,6 @@ def import_animals(
                 slug=slug,
                 name_de=row.get("name_de"),
                 name_en=name_en,
-                latin_name=normalized_latin_name,
                 art=art,
                 parent_art=parent_art,
                 klasse=row.get("klasse"),

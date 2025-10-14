@@ -64,6 +64,7 @@ def _build_source_db(path: Path, mid: str = "M1") -> Path:
                 familie INTEGER,
                 parent_art TEXT,
                 latin_name TEXT,
+                normalized_latin_name TEXT,
                 zootierliste_description TEXT,
                 name_de TEXT,
                 name_en TEXT,
@@ -191,17 +192,17 @@ def _build_source_db(path: Path, mid: str = "M1") -> Path:
         ))
         conn.execute(
             text(
-                "INSERT INTO animal (art, klasse, ordnung, familie, parent_art, latin_name, name_de, name_en, slug, description_de, description_en, iucn_conservation_status, taxon_rank) VALUES ('1001',1,1,1,NULL,'Panthera leo','L\u00f6we','Lion','lion','Deutsche Beschreibung','English description','VU','species');"
+                "INSERT INTO animal (art, klasse, ordnung, familie, parent_art, latin_name, normalized_latin_name, name_de, name_en, slug, description_de, description_en, iucn_conservation_status, taxon_rank) VALUES ('1001',1,1,1,NULL,'Panthera leo','Panthera leo','L\u00f6we','Lion','lion','Deutsche Beschreibung','English description','VU','species');"
             )
         )
         conn.execute(
             text(
-                "INSERT INTO animal (art, klasse, ordnung, familie, parent_art, latin_name, name_de, slug) VALUES ('2001',2,1,1,'1001','Aquila chrysaetos','Adler','golden-eagle');"
+                "INSERT INTO animal (art, klasse, ordnung, familie, parent_art, latin_name, normalized_latin_name, name_de, name_en, slug) VALUES ('2001',2,1,1,'1001','Aquila chrysaetos','Aquila chrysaetos','Adler','Golden Eagle','golden-eagle');"
             )
         )
         conn.execute(
             text(
-                "INSERT INTO animal (art, latin_name, parent_art, zootierliste_description, slug) VALUES ('1002','Unknownus testus','1001','Legacy description','unknownus-testus');"
+                "INSERT INTO animal (art, latin_name, normalized_latin_name, parent_art, zootierliste_description, name_en, slug) VALUES ('1002','Unknownus testus','Unknownus testus','1001','Legacy description','Unknownus Testus','unknownus-testus');"
             )
         )
         conn.execute(text("INSERT INTO continent_name (id, name_de, name_en) VALUES (1,'Europa','Europe');"))
@@ -460,8 +461,8 @@ def test_import_skips_animals_without_zoo(tmp_path, session_factory):
     with engine.begin() as conn:
         conn.execute(
             text(
-                "INSERT INTO animal (art, klasse, ordnung, familie, latin_name, name_de) "
-                "VALUES ('Lonelyus testus',1,1,1,'Lonelyus testus','Lonelyus');"
+                "INSERT INTO animal (art, klasse, ordnung, familie, latin_name, normalized_latin_name, name_de, name_en) "
+                "VALUES ('Lonelyus testus',1,1,1,'Lonelyus testus','Lonelyus testus','Lonelyus','Lonelyus');"
             )
         )
 
