@@ -626,13 +626,9 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
                 const isFirst = idx === 0;
                 const loadingAttr = isFirst ? 'eager' : 'lazy';
                 const fetchPri = isFirst ? 'high' : 'low';
+                const bgFetchPri = isFirst ? 'high' : 'auto';
                 const sizes =
                   '(min-width: 1200px) 540px, (min-width: 992px) 50vw, 100vw';
-                const bgStyle = fallbackSrc
-                  ? {
-                      '--animal-media-img-url': `url("${fallbackSrc.replace(/"/g, '\\"')}")`,
-                    }
-                  : {};
 
                 return (
                   <div
@@ -640,12 +636,35 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
                     className={`carousel-item ${idx === 0 ? 'active' : ''}`}
                     aria-label={`Slide ${idx + 1} of ${animalImages.length}`}
                   >
+                    {/* Preload the first slide ambient image to avoid the blur popping in */}
+                    {isFirst && (
+                      <link
+                        rel="preload"
+                        as="image"
+                        href={fallbackSrc}
+                        imagesrcset={srcSet || undefined}
+                        imagesizes={sizes || undefined}
+                      />
+                    )}
+
                     <Link
                       to={`${prefix}/images/${img.mid}`}
                       state={{ name: animalName }}
                       className="d-block"
                     >
-                      <div className="animal-media-ambient" style={bgStyle}>
+                      <div className="animal-media-ambient">
+                        <img
+                          aria-hidden="true"
+                          alt=""
+                          className="animal-media-ambient__bg"
+                          decoding="async"
+                          loading={loadingAttr}
+                          fetchpriority={bgFetchPri}
+                          draggable="false"
+                          src={fallbackSrc}
+                          srcSet={srcSet}
+                          sizes={sizes}
+                        />
                         <img
                           src={fallbackSrc}
                           srcSet={srcSet}
@@ -656,6 +675,10 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
                           alt={animalName}
                           draggable="false"
                           className="animal-media-ambient__img"
+                        />
+                        <span
+                          aria-hidden="true"
+                          className="animal-media-ambient__overlay"
                         />
                       </div>
                     </Link>
@@ -691,12 +714,18 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
     : animal?.default_image_url
     ? (
         <div className="animal-media">
-          <div
-            className="animal-media-ambient"
-            style={{
-              '--animal-media-img-url': `url("${animal.default_image_url.replace(/"/g, '\\"')}")`,
-            }}
-          >
+          <div className="animal-media-ambient">
+            <link rel="preload" as="image" href={animal.default_image_url} />
+            <img
+              aria-hidden="true"
+              alt=""
+              className="animal-media-ambient__bg"
+              decoding="async"
+              loading="eager"
+              fetchpriority="high"
+              draggable="false"
+              src={animal.default_image_url}
+            />
             <img
               src={animal.default_image_url}
               alt={animalName}
@@ -705,6 +734,7 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
               draggable="false"
               className="animal-media-ambient__img"
             />
+            <span aria-hidden="true" className="animal-media-ambient__overlay" />
           </div>
         </div>
       )

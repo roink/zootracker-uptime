@@ -47,28 +47,33 @@
   line-height: 0;
 }
 
-.animal-media-ambient::before {
-  content: '';
+/* Blurred ambient background image */
+.animal-media-ambient__bg {
   position: absolute;
   inset: 0;
-  background-image: var(--animal-media-img-url);
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
   filter: blur(8px) brightness(0.9) saturate(1.05);
   transform: scale(1.18);
   transform-origin: center;
+  z-index: 0;
+  user-select: none;
+  pointer-events: none;
 }
 
-.animal-media-ambient::after {
-  content: '';
+/* Gentle overlay to boost contrast */
+.animal-media-ambient__overlay {
   position: absolute;
   inset: 0;
+  display: block;
   background: linear-gradient(
     to bottom,
     rgba(0, 0, 0, 0.08),
     rgba(0, 0, 0, 0.08)
   );
+  z-index: 1;
   pointer-events: none;
 }
 
@@ -85,7 +90,7 @@
   object-position: center;
   display: block;
   user-select: none;
-  z-index: 1;
+  z-index: 2;
 }
 
 /* Controls + indicators: consistent, subtle */
@@ -119,8 +124,8 @@
   .animal-media .carousel-item,
   .animal-media .carousel-item > a,
   .animal-media-ambient,
-  .animal-media-ambient::before,
-  .animal-media-ambient::after,
+  .animal-media-ambient__bg,
+  .animal-media-ambient__overlay,
   .animal-media-ambient__img {
     position: absolute;
     inset: 0;
