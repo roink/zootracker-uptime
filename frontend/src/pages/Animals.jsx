@@ -586,7 +586,7 @@ export default function AnimalsPage() {
         </div>
       )}
       <div
-        className="d-flex flex-wrap gap-2"
+        className="animals-grid"
         aria-describedby="animals-status"
         aria-busy={loading}
       >
@@ -610,29 +610,31 @@ export default function AnimalsPage() {
                 />
               </div>
             )}
-            {/* Always show the localized name in bold */}
-            <div className="fw-bold d-flex align-items-center gap-1">
-              {lang === 'de' ? a.name_de || a.name_en : a.name_en || a.name_de}
-              {a.is_favorite && (
-                <span
-                  className="text-warning"
-                  role="img"
-                  aria-label={t('animal.favoriteBadge')}
-                >
-                  ★
-                </span>
+            <div className="animal-card-body">
+              {/* Always show the localized name in bold */}
+              <div className="fw-bold d-flex align-items-center gap-1">
+                {lang === 'de' ? a.name_de || a.name_en : a.name_en || a.name_de}
+                {a.is_favorite && (
+                  <span
+                    className="text-warning"
+                    role="img"
+                    aria-label={t('animal.favoriteBadge')}
+                  >
+                    ★
+                  </span>
+                )}
+              </div>
+              {a.scientific_name && (
+                <div className="fst-italic small">{a.scientific_name}</div>
+              )}
+              {/* Display the number of zoos to explain the sort order */}
+              <div className="small text-muted">
+                {t('animal.keptInZoos', { count: a.zoo_count ?? 0 })}
+              </div>
+              {seenIds.has(a.id) && (
+                <span className="seen-badge">{t('animal.seen')}</span>
               )}
             </div>
-            {a.scientific_name && (
-              <div className="fst-italic small">{a.scientific_name}</div>
-            )}
-            {/* Display the number of zoos to explain the sort order */}
-            <div className="small text-muted">
-              {t('animal.keptInZoos', { count: a.zoo_count ?? 0 })}
-            </div>
-            {seenIds.has(a.id) && (
-              <span className="seen-badge">{t('animal.seen')}</span>
-            )}
           </Link>
         ))}
       </div>
