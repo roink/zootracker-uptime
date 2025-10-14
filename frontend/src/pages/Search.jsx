@@ -3,6 +3,9 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { API } from '../api';
 import Seo from '../components/Seo';
+import AnimalTile from '../components/AnimalTile.jsx';
+import useAuthFetch from '../hooks/useAuthFetch';
+import { useAuth } from '../auth/AuthContext.jsx';
 import { getZooDisplayName } from '../utils/zooDisplayName.js';
 
 export default function SearchPage() {
@@ -15,6 +18,10 @@ export default function SearchPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [hasError, setHasError] = useState(false);
   const { t } = useTranslation();
+  const authFetch = useAuthFetch();
+  const { isAuthenticated, user } = useAuth();
+  const uid = user?.id;
+  const [seenAnimals, setSeenAnimals] = useState([]);
 
   // Trim whitespace so empty queries don't trigger fetches
   const normalizedQuery = useMemo(() => query.trim(), [query]);
@@ -24,43 +31,100 @@ export default function SearchPage() {
     if (!hasQuery) {
       setZoos([]);
       setAnimals([]);
+      setSeenAnimals([]);
       setIsLoading(false);
       setHasError(false);
       return;
     }
 
     const controller = new AbortController();
+    const limit = 50;
+    const zooParams = new URLSearchParams({
+      q: normalizedQuery,
+      limit: String(limit),
+    });
+    const animalParams = new URLSearchParams({
+      q: normalizedQuery,
+      limit: String(limit),
+    });
 
     setIsLoading(true);
     setHasError(false);
-    fetch(`${API}/search?q=${encodeURIComponent(normalizedQuery)}&limit=50`, {
-      signal: controller.signal,
-    })
-      .then((r) => {
-        if (!r.ok) {
-          throw new Error('Failed to load search results');
+
+    const loadResults = async () => {
+      try {
+        const [zoosResponse, animalsResponse] = await Promise.all([
+          authFetch(`${API}/zoos?${zooParams.toString()}`, {
+            signal: controller.signal,
+          }),
+          authFetch(`${API}/animals?${animalParams.toString()}`, {
+            signal: controller.signal,
+          }),
+        ]);
+
+        if (!zoosResponse.ok) {
+          throw new Error('Failed to load zoos');
         }
-        return r.json();
-      })
-      .then((res) => {
-        setZoos(res.zoos || []);
-        setAnimals(res.animals || []);
-      })
-      .catch((err) => {
-        if (err.name !== 'AbortError') {
-          setZoos([]);
-          setAnimals([]);
-          setHasError(true);
+        if (!animalsResponse.ok) {
+          throw new Error('Failed to load animals');
         }
-      })
-      .finally(() => setIsLoading(false));
+
+        const [zoosData, animalsData] = await Promise.all([
+          zoosResponse.json(),
+          animalsResponse.json(),
+        ]);
+
+        setZoos(Array.isArray(zoosData?.items) ? zoosData.items : []);
+        setAnimals(Array.isArray(animalsData) ? animalsData : []);
+      } catch (err) {
+        if (err.name === 'AbortError') {
+          return;
+        }
+        setZoos([]);
+        setAnimals([]);
+        setHasError(true);
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadResults();
 
     return () => controller.abort();
-  }, [hasQuery, normalizedQuery]);
+  }, [authFetch, hasQuery, normalizedQuery]);
 
-  // Helper to display the localized animal name consistently
-  const localizedAnimalName = (item) =>
-    lang === 'de' ? item.name_de || item.name_en : item.name_en || item.name_de;
+  useEffect(() => {
+    if (!isAuthenticated || !uid) {
+      setSeenAnimals([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    authFetch(`${API}/users/${uid}/animals`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => {
+        if (!cancelled) {
+          setSeenAnimals(data);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSeenAnimals([]);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authFetch, isAuthenticated, uid]);
+
+  const seenIds = useMemo(
+    () => new Set(seenAnimals.map((animal) => animal.id)),
+    [seenAnimals]
+  );
 
   // Shared loading indicator used for both result sections
   const loadingIndicator = (
@@ -78,7 +142,7 @@ export default function SearchPage() {
   );
 
   return (
-    <div className="container py-4">
+    <div className="container py-4 search-results-page">
       <Seo
         title={t('searchPage.seoTitle')}
         description={t('searchPage.seoDescription')}
@@ -168,37 +232,23 @@ export default function SearchPage() {
                 <p className="text-muted mb-0">{t('searchPage.noAnimals')}</p>
               )}
               {hasQuery && !isLoading && !hasError && animals.length > 0 && (
-                <ul className="list-group list-group-horizontal flex-wrap gap-2 border-0">
+                <div className="animals-grid">
                   {animals.map((a) => (
-                    <li
+                    <AnimalTile
                       key={a.slug || a.id}
-                      className="list-group-item border-0 p-0"
+                      to={`${prefix}/animals/${a.slug || a.id}`}
+                      animal={a}
+                      lang={lang}
+                      seen={seenIds.has(a.id)}
                     >
-                      <Link
-                        to={`${prefix}/animals/${a.slug || a.id}`}
-                        className="animal-card d-block text-decoration-none text-reset"
-                      >
-                        {a.default_image_url && (
-                          <img
-                            src={a.default_image_url}
-                            alt={localizedAnimalName(a)}
-                            className="card-img"
-                            loading="lazy"
-                          />
-                        )}
-                        <div className="fw-bold">{localizedAnimalName(a)}</div>
-                        {a.scientific_name && (
-                          <div className="fst-italic small">{a.scientific_name}</div>
-                        )}
-                        {typeof a.zoo_count === 'number' && a.zoo_count > 0 && (
-                          <div className="small text-muted">
-                            {t('searchPage.foundInZoos', { count: a.zoo_count })}
-                          </div>
-                        )}
-                      </Link>
-                    </li>
+                      {typeof a.zoo_count === 'number' && a.zoo_count > 0 && (
+                        <div className="small text-muted">
+                          {t('searchPage.foundInZoos', { count: a.zoo_count })}
+                        </div>
+                      )}
+                    </AnimalTile>
                   ))}
-                </ul>
+                </div>
               )}
             </div>
           </div>

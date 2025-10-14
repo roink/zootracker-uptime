@@ -1,10 +1,11 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
 import { useTranslation } from 'react-i18next';
 import Seo from '../components/Seo';
 import { useAuth } from '../auth/AuthContext.jsx';
+import AnimalTile from '../components/AnimalTile.jsx';
 
 // Browse all animals with hierarchical taxonomy filters and pagination
 export default function AnimalsPage() {
@@ -591,54 +592,15 @@ export default function AnimalsPage() {
         aria-busy={loading}
       >
         {animals.map((a) => (
-          <Link
+          <AnimalTile
             key={a.id}
-            className="animal-card d-block text-decoration-none text-reset"
             to={`${prefix}/animals/${a.slug || a.id}`}
+            animal={a}
+            lang={lang}
+            seen={seenIds.has(a.id)}
             onClick={markRestorePending}
             onKeyDown={onItemKeyDown}
-          >
-            {a.default_image_url && (
-              <div
-                className="animal-card-img-ambient"
-                style={{
-                  '--img-url': `url("${a.default_image_url.replace(/"/g, '\"')}")`,
-                }}
-              >
-                {/* Present the original image centered with a blurred ambient backdrop */}
-                <img
-                  src={a.default_image_url}
-                  alt={lang === 'de' ? a.name_de || a.name_en : a.name_en || a.name_de}
-                  className="animal-card-img-ambient__img"
-                  loading="lazy"
-                  width={800}
-                  height={800}
-                  decoding="async"
-                />
-              </div>
-            )}
-            <div className="animal-card-body">
-              {/* Always show the localized name in bold */}
-              <div className="fw-bold d-flex align-items-center gap-1">
-                {lang === 'de' ? a.name_de || a.name_en : a.name_en || a.name_de}
-                {a.is_favorite && (
-                  <span
-                    className="text-warning"
-                    role="img"
-                    aria-label={t('animal.favoriteBadge')}
-                  >
-                    ★
-                  </span>
-                )}
-              </div>
-              {a.scientific_name && (
-                <div className="fst-italic small">{a.scientific_name}</div>
-              )}
-              {seenIds.has(a.id) && (
-                <span className="seen-badge">{t('animal.seen')}</span>
-              )}
-            </div>
-          </Link>
+          />
         ))}
       </div>
       <div

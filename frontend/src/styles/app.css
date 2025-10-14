@@ -220,11 +220,65 @@
 /* ============================
    Animals: responsive grid
    ============================ */
+.container {
+  --bs-gutter-x: 0.5rem;
+}
+
 .animals-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 0.5rem;
+  gap: 0.3rem;
   align-items: stretch;
+  align-content: start;
+  justify-content: start;
+  /* Default to two columns so phones never show a single oversized tile */
+  --animals-grid-cols: 2;
+  grid-template-columns: repeat(var(--animals-grid-cols), minmax(0, 1fr));
+}
+
+@media (min-width: 576px) {
+  .animals-grid {
+    --animals-grid-cols: 3;
+  }
+}
+
+@media (min-width: 768px) {
+  .animals-grid {
+    --animals-grid-cols: 4;
+  }
+}
+
+@media (min-width: 992px) {
+  .animals-grid {
+    --animals-grid-cols: 5;
+  }
+}
+
+@media (min-width: 1200px) {
+  .animals-grid {
+    --animals-grid-cols: 6;
+  }
+}
+
+@media (min-width: 1600px) {
+  .animals-grid {
+    --animals-grid-cols: 7;
+  }
+}
+
+.search-results-page .animals-grid {
+  --animals-grid-cols: 2;
+}
+
+@media (min-width: 768px) {
+  .search-results-page .animals-grid {
+    --animals-grid-cols: 3;
+  }
+}
+
+@media (min-width: 1200px) {
+  .search-results-page .animals-grid {
+    --animals-grid-cols: 4;
+  }
 }
 
 /* Card style used for clickable animal entries */

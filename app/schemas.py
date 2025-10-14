@@ -133,6 +133,7 @@ class AnimalRead(BaseModel):
     name_de: Optional[str] = None
     zoo_count: int = 0
     is_favorite: bool = False
+    default_image_url: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 
@@ -336,15 +337,6 @@ class AnimalDetail(BaseModel):
     is_favorite: bool = False
     parent: Optional[AnimalRelation] = None
     subspecies: list[AnimalRelation] = Field(default_factory=list)
-
-    model_config = ConfigDict(from_attributes=True, extra="forbid")
-
-
-class SearchResults(BaseModel):
-    """Combined search result lists for zoos and animals."""
-
-    zoos: list[ZooRead] = Field(default_factory=list)
-    animals: list[AnimalRead] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 
