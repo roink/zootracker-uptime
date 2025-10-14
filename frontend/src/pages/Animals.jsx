@@ -600,10 +600,11 @@ export default function AnimalsPage() {
           >
             {a.default_image_url && (
               <div className="animal-card-img-wrapper">
+                {/* Display the default image cropped to a square thumbnail */}
                 <img
                   src={a.default_image_url}
                   alt={lang === 'de' ? a.name_de || a.name_en : a.name_en || a.name_de}
-                  className="card-img animal-card-img"
+                  className="animal-card-img"
                   loading="lazy"
                   width={800}
                   height={800}
