@@ -642,8 +642,8 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
                         rel="preload"
                         as="image"
                         href={fallbackSrc}
-                        imagesrcset={srcSet || undefined}
-                        imagesizes={sizes || undefined}
+                        imageSrcSet={srcSet || undefined}
+                        imageSizes={sizes || undefined}
                       />
                     )}
 
