@@ -578,19 +578,9 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
     </div>
   );
 
-  // compute a stable aspect ratio from the first image (fallback 4/3)
-  const computeAspect = (img) => {
-    if (!img) return '4 / 3';
-    const candidates = (img.variants && img.variants.length ? img.variants : []);
-    const v = candidates[candidates.length - 1] || img; // prefer a larger variant if present
-    const w = v?.width || img?.width;
-    const h = v?.height || img?.height;
-    return w && h ? `${w} / ${h}` : '4 / 3';
-  };
-  const aspect = hasGallery ? computeAspect(animalImages[0]) : '4 / 3';
   const mediaSection = hasGallery
     ? (
-        <div className="animal-media" style={{ '--ar': aspect }}>
+        <div className="animal-media">
           <div
             id="animalCarousel"
             className="carousel slide h-100"
@@ -638,6 +628,11 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
                 const fetchPri = isFirst ? 'high' : 'low';
                 const sizes =
                   '(min-width: 1200px) 540px, (min-width: 992px) 50vw, 100vw';
+                const bgStyle = fallbackSrc
+                  ? {
+                      '--animal-media-img-url': `url("${fallbackSrc.replace(/"/g, '\\"')}")`,
+                    }
+                  : {};
 
                 return (
                   <div
@@ -650,16 +645,19 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
                       state={{ name: animalName }}
                       className="d-block"
                     >
-                      <img
-                        src={fallbackSrc}
-                        srcSet={srcSet}
-                        sizes={sizes}
-                        decoding="async"
-                        loading={loadingAttr}
-                        fetchpriority={fetchPri}
-                        alt={animalName}
-                        draggable="false"
-                      />
+                      <div className="animal-media-ambient" style={bgStyle}>
+                        <img
+                          src={fallbackSrc}
+                          srcSet={srcSet}
+                          sizes={sizes}
+                          decoding="async"
+                          loading={loadingAttr}
+                          fetchpriority={fetchPri}
+                          alt={animalName}
+                          draggable="false"
+                          className="animal-media-ambient__img"
+                        />
+                      </div>
                     </Link>
                   </div>
                 );
@@ -692,14 +690,22 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
       )
     : animal?.default_image_url
     ? (
-        <div className="animal-media" style={{ '--ar': aspect }}>
-          <img
-            src={animal.default_image_url}
-            alt={animalName}
-            decoding="async"
-            loading="lazy"
-            draggable="false"
-          />
+        <div className="animal-media">
+          <div
+            className="animal-media-ambient"
+            style={{
+              '--animal-media-img-url': `url("${animal.default_image_url.replace(/"/g, '\\"')}")`,
+            }}
+          >
+            <img
+              src={animal.default_image_url}
+              alt={animalName}
+              decoding="async"
+              loading="lazy"
+              draggable="false"
+              className="animal-media-ambient__img"
+            />
+          </div>
         </div>
       )
     : null;

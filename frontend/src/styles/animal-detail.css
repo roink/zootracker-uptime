@@ -1,7 +1,7 @@
 /* Stable, pleasant image stage */
 .animal-media {
   position: relative;
-  aspect-ratio: var(--ar, 4/3);          /* keeps height stable across slides */
+  aspect-ratio: 1 / 1;                    /* keep a consistent square frame */
   background: var(--bs-card-bg);
   border: 1px solid var(--bs-border-color); /* match description card border */
   border-radius: var(--bs-border-radius);
@@ -37,15 +37,55 @@
   height: 100%;
 }
 
-/* Fit the entire image inside the frame without cropping */
-.animal-media img,
-.animal-media .carousel-item > a img {
+/* Ambient frame for each slide */
+.animal-media-ambient {
+  position: relative;
+  overflow: hidden;
   width: 100%;
   height: 100%;
+  background: #fff;
+  line-height: 0;
+}
+
+.animal-media-ambient::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: var(--animal-media-img-url);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  filter: blur(8px) brightness(0.9) saturate(1.05);
+  transform: scale(1.18);
+  transform-origin: center;
+}
+
+.animal-media-ambient::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.08),
+    rgba(0, 0, 0, 0.08)
+  );
+  pointer-events: none;
+}
+
+/* Fit the entire image inside the frame without cropping */
+.animal-media-ambient__img {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
   object-position: center;
   display: block;
   user-select: none;
+  z-index: 1;
 }
 
 /* Controls + indicators: consistent, subtle */
@@ -65,6 +105,25 @@
 @media (prefers-reduced-motion: reduce) {
   .animal-media .carousel-item {
     transition: none !important;
+  }
+}
+
+@supports not (aspect-ratio: 1 / 1) {
+  .animal-media {
+    position: relative;
+    padding-top: 100%;
+  }
+
+  .animal-media .carousel,
+  .animal-media .carousel-inner,
+  .animal-media .carousel-item,
+  .animal-media .carousel-item > a,
+  .animal-media-ambient,
+  .animal-media-ambient::before,
+  .animal-media-ambient::after,
+  .animal-media-ambient__img {
+    position: absolute;
+    inset: 0;
   }
 }
 
