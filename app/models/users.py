@@ -2,7 +2,7 @@
 
 import uuid
 
-from sqlalchemy import Column, DateTime, String, Text, text
+from sqlalchemy import Column, DateTime, String, text
 from sqlalchemy.dialects.postgresql import CITEXT, UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
