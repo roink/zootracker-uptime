@@ -363,6 +363,7 @@ def list_zoo_animals(
             name_de=a.name_de,
             zoo_count=a.zoo_count,
             is_favorite=a.id in favorites,
+            default_image_url=a.default_image_url,
         )
         for a in animals
     ]

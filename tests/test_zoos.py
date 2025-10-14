@@ -283,10 +283,6 @@ def test_search_zoos_accepts_combined_terms(data):
         items, _ = _extract_items(resp.json())
         assert any(z["slug"] == "zoo-muelheim" for z in items)
 
-        resp = client.get("/search", params={"q": "Duisburger Zoo"})
-        assert resp.status_code == 200
-        payload = resp.json()
-        assert any(zoo["slug"] == "tierpark-duisburg" for zoo in payload["zoos"])
     finally:
         with SessionLocal() as db:
             db.query(models.Zoo).filter(

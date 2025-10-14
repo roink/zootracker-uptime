@@ -24,13 +24,25 @@ export default function useSearchSuggestions(query, enabled = true) {
     const controller = new AbortController();
     fetchRef.current = controller;
     const timeout = setTimeout(() => {
-      fetch(`${API}/search?q=${encodeURIComponent(q)}&limit=5`, {
-        signal: controller.signal,
-      })
-        .then((r) => r.json())
-        .then((res) => {
-          searchCache[q] = res;
-          if (!controller.signal.aborted) setResults(res);
+      const params = new URLSearchParams({ limit: '5', q });
+      Promise.all([
+        fetch(`${API}/zoos?${params.toString()}`, { signal: controller.signal }),
+        fetch(`${API}/animals?${params.toString()}`, { signal: controller.signal }),
+      ])
+        .then(async ([zoosRes, animalsRes]) => {
+          if (!zoosRes.ok || !animalsRes.ok) {
+            throw new Error('Search request failed');
+          }
+          const [zoosBody, animalsBody] = await Promise.all([
+            zoosRes.json(),
+            animalsRes.json(),
+          ]);
+          const combined = {
+            zoos: Array.isArray(zoosBody?.items) ? zoosBody.items : [],
+            animals: Array.isArray(animalsBody) ? animalsBody : [],
+          };
+          searchCache[q] = combined;
+          if (!controller.signal.aborted) setResults(combined);
         })
         .catch(() => {
           if (!controller.signal.aborted) {

@@ -11,7 +11,6 @@ from ..utils.geometry import query_zoos_with_distance
 from ..utils.images import build_unique_variants
 from ..utils.http import set_personalized_cache_headers
 from .deps import resolve_coords
-from .common_filters import apply_tokenized_text_filter, GENERIC_ZOO_TERMS
 from .common_sightings import (
     apply_recent_first_order,
     build_user_sightings_query,
@@ -226,60 +225,6 @@ def list_families(order_id: int, db: Session = Depends(get_db)):
         schemas.TaxonName(id=f.familie, name_de=f.name_de, name_en=f.name_en)
         for f in families
     ]
-
-
-@router.get("/search", response_model=schemas.SearchResults)
-def combined_search(
-    response: Response,
-    q: str = "",
-    limit: int = 5,
-    db: Session = Depends(get_db),
-    user: models.User | None = Depends(get_optional_user),
-):
-    """Return top zoos and animals matching the query."""
-
-    set_personalized_cache_headers(response)
-    zoo_q = db.query(models.Zoo).options(
-        load_only(models.Zoo.id, models.Zoo.slug, models.Zoo.name, models.Zoo.city)
-    )
-    zoo_q = apply_tokenized_text_filter(
-        zoo_q,
-        q,
-        columns=(models.Zoo.name, models.Zoo.city),
-        ignored_terms=GENERIC_ZOO_TERMS,
-    )
-    zoos = zoo_q.limit(limit).all()
-
-    animal_q = apply_tokenized_text_filter(
-        db.query(models.Animal),
-        q,
-        columns=(models.Animal.name_en, models.Animal.name_de),
-    )
-    animals = animal_q.limit(limit).all()
-
-    if user is not None:
-        favorite_zoo_ids = {
-            row[0]
-            for row in (
-                db.query(models.UserFavoriteZoo.zoo_id)
-                .filter(models.UserFavoriteZoo.user_id == user.id)
-                .all()
-            )
-        }
-        favorite_animal_ids = {
-            row[0]
-            for row in (
-                db.query(models.UserFavoriteAnimal.animal_id)
-                .filter(models.UserFavoriteAnimal.user_id == user.id)
-                .all()
-            )
-        }
-        for zoo in zoos:
-            setattr(zoo, "is_favorite", zoo.id in favorite_zoo_ids)
-        for animal in animals:
-            setattr(animal, "is_favorite", animal.id in favorite_animal_ids)
-
-    return {"zoos": zoos, "animals": animals}
 
 
 @router.put(
