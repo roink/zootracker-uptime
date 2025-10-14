@@ -578,19 +578,9 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
     </div>
   );
 
-  // compute a stable aspect ratio from the first image (fallback 4/3)
-  const computeAspect = (img) => {
-    if (!img) return '4 / 3';
-    const candidates = (img.variants && img.variants.length ? img.variants : []);
-    const v = candidates[candidates.length - 1] || img; // prefer a larger variant if present
-    const w = v?.width || img?.width;
-    const h = v?.height || img?.height;
-    return w && h ? `${w} / ${h}` : '4 / 3';
-  };
-  const aspect = hasGallery ? computeAspect(animalImages[0]) : '4 / 3';
   const mediaSection = hasGallery
     ? (
-        <div className="animal-media" style={{ '--ar': aspect }}>
+        <div className="animal-media">
           <div
             id="animalCarousel"
             className="carousel slide h-100"
@@ -636,6 +626,7 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
                 const isFirst = idx === 0;
                 const loadingAttr = isFirst ? 'eager' : 'lazy';
                 const fetchPri = isFirst ? 'high' : 'low';
+                const bgFetchPri = isFirst ? 'high' : 'auto';
                 const sizes =
                   '(min-width: 1200px) 540px, (min-width: 992px) 50vw, 100vw';
 
@@ -645,21 +636,51 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
                     className={`carousel-item ${idx === 0 ? 'active' : ''}`}
                     aria-label={`Slide ${idx + 1} of ${animalImages.length}`}
                   >
+                    {/* Preload the first slide ambient image to avoid the blur popping in */}
+                    {isFirst && (
+                      <link
+                        rel="preload"
+                        as="image"
+                        href={fallbackSrc}
+                        imagesrcset={srcSet || undefined}
+                        imagesizes={sizes || undefined}
+                      />
+                    )}
+
                     <Link
                       to={`${prefix}/images/${img.mid}`}
                       state={{ name: animalName }}
                       className="d-block"
                     >
-                      <img
-                        src={fallbackSrc}
-                        srcSet={srcSet}
-                        sizes={sizes}
-                        decoding="async"
-                        loading={loadingAttr}
-                        fetchpriority={fetchPri}
-                        alt={animalName}
-                        draggable="false"
-                      />
+                      <div className="animal-media-ambient">
+                        <img
+                          aria-hidden="true"
+                          alt=""
+                          className="animal-media-ambient__bg"
+                          decoding="async"
+                          loading={loadingAttr}
+                          fetchpriority={bgFetchPri}
+                          draggable="false"
+                          src={fallbackSrc}
+                          srcSet={srcSet}
+                          sizes={sizes}
+                        />
+                        <img
+                          src={fallbackSrc}
+                          srcSet={srcSet}
+                          sizes={sizes}
+                          decoding="async"
+                          loading={loadingAttr}
+                          fetchpriority={fetchPri}
+                          alt={animalName}
+                          draggable="false"
+                          className="animal-media-ambient__img"
+                        />
+                        <span
+                          aria-hidden="true"
+                          className="animal-media-ambient__overlay"
+                        />
+                      </div>
                     </Link>
                   </div>
                 );
@@ -692,14 +713,29 @@ export default function AnimalDetailPage({ refresh, onLogged }) {
       )
     : animal?.default_image_url
     ? (
-        <div className="animal-media" style={{ '--ar': aspect }}>
-          <img
-            src={animal.default_image_url}
-            alt={animalName}
-            decoding="async"
-            loading="lazy"
-            draggable="false"
-          />
+        <div className="animal-media">
+          <div className="animal-media-ambient">
+            <link rel="preload" as="image" href={animal.default_image_url} />
+            <img
+              aria-hidden="true"
+              alt=""
+              className="animal-media-ambient__bg"
+              decoding="async"
+              loading="eager"
+              fetchpriority="high"
+              draggable="false"
+              src={animal.default_image_url}
+            />
+            <img
+              src={animal.default_image_url}
+              alt={animalName}
+              decoding="async"
+              loading="lazy"
+              draggable="false"
+              className="animal-media-ambient__img"
+            />
+            <span aria-hidden="true" className="animal-media-ambient__overlay" />
+          </div>
         </div>
       )
     : null;
