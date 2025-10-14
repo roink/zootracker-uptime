@@ -606,7 +606,7 @@ export default function AnimalsPage() {
                   className="card-img animal-card-img"
                   loading="lazy"
                   width={800}
-                  height={600}
+                  height={800}
                 />
               </div>
             )}
