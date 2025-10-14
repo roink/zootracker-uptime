@@ -600,11 +600,12 @@ export default function AnimalsPage() {
           >
             {a.default_image_url && (
               <div className="animal-card-img-wrapper">
-                {// Display the default image cropped to a square thumbnail}
+                {/* Display the default image cropped to a square thumbnail */}
+                {/* Drop Bootstrap's card-img to avoid height:auto overriding our sizing */}
                 <img
                   src={a.default_image_url}
                   alt={lang === 'de' ? a.name_de || a.name_en : a.name_en || a.name_de}
-                  className="animal-card-img" // Drop Bootstrap's card-img to avoid height:auto overriding our sizing
+                  className="animal-card-img"
                   loading="lazy"
                   width={800}
                   height={800}
