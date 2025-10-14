@@ -107,6 +107,8 @@ def _build_source_db(path: Path, mid: str = "M1") -> Path:
                 slug TEXT UNIQUE,
                 latitude REAL,
                 longitude REAL,
+                latitude_google REAL,
+                longitude_google REAL,
                 website TEXT,
                 description_en TEXT,
                 description_de TEXT
@@ -207,7 +209,11 @@ def _build_source_db(path: Path, mid: str = "M1") -> Path:
         )
         conn.execute(text("INSERT INTO continent_name (id, name_de, name_en) VALUES (1,'Europa','Europe');"))
         conn.execute(text("INSERT INTO country_name (id, name_de, name_en, continent_id) VALUES (1,'Deutschland','Germany',1);"))
-        conn.execute(text("INSERT INTO zoo (zoo_id, continent, country, city, name, slug, latitude, longitude, website, description_en, description_de) VALUES (1,1,1,'Berlin','Berlin Zoo','berlin-zoo',52.5,13.4,'http://example.org','English zoo','Deutscher Zoo');"))
+        conn.execute(
+            text(
+                "INSERT INTO zoo (zoo_id, continent, country, city, name, slug, latitude, longitude, latitude_google, longitude_google, website, description_en, description_de) VALUES (1,1,1,'Berlin','Berlin Zoo','berlin-zoo',52.5,13.4,52.55,13.45,'http://example.org','English zoo','Deutscher Zoo');"
+            )
+        )
         conn.execute(text("INSERT INTO zoo_animal (zoo_id, art) VALUES (1,'1001');"))
         conn.execute(text("INSERT INTO zoo_animal (zoo_id, art) VALUES (1,'2001');"))
         conn.execute(text("INSERT INTO zoo_animal (zoo_id, art) VALUES (1,'1002');"))
@@ -273,8 +279,8 @@ def test_import_simple_sqlite(tmp_path, session_factory):
         assert zoo.continent_id == 1
         assert zoo.continent.name_en == "Europe"
         assert zoo.city == "Berlin"
-        assert float(zoo.latitude) == 52.5
-        assert float(zoo.longitude) == 13.4
+        assert float(zoo.latitude) == 52.55
+        assert float(zoo.longitude) == 13.45
         assert zoo.description_en == "English zoo"
         assert zoo.description_de == "Deutscher Zoo"
         lion = db.query(models.Animal).filter_by(scientific_name="Panthera leo").one()
@@ -325,6 +331,24 @@ def test_import_simple_sqlite(tmp_path, session_factory):
         assert db.query(models.Animal).count() == 3
         assert db.query(models.Zoo).count() == 1
         assert db.query(models.ZooAnimal).count() == 3
+
+
+def test_import_simple_sqlite_uses_fallback_coordinates(tmp_path, session_factory):
+    src_path = _build_source_db(tmp_path / "fallback.db")
+    override_engine = create_engine(f"sqlite:///{src_path}", future=True)
+    with override_engine.begin() as conn:
+        conn.execute(
+            text(
+                "UPDATE zoo SET latitude=48.1, longitude=11.6, latitude_google=NULL, longitude_google=NULL WHERE zoo_id=1"
+            )
+        )
+
+    import_simple_sqlite_data.main(str(src_path))
+
+    with session_factory() as db:
+        zoo = db.query(models.Zoo).first()
+        assert float(zoo.latitude) == pytest.approx(48.1)
+        assert float(zoo.longitude) == pytest.approx(11.6)
 
 
 def test_skip_banned_mid(tmp_path, session_factory):
