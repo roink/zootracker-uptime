@@ -142,7 +142,7 @@ export default function SearchPage() {
   );
 
   return (
-    <div className="container py-4">
+    <div className="container py-4 search-results-page">
       <Seo
         title={t('searchPage.seoTitle')}
         description={t('searchPage.seoDescription')}
