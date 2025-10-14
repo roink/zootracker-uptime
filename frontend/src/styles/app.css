@@ -246,15 +246,24 @@
   width: 100%;
   overflow: hidden;
   background-color: #fff;
+  aspect-ratio: 1 / 1;
+  position: relative;
+  line-height: 0;
 }
 
 .animal-card-img {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
-  height: auto;
+  height: 100%;
   object-fit: cover;
   object-position: center;
   margin-bottom: 0;
+}
+
+.animal-card-img.card-img {
+  height: 100% !important;
 }
 
 .animal-card-body {
