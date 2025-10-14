@@ -322,7 +322,11 @@ export default function Header() {
         <div className="collapse navbar-collapse" id="navbarContent" ref={collapseRef}>
           <ul className="navbar-nav me-auto mb-2 mb-lg-0">
             <li className="nav-item">
-              <Link className="nav-link" to={`${prefix}/zoos`}>
+              <Link
+                className="nav-link"
+                to={{ pathname: `${prefix}/zoos`, search: '?view=list' }}
+                state={{ mapView: null }}
+              >
                 {t('nav.zoos')}
               </Link>
             </li>
