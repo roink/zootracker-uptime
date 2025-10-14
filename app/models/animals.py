@@ -104,17 +104,12 @@ class Animal(Base):
     category_id = Column(
         UUID(as_uuid=True), ForeignKey("categories.id"), nullable=False
     )
-    description = Column(Text)
     description_de = Column(Text)
     description_en = Column(Text)
     conservation_state = Column(Text)
-    name_fallback = Column(Text)
     name_en = Column(String(255), nullable=False)
     name_de = Column(Text)
     art = Column(Integer)
-    english_label = Column(Text)
-    german_label = Column(Text)
-    latin_name = Column(Text)
     parent_art = Column(
         Integer,
         ForeignKey(

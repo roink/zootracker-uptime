@@ -74,11 +74,7 @@ class AnimalSighting(Base):
         """Return the German name for the sighted animal if available."""
         if self.animal is None:
             return None
-        return (
-            self.animal.name_de
-            or self.animal.german_label
-            or self.animal.name_en
-        )
+        return self.animal.name_de or self.animal.name_en
 
     @property
     def animal_name_en(self):

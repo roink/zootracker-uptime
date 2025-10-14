@@ -64,6 +64,7 @@ def _build_source_db(path: Path, mid: str = "M1") -> Path:
                 familie INTEGER,
                 parent_art TEXT,
                 latin_name TEXT,
+                normalized_latin_name TEXT,
                 zootierliste_description TEXT,
                 name_de TEXT,
                 name_en TEXT,
@@ -106,6 +107,8 @@ def _build_source_db(path: Path, mid: str = "M1") -> Path:
                 slug TEXT UNIQUE,
                 latitude REAL,
                 longitude REAL,
+                latitude_google REAL,
+                longitude_google REAL,
                 website TEXT,
                 description_en TEXT,
                 description_de TEXT
@@ -191,22 +194,26 @@ def _build_source_db(path: Path, mid: str = "M1") -> Path:
         ))
         conn.execute(
             text(
-                "INSERT INTO animal (art, klasse, ordnung, familie, parent_art, latin_name, name_de, name_en, slug, description_de, description_en, iucn_conservation_status, taxon_rank) VALUES ('1001',1,1,1,NULL,'Panthera leo','L\u00f6we','Lion','lion','Deutsche Beschreibung','English description','VU','species');"
+                "INSERT INTO animal (art, klasse, ordnung, familie, parent_art, latin_name, normalized_latin_name, name_de, name_en, slug, description_de, description_en, iucn_conservation_status, taxon_rank) VALUES ('1001',1,1,1,NULL,'Panthera leo','Panthera leo','L\u00f6we','Lion','lion','Deutsche Beschreibung','English description','VU','species');"
             )
         )
         conn.execute(
             text(
-                "INSERT INTO animal (art, klasse, ordnung, familie, parent_art, latin_name, name_de, slug) VALUES ('2001',2,1,1,'1001','Aquila chrysaetos','Adler','golden-eagle');"
+                "INSERT INTO animal (art, klasse, ordnung, familie, parent_art, latin_name, normalized_latin_name, name_de, name_en, slug) VALUES ('2001',2,1,1,'1001','Aquila chrysaetos','Aquila chrysaetos','Adler','Golden Eagle','golden-eagle');"
             )
         )
         conn.execute(
             text(
-                "INSERT INTO animal (art, latin_name, parent_art, zootierliste_description, slug) VALUES ('1002','Unknownus testus','1001','Legacy description','unknownus-testus');"
+                "INSERT INTO animal (art, latin_name, normalized_latin_name, parent_art, zootierliste_description, name_en, slug) VALUES ('1002','Unknownus testus','Unknownus testus','1001','Legacy description','Unknownus Testus','unknownus-testus');"
             )
         )
         conn.execute(text("INSERT INTO continent_name (id, name_de, name_en) VALUES (1,'Europa','Europe');"))
         conn.execute(text("INSERT INTO country_name (id, name_de, name_en, continent_id) VALUES (1,'Deutschland','Germany',1);"))
-        conn.execute(text("INSERT INTO zoo (zoo_id, continent, country, city, name, slug, latitude, longitude, website, description_en, description_de) VALUES (1,1,1,'Berlin','Berlin Zoo','berlin-zoo',52.5,13.4,'http://example.org','English zoo','Deutscher Zoo');"))
+        conn.execute(
+            text(
+                "INSERT INTO zoo (zoo_id, continent, country, city, name, slug, latitude, longitude, latitude_google, longitude_google, website, description_en, description_de) VALUES (1,1,1,'Berlin','Berlin Zoo','berlin-zoo',52.5,13.4,52.55,13.45,'http://example.org','English zoo','Deutscher Zoo');"
+            )
+        )
         conn.execute(text("INSERT INTO zoo_animal (zoo_id, art) VALUES (1,'1001');"))
         conn.execute(text("INSERT INTO zoo_animal (zoo_id, art) VALUES (1,'2001');"))
         conn.execute(text("INSERT INTO zoo_animal (zoo_id, art) VALUES (1,'1002');"))
@@ -272,8 +279,8 @@ def test_import_simple_sqlite(tmp_path, session_factory):
         assert zoo.continent_id == 1
         assert zoo.continent.name_en == "Europe"
         assert zoo.city == "Berlin"
-        assert float(zoo.latitude) == 52.5
-        assert float(zoo.longitude) == 13.4
+        assert float(zoo.latitude) == 52.55
+        assert float(zoo.longitude) == 13.45
         assert zoo.description_en == "English zoo"
         assert zoo.description_de == "Deutscher Zoo"
         lion = db.query(models.Animal).filter_by(scientific_name="Panthera leo").one()
@@ -324,6 +331,24 @@ def test_import_simple_sqlite(tmp_path, session_factory):
         assert db.query(models.Animal).count() == 3
         assert db.query(models.Zoo).count() == 1
         assert db.query(models.ZooAnimal).count() == 3
+
+
+def test_import_simple_sqlite_uses_fallback_coordinates(tmp_path, session_factory):
+    src_path = _build_source_db(tmp_path / "fallback.db")
+    override_engine = create_engine(f"sqlite:///{src_path}", future=True)
+    with override_engine.begin() as conn:
+        conn.execute(
+            text(
+                "UPDATE zoo SET latitude=48.1, longitude=11.6, latitude_google=52.55, longitude_google=NULL WHERE zoo_id=1"
+            )
+        )
+
+    import_simple_sqlite_data.main(str(src_path))
+
+    with session_factory() as db:
+        zoo = db.query(models.Zoo).first()
+        assert float(zoo.latitude) == pytest.approx(48.1)
+        assert float(zoo.longitude) == pytest.approx(11.6)
 
 
 def test_skip_banned_mid(tmp_path, session_factory):
@@ -460,8 +485,8 @@ def test_import_skips_animals_without_zoo(tmp_path, session_factory):
     with engine.begin() as conn:
         conn.execute(
             text(
-                "INSERT INTO animal (art, klasse, ordnung, familie, latin_name, name_de) "
-                "VALUES ('Lonelyus testus',1,1,1,'Lonelyus testus','Lonelyus');"
+                "INSERT INTO animal (art, klasse, ordnung, familie, latin_name, normalized_latin_name, name_de, name_en) "
+                "VALUES ('Lonelyus testus',1,1,1,'Lonelyus testus','Lonelyus testus','Lonelyus','Lonelyus');"
             )
         )
 
