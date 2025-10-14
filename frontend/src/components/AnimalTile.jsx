@@ -12,7 +12,6 @@ export default function AnimalTile({
   className = '',
   onClick,
   onKeyDown,
-  maxWidthPx = 360,
 }) {
   const { t } = useTranslation();
   const localizedName =
@@ -29,7 +28,6 @@ export default function AnimalTile({
       className={`animal-card d-block text-decoration-none text-reset ${className}`.trim()}
       onClick={onClick}
       onKeyDown={onKeyDown}
-      style={{ maxWidth: `${maxWidthPx}px` }}
     >
       {animal.default_image_url && (
         <div
@@ -89,5 +87,4 @@ AnimalTile.propTypes = {
   className: PropTypes.string,
   onClick: PropTypes.func,
   onKeyDown: PropTypes.func,
-  maxWidthPx: PropTypes.number,
 };
