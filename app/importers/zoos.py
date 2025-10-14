@@ -121,11 +121,13 @@ def import_zoos(src: Session, dst: Session, zoo_table: Table) -> Dict[int, uuid.
                 dst.add(zoo_obj)
             mapping[row["zoo_id"]] = zoo_id
             continue
-        lat = row.get("latitude_google")
-        if lat is None:
+        lat_google = row.get("latitude_google")
+        lon_google = row.get("longitude_google")
+        if lat_google is not None and lon_google is not None:
+            lat = lat_google
+            lon = lon_google
+        else:
             lat = row.get("latitude")
-        lon = row.get("longitude_google")
-        if lon is None:
             lon = row.get("longitude")
         if lat is not None and not (-90 <= lat <= 90):
             logger.warning("Zoo %s has invalid latitude %s", row.get("name"), lat)

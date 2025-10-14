@@ -339,7 +339,7 @@ def test_import_simple_sqlite_uses_fallback_coordinates(tmp_path, session_factor
     with override_engine.begin() as conn:
         conn.execute(
             text(
-                "UPDATE zoo SET latitude=48.1, longitude=11.6, latitude_google=NULL, longitude_google=NULL WHERE zoo_id=1"
+                "UPDATE zoo SET latitude=48.1, longitude=11.6, latitude_google=52.55, longitude_google=NULL WHERE zoo_id=1"
             )
         )
 
