@@ -226,32 +226,38 @@
   align-items: stretch;
   align-content: start;
   justify-content: start;
-  /* Default to a single column and scale up with breakpoints */
-  --animals-grid-cols: 1;
+  /* Default to two columns so phones never show a single oversized tile */
+  --animals-grid-cols: 2;
   grid-template-columns: repeat(var(--animals-grid-cols), minmax(0, 1fr));
 }
 
 @media (min-width: 576px) {
   .animals-grid {
-    --animals-grid-cols: 2;
+    --animals-grid-cols: 3;
   }
 }
 
 @media (min-width: 768px) {
   .animals-grid {
-    --animals-grid-cols: 3;
+    --animals-grid-cols: 4;
   }
 }
 
 @media (min-width: 992px) {
   .animals-grid {
-    --animals-grid-cols: 4;
+    --animals-grid-cols: 5;
   }
 }
 
-@media (min-width: 1400px) {
+@media (min-width: 1200px) {
   .animals-grid {
-    --animals-grid-cols: 5;
+    --animals-grid-cols: 6;
+  }
+}
+
+@media (min-width: 1600px) {
+  .animals-grid {
+    --animals-grid-cols: 7;
   }
 }
 
