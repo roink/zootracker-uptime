@@ -4,10 +4,6 @@ from __future__ import annotations
 
 import logging
 import os
-import smtplib
-import ssl
-from email.message import EmailMessage
-from email.utils import formatdate, make_msgid
 
 import bleach
 
@@ -16,6 +12,12 @@ from fastapi import BackgroundTasks, APIRouter, Depends, HTTPException, Request,
 from .. import schemas
 from ..logging import anonymize_ip
 from ..rate_limit import enforce_contact_rate_limit
+from ..utils.email_sender import (
+    SMTPSettings,
+    build_email,
+    load_smtp_settings,
+    send_email_via_smtp,
+)
 from ..utils.network import get_client_ip
 from .deps import require_json
 
@@ -31,23 +33,8 @@ def _strip_crlf(value: str) -> str:
     return value.replace("\r", "").replace("\n", "")
 
 
-def _safe_ehlo(server) -> None:
-    """Call ``EHLO`` on an SMTP server, tolerating light-weight fakes."""
 
-    ehlo = getattr(server, "ehlo", None)
-    if ehlo is None:
-        return
 
-    if not getattr(server, "local_hostname", None):
-        try:
-            server.local_hostname = "localhost"
-        except Exception:  # pragma: no cover - defensive best-effort only
-            return
-
-    try:
-        ehlo()
-    except AttributeError:  # pragma: no cover - graceful degradation
-        return
 
 
 def _set_request_id_header(response: Response, request: Request) -> None:
@@ -72,23 +59,9 @@ def _send_contact_email(
 ) -> None:
     """Send the contact email synchronously in a background task."""
 
-    context = ssl.create_default_context()
-    try:
-        context.minimum_version = ssl.TLSVersion.TLSv1_2
-    except AttributeError:  # pragma: no cover - Python < 3.7 compatibility
-        pass
-
     safe_name = _strip_crlf(name)
     safe_reply_to = _strip_crlf(reply_to)
-    email_msg = EmailMessage()
-    email_msg["Subject"] = f"Contact form – {safe_name}"
-    email_msg["From"] = from_addr
-    email_msg["To"] = to_addr
-    email_msg["Reply-To"] = safe_reply_to
-    email_msg["Date"] = formatdate(localtime=True)
-    msgid_domain = from_addr.split("@", 1)[1] if "@" in from_addr else None
-    email_msg["Message-ID"] = make_msgid(domain=msgid_domain)
-    email_msg.set_content(f"From: {safe_name} <{safe_reply_to}>\n\n{msg_text}")
+    body = f"From: {safe_name} <{safe_reply_to}>\n\n{msg_text}"
 
     timeout_value = os.getenv("SMTP_TIMEOUT", "10")
     try:
@@ -96,114 +69,56 @@ def _send_contact_email(
     except ValueError:
         timeout = 10.0
 
-    attempts: list[str] = []
+    settings = SMTPSettings(
+        host=host,
+        port=port,
+        use_ssl=use_ssl,
+        user=user,
+        password=password,
+        from_addr=from_addr,
+        timeout=timeout,
+    )
 
-    def _deliver(via_ssl: bool) -> None:
-        label = "ssl" if via_ssl else "starttls"
-        attempts.append(label)
-        if via_ssl:
-            def server_factory() -> smtplib.SMTP:
-                """Build an SMTP client configured for implicit SSL."""
+    message = build_email(
+        subject=f"Contact form – {safe_name}",
+        from_addr=from_addr,
+        to_addr=to_addr,
+        body=body,
+        reply_to=safe_reply_to,
+    )
 
-                return smtplib.SMTP_SSL(host, port, context=context, timeout=timeout)
-            use_starttls = False
-        else:
-            def server_factory() -> smtplib.SMTP:
-                """Build a plain SMTP client that can be upgraded with STARTTLS."""
-
-                return smtplib.SMTP(host, port, timeout=timeout)
-            use_starttls = True
-
-        with server_factory() as server:
-            _safe_ehlo(server)
-            if use_starttls:
-                supports_starttls = False
-                has_extn = getattr(server, "has_extn", None)
-                if callable(has_extn):
-                    try:
-                        supports_starttls = bool(has_extn("starttls"))
-                    except Exception:  # pragma: no cover - defensive logging
-                        supports_starttls = False
-                if supports_starttls:
-                    starttls = getattr(server, "starttls", None)
-                    if callable(starttls):
-                        starttls(context=context)
-                        _safe_ehlo(server)
-            if user and password:
-                server.login(user, password)
-            server.send_message(email_msg)
-
-    try:
-        _deliver(use_ssl)
-        return
-    except smtplib.SMTPAuthenticationError:
-        logger.error(
+    send_email_via_smtp(
+        settings=settings,
+        message=message,
+        logger=logger,
+        auth_error=(
             "SMTP authentication failed when sending contact email",
-            extra={
-                "event_dataset": "zoo-tracker-api.app",
-                "event_action": "contact_email_auth_failed",
-                "smtp_attempts": ",".join(attempts),
-            },
-            exc_info=True,
-        )
-        return
-    except Exception:
-        if use_ssl:
-            logger.warning(
-                "SMTP SSL delivery failed, retrying with STARTTLS",
-                extra={
-                    "event_dataset": "zoo-tracker-api.app",
-                    "event_action": "contact_email_ssl_retry",
-                },
-                exc_info=True,
-            )
-            try:
-                _deliver(False)
-                return
-            except smtplib.SMTPAuthenticationError:
-                logger.error(
-                    "SMTP authentication failed when sending contact email",
-                    extra={
-                        "event_dataset": "zoo-tracker-api.app",
-                        "event_action": "contact_email_auth_failed",
-                        "smtp_attempts": ",".join(attempts),
-                    },
-                    exc_info=True,
-                )
-                return
-            except Exception:
-                logger.error(
-                    "Failed to send contact email",
-                    extra={
-                        "event_dataset": "zoo-tracker-api.app",
-                        "event_action": "contact_email_failed",
-                        "smtp_attempts": ",".join(attempts),
-                    },
-                    exc_info=True,
-                )
-                return
-        logger.error(
+            "contact_email_auth_failed",
+        ),
+        ssl_retry=(
+            "SMTP SSL delivery failed, retrying with STARTTLS",
+            "contact_email_ssl_retry",
+        ),
+        send_failure=(
             "Failed to send contact email",
-            extra={
-                "event_dataset": "zoo-tracker-api.app",
-                "event_action": "contact_email_failed",
-                "smtp_attempts": ",".join(attempts),
-            },
-            exc_info=True,
-        )
+            "contact_email_failed",
+        ),
+    )
 
+def _get_smtp_settings() -> tuple[str | None, int, bool, str | None, str | None, str, str]:
+    """Retrieve SMTP configuration values from the environment."""
 
-def _get_smtp_settings() -> tuple[str, int, bool, str | None, str | None, str, str]:
-    """Read SMTP configuration from environment variables."""
-
-    host = os.getenv("SMTP_HOST")
-    port = int(os.getenv("SMTP_PORT", "587"))
-    use_ssl = os.getenv("SMTP_SSL", "").lower() in {"1", "true", "yes"}
-    user = os.getenv("SMTP_USER")
-    password = os.getenv("SMTP_PASSWORD")
-    from_addr = os.getenv("SMTP_FROM", "contact@zootracker.app")
+    settings = load_smtp_settings(default_from="contact@zootracker.app")
     to_addr = os.getenv("CONTACT_EMAIL", "contact@zootracker.app")
-    return host, port, use_ssl, user, password, from_addr, to_addr
+    return (
+        settings.host,
+        settings.port,
+        settings.use_ssl,
+        settings.user,
+        settings.password,
+        settings.from_addr,
+        to_addr,
+    )
 
 
 @router.post(

@@ -29,8 +29,10 @@ import AnimalsPage from "./pages/Animals";
 import AnimalDetailPage from "./pages/AnimalDetail";
 import ImageAttributionPage from "./pages/ImageAttribution";
 import Header from "./components/Header";
+import EmailVerificationAlert from "./components/EmailVerificationAlert.jsx";
 import SearchPage from "./pages/Search";
 import ZooDetailPage from "./pages/ZooDetail";
+import VerifyEmailPage from "./pages/VerifyEmail";
 import LegalNoticePage from "./pages/LegalNotice";
 import DataProtectionPage from "./pages/DataProtection";
 import ContactPage from "./pages/Contact";
@@ -90,6 +92,7 @@ function AppRoutes({ refreshCounter, refreshSeen }) {
     <div className="d-flex flex-column page-wrapper">
       <Header />
       <main className="flex-grow-1 pb-5">
+        <EmailVerificationAlert />
         <Routes location={location}>
           <Route
             index
@@ -113,6 +116,7 @@ function AppRoutes({ refreshCounter, refreshSeen }) {
             <Route path="profile" element={<ProfilePage />} />
           </Route>
           <Route path="login" element={<LoginPage />} />
+          <Route path="verify" element={<VerifyEmailPage />} />
           <Route path="zoos" element={<ZoosPage />} />
           <Route
             path="zoos/:slug"

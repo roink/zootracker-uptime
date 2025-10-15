@@ -29,6 +29,10 @@ export default function LoginPage() {
   const consentCheckboxRef = useRef(null);
   // Show a success message after signing up
   const [successMessage, setSuccessMessage] = useState('');
+  const [pendingEmail, setPendingEmail] = useState('');
+  const verifyHref = pendingEmail
+    ? `${prefix}/verify?email=${encodeURIComponent(pendingEmail)}`
+    : `${prefix}/verify`;
   // Prevent double submits while network requests are pending
   const [loggingIn, setLoggingIn] = useState(false);
   const [signingUp, setSigningUp] = useState(false);
@@ -79,9 +83,10 @@ export default function LoginPage() {
         const data = await resp.json();
         login({
           token: data.access_token,
-          user: { id: data.user_id, email: cleanEmail },
+          user: { id: data.user_id, email: cleanEmail, emailVerified: data.email_verified },
           expiresIn: data.expires_in,
         });
+        setPendingEmail('');
         navigate(prefix, { replace: true });
       } else {
         alert(t('auth.login.error'));
@@ -128,7 +133,8 @@ export default function LoginPage() {
       if (resp.ok) {
         await resp.json();
         setInputEmail(cleanEmail);
-        setSuccessMessage(t('auth.signup.success'));
+        setPendingEmail(cleanEmail);
+        setSuccessMessage(t('auth.signup.success', { email: cleanEmail }));
         setName('');
         setRegEmail('');
         setRegPassword('');
@@ -155,7 +161,16 @@ export default function LoginPage() {
       <form onSubmit={handleLogin} className="container auth-form">
         {successMessage && (
           <div className="alert alert-success" role="alert">
-            {successMessage}
+            <p className="mb-2">{successMessage}</p>
+            <div className="d-flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="btn btn-light"
+                onClick={() => navigate(verifyHref)}
+              >
+                {t('auth.verification.openForm')}
+              </button>
+            </div>
           </div>
         )}
         <h2 className="mb-3">{t('auth.login.heading')}</h2>

@@ -55,6 +55,17 @@ COOKIE_SECURE = _get_bool("COOKIE_SECURE", default=True)
 
 TOKEN_PEPPER = _get_env("TOKEN_PEPPER", required=True)
 
+EMAIL_VERIFICATION_TTL_MINUTES = int(
+    _get_env("EMAIL_VERIFICATION_TTL_MINUTES", default="30")
+)
+EMAIL_VERIFICATION_RESEND_COOLDOWN = int(
+    _get_env("EMAIL_VERIFICATION_RESEND_COOLDOWN", default="60")
+)
+EMAIL_VERIFICATION_DAILY_LIMIT = int(
+    _get_env("EMAIL_VERIFICATION_DAILY_LIMIT", default="5")
+)
+APP_BASE_URL = _get_env("APP_BASE_URL", default="http://localhost:5173") or "http://localhost:5173"
+
 ALLOWED_ORIGINS = [
     origin.strip()
     for origin in (_get_env("ALLOWED_ORIGINS", default="") or "").split(",")
