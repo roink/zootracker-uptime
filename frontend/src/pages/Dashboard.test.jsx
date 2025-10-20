@@ -81,6 +81,11 @@ describe('Dashboard', () => {
     expect(english).toBeInTheDocument();
     expect(await screen.findByText('Note: Feeding time')).toBeInTheDocument();
 
+    const achievementCalls = global.fetch.mock.calls.filter(([url]) =>
+      typeof url === 'string' && url.endsWith('/achievements')
+    );
+    expect(achievementCalls).toHaveLength(0);
+
     await act(async () => {
       await loadLocale('de');
       router.navigate('/de');
