@@ -23,6 +23,7 @@ export default function VerifyEmailPage() {
   const isMagicLink = initialUid && initialToken;
   const [showForm, setShowForm] = useState(!isMagicLink);
   const redirectTimer = useRef(null);
+  const lastAttemptKey = useRef('');
 
   const replaceUrl = (nextQuery = '') => {
     const search = nextQuery ? `?${nextQuery}` : '';
@@ -38,6 +39,11 @@ export default function VerifyEmailPage() {
   // Attempt automatic verification when a magic link is opened.
   useEffect(() => {
     if (isMagicLink) {
+      const attemptKey = `${initialUid}:${initialToken}`;
+      if (lastAttemptKey.current === attemptKey) {
+        return;
+      }
+      lastAttemptKey.current = attemptKey;
       const verify = async () => {
         setStatus('loading');
         setMessage(t('auth.verification.processing'));
@@ -78,6 +84,9 @@ export default function VerifyEmailPage() {
         }
       };
       verify();
+    }
+    if (!isMagicLink) {
+      lastAttemptKey.current = '';
     }
   }, [isMagicLink, initialUid, initialToken, initialEmail, prefix, t, navigate]);
 
@@ -153,31 +162,31 @@ export default function VerifyEmailPage() {
               {t('auth.verification.emailLabel')}
             </label>
             <input
-            id="verify-email"
-            type="email"
-            className="form-control"
-            value={email}
-            required
-            autoComplete="email"
-            onChange={(event) => setEmail(event.target.value)}
-          />
-        </div>
-        <div className="mb-3">
-          <label className="form-label" htmlFor="verify-code">
-            {t('auth.verification.codeLabel')}
-          </label>
-          <input
-            id="verify-code"
-            type="text"
-            inputMode="numeric"
-            pattern="[0-9]{6,8}"
-            maxLength={8}
-            minLength={6}
-            className="form-control"
-            value={code}
-            required
-            onChange={(event) => setCode(event.target.value)}
-          />
+              id="verify-email"
+              type="email"
+              className="form-control"
+              value={email}
+              required
+              autoComplete="email"
+              onChange={(event) => setEmail(event.target.value)}
+            />
+          </div>
+          <div className="mb-3">
+            <label className="form-label" htmlFor="verify-code">
+              {t('auth.verification.codeLabel')}
+            </label>
+            <input
+              id="verify-code"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]{6,8}"
+              maxLength={8}
+              minLength={6}
+              className="form-control"
+              value={code}
+              required
+              onChange={(event) => setCode(event.target.value)}
+            />
           </div>
           <button className="btn btn-primary w-100" type="submit" disabled={status === 'loading'}>
             {status === 'loading' ? t('auth.verification.submitting') : t('auth.verification.submit')}
