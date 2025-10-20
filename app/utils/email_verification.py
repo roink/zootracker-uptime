@@ -63,7 +63,10 @@ def issue_verification_token(
         models.VerificationToken.user_id == user.id,
         models.VerificationToken.kind == _EMAIL_KIND,
         models.VerificationToken.consumed_at.is_(None),
-    ).delete(synchronize_session=False)
+    ).update(
+        {models.VerificationToken.consumed_at: current},
+        synchronize_session=False,
+    )
 
     record = models.VerificationToken(
         user=user,

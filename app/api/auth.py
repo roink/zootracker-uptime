@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import secrets
 import time
+import uuid
 from collections import defaultdict, deque
 from datetime import UTC, datetime
 from typing import Any, Deque
@@ -419,19 +420,23 @@ async def verify_email(
 
     identifier: str | None = None
     if payload.uid:
-        identifier = str(payload.uid)
+        identifier = payload.uid
     elif payload.email:
         identifier = payload.email
     await enforce_verify_rate_limit(request, identifier=identifier)
 
-    user: models.User | None = None
-    if payload.uid:
-        user = db.get(models.User, payload.uid)
-    token_record: models.VerificationToken | None = None
-    if user is None and payload.email:
-        user = get_user(db, payload.email)
     generic = {"detail": "If the account exists, the verification state was updated."}
     generic_response = JSONResponse(generic, status_code=status.HTTP_202_ACCEPTED)
+
+    user: models.User | None = None
+    if payload.uid:
+        try:
+            uid_value = uuid.UUID(payload.uid)
+        except ValueError:
+            return generic_response
+        user = db.get(models.User, uid_value)
+    if user is None and payload.email:
+        user = get_user(db, payload.email)
     if user is None:
         return generic_response
 
