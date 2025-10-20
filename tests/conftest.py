@@ -48,8 +48,11 @@ else:
     os.environ["ALLOWED_ORIGINS"] = _ALLOWED_ORIGIN
 
 # set up database url before importing app
+# Default to the standard local Postgres superuser instance so developers can
+# run the test suite without provisioning a dedicated database. Individual
+# environments can still override DATABASE_URL before importing the fixtures.
 DEFAULT_TEST_DATABASE_URL = (
-    "postgresql://zootracker_test:zootracker_test@localhost:5432/zootracker_test"
+    "postgresql://postgres:postgres@localhost:5432/postgres"
 )
 DATABASE_URL = os.getenv("DATABASE_URL", DEFAULT_TEST_DATABASE_URL)
 
