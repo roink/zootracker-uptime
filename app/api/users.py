@@ -16,11 +16,8 @@ from sqlalchemy.orm import Session, joinedload, load_only
 
 from .. import schemas, models
 from ..auth import get_current_user, get_user, hash_password
-from ..utils.email_verification import (
-    enqueue_existing_account_notice,
-    enqueue_verification_email,
-    issue_verification_token,
-)
+from ..utils.account_notifications import enqueue_existing_signup_notice
+from ..utils.email_verification import enqueue_verification_email, issue_verification_token
 from ..database import get_db
 from ..logging import anonymize_ip
 from .deps import require_json, resolve_coords
@@ -31,8 +28,8 @@ from ..utils.http import set_personalized_cache_headers
 router = APIRouter()
 
 
-_GENERIC_SIGNUP_MESSAGE = (
-    "If the address can be used, we'll send instructions via email."
+GENERIC_SIGNUP_MESSAGE = (
+    "If the address can be used, you'll receive an email shortly."
 )
 
 
@@ -145,12 +142,10 @@ def create_user(
     db: Session = Depends(get_db),
 ):
     """Register a new user with a hashed password."""
-    generic_response = {"detail": _GENERIC_SIGNUP_MESSAGE}
-
     existing_user = get_user(db, user_in.email)
     if existing_user:
-        enqueue_existing_account_notice(background_tasks, existing_user)
-        return generic_response
+        enqueue_existing_signup_notice(background_tasks, existing_user)
+        return schemas.Message(detail=GENERIC_SIGNUP_MESSAGE)
     hashed = hash_password(user_in.password)
     consent_at = datetime.now(timezone.utc)
     anonymized_ip = getattr(request.state, "client_ip_anonymized", None)
@@ -173,7 +168,7 @@ def create_user(
     db.flush()
     enqueue_verification_email(background_tasks, user, token=token, code=code)
     db.commit()
-    return generic_response
+    return schemas.Message(detail=GENERIC_SIGNUP_MESSAGE)
 
 
 @router.get(

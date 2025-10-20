@@ -1,4 +1,5 @@
 from app import models
+from app.api.users import GENERIC_SIGNUP_MESSAGE
 from app.database import SessionLocal
 
 from .conftest import (
@@ -10,7 +11,6 @@ from .conftest import (
 )
 
 _counter = 0  # used to generate unique email addresses
-_GENERIC_SIGNUP_DETAIL = "If the address can be used, we'll send instructions via email."
 
 def test_create_user_and_authenticate():
     """Ensure that a new user can register and obtain a token."""
@@ -173,7 +173,7 @@ def test_create_user_accepts_charset():
     )
     assert resp.status_code == 202
     body = resp.json()
-    assert body == {"detail": _GENERIC_SIGNUP_DETAIL}
+    assert body == {"detail": GENERIC_SIGNUP_MESSAGE}
 
 def test_create_user_response_fields():
     """Registration response should not expose account details."""
@@ -192,7 +192,7 @@ def test_create_user_response_fields():
     )
     assert resp.status_code == 202
     body = resp.json()
-    assert body == {"detail": _GENERIC_SIGNUP_DETAIL}
+    assert body == {"detail": GENERIC_SIGNUP_MESSAGE}
 
 def test_login_empty_username_password():
     """Login with empty credentials should return 400."""
@@ -279,7 +279,7 @@ def test_register_response_sanitized():
 
     data = resp.json()
 
-    assert data == {"detail": _GENERIC_SIGNUP_DETAIL}
+    assert data == {"detail": GENERIC_SIGNUP_MESSAGE}
 
 
 def test_registration_persists_privacy_consent_metadata():
@@ -327,7 +327,7 @@ def test_register_rejects_email_with_different_case():
         },
     )
     assert first.status_code == 202
-    assert first.json() == {"detail": _GENERIC_SIGNUP_DETAIL}
+    assert first.json() == {"detail": GENERIC_SIGNUP_MESSAGE}
     duplicate = client.post(
         "/users",
         json={
@@ -339,7 +339,7 @@ def test_register_rejects_email_with_different_case():
         },
     )
     assert duplicate.status_code == 202
-    assert duplicate.json() == {"detail": _GENERIC_SIGNUP_DETAIL}
+    assert duplicate.json() == {"detail": GENERIC_SIGNUP_MESSAGE}
 
     with SessionLocal() as db:
         count = db.query(models.User).filter(models.User.email == email).count()
