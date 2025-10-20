@@ -209,6 +209,21 @@ function RootRedirect() {
   return null;
 }
 
+function VerifyEmailRedirect() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  useEffect(() => {
+    const stored = localStorage.getItem('lang');
+    const detected = i18n.services?.languageDetector?.detect?.();
+    const candidate = stored || (Array.isArray(detected) ? detected[0] : detected);
+    const targetLang = normalizeLang(candidate);
+    const search = location.search || '';
+    const hash = location.hash || '';
+    navigate(`/${targetLang}/verify${search}${hash}`, { replace: true });
+  }, [navigate, location.search, location.hash]);
+  return null;
+}
+
 function App() {
   const [refreshCounter, setRefreshCounter] = useState(0);
 
@@ -220,6 +235,7 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<RootRedirect />} />
+        <Route path="/verify" element={<VerifyEmailRedirect />} />
         <Route
           path="/:lang/*"
           element={

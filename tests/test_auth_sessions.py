@@ -11,7 +11,7 @@ from app.database import SessionLocal
 
 from httpx import Cookies
 
-from .conftest import CONSENT_VERSION, client, register_and_login
+from .conftest import CONSENT_VERSION, client, register_and_login, mark_user_verified
 
 
 def _login_and_get_response(email: str, password: str):
@@ -27,6 +27,7 @@ def _login_and_get_response(email: str, password: str):
         },
     )
     assert register.status_code == 200
+    mark_user_verified(register.json()["id"])
     response = client.post(
         "/auth/login",
         data={"username": email, "password": password},
@@ -51,6 +52,7 @@ def test_login_accepts_email_case_variations():
         },
     )
     assert register.status_code == 200
+    mark_user_verified(register.json()["id"])
 
     response = client.post(
         "/auth/login",
@@ -90,6 +92,7 @@ def test_login_updates_activity_timestamps():
         },
     )
     assert register.status_code == 200
+    mark_user_verified(register.json()["id"])
 
     db = SessionLocal()
     try:

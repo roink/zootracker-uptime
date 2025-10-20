@@ -30,6 +30,7 @@ export default function LoginPage() {
   // Show a success message after signing up
   const [successMessage, setSuccessMessage] = useState('');
   const [pendingEmail, setPendingEmail] = useState('');
+  const [loginError, setLoginError] = useState('');
   const verifyHref = pendingEmail
     ? `${prefix}/verify?email=${encodeURIComponent(pendingEmail)}`
     : `${prefix}/verify`;
@@ -87,12 +88,18 @@ export default function LoginPage() {
           expiresIn: data.expires_in,
         });
         setPendingEmail('');
+        setLoginError('');
         navigate(prefix, { replace: true });
+      } else if (resp.status === 403) {
+        const payload = await resp.json().catch(() => ({}));
+        const detail = typeof payload.detail === 'string' ? payload.detail : t('auth.login.unverified');
+        setPendingEmail(cleanEmail);
+        setLoginError(detail);
       } else {
-        alert(t('auth.login.error'));
+        setLoginError(t('auth.login.error'));
       }
     } catch (err) {
-      alert(t('auth.common.networkError', { message: err.message }));
+      setLoginError(t('auth.common.networkError', { message: err.message }));
     } finally {
       setLoggingIn(false);
     }
@@ -159,6 +166,11 @@ export default function LoginPage() {
       />
       {/* Log in section */}
       <form onSubmit={handleLogin} className="container auth-form">
+        {loginError && (
+          <div className="alert alert-warning" role="alert">
+            {loginError}
+          </div>
+        )}
         {successMessage && (
           <div className="alert alert-success" role="alert">
             <p className="mb-2">{successMessage}</p>

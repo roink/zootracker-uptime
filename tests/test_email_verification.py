@@ -3,6 +3,7 @@ import uuid
 from datetime import timedelta
 
 from app import models
+from app.auth import create_access_token
 from app.database import SessionLocal
 from app import rate_limit
 
@@ -71,6 +72,7 @@ def test_signup_triggers_verification_email(monkeypatch):
     assert user_info["email"].lower() in body.lower()
     assert "verification" in body.lower()
     assert "verify?uid=" in body
+    assert "verify?email=" in body
     assert _parse_token(body)
     assert _parse_code(body)
 
@@ -79,13 +81,7 @@ def test_resend_respects_cooldown(monkeypatch):
     client.cookies.clear()
     user_info, _messages = _register_user(monkeypatch)
 
-    resp = client.post(
-        "/auth/login",
-        data={"username": user_info["email"], "password": TEST_PASSWORD},
-        headers={"content-type": "application/x-www-form-urlencoded"},
-    )
-    assert resp.status_code == 200
-    access_token = resp.json()["access_token"]
+    access_token, _ = create_access_token(user_info["id"])
 
     with SessionLocal() as db:
         user = db.get(models.User, user_info["id"])
@@ -180,3 +176,16 @@ def test_verify_email_rate_limit(monkeypatch):
     resp_blocked = client.post("/auth/verify", json=payload)
     assert resp_blocked.status_code == 429
     assert resp_blocked.json()["detail"] == "Too Many Requests"
+
+
+def test_login_requires_verified_email(monkeypatch):
+    client.cookies.clear()
+    user_info, _messages = _register_user(monkeypatch)
+
+    resp = client.post(
+        "/auth/login",
+        data={"username": user_info["email"], "password": TEST_PASSWORD},
+        headers={"content-type": "application/x-www-form-urlencoded"},
+    )
+    assert resp.status_code == 403
+    assert "verified" in resp.json()["detail"].lower()

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
@@ -20,13 +20,28 @@ export default function VerifyEmailPage() {
   const [code, setCode] = useState('');
   const [status, setStatus] = useState('idle');
   const [message, setMessage] = useState('');
+  const isMagicLink = initialUid && initialToken;
+  const [showForm, setShowForm] = useState(!isMagicLink);
+  const redirectTimer = useRef(null);
+
+  const replaceUrl = (nextQuery = '') => {
+    const search = nextQuery ? `?${nextQuery}` : '';
+    window.history.replaceState({}, '', `${prefix}/verify${search}`);
+  };
+
+  useEffect(() => () => {
+    if (redirectTimer.current) {
+      clearTimeout(redirectTimer.current);
+    }
+  }, []);
 
   // Attempt automatic verification when a magic link is opened.
   useEffect(() => {
-    if (initialUid && initialToken) {
+    if (isMagicLink) {
       const verify = async () => {
         setStatus('loading');
-        setMessage('');
+        setMessage(t('auth.verification.processing'));
+        setShowForm(false);
         try {
           const resp = await fetch(`${API}/auth/verify`, {
             method: 'POST',
@@ -35,27 +50,36 @@ export default function VerifyEmailPage() {
           });
           if (resp.status === 200) {
             setStatus('success');
-            setMessage(t('auth.verification.success'));
-            window.history.replaceState({}, '', `${prefix}/verify${initialEmail ? `?email=${encodeURIComponent(initialEmail)}` : ''}`);
+            setMessage(t('auth.verification.successRedirect'));
+            replaceUrl(initialEmail ? `email=${encodeURIComponent(initialEmail)}` : '');
+            redirectTimer.current = setTimeout(() => {
+              navigate(`${prefix}/login`, { replace: true });
+            }, 2500);
             return;
           }
           if (resp.status === 202) {
             setStatus('invalid');
             setMessage(t('auth.verification.invalid'));
+            replaceUrl(initialEmail ? `email=${encodeURIComponent(initialEmail)}` : '');
+            setShowForm(true);
             return;
           }
           const data = await resp.json().catch(() => ({}));
           setStatus('error');
           const detail = typeof data.detail === 'string' ? data.detail : resp.statusText;
           setMessage(detail);
+          replaceUrl(initialEmail ? `email=${encodeURIComponent(initialEmail)}` : '');
+          setShowForm(true);
         } catch (err) {
           setStatus('error');
           setMessage(t('auth.common.networkError', { message: err.message }));
+          replaceUrl(initialEmail ? `email=${encodeURIComponent(initialEmail)}` : '');
+          setShowForm(true);
         }
       };
       verify();
     }
-  }, [initialUid, initialToken, initialEmail, prefix, t]);
+  }, [isMagicLink, initialUid, initialToken, initialEmail, prefix, t, navigate]);
 
   // Allow manual code entry as a fallback to the magic link.
   const handleSubmit = async (event) => {
@@ -101,9 +125,14 @@ export default function VerifyEmailPage() {
         description={t('auth.seo.verifyDescription')}
       />
       <h1 className="mb-3">{t('auth.verification.heading')}</h1>
-      <p>{t('auth.verification.intro')}</p>
+      {(!isMagicLink || showForm) && <p>{t('auth.verification.intro')}</p>}
       {status === 'success' && (
         <div className="alert alert-success" role="alert">
+          {message}
+        </div>
+      )}
+      {status === 'loading' && (
+        <div className="alert alert-info" role="alert">
           {message}
         </div>
       )}
@@ -117,12 +146,13 @@ export default function VerifyEmailPage() {
           {message}
         </div>
       )}
-      <form onSubmit={handleSubmit} className="card p-4 shadow-sm mb-4">
-        <div className="mb-3">
-          <label className="form-label" htmlFor="verify-email">
-            {t('auth.verification.emailLabel')}
-          </label>
-          <input
+      {(!isMagicLink || showForm) && (
+        <form onSubmit={handleSubmit} className="card p-4 shadow-sm mb-4">
+          <div className="mb-3">
+            <label className="form-label" htmlFor="verify-email">
+              {t('auth.verification.emailLabel')}
+            </label>
+            <input
             id="verify-email"
             type="email"
             className="form-control"
@@ -148,18 +178,21 @@ export default function VerifyEmailPage() {
             required
             onChange={(event) => setCode(event.target.value)}
           />
-        </div>
-        <button className="btn btn-primary w-100" type="submit" disabled={status === 'loading'}>
-          {status === 'loading' ? t('auth.verification.submitting') : t('auth.verification.submit')}
+          </div>
+          <button className="btn btn-primary w-100" type="submit" disabled={status === 'loading'}>
+            {status === 'loading' ? t('auth.verification.submitting') : t('auth.verification.submit')}
+          </button>
+        </form>
+      )}
+      {(!isMagicLink || showForm) && (
+        <button
+          type="button"
+          className="btn btn-outline-secondary"
+          onClick={() => navigate(`${prefix}/login`)}
+        >
+          {t('auth.verification.backToLogin')}
         </button>
-      </form>
-      <button
-        type="button"
-        className="btn btn-outline-secondary"
-        onClick={() => navigate(`${prefix}/login`)}
-      >
-        {t('auth.verification.backToLogin')}
-      </button>
+      )}
     </div>
   );
 }

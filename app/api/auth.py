@@ -165,6 +165,22 @@ def login(
             detail="Incorrect username or password",
         )
 
+    if not user.email_verified_at:
+        auth_logger.info(
+            "Login blocked for unverified email",
+            extra={
+                "event_dataset": "zoo-tracker-api.auth",
+                "event_action": "login_blocked",
+                "client_ip": safe_ip,
+                "auth_method": "password",
+                "auth_failure_reason": "email_unverified",
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Email address has not been verified yet.",
+        )
+
     login_time = _now()
     user.last_login_at = login_time
     user.last_active_at = login_time

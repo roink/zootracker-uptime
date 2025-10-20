@@ -7,6 +7,7 @@ import hmac
 import logging
 import secrets
 from datetime import UTC, datetime, timedelta
+from urllib.parse import quote_plus
 
 from fastapi import BackgroundTasks
 
@@ -96,6 +97,7 @@ def build_verification_email(
 
     base_url = APP_BASE_URL.rstrip("/") or "http://localhost:5173"
     verify_url = f"{base_url}/verify?uid={user.id}&token={token}"
+    manual_url = f"{base_url}/verify?email={quote_plus(user.email)}"
     subject = (
         "Verify your email for ZooTracker "
         f"(valid for {EMAIL_VERIFICATION_TTL_MINUTES} minutes)"
@@ -108,6 +110,8 @@ def build_verification_email(
         f"{verify_url}\n\n"
         "Or enter this verification code: "
         f"{code}\n\n"
+        "Prefer to verify manually? Open this page and paste the code:\n\n"
+        f"{manual_url}\n\n"
         f"The link and code expire in {EMAIL_VERIFICATION_TTL_MINUTES} minutes. "
         "If you did not request this, you can safely ignore the email.\n\n"
         "— ZooTracker Accounts"

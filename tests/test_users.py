@@ -1,7 +1,13 @@
 from app import models
 from app.database import SessionLocal
 
-from .conftest import CONSENT_VERSION, client, register_and_login, TEST_PASSWORD
+from .conftest import (
+    CONSENT_VERSION,
+    client,
+    register_and_login,
+    TEST_PASSWORD,
+    mark_user_verified,
+)
 
 _counter = 0  # used to generate unique email addresses
 
@@ -214,6 +220,7 @@ def test_login_endpoint():
         },
     )
     assert resp.status_code == 200
+    mark_user_verified(resp.json()["id"])
     resp = client.post(
         "/auth/login",
         data={"username": email, "password": TEST_PASSWORD},
@@ -244,6 +251,7 @@ def test_login_response_excludes_password_fields():
         },
     )
     assert resp.status_code == 200
+    mark_user_verified(resp.json()["id"])
     resp = client.post(
         "/auth/login",
         data={"username": email, "password": TEST_PASSWORD},
