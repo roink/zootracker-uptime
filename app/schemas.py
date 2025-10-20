@@ -77,6 +77,40 @@ class VerificationResendRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class PasswordResetRequest(BaseModel):
+    """Payload accepted by the anonymous password reset endpoint."""
+
+    email: EmailStr
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class PasswordResetConfirm(BaseModel):
+    """Payload accepted by the password reset confirmation endpoint."""
+
+    token: str = Field(..., min_length=1, max_length=512)
+    password: constr(min_length=8, max_length=255)
+    confirm_password: str = Field(
+        ...,
+        min_length=8,
+        max_length=255,
+        alias="confirmPassword",
+        description="Confirmation of the new password.",
+    )
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    @field_validator("token", mode="before")
+    def _strip_token(cls, value: str | None) -> str | None:
+        return value.strip() if isinstance(value, str) else value
+
+    @model_validator(mode="after")
+    def _passwords_match(self):
+        if self.password != self.confirm_password:
+            raise ValueError("password_mismatch")
+        return self
+
+
 class Token(BaseModel):
     """Authentication token response."""
 

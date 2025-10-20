@@ -21,6 +21,7 @@ class VerificationTokenKind(str, Enum):
     """Supported verification token scopes."""
 
     EMAIL_VERIFICATION = "email_verification"
+    PASSWORD_RESET = "password_reset"
 
 
 class VerificationToken(Base):

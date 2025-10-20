@@ -79,6 +79,14 @@ os.environ.setdefault("APP_BASE_URL", "http://frontend.test")
 os.environ.setdefault("EMAIL_VERIFICATION_RESEND_COOLDOWN", "60")
 os.environ.setdefault("EMAIL_VERIFICATION_DAILY_LIMIT", "5")
 os.environ.setdefault("COOKIE_SECURE", "false")
+os.environ.setdefault("PASSWORD_RESET_TTL_MINUTES", "30")
+os.environ.setdefault("PASSWORD_RESET_REQUEST_COOLDOWN", "1")
+os.environ.setdefault("PASSWORD_RESET_DAILY_LIMIT", "10")
+os.environ.setdefault("PASSWORD_RESET_REQUEST_IP_LIMIT", "100")
+os.environ.setdefault("PASSWORD_RESET_REQUEST_IDENTIFIER_LIMIT", "100")
+os.environ.setdefault("PASSWORD_RESET_REQUEST_PERIOD", "60")
+os.environ.setdefault("PASSWORD_RESET_TOKEN_IP_LIMIT", "100")
+os.environ.setdefault("PASSWORD_RESET_TOKEN_PERIOD", "60")
 
 from app.database import Base, engine, SessionLocal  # noqa: E402
 from app import models  # noqa: E402
