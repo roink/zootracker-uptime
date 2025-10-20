@@ -437,7 +437,10 @@
       "submit": "Anmelden",
       "submitting": "Anmeldung läuft…",
       "error": "Anmeldung fehlgeschlagen",
-      "unverified": "Bitte bestätige deine E-Mail-Adresse, bevor du dich einloggst."
+      "unverified": "Bitte bestätige deine E-Mail-Adresse, bevor du dich einloggst.",
+      "resendLink": "E-Mail nicht erhalten? Bestätigungslink erneut senden.",
+      "verificationSuccess": "E-Mail erfolgreich bestätigt. Bitte melde dich an.",
+      "verificationSuccessEmail": "E-Mail für {{email}} erfolgreich bestätigt. Bitte melde dich an."
     },
     "signup": {
       "heading": "Registrieren",
@@ -451,7 +454,9 @@
       "success": "Danke für deine Registrierung! Wir haben eine Bestätigungs-E-Mail an {{email}} gesendet. Öffne den Link in dieser E-Mail, um dein Konto fertig einzurichten.",
       "error": "Registrierung fehlgeschlagen",
       "acceptLabel": "Ich habe die Hinweise in der <link/> gelesen und akzeptiere sie.",
-      "linkText": "Datenschutzerklärung"
+      "linkText": "Datenschutzerklärung",
+      "resendLink": "Nicht angekommen? Bestätigungs-E-Mail erneut senden.",
+      "resendCountdown": "Du kannst in {{seconds}} Sekunden erneut eine E-Mail anfordern."
     },
     "verification": {
       "heading": "E-Mail-Adresse bestätigen",
@@ -470,6 +475,11 @@
       "resendSuccess": "Wir haben dir eine neue Bestätigungs-E-Mail geschickt.",
       "resendCooldown": "Wir haben dir gerade eine E-Mail gesendet. Sieh in deinem Posteingang nach oder versuche es später erneut.",
       "resendLimit": "Du hast das Tageslimit für erneute Sendungen erreicht. Bitte versuche es morgen erneut.",
+      "resendGeneric": "Falls ein Konto mit {{email}} existiert, haben wir neue Bestätigungsanweisungen gesendet.",
+      "resendRateLimited": "Zu viele Anfragen. Bitte warte, bevor du es erneut versuchst.",
+      "resendError": "Die erneute Anforderung der Bestätigungs-E-Mail ist fehlgeschlagen.",
+      "resendPrompt": "Brauchst du eine neue Bestätigungs-E-Mail? Wir senden sie an die Adresse oben.",
+      "resendCta": "Bestätigungs-E-Mail erneut senden",
       "openForm": "Code manuell eingeben",
       "backToLogin": "Zur Anmeldung"
     }

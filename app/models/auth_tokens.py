@@ -53,4 +53,3 @@ Index("ix_refresh_tokens_user_id", RefreshToken.user_id)
 Index("ix_refresh_tokens_family_id", RefreshToken.family_id)
 Index("ix_refresh_tokens_revoked_at", RefreshToken.revoked_at)
 Index("ix_refresh_tokens_expires_at", RefreshToken.expires_at)
-

@@ -10,6 +10,7 @@ from .geography import ContinentName, CountryName, Zoo
 from .imagery import Image, ImageVariant, SOURCE_ORDER
 from .sightings import AnimalSighting
 from .users import User
+from .verification import VerificationToken, VerificationTokenKind
 from .visits import ZooVisit
 
 __all__ = [
@@ -31,6 +32,8 @@ __all__ = [
     "UserAchievement",
     "UserFavoriteAnimal",
     "UserFavoriteZoo",
+    "VerificationToken",
+    "VerificationTokenKind",
     "Zoo",
     "ZooAnimal",
     "ZooVisit",

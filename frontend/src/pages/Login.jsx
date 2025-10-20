@@ -5,6 +5,7 @@ import { API } from '../api';
 import Seo from '../components/Seo';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { DATA_PROTECTION_VERSION } from './DataProtection.jsx';
+import { useVerificationResend } from '../hooks/useVerificationResend.js';
 
 // Combined authentication page with log in on top and sign up below.
 export default function LoginPage() {
@@ -31,6 +32,21 @@ export default function LoginPage() {
   const [successMessage, setSuccessMessage] = useState('');
   const [pendingEmail, setPendingEmail] = useState('');
   const [loginError, setLoginError] = useState('');
+  const [verificationBanner, setVerificationBanner] = useState('');
+  const RESEND_DELAY_SECONDS = 60;
+  const {
+    status: loginResendStatus,
+    message: loginResendMessage,
+    request: triggerLoginResend,
+    reset: resetLoginResend,
+  } = useVerificationResend();
+  const {
+    status: signupResendStatus,
+    message: signupResendMessage,
+    cooldown: signupResendCooldown,
+    request: triggerSignupResend,
+    reset: resetSignupResend,
+  } = useVerificationResend({ cooldownSeconds: RESEND_DELAY_SECONDS });
   const verifyHref = pendingEmail
     ? `${prefix}/verify?email=${encodeURIComponent(pendingEmail)}`
     : `${prefix}/verify`;
@@ -45,6 +61,26 @@ export default function LoginPage() {
       navigate(location.pathname, { replace: true, state: {} });
     }
   }, [location, navigate]);
+
+  useEffect(() => {
+    const cookieParts = document.cookie.split('; ').filter(Boolean);
+    const flag = cookieParts.find((part) => part.startsWith('ztr_verify_success='));
+    if (flag) {
+      const [, rawValue = ''] = flag.split('=');
+      let decoded = '';
+      if (rawValue) {
+        try {
+          decoded = decodeURIComponent(rawValue);
+        } catch (err) {
+          decoded = rawValue;
+        }
+      }
+      setVerificationBanner(decoded
+        ? t('auth.login.verificationSuccessEmail', { email: decoded })
+        : t('auth.login.verificationSuccess'));
+      document.cookie = 'ztr_verify_success=; Max-Age=0; path=/';
+    }
+  }, [t]);
 
   // Scroll to the sign up section when the URL contains "#signup".
   useEffect(() => {
@@ -62,6 +98,18 @@ export default function LoginPage() {
     }
   }, [acceptError]);
 
+  useEffect(() => {
+    if (successMessage && pendingEmail) {
+      resetSignupResend();
+    }
+  }, [successMessage, pendingEmail, resetSignupResend]);
+
+  useEffect(() => {
+    if (!pendingEmail) {
+      resetLoginResend();
+    }
+  }, [pendingEmail, resetLoginResend]);
+
   // Submit credentials to the backend and store auth data. If the
   // request fails entirely (e.g. when the API URL is unreachable) an
   // error message is shown so the user knows something went wrong.
@@ -73,6 +121,7 @@ export default function LoginPage() {
     const body = new URLSearchParams();
     body.append('username', cleanEmail);
     body.append('password', password);
+    setVerificationBanner('');
     try {
       const resp = await fetch(`${API}/auth/login`, {
         method: 'POST',
@@ -89,12 +138,14 @@ export default function LoginPage() {
         });
         setPendingEmail('');
         setLoginError('');
+        resetLoginResend();
         navigate(prefix, { replace: true });
       } else if (resp.status === 403) {
         const payload = await resp.json().catch(() => ({}));
         const detail = typeof payload.detail === 'string' ? payload.detail : t('auth.login.unverified');
         setPendingEmail(cleanEmail);
         setLoginError(detail);
+        resetLoginResend();
       } else {
         setLoginError(t('auth.login.error'));
       }
@@ -142,6 +193,7 @@ export default function LoginPage() {
         setInputEmail(cleanEmail);
         setPendingEmail(cleanEmail);
         setSuccessMessage(t('auth.signup.success', { email: cleanEmail }));
+        resetSignupResend();
         setName('');
         setRegEmail('');
         setRegPassword('');
@@ -166,9 +218,37 @@ export default function LoginPage() {
       />
       {/* Log in section */}
       <form onSubmit={handleLogin} className="container auth-form">
+        {verificationBanner && (
+          <div className="alert alert-success" role="alert">
+            {verificationBanner}
+          </div>
+        )}
         {loginError && (
           <div className="alert alert-warning" role="alert">
-            {loginError}
+            <p className="mb-2">{loginError}</p>
+            {pendingEmail && (
+              <div className="small">
+                {loginResendStatus === 'success' ? (
+                  <span className="text-success">{loginResendMessage || t('auth.verification.resendGeneric', { email: pendingEmail })}</span>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className="btn btn-link p-0 align-baseline"
+                      onClick={() => triggerLoginResend(pendingEmail)}
+                      disabled={loginResendStatus === 'loading'}
+                    >
+                      {loginResendStatus === 'loading'
+                        ? t('auth.verification.resendLoading')
+                        : t('auth.login.resendLink')}
+                    </button>
+                    {loginResendStatus === 'error' && loginResendMessage && (
+                      <div className="text-danger mt-1">{loginResendMessage}</div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
           </div>
         )}
         {successMessage && (
@@ -182,7 +262,30 @@ export default function LoginPage() {
               >
                 {t('auth.verification.openForm')}
               </button>
+              {pendingEmail && (
+                <button
+                  type="button"
+                  className="btn btn-outline-secondary"
+                  onClick={() => triggerSignupResend(pendingEmail)}
+                  disabled={signupResendStatus === 'loading' || signupResendCooldown > 0}
+                >
+                  {signupResendStatus === 'loading'
+                    ? t('auth.verification.resendLoading')
+                    : t('auth.signup.resendLink')}
+                </button>
+              )}
             </div>
+            {signupResendCooldown > 0 && (
+              <p className="small text-muted mb-0 mt-2">
+                {t('auth.signup.resendCountdown', { seconds: signupResendCooldown })}
+              </p>
+            )}
+            {signupResendStatus === 'success' && (
+              <p className="small text-success mb-0 mt-2">{signupResendMessage || t('auth.verification.resendGeneric', { email: pendingEmail })}</p>
+            )}
+            {signupResendStatus === 'error' && signupResendMessage && (
+              <p className="small text-danger mb-0 mt-2">{signupResendMessage}</p>
+            )}
           </div>
         )}
         <h2 className="mb-3">{t('auth.login.heading')}</h2>

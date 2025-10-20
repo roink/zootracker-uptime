@@ -9,6 +9,7 @@ from collections import defaultdict, deque
 from datetime import UTC, datetime
 from typing import Any, Deque
 
+import anyio
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
@@ -20,6 +21,7 @@ from ..utils.email_verification import (
     clear_verification_state,
     code_matches,
     enqueue_verification_email,
+    get_latest_token,
     issue_verification_token,
     token_matches,
 )
@@ -46,7 +48,11 @@ from ..database import get_db
 from ..logging import anonymize_ip
 from ..middleware.logging import set_user_context
 from ..utils.network import get_client_ip
-from ..rate_limit import enforce_verify_rate_limit
+from ..rate_limit import (
+    enforce_verify_rate_limit,
+    enforce_verification_resend_limit,
+    register_failed_verification_attempt,
+)
 
 router = APIRouter()
 
@@ -291,7 +297,7 @@ def resend_verification_email(
 
     if current_user.email_verified_at:
         return {"detail": "Your email address is already verified."}
-    allowed, reason = can_issue_again(current_user)
+    allowed, reason = can_issue_again(db, current_user)
     if not allowed:
         if reason == "cooldown":
             raise HTTPException(
@@ -303,7 +309,7 @@ def resend_verification_email(
             detail="Daily verification email limit reached. Try again tomorrow.",
         )
 
-    token, code, _ = issue_verification_token(current_user)
+    token, code, _ = issue_verification_token(db, current_user)
     db.flush()
     enqueue_verification_email(background_tasks, current_user, token=token, code=code)
     db.commit()
@@ -316,6 +322,88 @@ def resend_verification_email(
         },
     )
     return {"detail": "We sent you a new verification email."}
+
+
+@router.post(
+    "/auth/verification/request-resend",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=schemas.Message,
+)
+def request_verification_resend(
+    request: Request,
+    payload: schemas.VerificationResendRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    """Allow users to request another verification email without authentication."""
+
+    generic = {"detail": "If the account exists, verification instructions will be sent."}
+    try:
+        anyio.from_thread.run(
+            enforce_verification_resend_limit, request, payload.email
+        )
+    except HTTPException as exc:  # pragma: no cover - defensive branch
+        if exc.status_code == status.HTTP_429_TOO_MANY_REQUESTS:
+            auth_logger.info(
+                "Verification resend skipped",
+                extra={
+                    "event_dataset": "zoo-tracker-api.auth",
+                    "event_action": "verification_resend_throttled",
+                    "verification_throttle_reason": "rate_limit",
+                },
+            )
+            return JSONResponse(
+                generic,
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                headers=exc.headers,
+            )
+        raise
+    user = get_user(db, payload.email)
+    if not user or user.email_verified_at:
+        auth_logger.info(
+            "Anonymous verification resend request",
+            extra={
+                "event_dataset": "zoo-tracker-api.auth",
+                "event_action": "verification_resend_requested",
+                "email_known_user": bool(user),
+                "email_verified": bool(user and user.email_verified_at),
+            },
+        )
+        return generic
+
+    allowed, reason = can_issue_again(db, user)
+    if not allowed:
+        auth_logger.info(
+            "Verification resend skipped",
+            extra={
+                "event_dataset": "zoo-tracker-api.auth",
+                "event_action": "verification_resend_throttled",
+                "user_id": str(user.id),
+                "verification_throttle_reason": reason or "unknown",
+            },
+        )
+        return generic
+
+    token, code, _ = issue_verification_token(db, user)
+    db.flush()
+    enqueue_verification_email(
+        background_tasks,
+        user,
+        token=token,
+        code=code,
+        execute_immediately=True,
+    )
+    db.commit()
+    auth_logger.info(
+        "Verification email reissued anonymously",
+        extra={
+            "event_dataset": "zoo-tracker-api.auth",
+            "event_action": "verification_email_sent",
+            "user_id": str(user.id),
+            "trigger": "anonymous_resend",
+        },
+    )
+    return generic
 
 
 @router.post(
@@ -339,6 +427,7 @@ async def verify_email(
     user: models.User | None = None
     if payload.uid:
         user = db.get(models.User, payload.uid)
+    token_record: models.VerificationToken | None = None
     if user is None and payload.email:
         user = get_user(db, payload.email)
     generic = {"detail": "If the account exists, the verification state was updated."}
@@ -349,7 +438,8 @@ async def verify_email(
     now = _now()
     if user.email_verified_at:
         return generic_response
-    if not user.verify_token_hash or not user.verify_token_expires_at:
+    token_record = get_latest_token(db, user)
+    if token_record is None or token_record.consumed_at is not None:
         auth_logger.warning(
             "Verification attempt missing active token",
             extra={
@@ -360,7 +450,7 @@ async def verify_email(
             },
         )
         return generic_response
-    if user.verify_token_expires_at < now:
+    if token_record.expires_at < now:
         auth_logger.warning(
             "Verification attempt with expired token",
             extra={
@@ -373,12 +463,13 @@ async def verify_email(
         return generic_response
 
     matched = False
-    if payload.token and token_matches(user, payload.token):
+    if payload.token and token_matches(token_record, payload.token):
         matched = True
-    elif payload.code and code_matches(user, payload.code):
+    elif payload.code and code_matches(token_record, payload.code):
         matched = True
 
     if not matched:
+        await register_failed_verification_attempt(request, identifier=identifier)
         auth_logger.warning(
             "Verification attempt with invalid secret",
             extra={
@@ -390,7 +481,7 @@ async def verify_email(
         )
         return generic_response
 
-    clear_verification_state(user, verified_at=now)
+    clear_verification_state(db, user, verified_at=now)
     db.flush()
     families = {
         token.family_id

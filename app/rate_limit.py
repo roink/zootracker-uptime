@@ -42,12 +42,23 @@ RATE_PERIOD = int(os.getenv("RATE_PERIOD", "60"))
 CONTACT_RATE_LIMIT = int(os.getenv("CONTACT_RATE_LIMIT", "5"))
 VERIFY_ATTEMPT_LIMIT = int(os.getenv("VERIFY_ATTEMPT_LIMIT", "5"))
 VERIFY_ATTEMPT_PERIOD = int(os.getenv("VERIFY_ATTEMPT_PERIOD", "300"))
+VERIFY_FAILED_LIMIT = int(os.getenv("VERIFY_FAILED_LIMIT", "10"))
+VERIFY_FAILED_PERIOD = int(os.getenv("VERIFY_FAILED_PERIOD", "900"))
+VERIFY_RESEND_IP_LIMIT = int(os.getenv("VERIFY_RESEND_IP_LIMIT", "5"))
+VERIFY_RESEND_IDENTIFIER_LIMIT = int(
+    os.getenv("VERIFY_RESEND_IDENTIFIER_LIMIT", str(VERIFY_RESEND_IP_LIMIT))
+)
+VERIFY_RESEND_PERIOD = int(os.getenv("VERIFY_RESEND_PERIOD", "3600"))
 
 auth_limiter = RateLimiter(AUTH_RATE_LIMIT, RATE_PERIOD)
 general_limiter = RateLimiter(GENERAL_RATE_LIMIT, RATE_PERIOD)
 contact_limiter = RateLimiter(CONTACT_RATE_LIMIT, RATE_PERIOD)
 verify_ip_limiter = RateLimiter(VERIFY_ATTEMPT_LIMIT, VERIFY_ATTEMPT_PERIOD)
 verify_identifier_limiter = RateLimiter(VERIFY_ATTEMPT_LIMIT, VERIFY_ATTEMPT_PERIOD)
+verify_failed_ip_limiter = RateLimiter(VERIFY_FAILED_LIMIT, VERIFY_FAILED_PERIOD)
+verify_failed_identifier_limiter = RateLimiter(VERIFY_FAILED_LIMIT, VERIFY_FAILED_PERIOD)
+verify_resend_ip_limiter = RateLimiter(VERIFY_RESEND_IP_LIMIT, VERIFY_RESEND_PERIOD)
+verify_resend_identifier_limiter = RateLimiter(VERIFY_RESEND_IDENTIFIER_LIMIT, VERIFY_RESEND_PERIOD)
 
 
 async def rate_limit(request: Request, call_next):
@@ -123,5 +134,76 @@ async def enforce_verify_rate_limit(
                 },
             )
         remaining = min(remaining, user_remaining)
+
+    request.state.rate_limit_remaining = remaining
+
+
+async def register_failed_verification_attempt(
+    request: Request,
+    *,
+    identifier: str | None = None,
+) -> None:
+    """Record a failed verification attempt and raise if the limit is exceeded."""
+
+    ip = get_client_ip(request)
+    ip_key = ip or "unknown"
+    allowed_ip, _remaining, retry_after = await verify_failed_ip_limiter.is_allowed(ip_key)
+    if not allowed_ip:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too Many Requests",
+            headers={
+                "Retry-After": str(int(retry_after)),
+                "X-RateLimit-Remaining": "0",
+            },
+        )
+
+    if identifier:
+        key = identifier.strip().lower()
+        allowed_id, _id_remaining, retry_after = await verify_failed_identifier_limiter.is_allowed(key)
+        if not allowed_id:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too Many Requests",
+                headers={
+                    "Retry-After": str(int(retry_after)),
+                    "X-RateLimit-Remaining": "0",
+                },
+            )
+
+
+async def enforce_verification_resend_limit(
+    request: Request,
+    identifier: str | None = None,
+) -> None:
+    """Limit anonymous resend requests per client IP and identifier."""
+
+    ip = get_client_ip(request)
+    ip_key = ip or "unknown"
+    allowed_ip, ip_remaining, ip_retry_after = await verify_resend_ip_limiter.is_allowed(ip_key)
+    if not allowed_ip:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too Many Requests",
+            headers={
+                "Retry-After": str(int(ip_retry_after)),
+                "X-RateLimit-Remaining": "0",
+            },
+        )
+
+    remaining = ip_remaining
+    if identifier:
+        key = identifier.strip().lower()
+        allowed_identifier, id_remaining, id_retry_after = await verify_resend_identifier_limiter.is_allowed(key)
+        if not allowed_identifier:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too Many Requests",
+                headers={
+                    "Retry-After": str(int(id_retry_after)),
+                    "X-RateLimit-Remaining": "0",
+                },
+            )
+        remaining = min(remaining, id_remaining)
 
     request.state.rate_limit_remaining = remaining

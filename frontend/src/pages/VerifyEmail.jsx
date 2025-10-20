@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
 import Seo from '../components/Seo';
 import { API } from '../api';
+import { useVerificationResend } from '../hooks/useVerificationResend.js';
 
 export default function VerifyEmailPage() {
   const { t } = useTranslation();
@@ -24,11 +25,21 @@ export default function VerifyEmailPage() {
   const [showForm, setShowForm] = useState(!isMagicLink);
   const redirectTimer = useRef(null);
   const lastAttemptKey = useRef('');
+  const {
+    status: resendStatus,
+    message: resendMessage,
+    request: triggerResend,
+  } = useVerificationResend();
 
   const replaceUrl = (nextQuery = '') => {
     const search = nextQuery ? `?${nextQuery}` : '';
     window.history.replaceState({}, '', `${prefix}/verify${search}`);
   };
+
+  const setLoginBannerCookie = useCallback((value) => {
+    const encoded = value ? encodeURIComponent(value) : '';
+    document.cookie = `ztr_verify_success=${encoded}; path=/; max-age=120; SameSite=Lax`;
+  }, []);
 
   useEffect(() => () => {
     if (redirectTimer.current) {
@@ -57,6 +68,7 @@ export default function VerifyEmailPage() {
           if (resp.status === 200) {
             setStatus('success');
             setMessage(t('auth.verification.successRedirect'));
+            setLoginBannerCookie(initialEmail);
             replaceUrl(initialEmail ? `email=${encodeURIComponent(initialEmail)}` : '');
             redirectTimer.current = setTimeout(() => {
               navigate(`${prefix}/login`, { replace: true });
@@ -105,6 +117,7 @@ export default function VerifyEmailPage() {
       if (resp.status === 200) {
         setStatus('success');
         setMessage(t('auth.verification.success'));
+        setLoginBannerCookie(email.trim());
         return;
       }
       if (resp.status === 202) {
@@ -192,6 +205,29 @@ export default function VerifyEmailPage() {
             {status === 'loading' ? t('auth.verification.submitting') : t('auth.verification.submit')}
           </button>
         </form>
+      )}
+      {(!isMagicLink || showForm) && (
+        <div className="mb-4">
+          <p className="mb-2">{t('auth.verification.resendPrompt')}</p>
+          <button
+            type="button"
+            className="btn btn-link p-0"
+            onClick={() => triggerResend(email)}
+            disabled={resendStatus === 'loading' || !email.trim()}
+          >
+            {resendStatus === 'loading'
+              ? t('auth.verification.resendLoading')
+              : t('auth.verification.resendCta')}
+          </button>
+          {resendStatus === 'success' && (
+            <p className="small text-success mb-0 mt-2">
+              {resendMessage || t('auth.verification.resendGeneric', { email: email.trim() })}
+            </p>
+          )}
+          {resendStatus === 'error' && resendMessage && (
+            <p className="small text-danger mb-0 mt-2">{resendMessage}</p>
+          )}
+        </div>
       )}
       {(!isMagicLink || showForm) && (
         <button

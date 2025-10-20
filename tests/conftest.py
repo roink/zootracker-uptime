@@ -352,9 +352,7 @@ def mark_user_verified(user_id: str | uuid.UUID) -> None:
         record = db.get(models.User, uuid.UUID(str(user_id)))
         assert record is not None
         record.email_verified_at = datetime.now(timezone.utc)
-        record.verify_token_hash = None
-        record.verify_code_hash = None
-        record.verify_token_expires_at = None
-        record.verify_attempts = 0
-        record.last_verify_sent_at = None
+        db.query(models.VerificationToken).filter(
+            models.VerificationToken.user_id == record.id
+        ).delete(synchronize_session=False)
         db.commit()
