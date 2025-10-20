@@ -28,7 +28,6 @@ export default function Dashboard({ refresh, onUpdate }) {
     queryClient.invalidateQueries({ queryKey: ['user', uid, 'visits'] });
     queryClient.invalidateQueries({ queryKey: ['user', uid, 'animalsSeen'] });
     queryClient.invalidateQueries({ queryKey: ['user', uid, 'sightings'] });
-    queryClient.invalidateQueries({ queryKey: ['user', uid, 'achievements'] });
   }, [refresh, uid, isAuthenticated, queryClient]);
 
   const { data: zooMap = {}, isFetching: zoosFetching } = useQuery({
@@ -111,14 +110,12 @@ export default function Dashboard({ refresh, onUpdate }) {
     isFetching: badgesFetching,
   } = useQuery({
     queryKey: ['user', uid, 'achievements'],
-    queryFn: async ({ signal }) => {
-      const r = await authFetch(`${API}/users/${uid}/achievements`, { signal });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      return r.json();
-    },
-    enabled: isAuthenticated && !!uid,
-    placeholderData: keepPreviousData,
-    staleTime: 60 * 1000,
+    // Placeholder query: achievements endpoint is not yet available so we
+    // avoid calling it and just return an empty list for now.
+    queryFn: async () => [],
+    enabled: false,
+    initialData: [],
+    staleTime: Infinity,
   });
 
   const zoos = useMemo(() => Object.values(zooMap), [zooMap]);
