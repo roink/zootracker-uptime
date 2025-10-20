@@ -4,6 +4,7 @@ from datetime import timedelta
 
 from app import models
 from app.database import SessionLocal
+from app import rate_limit
 
 from .conftest import CONSENT_VERSION, TEST_PASSWORD, client
 
@@ -42,6 +43,13 @@ def _register_user(monkeypatch, *, email: str | None = None):
     assert resp.status_code == 200
     assert sent_messages, "Expected verification email to be sent"
     return resp.json(), sent_messages
+
+
+def _reset_verify_rate_limits():
+    """Clear verification rate limiter state between tests."""
+
+    rate_limit.verify_ip_limiter.history.clear()
+    rate_limit.verify_identifier_limiter.history.clear()
 
 
 def _parse_token(body: str) -> str:
@@ -100,6 +108,7 @@ def test_resend_respects_cooldown(monkeypatch):
 
 def test_verify_email_with_token(monkeypatch):
     client.cookies.clear()
+    _reset_verify_rate_limits()
     user_info, messages = _register_user(monkeypatch)
     token = _parse_token(messages[0].get_content())
 
@@ -118,6 +127,7 @@ def test_verify_email_with_token(monkeypatch):
 
 def test_verify_email_with_code(monkeypatch):
     client.cookies.clear()
+    _reset_verify_rate_limits()
     user_info, messages = _register_user(monkeypatch)
     code = _parse_code(messages[0].get_content())
 
@@ -130,3 +140,43 @@ def test_verify_email_with_code(monkeypatch):
     with SessionLocal() as db:
         user = db.get(models.User, user_info["id"])
         assert user.email_verified_at is not None
+
+
+def test_verify_email_generic_failure(monkeypatch):
+    client.cookies.clear()
+    _reset_verify_rate_limits()
+
+    # Unknown user should receive the generic 202 response.
+    resp_unknown = client.post(
+        "/auth/verify",
+        json={"email": "ghost@example.com", "code": "123456"},
+    )
+    assert resp_unknown.status_code == 202
+    detail = resp_unknown.json()["detail"]
+
+    user_info, messages = _register_user(monkeypatch)
+    token = _parse_token(messages[0].get_content())
+
+    # Use a clearly wrong token to force a mismatch while ensuring the same response payload.
+    resp_wrong = client.post(
+        "/auth/verify",
+        json={"uid": user_info["id"], "token": f"{token}extra"},
+    )
+    assert resp_wrong.status_code == 202
+    assert resp_wrong.json()["detail"] == detail
+
+
+def test_verify_email_rate_limit(monkeypatch):
+    client.cookies.clear()
+    _reset_verify_rate_limits()
+    user_info, _messages = _register_user(monkeypatch)
+
+    payload = {"email": user_info["email"], "code": "000000"}
+    # Exhaust the allowed attempts with invalid codes.
+    for _ in range(5):
+        resp = client.post("/auth/verify", json=payload)
+        assert resp.status_code == 202
+
+    resp_blocked = client.post("/auth/verify", json=payload)
+    assert resp_blocked.status_code == 429
+    assert resp_blocked.json()["detail"] == "Too Many Requests"

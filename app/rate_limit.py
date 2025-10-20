@@ -40,10 +40,14 @@ AUTH_RATE_LIMIT = int(os.getenv("AUTH_RATE_LIMIT", "100"))
 GENERAL_RATE_LIMIT = int(os.getenv("GENERAL_RATE_LIMIT", "1000"))
 RATE_PERIOD = int(os.getenv("RATE_PERIOD", "60"))
 CONTACT_RATE_LIMIT = int(os.getenv("CONTACT_RATE_LIMIT", "5"))
+VERIFY_ATTEMPT_LIMIT = int(os.getenv("VERIFY_ATTEMPT_LIMIT", "5"))
+VERIFY_ATTEMPT_PERIOD = int(os.getenv("VERIFY_ATTEMPT_PERIOD", "300"))
 
 auth_limiter = RateLimiter(AUTH_RATE_LIMIT, RATE_PERIOD)
 general_limiter = RateLimiter(GENERAL_RATE_LIMIT, RATE_PERIOD)
 contact_limiter = RateLimiter(CONTACT_RATE_LIMIT, RATE_PERIOD)
+verify_ip_limiter = RateLimiter(VERIFY_ATTEMPT_LIMIT, VERIFY_ATTEMPT_PERIOD)
+verify_identifier_limiter = RateLimiter(VERIFY_ATTEMPT_LIMIT, VERIFY_ATTEMPT_PERIOD)
 
 
 async def rate_limit(request: Request, call_next):
@@ -80,4 +84,44 @@ async def enforce_contact_rate_limit(request: Request) -> None:
                 "X-RateLimit-Remaining": "0",
             },
         )
+    request.state.rate_limit_remaining = remaining
+
+
+async def enforce_verify_rate_limit(
+    request: Request,
+    *,
+    identifier: str | None = None,
+) -> None:
+    """Throttle verification attempts per client IP and identifier."""
+
+    ip = get_client_ip(request)
+    ip_key = ip or "unknown"
+    allowed_ip, ip_remaining, ip_retry_after = await verify_ip_limiter.is_allowed(ip_key)
+    if not allowed_ip:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too Many Requests",
+            headers={
+                "Retry-After": str(int(ip_retry_after)),
+                "X-RateLimit-Remaining": "0",
+            },
+        )
+
+    remaining = ip_remaining
+    if identifier:
+        key = identifier.strip().lower()
+        allowed_user, user_remaining, user_retry_after = await verify_identifier_limiter.is_allowed(
+            key
+        )
+        if not allowed_user:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too Many Requests",
+                headers={
+                    "Retry-After": str(int(user_retry_after)),
+                    "X-RateLimit-Remaining": "0",
+                },
+            )
+        remaining = min(remaining, user_remaining)
+
     request.state.rate_limit_remaining = remaining

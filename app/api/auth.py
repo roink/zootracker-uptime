@@ -46,6 +46,7 @@ from ..database import get_db
 from ..logging import anonymize_ip
 from ..middleware.logging import set_user_context
 from ..utils.network import get_client_ip
+from ..rate_limit import enforce_verify_rate_limit
 
 router = APIRouter()
 
@@ -305,11 +306,19 @@ def resend_verification_email(
     "/auth/verify",
     response_model=schemas.Message,
 )
-def verify_email(
+async def verify_email(
+    request: Request,
     payload: schemas.EmailVerificationRequest,
     db: Session = Depends(get_db),
 ):
     """Validate a verification token or code and mark the user as verified."""
+
+    identifier: str | None = None
+    if payload.uid:
+        identifier = str(payload.uid)
+    elif payload.email:
+        identifier = payload.email
+    await enforce_verify_rate_limit(request, identifier=identifier)
 
     user: models.User | None = None
     if payload.uid:
@@ -317,22 +326,35 @@ def verify_email(
     if user is None and payload.email:
         user = get_user(db, payload.email)
     generic = {"detail": "If the account exists, the verification state was updated."}
+    generic_response = JSONResponse(generic, status_code=status.HTTP_202_ACCEPTED)
     if user is None:
-        return generic
+        return generic_response
 
     now = _now()
     if user.email_verified_at:
-        return {"detail": "Email already verified."}
+        return generic_response
     if not user.verify_token_hash or not user.verify_token_expires_at:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Verification link or code is invalid or expired. Request a new email.",
+        auth_logger.warning(
+            "Verification attempt missing active token",
+            extra={
+                "event_dataset": "zoo-tracker-api.auth",
+                "event_action": "email_verification_failed",
+                "user_id": str(user.id),
+                "verification_failure_reason": "token_missing",
+            },
         )
+        return generic_response
     if user.verify_token_expires_at < now:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Verification link or code is invalid or expired. Request a new email.",
+        auth_logger.warning(
+            "Verification attempt with expired token",
+            extra={
+                "event_dataset": "zoo-tracker-api.auth",
+                "event_action": "email_verification_failed",
+                "user_id": str(user.id),
+                "verification_failure_reason": "token_expired",
+            },
         )
+        return generic_response
 
     matched = False
     if payload.token and token_matches(user, payload.token):
@@ -341,10 +363,16 @@ def verify_email(
         matched = True
 
     if not matched:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Verification link or code is invalid or expired. Request a new email.",
+        auth_logger.warning(
+            "Verification attempt with invalid secret",
+            extra={
+                "event_dataset": "zoo-tracker-api.auth",
+                "event_action": "email_verification_failed",
+                "user_id": str(user.id),
+                "verification_failure_reason": "secret_mismatch",
+            },
         )
+        return generic_response
 
     clear_verification_state(user, verified_at=now)
     db.flush()

@@ -21,6 +21,7 @@ export default function VerifyEmailPage() {
   const [status, setStatus] = useState('idle');
   const [message, setMessage] = useState('');
 
+  // Attempt automatic verification when a magic link is opened.
   useEffect(() => {
     if (initialUid && initialToken) {
       const verify = async () => {
@@ -32,13 +33,13 @@ export default function VerifyEmailPage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ uid: initialUid, token: initialToken }),
           });
-          if (resp.ok) {
+          if (resp.status === 200) {
             setStatus('success');
             setMessage(t('auth.verification.success'));
             window.history.replaceState({}, '', `${prefix}/verify${initialEmail ? `?email=${encodeURIComponent(initialEmail)}` : ''}`);
             return;
           }
-          if (resp.status === 400) {
+          if (resp.status === 202) {
             setStatus('invalid');
             setMessage(t('auth.verification.invalid'));
             return;
@@ -56,6 +57,7 @@ export default function VerifyEmailPage() {
     }
   }, [initialUid, initialToken, initialEmail, prefix, t]);
 
+  // Allow manual code entry as a fallback to the magic link.
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (!email || !code) return;
@@ -67,14 +69,19 @@ export default function VerifyEmailPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim(), code: code.trim() }),
       });
-      if (resp.ok) {
+      if (resp.status === 200) {
         setStatus('success');
         setMessage(t('auth.verification.success'));
         return;
       }
-      if (resp.status === 400) {
+      if (resp.status === 202) {
         setStatus('invalid');
         setMessage(t('auth.verification.invalid'));
+      } else if (resp.status === 429) {
+        const data = await resp.json().catch(() => ({}));
+        setStatus('error');
+        const detail = typeof data.detail === 'string' ? data.detail : resp.statusText;
+        setMessage(detail);
       } else {
         const data = await resp.json().catch(() => ({}));
         setStatus('error');
