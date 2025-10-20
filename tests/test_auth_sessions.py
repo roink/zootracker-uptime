@@ -14,20 +14,28 @@ from httpx import Cookies
 from .conftest import CONSENT_VERSION, client, register_and_login, mark_user_verified
 
 
-def _login_and_get_response(email: str, password: str):
-    client.cookies.clear()
-    register = client.post(
+def _register_user(email: str, password: str, name: str = "Auth") -> models.User:
+    """Register ``email`` and return the persisted user record."""
+
+    resp = client.post(
         "/users",
         json={
-            "name": "Auth",
+            "name": name,
             "email": email,
             "password": password,
             "accepted_data_protection": True,
             "privacy_consent_version": CONSENT_VERSION,
         },
     )
-    assert register.status_code == 200
-    mark_user_verified(register.json()["id"])
+    assert resp.status_code == 202
+    with SessionLocal() as db:
+        return db.query(models.User).filter(models.User.email == email).one()
+
+
+def _login_and_get_response(email: str, password: str):
+    client.cookies.clear()
+    user = _register_user(email, password)
+    mark_user_verified(user.id)
     response = client.post(
         "/auth/login",
         data={"username": email, "password": password},
@@ -41,18 +49,8 @@ def test_login_accepts_email_case_variations():
     email = "caseflex@example.com"
     password = "supersecret"
     client.cookies.clear()
-    register = client.post(
-        "/users",
-        json={
-            "name": "Case",
-            "email": email,
-            "password": password,
-            "accepted_data_protection": True,
-            "privacy_consent_version": CONSENT_VERSION,
-        },
-    )
-    assert register.status_code == 200
-    mark_user_verified(register.json()["id"])
+    user = _register_user(email, password, name="Case")
+    mark_user_verified(user.id)
 
     response = client.post(
         "/auth/login",
@@ -81,18 +79,8 @@ def test_login_updates_activity_timestamps():
     email = "activity@example.com"
     password = "supersecret"
     client.cookies.clear()
-    register = client.post(
-        "/users",
-        json={
-            "name": "Active",
-            "email": email,
-            "password": password,
-            "accepted_data_protection": True,
-            "privacy_consent_version": CONSENT_VERSION,
-        },
-    )
-    assert register.status_code == 200
-    mark_user_verified(register.json()["id"])
+    user = _register_user(email, password, name="Active")
+    mark_user_verified(user.id)
 
     db = SessionLocal()
     try:

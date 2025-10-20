@@ -1,13 +1,26 @@
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, Response, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    status,
+)
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload, load_only
 
 from .. import schemas, models
-from ..auth import hash_password, get_user, get_current_user
-from ..utils.email_verification import enqueue_verification_email, issue_verification_token
+from ..auth import get_current_user, get_user, hash_password
+from ..utils.email_verification import (
+    enqueue_existing_account_notice,
+    enqueue_verification_email,
+    issue_verification_token,
+)
 from ..database import get_db
 from ..logging import anonymize_ip
 from .deps import require_json, resolve_coords
@@ -16,6 +29,11 @@ from ..utils.geometry import query_zoos_with_distance
 from ..utils.http import set_personalized_cache_headers
 
 router = APIRouter()
+
+
+_GENERIC_SIGNUP_MESSAGE = (
+    "If the address can be used, we'll send instructions via email."
+)
 
 
 def ensure_same_user(user_id: uuid.UUID, current_user: models.User) -> None:
@@ -114,7 +132,12 @@ def _serialize_map_points(zoos: list[models.Zoo]):
         for z in zoos
     ]
 
-@router.post("/users", response_model=schemas.UserRead, dependencies=[Depends(require_json)])
+@router.post(
+    "/users",
+    response_model=schemas.Message,
+    status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(require_json)],
+)
 def create_user(
     user_in: schemas.UserCreate,
     request: Request,
@@ -122,8 +145,12 @@ def create_user(
     db: Session = Depends(get_db),
 ):
     """Register a new user with a hashed password."""
-    if get_user(db, user_in.email):
-        raise HTTPException(status_code=400, detail="Email already registered")
+    generic_response = {"detail": _GENERIC_SIGNUP_MESSAGE}
+
+    existing_user = get_user(db, user_in.email)
+    if existing_user:
+        enqueue_existing_account_notice(background_tasks, existing_user)
+        return generic_response
     hashed = hash_password(user_in.password)
     consent_at = datetime.now(timezone.utc)
     anonymized_ip = getattr(request.state, "client_ip_anonymized", None)
@@ -146,8 +173,7 @@ def create_user(
     db.flush()
     enqueue_verification_email(background_tasks, user, token=token, code=code)
     db.commit()
-    db.refresh(user)
-    return user
+    return generic_response
 
 
 @router.get(
