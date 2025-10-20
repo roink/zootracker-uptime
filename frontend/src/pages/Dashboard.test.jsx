@@ -66,8 +66,6 @@ describe('Dashboard', () => {
         return { ok: true, json: () => Promise.resolve({ count: 0 }) };
       if (url.endsWith('/sightings'))
         return { ok: true, json: () => Promise.resolve([sighting]) };
-      if (url.endsWith('/achievements'))
-        return { ok: true, json: () => Promise.resolve([]) };
       return { ok: true, json: () => Promise.resolve([]) };
     });
   });
@@ -81,8 +79,8 @@ describe('Dashboard', () => {
     expect(english).toBeInTheDocument();
     expect(await screen.findByText('Note: Feeding time')).toBeInTheDocument();
 
-    const achievementCalls = global.fetch.mock.calls.filter(([url]) =>
-      typeof url === 'string' && url.endsWith('/achievements')
+    const achievementCalls = global.fetch.mock.calls.filter(([request]) =>
+      typeof request === 'string' && request.includes('/achievements')
     );
     expect(achievementCalls).toHaveLength(0);
 
