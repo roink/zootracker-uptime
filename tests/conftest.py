@@ -1,10 +1,7 @@
 import os
-from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-
-from dotenv import load_dotenv
 
 
 def pytest_addoption(parser):
@@ -23,18 +20,9 @@ def pytest_collection_modifyitems(config, items):
     config.getoption("--pg", default=False)
 
 
-# Load environment configuration from a local .env file if present so developers
-# can point the test suite at their own database without exporting variables
-# manually. The repository ships a .env.example template in the project root, so
-# we look for a sibling `.env` file relative to this test module.
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-dotenv_path = PROJECT_ROOT / ".env"
-if dotenv_path.exists():
-    load_dotenv(dotenv_path, override=False)
-
 # The pytest suite relies on specific security header and CORS behaviour. Local
-# `.env` files used for manual testing often disable or narrow those settings,
-# so normalise the values after loading environment variables. This preserves a
+# environment overrides used for manual testing often disable or narrow those settings,
+# so normalise the values before the app initialises. This preserves a
 # developer's custom database credentials while keeping the tests deterministic.
 # Keep this default in sync with `app.config.DEFAULT_STRICT_TRANSPORT_SECURITY`.
 _DEFAULT_STRICT_TRANSPORT_SECURITY = "max-age=63072000; includeSubDomains; preload"
