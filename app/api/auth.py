@@ -9,14 +9,23 @@ from collections import defaultdict, deque
 from datetime import UTC, datetime
 from typing import Any, Deque
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from .. import models, schemas
+from ..utils.email_verification import (
+    can_issue_again,
+    clear_verification_state,
+    code_matches,
+    enqueue_verification_email,
+    issue_verification_token,
+    token_matches,
+)
 from ..auth import (
     create_access_token,
+    get_current_user,
     get_user,
     hash_refresh_token,
     issue_refresh_token,
@@ -37,6 +46,7 @@ from ..database import get_db
 from ..logging import anonymize_ip
 from ..middleware.logging import set_user_context
 from ..utils.network import get_client_ip
+from ..rate_limit import enforce_verify_rate_limit
 
 router = APIRouter()
 
@@ -115,6 +125,7 @@ def _build_token_response(user: models.User, access_token: str, expires_at: date
         "token_type": "bearer",
         "expires_in": expires_in,
         "user_id": str(user.id),
+        "email_verified": bool(user.email_verified_at),
     }
     response = JSONResponse(payload)
     _cache_busting_headers(response)
@@ -152,6 +163,22 @@ def login(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
+        )
+
+    if not user.email_verified_at:
+        auth_logger.info(
+            "Login blocked for unverified email",
+            extra={
+                "event_dataset": "zoo-tracker-api.auth",
+                "event_action": "login_blocked",
+                "client_ip": safe_ip,
+                "auth_method": "password",
+                "auth_failure_reason": "email_unverified",
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Email address has not been verified yet.",
         )
 
     login_time = _now()
@@ -248,6 +275,146 @@ def refresh_token(request: Request, db: Session = Depends(get_db)):
     csrf_nonce = secrets.token_urlsafe(32)
     _set_csrf_cookie(response, csrf_nonce, remaining_lifetime)
     return response
+
+
+@router.post(
+    "/auth/verification/resend",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=schemas.Message,
+)
+def resend_verification_email(
+    background_tasks: BackgroundTasks,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Re-issue an email verification token for the authenticated user."""
+
+    if current_user.email_verified_at:
+        return {"detail": "Your email address is already verified."}
+    allowed, reason = can_issue_again(current_user)
+    if not allowed:
+        if reason == "cooldown":
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="We recently sent a verification email. Please check your inbox.",
+            )
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Daily verification email limit reached. Try again tomorrow.",
+        )
+
+    token, code, _ = issue_verification_token(current_user)
+    db.flush()
+    enqueue_verification_email(background_tasks, current_user, token=token, code=code)
+    db.commit()
+    auth_logger.info(
+        "Verification email reissued",
+        extra={
+            "event_dataset": "zoo-tracker-api.auth",
+            "event_action": "verification_email_sent",
+            "user_id": str(current_user.id),
+        },
+    )
+    return {"detail": "We sent you a new verification email."}
+
+
+@router.post(
+    "/auth/verify",
+    response_model=schemas.Message,
+)
+async def verify_email(
+    request: Request,
+    payload: schemas.EmailVerificationRequest,
+    db: Session = Depends(get_db),
+):
+    """Validate a verification token or code and mark the user as verified."""
+
+    identifier: str | None = None
+    if payload.uid:
+        identifier = str(payload.uid)
+    elif payload.email:
+        identifier = payload.email
+    await enforce_verify_rate_limit(request, identifier=identifier)
+
+    user: models.User | None = None
+    if payload.uid:
+        user = db.get(models.User, payload.uid)
+    if user is None and payload.email:
+        user = get_user(db, payload.email)
+    generic = {"detail": "If the account exists, the verification state was updated."}
+    generic_response = JSONResponse(generic, status_code=status.HTTP_202_ACCEPTED)
+    if user is None:
+        return generic_response
+
+    now = _now()
+    if user.email_verified_at:
+        return generic_response
+    if not user.verify_token_hash or not user.verify_token_expires_at:
+        auth_logger.warning(
+            "Verification attempt missing active token",
+            extra={
+                "event_dataset": "zoo-tracker-api.auth",
+                "event_action": "email_verification_failed",
+                "user_id": str(user.id),
+                "verification_failure_reason": "token_missing",
+            },
+        )
+        return generic_response
+    if user.verify_token_expires_at < now:
+        auth_logger.warning(
+            "Verification attempt with expired token",
+            extra={
+                "event_dataset": "zoo-tracker-api.auth",
+                "event_action": "email_verification_failed",
+                "user_id": str(user.id),
+                "verification_failure_reason": "token_expired",
+            },
+        )
+        return generic_response
+
+    matched = False
+    if payload.token and token_matches(user, payload.token):
+        matched = True
+    elif payload.code and code_matches(user, payload.code):
+        matched = True
+
+    if not matched:
+        auth_logger.warning(
+            "Verification attempt with invalid secret",
+            extra={
+                "event_dataset": "zoo-tracker-api.auth",
+                "event_action": "email_verification_failed",
+                "user_id": str(user.id),
+                "verification_failure_reason": "secret_mismatch",
+            },
+        )
+        return generic_response
+
+    clear_verification_state(user, verified_at=now)
+    db.flush()
+    families = {
+        token.family_id
+        for token in db.query(models.RefreshToken)
+        .filter(models.RefreshToken.user_id == user.id)
+        .filter(models.RefreshToken.revoked_at.is_(None))
+    }
+    for family_id in families:
+        revoke_refresh_family(
+            db,
+            family_id,
+            reason="email_verified",
+            timestamp=now,
+        )
+    db.commit()
+    auth_logger.info(
+        "Email verified",
+        extra={
+            "event_dataset": "zoo-tracker-api.auth",
+            "event_action": "email_verified",
+            "user_id": str(user.id),
+        },
+    )
+    return {"detail": "Email verified."}
 
 
 @router.post("/auth/logout", status_code=status.HTTP_204_NO_CONTENT)

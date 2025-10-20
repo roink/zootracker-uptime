@@ -29,8 +29,10 @@ import AnimalsPage from "./pages/Animals";
 import AnimalDetailPage from "./pages/AnimalDetail";
 import ImageAttributionPage from "./pages/ImageAttribution";
 import Header from "./components/Header";
+import EmailVerificationAlert from "./components/EmailVerificationAlert.jsx";
 import SearchPage from "./pages/Search";
 import ZooDetailPage from "./pages/ZooDetail";
+import VerifyEmailPage from "./pages/VerifyEmail";
 import LegalNoticePage from "./pages/LegalNotice";
 import DataProtectionPage from "./pages/DataProtection";
 import ContactPage from "./pages/Contact";
@@ -90,6 +92,7 @@ function AppRoutes({ refreshCounter, refreshSeen }) {
     <div className="d-flex flex-column page-wrapper">
       <Header />
       <main className="flex-grow-1 pb-5">
+        <EmailVerificationAlert />
         <Routes location={location}>
           <Route
             index
@@ -113,6 +116,7 @@ function AppRoutes({ refreshCounter, refreshSeen }) {
             <Route path="profile" element={<ProfilePage />} />
           </Route>
           <Route path="login" element={<LoginPage />} />
+          <Route path="verify" element={<VerifyEmailPage />} />
           <Route path="zoos" element={<ZoosPage />} />
           <Route
             path="zoos/:slug"
@@ -205,6 +209,21 @@ function RootRedirect() {
   return null;
 }
 
+function VerifyEmailRedirect() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  useEffect(() => {
+    const stored = localStorage.getItem('lang');
+    const detected = i18n.services?.languageDetector?.detect?.();
+    const candidate = stored || (Array.isArray(detected) ? detected[0] : detected);
+    const targetLang = normalizeLang(candidate);
+    const search = location.search || '';
+    const hash = location.hash || '';
+    navigate(`/${targetLang}/verify${search}${hash}`, { replace: true });
+  }, [navigate, location.search, location.hash]);
+  return null;
+}
+
 function App() {
   const [refreshCounter, setRefreshCounter] = useState(0);
 
@@ -216,6 +235,7 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<RootRedirect />} />
+        <Route path="/verify" element={<VerifyEmailRedirect />} />
         <Route
           path="/:lang/*"
           element={

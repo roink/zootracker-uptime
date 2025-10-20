@@ -1,12 +1,13 @@
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload, load_only
 
 from .. import schemas, models
 from ..auth import hash_password, get_user, get_current_user
+from ..utils.email_verification import enqueue_verification_email, issue_verification_token
 from ..database import get_db
 from ..logging import anonymize_ip
 from .deps import require_json, resolve_coords
@@ -117,6 +118,7 @@ def _serialize_map_points(zoos: list[models.Zoo]):
 def create_user(
     user_in: schemas.UserCreate,
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
     """Register a new user with a hashed password."""
@@ -139,7 +141,10 @@ def create_user(
         privacy_consent_at=consent_at,
         privacy_consent_ip=anonymized_ip,
     )
+    token, code, _ = issue_verification_token(user)
     db.add(user)
+    db.flush()
+    enqueue_verification_email(background_tasks, user, token=token, code=code)
     db.commit()
     db.refresh(user)
     return user

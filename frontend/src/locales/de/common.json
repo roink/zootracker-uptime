@@ -418,7 +418,9 @@
   "auth": {
     "seo": {
       "loginTitle": "Anmelden / Registrieren",
-      "loginDescription": "Greifen Sie auf Ihr ZooTracker-Konto zu oder erstellen Sie ein neues, um Besuche und Sichtungen zu protokollieren."
+      "loginDescription": "Greifen Sie auf Ihr ZooTracker-Konto zu oder erstellen Sie ein neues, um Besuche und Sichtungen zu protokollieren.",
+      "verifyTitle": "E-Mail bestätigen",
+      "verifyDescription": "Bestätige deine ZooTracker-E-Mail-Adresse, um dein Konto abzuschließen."
     },
     "common": {
       "networkError": "Netzwerkfehler: {{message}}"
@@ -434,7 +436,8 @@
       "passwordPlaceholder": "Passwort",
       "submit": "Anmelden",
       "submitting": "Anmeldung läuft…",
-      "error": "Anmeldung fehlgeschlagen"
+      "error": "Anmeldung fehlgeschlagen",
+      "unverified": "Bitte bestätige deine E-Mail-Adresse, bevor du dich einloggst."
     },
     "signup": {
       "heading": "Registrieren",
@@ -445,10 +448,30 @@
       "confirmPlaceholder": "Passwort bestätigen",
       "submit": "Konto erstellen",
       "submitting": "Registrierung läuft…",
-      "success": "Registrierung erfolgreich, bitte melden Sie sich an.",
+      "success": "Danke für deine Registrierung! Wir haben eine Bestätigungs-E-Mail an {{email}} gesendet. Öffne den Link in dieser E-Mail, um dein Konto fertig einzurichten.",
       "error": "Registrierung fehlgeschlagen",
       "acceptLabel": "Ich habe die Hinweise in der <link/> gelesen und akzeptiere sie.",
       "linkText": "Datenschutzerklärung"
+    },
+    "verification": {
+      "heading": "E-Mail-Adresse bestätigen",
+      "intro": "Gib den 6–8-stelligen Code aus der E-Mail ein oder öffne den Bestätigungslink.",
+      "emailLabel": "E-Mail-Adresse",
+      "codeLabel": "Bestätigungscode",
+      "submit": "E-Mail bestätigen",
+      "submitting": "Bestätige…",
+      "success": "Danke! Deine E-Mail-Adresse wurde bestätigt. Du kannst dich jetzt anmelden.",
+      "successRedirect": "Danke! Deine E-Mail-Adresse wurde bestätigt. Du wirst gleich zum Login weitergeleitet…",
+      "processing": "Prüfe deinen Bestätigungslink…",
+      "invalid": "Der Bestätigungslink oder Code ist ungültig oder abgelaufen. Bitte fordere eine neue E-Mail an.",
+      "banner": "Bitte bestätige deine E-Mail-Adresse, um alle Funktionen zu nutzen.",
+      "resend": "E-Mail erneut senden",
+      "resendLoading": "Sende…",
+      "resendSuccess": "Wir haben dir eine neue Bestätigungs-E-Mail geschickt.",
+      "resendCooldown": "Wir haben dir gerade eine E-Mail gesendet. Sieh in deinem Posteingang nach oder versuche es später erneut.",
+      "resendLimit": "Du hast das Tageslimit für erneute Sendungen erreicht. Bitte versuche es morgen erneut.",
+      "openForm": "Code manuell eingeben",
+      "backToLogin": "Zur Anmeldung"
     }
   },
   "legalNoticePage": {

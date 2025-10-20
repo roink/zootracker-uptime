@@ -4,7 +4,7 @@ from datetime import date, datetime
 from typing import Optional, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, ConfigDict, Field, constr, field_validator
+from pydantic import BaseModel, EmailStr, ConfigDict, Field, constr, field_validator, model_validator
 
 
 class UserCreate(BaseModel):
@@ -33,8 +33,40 @@ class UserRead(BaseModel):
     id: UUID
     name: str
     email: EmailStr
+    email_verified: bool = False
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")
+
+
+class Message(BaseModel):
+    """Simple envelope used for status responses."""
+
+    detail: str
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class EmailVerificationRequest(BaseModel):
+    """Payload accepted by the email verification endpoint."""
+
+    uid: UUID | None = None
+    email: EmailStr | None = None
+    token: str | None = None
+    code: constr(min_length=6, max_length=8, pattern=r"^\d{6,8}$") | None = None
+
+    model_config = ConfigDict(extra="forbid")
+
+    @field_validator("token", "code", mode="before")
+    def _strip_values(cls, value: str | None) -> str | None:
+        return value.strip() if isinstance(value, str) else value
+
+    @model_validator(mode="after")
+    def _ensure_fields(self):
+        if not (self.uid or self.email):
+            raise ValueError("identifier_required")
+        if not (self.token or self.code):
+            raise ValueError("token_or_code_required")
+        return self
 
 
 class Token(BaseModel):
@@ -44,6 +76,7 @@ class Token(BaseModel):
     token_type: str
     expires_in: int
     user_id: Optional[UUID] = None
+    email_verified: bool = False
 
     model_config = ConfigDict(extra="forbid")
 

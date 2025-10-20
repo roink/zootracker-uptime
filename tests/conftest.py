@@ -2,6 +2,9 @@ import os
 from pathlib import Path
 
 import pytest
+from datetime import datetime, timezone
+import uuid
+
 from fastapi.testclient import TestClient
 
 from dotenv import load_dotenv
@@ -81,6 +84,9 @@ os.environ.setdefault(
 )
 os.environ.setdefault("JWT_SECRET", os.environ["SECRET_KEY"])
 os.environ.setdefault("TOKEN_PEPPER", "unit-test-pepper")
+os.environ.setdefault("APP_BASE_URL", "http://frontend.test")
+os.environ.setdefault("EMAIL_VERIFICATION_RESEND_COOLDOWN", "60")
+os.environ.setdefault("EMAIL_VERIFICATION_DAILY_LIMIT", "5")
 os.environ.setdefault("COOKIE_SECURE", "false")
 
 from app.database import Base, engine, SessionLocal  # noqa: E402
@@ -332,6 +338,8 @@ def register_and_login(return_register_resp: bool = False):
     )
     assert register_resp.status_code == 200
     user_id = register_resp.json()["id"]
+    mark_user_verified(user_id)
+
     login_resp = client.post(
         "/auth/login",
         data={"username": email, "password": TEST_PASSWORD},
@@ -344,3 +352,18 @@ def register_and_login(return_register_resp: bool = False):
     if return_register_resp:
         return token, user_id, register_resp
     return token, user_id
+
+
+def mark_user_verified(user_id: str | uuid.UUID) -> None:
+    """Set the verification timestamp for ``user_id`` in the database."""
+
+    with SessionLocal() as db:
+        record = db.get(models.User, uuid.UUID(str(user_id)))
+        assert record is not None
+        record.email_verified_at = datetime.now(timezone.utc)
+        record.verify_token_hash = None
+        record.verify_code_hash = None
+        record.verify_token_expires_at = None
+        record.verify_attempts = 0
+        record.last_verify_sent_at = None
+        db.commit()

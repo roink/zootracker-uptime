@@ -21,6 +21,12 @@ CREATE TABLE users (
   name            VARCHAR(255) NOT NULL,
   email           CITEXT NOT NULL UNIQUE,
   password_hash   VARCHAR(255) NOT NULL,
+  email_verified_at TIMESTAMPTZ,
+  verify_token_hash VARCHAR(128),
+  verify_code_hash  VARCHAR(128),
+  verify_token_expires_at TIMESTAMPTZ,
+  verify_attempts SMALLINT NOT NULL DEFAULT 0,
+  last_verify_sent_at TIMESTAMPTZ,
   last_login_at   TIMESTAMPTZ,
   last_active_at  TIMESTAMPTZ,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now()

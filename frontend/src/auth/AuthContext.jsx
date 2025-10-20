@@ -117,7 +117,7 @@ export function AuthProvider({ children }) {
         throw new Error(`Refresh failed with ${response.status}`);
       }
       const data = await response.json();
-      applyAuth(data.access_token, data.expires_in, { id: data.user_id });
+      applyAuth(data.access_token, data.expires_in, { id: data.user_id, emailVerified: data.email_verified });
       return data.access_token;
     })();
     refreshPromise.current = promise

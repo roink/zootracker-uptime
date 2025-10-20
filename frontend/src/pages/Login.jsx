@@ -29,6 +29,11 @@ export default function LoginPage() {
   const consentCheckboxRef = useRef(null);
   // Show a success message after signing up
   const [successMessage, setSuccessMessage] = useState('');
+  const [pendingEmail, setPendingEmail] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const verifyHref = pendingEmail
+    ? `${prefix}/verify?email=${encodeURIComponent(pendingEmail)}`
+    : `${prefix}/verify`;
   // Prevent double submits while network requests are pending
   const [loggingIn, setLoggingIn] = useState(false);
   const [signingUp, setSigningUp] = useState(false);
@@ -79,15 +84,22 @@ export default function LoginPage() {
         const data = await resp.json();
         login({
           token: data.access_token,
-          user: { id: data.user_id, email: cleanEmail },
+          user: { id: data.user_id, email: cleanEmail, emailVerified: data.email_verified },
           expiresIn: data.expires_in,
         });
+        setPendingEmail('');
+        setLoginError('');
         navigate(prefix, { replace: true });
+      } else if (resp.status === 403) {
+        const payload = await resp.json().catch(() => ({}));
+        const detail = typeof payload.detail === 'string' ? payload.detail : t('auth.login.unverified');
+        setPendingEmail(cleanEmail);
+        setLoginError(detail);
       } else {
-        alert(t('auth.login.error'));
+        setLoginError(t('auth.login.error'));
       }
     } catch (err) {
-      alert(t('auth.common.networkError', { message: err.message }));
+      setLoginError(t('auth.common.networkError', { message: err.message }));
     } finally {
       setLoggingIn(false);
     }
@@ -128,7 +140,8 @@ export default function LoginPage() {
       if (resp.ok) {
         await resp.json();
         setInputEmail(cleanEmail);
-        setSuccessMessage(t('auth.signup.success'));
+        setPendingEmail(cleanEmail);
+        setSuccessMessage(t('auth.signup.success', { email: cleanEmail }));
         setName('');
         setRegEmail('');
         setRegPassword('');
@@ -153,9 +166,23 @@ export default function LoginPage() {
       />
       {/* Log in section */}
       <form onSubmit={handleLogin} className="container auth-form">
+        {loginError && (
+          <div className="alert alert-warning" role="alert">
+            {loginError}
+          </div>
+        )}
         {successMessage && (
           <div className="alert alert-success" role="alert">
-            {successMessage}
+            <p className="mb-2">{successMessage}</p>
+            <div className="d-flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="btn btn-light"
+                onClick={() => navigate(verifyHref)}
+              >
+                {t('auth.verification.openForm')}
+              </button>
+            </div>
           </div>
         )}
         <h2 className="mb-3">{t('auth.login.heading')}</h2>

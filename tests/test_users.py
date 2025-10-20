@@ -1,7 +1,13 @@
 from app import models
 from app.database import SessionLocal
 
-from .conftest import CONSENT_VERSION, client, register_and_login, TEST_PASSWORD
+from .conftest import (
+    CONSENT_VERSION,
+    client,
+    register_and_login,
+    TEST_PASSWORD,
+    mark_user_verified,
+)
 
 _counter = 0  # used to generate unique email addresses
 
@@ -166,7 +172,9 @@ def test_create_user_accepts_charset():
     )
     assert resp.status_code == 200
     # response should only include id, name and email
-    assert set(resp.json().keys()) == {"id", "name", "email"}
+    body = resp.json()
+    assert set(body.keys()) == {"id", "name", "email", "email_verified"}
+    assert body["email_verified"] is False
 
 def test_create_user_response_fields():
     """Successful user creation returns only id, name and email."""
@@ -184,7 +192,9 @@ def test_create_user_response_fields():
         },
     )
     assert resp.status_code == 200
-    assert set(resp.json().keys()) == {"id", "name", "email"}
+    body = resp.json()
+    assert set(body.keys()) == {"id", "name", "email", "email_verified"}
+    assert body["email_verified"] is False
 
 def test_login_empty_username_password():
     """Login with empty credentials should return 400."""
@@ -210,6 +220,7 @@ def test_login_endpoint():
         },
     )
     assert resp.status_code == 200
+    mark_user_verified(resp.json()["id"])
     resp = client.post(
         "/auth/login",
         data={"username": email, "password": TEST_PASSWORD},
@@ -240,6 +251,7 @@ def test_login_response_excludes_password_fields():
         },
     )
     assert resp.status_code == 200
+    mark_user_verified(resp.json()["id"])
     resp = client.post(
         "/auth/login",
         data={"username": email, "password": TEST_PASSWORD},
@@ -271,7 +283,7 @@ def test_register_response_sanitized():
     assert "password_salt" not in data
 
     # Only expected fields are present
-    assert set(data.keys()) == {"id", "name", "email"}
+    assert set(data.keys()) == {"id", "name", "email", "email_verified"}
 
 
 def test_registration_persists_privacy_consent_metadata():
