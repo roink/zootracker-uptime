@@ -22,11 +22,6 @@ CREATE TABLE users (
   email           CITEXT NOT NULL UNIQUE,
   password_hash   VARCHAR(255) NOT NULL,
   email_verified_at TIMESTAMPTZ,
-  verify_token_hash VARCHAR(128),
-  verify_code_hash  VARCHAR(128),
-  verify_token_expires_at TIMESTAMPTZ,
-  verify_attempts SMALLINT NOT NULL DEFAULT 0,
-  last_verify_sent_at TIMESTAMPTZ,
   last_login_at   TIMESTAMPTZ,
   last_active_at  TIMESTAMPTZ,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -51,6 +46,21 @@ CREATE INDEX ix_refresh_tokens_user_id ON refresh_tokens (user_id);
 CREATE INDEX ix_refresh_tokens_family_id ON refresh_tokens (family_id);
 CREATE INDEX ix_refresh_tokens_revoked_at ON refresh_tokens (revoked_at);
 CREATE INDEX ix_refresh_tokens_expires_at ON refresh_tokens (expires_at);
+
+-- 1c. Verification tokens
+CREATE TABLE verification_tokens (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id      UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  purpose      VARCHAR(64) NOT NULL,
+  token_hash   VARCHAR(128) NOT NULL,
+  code_hash    VARCHAR(128),
+  expires_at   TIMESTAMPTZ NOT NULL,
+  created_at   TIMESTAMPTZ NOT NULL,
+  consumed_at  TIMESTAMPTZ
+);
+
+CREATE INDEX ix_verification_tokens_user_purpose ON verification_tokens (user_id, purpose);
+CREATE INDEX ix_verification_tokens_active ON verification_tokens (user_id, purpose, consumed_at);
 
 -- 2. Region reference tables
 CREATE TABLE continent_names (

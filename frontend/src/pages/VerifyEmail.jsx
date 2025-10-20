@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
@@ -24,11 +24,17 @@ export default function VerifyEmailPage() {
   const [showForm, setShowForm] = useState(!isMagicLink);
   const redirectTimer = useRef(null);
   const lastAttemptKey = useRef('');
+  const [resendStatus, setResendStatus] = useState('idle');
+  const [resendMessage, setResendMessage] = useState('');
 
   const replaceUrl = (nextQuery = '') => {
     const search = nextQuery ? `?${nextQuery}` : '';
     window.history.replaceState({}, '', `${prefix}/verify${search}`);
   };
+
+  const setLoginBannerCookie = useCallback(() => {
+    document.cookie = 'ztr_verify_success=1; path=/; max-age=120; SameSite=Lax';
+  }, []);
 
   useEffect(() => () => {
     if (redirectTimer.current) {
@@ -57,6 +63,7 @@ export default function VerifyEmailPage() {
           if (resp.status === 200) {
             setStatus('success');
             setMessage(t('auth.verification.successRedirect'));
+            setLoginBannerCookie();
             replaceUrl(initialEmail ? `email=${encodeURIComponent(initialEmail)}` : '');
             redirectTimer.current = setTimeout(() => {
               navigate(`${prefix}/login`, { replace: true });
@@ -105,6 +112,7 @@ export default function VerifyEmailPage() {
       if (resp.status === 200) {
         setStatus('success');
         setMessage(t('auth.verification.success'));
+        setLoginBannerCookie();
         return;
       }
       if (resp.status === 202) {
@@ -124,6 +132,43 @@ export default function VerifyEmailPage() {
     } catch (err) {
       setStatus('error');
       setMessage(t('auth.common.networkError', { message: err.message }));
+    }
+  };
+
+  const handleResend = async () => {
+    const targetEmail = email.trim();
+    if (!targetEmail) return;
+    setResendStatus('loading');
+    setResendMessage('');
+    try {
+      const resp = await fetch(`${API}/auth/verification/request-resend`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: targetEmail }),
+      });
+      if (resp.status === 429) {
+        const data = await resp.json().catch(() => ({}));
+        const detail = typeof data.detail === 'string'
+          ? data.detail
+          : t('auth.verification.resendRateLimited');
+        setResendStatus('error');
+        setResendMessage(detail);
+        return;
+      }
+      if (!resp.ok) {
+        setResendStatus('error');
+        setResendMessage(t('auth.verification.resendError'));
+        return;
+      }
+      const data = await resp.json().catch(() => ({}));
+      const detail = typeof data.detail === 'string'
+        ? data.detail
+        : t('auth.verification.resendGeneric', { email: targetEmail });
+      setResendStatus('success');
+      setResendMessage(detail);
+    } catch (err) {
+      setResendStatus('error');
+      setResendMessage(t('auth.common.networkError', { message: err.message }));
     }
   };
 
@@ -192,6 +237,29 @@ export default function VerifyEmailPage() {
             {status === 'loading' ? t('auth.verification.submitting') : t('auth.verification.submit')}
           </button>
         </form>
+      )}
+      {(!isMagicLink || showForm) && (
+        <div className="mb-4">
+          <p className="mb-2">{t('auth.verification.resendPrompt')}</p>
+          <button
+            type="button"
+            className="btn btn-link p-0"
+            onClick={handleResend}
+            disabled={resendStatus === 'loading' || !email.trim()}
+          >
+            {resendStatus === 'loading'
+              ? t('auth.verification.resendLoading')
+              : t('auth.verification.resendCta')}
+          </button>
+          {resendStatus === 'success' && (
+            <p className="small text-success mb-0 mt-2">
+              {resendMessage || t('auth.verification.resendGeneric', { email })}
+            </p>
+          )}
+          {resendStatus === 'error' && resendMessage && (
+            <p className="small text-danger mb-0 mt-2">{resendMessage}</p>
+          )}
+        </div>
       )}
       {(!isMagicLink || showForm) && (
         <button

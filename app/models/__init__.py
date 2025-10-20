@@ -5,7 +5,7 @@ from ..database import Base
 from .achievements import Achievement, UserAchievement
 from .animals import Animal, Category, ClassName, FamilyName, OrderName
 from .associations import UserFavoriteAnimal, UserFavoriteZoo, ZooAnimal
-from .auth_tokens import RefreshToken
+from .auth_tokens import RefreshToken, VerificationToken
 from .geography import ContinentName, CountryName, Zoo
 from .imagery import Image, ImageVariant, SOURCE_ORDER
 from .sightings import AnimalSighting
@@ -31,6 +31,7 @@ __all__ = [
     "UserAchievement",
     "UserFavoriteAnimal",
     "UserFavoriteZoo",
+    "VerificationToken",
     "Zoo",
     "ZooAnimal",
     "ZooVisit",

@@ -31,12 +31,19 @@ export default function LoginPage() {
   const [successMessage, setSuccessMessage] = useState('');
   const [pendingEmail, setPendingEmail] = useState('');
   const [loginError, setLoginError] = useState('');
+  const [verificationBanner, setVerificationBanner] = useState('');
+  const [loginResendStatus, setLoginResendStatus] = useState('idle');
+  const [loginResendMessage, setLoginResendMessage] = useState('');
+  const [signupResendStatus, setSignupResendStatus] = useState('idle');
+  const [signupResendMessage, setSignupResendMessage] = useState('');
+  const [signupResendCooldown, setSignupResendCooldown] = useState(0);
   const verifyHref = pendingEmail
     ? `${prefix}/verify?email=${encodeURIComponent(pendingEmail)}`
     : `${prefix}/verify`;
   // Prevent double submits while network requests are pending
   const [loggingIn, setLoggingIn] = useState(false);
   const [signingUp, setSigningUp] = useState(false);
+  const RESEND_DELAY_SECONDS = 60;
 
   // Extract a one-time message from navigation state then clear it
   useEffect(() => {
@@ -45,6 +52,15 @@ export default function LoginPage() {
       navigate(location.pathname, { replace: true, state: {} });
     }
   }, [location, navigate]);
+
+  useEffect(() => {
+    const cookieParts = document.cookie.split('; ').filter(Boolean);
+    const flag = cookieParts.find((part) => part.startsWith('ztr_verify_success='));
+    if (flag) {
+      setVerificationBanner(t('auth.login.verificationSuccess'));
+      document.cookie = 'ztr_verify_success=; Max-Age=0; path=/';
+    }
+  }, [t]);
 
   // Scroll to the sign up section when the URL contains "#signup".
   useEffect(() => {
@@ -62,6 +78,69 @@ export default function LoginPage() {
     }
   }, [acceptError]);
 
+  useEffect(() => {
+    if (successMessage && pendingEmail) {
+      setSignupResendCooldown(RESEND_DELAY_SECONDS);
+      setSignupResendStatus('idle');
+      setSignupResendMessage('');
+    }
+  }, [successMessage, pendingEmail, RESEND_DELAY_SECONDS]);
+
+  useEffect(() => {
+    if (signupResendCooldown <= 0) return;
+    const timer = setTimeout(() => {
+      setSignupResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [signupResendCooldown]);
+
+  useEffect(() => {
+    if (!pendingEmail) {
+      setLoginResendStatus('idle');
+      setLoginResendMessage('');
+    }
+  }, [pendingEmail]);
+
+  const requestVerificationResend = async (targetEmail, setStatus, setMessage, onSuccess) => {
+    if (!targetEmail) return;
+    setStatus('loading');
+    setMessage('');
+    try {
+      const resp = await fetch(`${API}/auth/verification/request-resend`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: targetEmail }),
+      });
+      if (resp.status === 429) {
+        const data = await resp.json().catch(() => ({}));
+        const detail = typeof data.detail === 'string'
+          ? data.detail
+          : t('auth.verification.resendRateLimited');
+        setStatus('error');
+        setMessage(detail);
+        return;
+      }
+      if (!resp.ok) {
+        const detail = t('auth.verification.resendError');
+        setStatus('error');
+        setMessage(detail);
+        return;
+      }
+      const data = await resp.json().catch(() => ({}));
+      const detail = typeof data.detail === 'string'
+        ? data.detail
+        : t('auth.verification.resendGeneric', { email: targetEmail });
+      setStatus('success');
+      setMessage(detail);
+      if (typeof onSuccess === 'function') {
+        onSuccess();
+      }
+    } catch (err) {
+      setStatus('error');
+      setMessage(t('auth.common.networkError', { message: err.message }));
+    }
+  };
+
   // Submit credentials to the backend and store auth data. If the
   // request fails entirely (e.g. when the API URL is unreachable) an
   // error message is shown so the user knows something went wrong.
@@ -73,6 +152,7 @@ export default function LoginPage() {
     const body = new URLSearchParams();
     body.append('username', cleanEmail);
     body.append('password', password);
+    setVerificationBanner('');
     try {
       const resp = await fetch(`${API}/auth/login`, {
         method: 'POST',
@@ -89,12 +169,16 @@ export default function LoginPage() {
         });
         setPendingEmail('');
         setLoginError('');
+        setLoginResendStatus('idle');
+        setLoginResendMessage('');
         navigate(prefix, { replace: true });
       } else if (resp.status === 403) {
         const payload = await resp.json().catch(() => ({}));
         const detail = typeof payload.detail === 'string' ? payload.detail : t('auth.login.unverified');
         setPendingEmail(cleanEmail);
         setLoginError(detail);
+        setLoginResendStatus('idle');
+        setLoginResendMessage('');
       } else {
         setLoginError(t('auth.login.error'));
       }
@@ -142,6 +226,8 @@ export default function LoginPage() {
         setInputEmail(cleanEmail);
         setPendingEmail(cleanEmail);
         setSuccessMessage(t('auth.signup.success', { email: cleanEmail }));
+        setSignupResendStatus('idle');
+        setSignupResendMessage('');
         setName('');
         setRegEmail('');
         setRegPassword('');
@@ -166,9 +252,41 @@ export default function LoginPage() {
       />
       {/* Log in section */}
       <form onSubmit={handleLogin} className="container auth-form">
+        {verificationBanner && (
+          <div className="alert alert-success" role="alert">
+            {verificationBanner}
+          </div>
+        )}
         {loginError && (
           <div className="alert alert-warning" role="alert">
-            {loginError}
+            <p className="mb-2">{loginError}</p>
+            {pendingEmail && (
+              <div className="small">
+                {loginResendStatus === 'success' ? (
+                  <span className="text-success">{loginResendMessage || t('auth.verification.resendGeneric', { email: pendingEmail })}</span>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className="btn btn-link p-0 align-baseline"
+                      onClick={() => requestVerificationResend(
+                        pendingEmail,
+                        setLoginResendStatus,
+                        setLoginResendMessage,
+                      )}
+                      disabled={loginResendStatus === 'loading'}
+                    >
+                      {loginResendStatus === 'loading'
+                        ? t('auth.verification.resendLoading')
+                        : t('auth.login.resendLink')}
+                    </button>
+                    {loginResendStatus === 'error' && loginResendMessage && (
+                      <div className="text-danger mt-1">{loginResendMessage}</div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
           </div>
         )}
         {successMessage && (
@@ -182,7 +300,35 @@ export default function LoginPage() {
               >
                 {t('auth.verification.openForm')}
               </button>
+              {pendingEmail && (
+                <button
+                  type="button"
+                  className="btn btn-outline-secondary"
+                  onClick={() => requestVerificationResend(
+                    pendingEmail,
+                    setSignupResendStatus,
+                    setSignupResendMessage,
+                    () => setSignupResendCooldown(RESEND_DELAY_SECONDS),
+                  )}
+                  disabled={signupResendStatus === 'loading' || signupResendCooldown > 0}
+                >
+                  {signupResendStatus === 'loading'
+                    ? t('auth.verification.resendLoading')
+                    : t('auth.signup.resendLink')}
+                </button>
+              )}
             </div>
+            {signupResendCooldown > 0 && (
+              <p className="small text-muted mb-0 mt-2">
+                {t('auth.signup.resendCountdown', { seconds: signupResendCooldown })}
+              </p>
+            )}
+            {signupResendStatus === 'success' && (
+              <p className="small text-success mb-0 mt-2">{signupResendMessage || t('auth.verification.resendGeneric', { email: pendingEmail })}</p>
+            )}
+            {signupResendStatus === 'error' && signupResendMessage && (
+              <p className="small text-danger mb-0 mt-2">{signupResendMessage}</p>
+            )}
           </div>
         )}
         <h2 className="mb-3">{t('auth.login.heading')}</h2>

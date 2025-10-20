@@ -472,7 +472,9 @@
       "submit": "Login",
       "submitting": "Logging in…",
       "error": "Login failed",
-      "unverified": "You need to verify your email address before logging in."
+      "unverified": "You need to verify your email address before logging in.",
+      "resendLink": "Didn't get the email? Resend verification instructions.",
+      "verificationSuccess": "Email verified successfully. Please log in."
     },
     "signup": {
       "heading": "Sign Up",
@@ -486,7 +488,9 @@
       "success": "Thanks for signing up! We sent a verification email to {{email}}. Follow the link in that email to finish setting up your account.",
       "error": "Sign up failed",
       "acceptLabel": "I read and accept the terms in the <link/>.",
-      "linkText": "data protection statement"
+      "linkText": "data protection statement",
+      "resendLink": "Didn't receive it? Send the verification email again.",
+      "resendCountdown": "You can request a new email in {{seconds}} seconds."
     },
     "verification": {
       "heading": "Verify your email",
@@ -505,6 +509,11 @@
       "resendSuccess": "We sent you a new verification email.",
       "resendCooldown": "A verification email was just sent. Check your inbox or try again shortly.",
       "resendLimit": "You have reached the resend limit for today. Please try again tomorrow.",
+      "resendGeneric": "If an account with {{email}} exists, we sent new verification instructions.",
+      "resendRateLimited": "Too many resend requests. Please wait before trying again.",
+      "resendError": "We couldn't request a new verification email.",
+      "resendPrompt": "Need a fresh verification email? We'll send a new one to the address above.",
+      "resendCta": "Send verification email again",
       "openForm": "Enter code manually",
       "backToLogin": "Back to login"
     }

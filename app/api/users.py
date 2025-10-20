@@ -141,8 +141,8 @@ def create_user(
         privacy_consent_at=consent_at,
         privacy_consent_ip=anonymized_ip,
     )
-    token, code, _ = issue_verification_token(user)
     db.add(user)
+    token, code, _ = issue_verification_token(db, user)
     db.flush()
     enqueue_verification_email(background_tasks, user, token=token, code=code)
     db.commit()

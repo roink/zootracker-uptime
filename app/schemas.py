@@ -69,6 +69,14 @@ class EmailVerificationRequest(BaseModel):
         return self
 
 
+class VerificationResendRequest(BaseModel):
+    """Payload accepted by the anonymous verification resend endpoint."""
+
+    email: EmailStr
+
+    model_config = ConfigDict(extra="forbid")
+
+
 class Token(BaseModel):
     """Authentication token response."""
 

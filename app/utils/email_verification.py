@@ -10,6 +10,7 @@ from datetime import UTC, datetime, timedelta
 from urllib.parse import quote_plus
 
 from fastapi import BackgroundTasks
+from sqlalchemy.orm import Session
 
 from .. import models
 from ..config import (
@@ -25,6 +26,7 @@ logger = logging.getLogger("app.email_verification")
 
 _PEPPER = TOKEN_PEPPER.encode("utf-8")
 _DAILY_WINDOW = timedelta(hours=24)
+_PURPOSE_EMAIL = "email_verification"
 
 
 def _now() -> datetime:
@@ -45,45 +47,67 @@ def _format_code() -> str:
 
 
 def issue_verification_token(
+    db: Session,
     user: models.User,
     *,
     now: datetime | None = None,
 ) -> tuple[str, str, datetime]:
-    """Create a verification token/code pair and persist hashes on ``user``."""
+    """Create a verification token/code pair and persist hashes for ``user``."""
 
     current = now or _now()
     token = secrets.token_urlsafe(32)
     code = _format_code()
     expires_at = current + timedelta(minutes=EMAIL_VERIFICATION_TTL_MINUTES)
 
-    user.verify_token_hash = _hash_secret(token)
-    user.verify_code_hash = _hash_secret(code)
-    user.verify_token_expires_at = expires_at
+    db.query(models.VerificationToken).filter(
+        models.VerificationToken.user_id == user.id,
+        models.VerificationToken.purpose == _PURPOSE_EMAIL,
+        models.VerificationToken.consumed_at.is_(None),
+    ).delete(synchronize_session=False)
 
-    last_sent = user.last_verify_sent_at
-    if not last_sent or current - last_sent >= _DAILY_WINDOW:
-        user.verify_attempts = 1
-    else:
-        user.verify_attempts = (user.verify_attempts or 0) + 1
-    user.last_verify_sent_at = current
+    record = models.VerificationToken(
+        user=user,
+        purpose=_PURPOSE_EMAIL,
+        token_hash=_hash_secret(token),
+        code_hash=_hash_secret(code),
+        expires_at=expires_at,
+        created_at=current,
+    )
+    db.add(record)
 
     return token, code, expires_at
 
 
-def can_issue_again(user: models.User, *, now: datetime | None = None) -> tuple[bool, str | None]:
+def can_issue_again(
+    db: Session,
+    user: models.User,
+    *,
+    now: datetime | None = None,
+) -> tuple[bool, str | None]:
     """Return whether another verification email can be sent and a failure reason."""
 
     current = now or _now()
-    if user.last_verify_sent_at and (
-        current - user.last_verify_sent_at
-    ).total_seconds() < EMAIL_VERIFICATION_RESEND_COOLDOWN:
+    last_token = (
+        db.query(models.VerificationToken)
+        .filter(models.VerificationToken.user_id == user.id)
+        .filter(models.VerificationToken.purpose == _PURPOSE_EMAIL)
+        .order_by(models.VerificationToken.created_at.desc())
+        .first()
+    )
+    if last_token and (current - last_token.created_at).total_seconds() < EMAIL_VERIFICATION_RESEND_COOLDOWN:
         return False, "cooldown"
-    if (
-        user.last_verify_sent_at
-        and current - user.last_verify_sent_at < _DAILY_WINDOW
-        and (user.verify_attempts or 0) >= EMAIL_VERIFICATION_DAILY_LIMIT
-    ):
+
+    window_start = current - _DAILY_WINDOW
+    recent_attempts = (
+        db.query(models.VerificationToken)
+        .filter(models.VerificationToken.user_id == user.id)
+        .filter(models.VerificationToken.purpose == _PURPOSE_EMAIL)
+        .filter(models.VerificationToken.created_at >= window_start)
+        .count()
+    )
+    if recent_attempts >= EMAIL_VERIFICATION_DAILY_LIMIT:
         return False, "limit"
+
     return True, None
 
 
@@ -132,6 +156,7 @@ def enqueue_verification_email(
     *,
     token: str,
     code: str,
+    execute_immediately: bool = False,
 ) -> None:
     """Schedule delivery of the verification email if SMTP is configured."""
 
@@ -141,6 +166,36 @@ def enqueue_verification_email(
             "Email service misconfigured for verification email",
             extra={"verification_user_id": str(user.id)},
         )
+        return
+    if execute_immediately:
+        logger.info(
+            "Sending verification email immediately",
+            extra={"verification_user_id": str(user.id)},
+        )
+        try:
+            send_email_via_smtp(
+                settings=settings,
+                message=message,
+                logger=logger,
+                auth_error=(
+                    "SMTP authentication failed when sending verification email",
+                    "verification_email_auth_failed",
+                ),
+                ssl_retry=(
+                    "SMTP SSL delivery failed for verification email, retrying with STARTTLS",
+                    "verification_email_ssl_retry",
+                ),
+                send_failure=(
+                    "Failed to send verification email",
+                    "verification_email_failed",
+                ),
+                log_extra={"verification_user_id": str(user.id)},
+            )
+        except Exception:
+            logger.exception(
+                "Immediate verification email delivery failed",
+                extra={"verification_user_id": str(user.id)},
+            )
         return
     background_tasks.add_task(
         send_email_via_smtp,
@@ -163,29 +218,49 @@ def enqueue_verification_email(
     )
 
 
-def token_matches(user: models.User, raw: str | None) -> bool:
+def token_matches(record: models.VerificationToken | None, raw: str | None) -> bool:
     """Return ``True`` when ``raw`` matches the stored token hash."""
 
-    if not raw or not user.verify_token_hash:
+    if not raw or record is None or not record.token_hash:
         return False
-    return hmac.compare_digest(user.verify_token_hash, _hash_secret(raw))
+    return hmac.compare_digest(record.token_hash, _hash_secret(raw))
 
 
-def code_matches(user: models.User, raw: str | None) -> bool:
+def code_matches(record: models.VerificationToken | None, raw: str | None) -> bool:
     """Return ``True`` when ``raw`` matches the stored code hash."""
 
-    if not raw or not user.verify_code_hash:
+    if not raw or record is None or not record.code_hash:
         return False
-    return hmac.compare_digest(user.verify_code_hash, _hash_secret(raw))
+    return hmac.compare_digest(record.code_hash, _hash_secret(raw))
 
 
-def clear_verification_state(user: models.User, *, verified_at: datetime | None = None) -> None:
+def clear_verification_state(
+    db: Session,
+    user: models.User,
+    *,
+    verified_at: datetime | None = None,
+) -> None:
     """Mark the user as verified and reset verification tracking fields."""
 
     timestamp = verified_at or _now()
     user.email_verified_at = timestamp
-    user.verify_token_hash = None
-    user.verify_code_hash = None
-    user.verify_token_expires_at = None
-    user.verify_attempts = 0
-    user.last_verify_sent_at = None
+    db.query(models.VerificationToken).filter(
+        models.VerificationToken.user_id == user.id,
+        models.VerificationToken.purpose == _PURPOSE_EMAIL,
+        models.VerificationToken.consumed_at.is_(None),
+    ).update({models.VerificationToken.consumed_at: timestamp}, synchronize_session=False)
+
+
+def get_latest_token(
+    db: Session,
+    user: models.User,
+) -> models.VerificationToken | None:
+    """Return the most recent verification token for the user."""
+
+    return (
+        db.query(models.VerificationToken)
+        .filter(models.VerificationToken.user_id == user.id)
+        .filter(models.VerificationToken.purpose == _PURPOSE_EMAIL)
+        .order_by(models.VerificationToken.created_at.desc())
+        .first()
+    )
