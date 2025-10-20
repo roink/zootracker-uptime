@@ -327,8 +327,14 @@ def register_and_login(return_register_resp: bool = False):
             "privacy_consent_version": CONSENT_VERSION,
         },
     )
-    assert register_resp.status_code == 200
-    user_id = register_resp.json()["id"]
+    assert register_resp.status_code == 202
+    with SessionLocal() as db:
+        user = (
+            db.query(models.User)
+            .filter(models.User.email == email)
+            .one()
+        )
+        user_id = str(user.id)
     mark_user_verified(user_id)
 
     login_resp = client.post(
