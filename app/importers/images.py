@@ -16,7 +16,7 @@ from app.import_utils import _clean_text, _parse_datetime, normalize_art_value
 
 logger = logging.getLogger(__name__)
 
-BANNED_MIDS = {"M31984332", "M1723980", "M117776631", "M55041643"}
+BANNED_MIDS = {"M31984332", "M1723980", "M117776631", "M55041643", "M4042543"}
 BANNED_LICENSE_SHORTS = {"GFDL", "GFDL 1.2", "GFDL 1.3", "GPL", "GPLv3"}
 
 
