@@ -280,9 +280,9 @@ When running the API on the public internet remember to:
 - Enable rate limiting (for example via a reverse proxy) to prevent abuse.
 - Keep JWT verification pinned to the expected algorithm (`algorithms=["HS256"]`)
   to avoid algorithm-confusion attacks.
-- Load environment variables through your process manager (for example,
+- Provide environment variables through your process manager (for example,
   `uvicorn app.main:app --reload --env-file .env` locally or `EnvironmentFile=/opt/zoo_tracker/.env`
-  in systemd) instead of calling `load_dotenv()` in application modules.
+  in systemd). Application modules do not attempt to load a `.env` file automatically.
 
 ### HTTP security headers
 

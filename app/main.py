@@ -4,11 +4,6 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
-from dotenv import load_dotenv
-
-# load environment variables from .env if present before importing config
-load_dotenv()
-
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -25,13 +20,39 @@ from .rate_limit import rate_limit
 configure_logging()
 
 logger = logging.getLogger("app.main")
+
+
 def _check_env_vars() -> None:
-    """Fail fast if required environment variables are missing."""
-    required = ["SMTP_HOST", "CONTACT_EMAIL"]
-    missing = [var for var in required if not os.getenv(var)]
+    """Fail fast if required environment variables are missing or invalid."""
+
+    required = [
+        "SECRET_KEY",  # JWT signing; refuse to boot without it
+        "DATABASE_URL",  # SQLAlchemy target; avoids "implicit default" pitfalls
+        "ALLOWED_ORIGINS",  # CORS must be explicit in your setup
+        "SMTP_HOST",
+        "CONTACT_EMAIL",
+    ]
+    missing = [
+        name for name in required if not (os.getenv(name) and os.getenv(name).strip())
+    ]
     if missing:
         missing_str = ", ".join(missing)
         raise RuntimeError(f"Missing required environment variables: {missing_str}")
+
+    secret_key = (os.getenv("SECRET_KEY") or "").strip()
+    if len(secret_key) < 32:
+        raise RuntimeError("SECRET_KEY must be at least 32 characters long")
+
+    contact_email = (os.getenv("CONTACT_EMAIL") or "").strip()
+    if "@" not in contact_email:
+        raise RuntimeError("CONTACT_EMAIL must be a valid email address")
+
+    raw_origins = os.getenv("ALLOWED_ORIGINS", "")
+    origins = [origin.strip() for origin in raw_origins.split(",") if origin.strip()]
+    if not origins:
+        raise RuntimeError(
+            "ALLOWED_ORIGINS must contain at least one comma-separated origin"
+        )
 
 
 @asynccontextmanager
