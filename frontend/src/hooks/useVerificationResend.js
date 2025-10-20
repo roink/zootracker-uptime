@@ -43,7 +43,7 @@ export function useVerificationResend({ cooldownSeconds = 0 } = {}) {
         const { response, detail } = await requestVerificationEmailResend(trimmed);
         if (response.status === 429) {
           setStatus('error');
-          setMessage(detail ?? rateLimitedMessage ?? t('auth.verification.resendRateLimited'));
+          setMessage(rateLimitedMessage ?? detail ?? t('auth.verification.resendRateLimited'));
           return;
         }
         if (!response.ok) {

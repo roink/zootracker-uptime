@@ -337,8 +337,27 @@ def request_verification_resend(
 ):
     """Allow users to request another verification email without authentication."""
 
-    anyio.from_thread.run(enforce_verification_resend_limit, request, payload.email)
     generic = {"detail": "If the account exists, verification instructions will be sent."}
+    try:
+        anyio.from_thread.run(
+            enforce_verification_resend_limit, request, payload.email
+        )
+    except HTTPException as exc:  # pragma: no cover - defensive branch
+        if exc.status_code == status.HTTP_429_TOO_MANY_REQUESTS:
+            auth_logger.info(
+                "Verification resend skipped",
+                extra={
+                    "event_dataset": "zoo-tracker-api.auth",
+                    "event_action": "verification_resend_throttled",
+                    "verification_throttle_reason": "rate_limit",
+                },
+            )
+            return JSONResponse(
+                generic,
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                headers=exc.headers,
+            )
+        raise
     user = get_user(db, payload.email)
     if not user or user.email_verified_at:
         auth_logger.info(

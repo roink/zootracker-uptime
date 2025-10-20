@@ -1,6 +1,6 @@
 import re
 import uuid
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 
 from app import models
 from app.auth import create_access_token
@@ -54,6 +54,7 @@ def _reset_verify_rate_limits():
     rate_limit.verify_failed_ip_limiter.history.clear()
     rate_limit.verify_failed_identifier_limiter.history.clear()
     rate_limit.verify_resend_ip_limiter.history.clear()
+    rate_limit.verify_resend_identifier_limiter.history.clear()
 
 
 def _parse_token(body: str) -> str:
@@ -126,13 +127,13 @@ def test_verify_email_with_token(monkeypatch):
     with SessionLocal() as db:
         user = db.get(models.User, user_info["id"])
         assert user.email_verified_at is not None
-        active_tokens = (
+        tokens = (
             db.query(models.VerificationToken)
             .filter(models.VerificationToken.user_id == user.id)
-            .filter(models.VerificationToken.consumed_at.is_(None))
-            .count()
+            .all()
         )
-        assert active_tokens == 0
+        assert tokens
+        assert all(token.consumed_at is not None for token in tokens)
 
 
 def test_verify_email_with_code(monkeypatch):
@@ -150,13 +151,13 @@ def test_verify_email_with_code(monkeypatch):
     with SessionLocal() as db:
         user = db.get(models.User, user_info["id"])
         assert user.email_verified_at is not None
-        active_tokens = (
+        tokens = (
             db.query(models.VerificationToken)
             .filter(models.VerificationToken.user_id == user.id)
-            .filter(models.VerificationToken.consumed_at.is_(None))
-            .count()
+            .all()
         )
-        assert active_tokens == 0
+        assert tokens
+        assert all(token.consumed_at is not None for token in tokens)
 
 
 def test_verify_email_generic_failure(monkeypatch):
@@ -181,6 +182,94 @@ def test_verify_email_generic_failure(monkeypatch):
     )
     assert resp_wrong.status_code == 202
     assert resp_wrong.json()["detail"] == detail
+
+
+def test_resend_invalidates_previous_token(monkeypatch):
+    client.cookies.clear()
+    _reset_verify_rate_limits()
+    user_info, messages = _register_user(monkeypatch)
+    first_token = _parse_token(messages[0].get_content())
+    messages.clear()
+
+    with SessionLocal() as db:
+        token_record = (
+            db.query(models.VerificationToken)
+            .filter(models.VerificationToken.user_id == uuid.UUID(user_info["id"]))
+            .order_by(models.VerificationToken.created_at.desc())
+            .first()
+        )
+        assert token_record is not None
+        token_record.created_at = token_record.created_at - timedelta(minutes=2)
+        db.commit()
+
+    resp = client.post(
+        "/auth/verification/request-resend",
+        json={"email": user_info["email"]},
+    )
+    assert resp.status_code == 202
+    assert len(messages) == 1
+    second_token = _parse_token(messages[0].get_content())
+    assert second_token != first_token
+
+    _reset_verify_rate_limits()
+    resp_old = client.post(
+        "/auth/verify",
+        json={"uid": user_info["id"], "token": first_token},
+    )
+    assert resp_old.status_code == 202
+
+    resp_new = client.post(
+        "/auth/verify",
+        json={"uid": user_info["id"], "token": second_token},
+    )
+    assert resp_new.status_code == 200
+
+
+def test_verification_token_cannot_be_reused(monkeypatch):
+    client.cookies.clear()
+    _reset_verify_rate_limits()
+    user_info, messages = _register_user(monkeypatch)
+    token = _parse_token(messages[0].get_content())
+
+    first = client.post(
+        "/auth/verify",
+        json={"uid": user_info["id"], "token": token},
+    )
+    assert first.status_code == 200
+
+    second = client.post(
+        "/auth/verify",
+        json={"uid": user_info["id"], "token": token},
+    )
+    assert second.status_code == 202
+
+
+def test_expired_token_is_rejected(monkeypatch):
+    client.cookies.clear()
+    _reset_verify_rate_limits()
+    user_info, messages = _register_user(monkeypatch)
+    token = _parse_token(messages[0].get_content())
+
+    with SessionLocal() as db:
+        record = (
+            db.query(models.VerificationToken)
+            .filter(models.VerificationToken.user_id == uuid.UUID(user_info["id"]))
+            .order_by(models.VerificationToken.created_at.desc())
+            .first()
+        )
+        assert record is not None
+        record.expires_at = datetime.now(UTC) - timedelta(minutes=1)
+        db.commit()
+
+    resp = client.post(
+        "/auth/verify",
+        json={"uid": user_info["id"], "token": token},
+    )
+    assert resp.status_code == 202
+
+    with SessionLocal() as db:
+        user = db.get(models.User, user_info["id"])
+        assert user.email_verified_at is None
 
 
 def test_verify_email_rate_limit(monkeypatch):
@@ -214,6 +303,7 @@ def test_login_requires_verified_email(monkeypatch):
 
 def test_anonymous_resend_generic_response(monkeypatch):
     client.cookies.clear()
+    _reset_verify_rate_limits()
     sent_messages = []
 
     def _capture(*, settings, message, **kwargs):
@@ -236,6 +326,7 @@ def test_anonymous_resend_generic_response(monkeypatch):
 
 def test_anonymous_resend_sends_email_for_unverified_user(monkeypatch):
     client.cookies.clear()
+    _reset_verify_rate_limits()
     sent_messages = []
 
     def _capture(*, settings, message, **kwargs):
@@ -268,3 +359,125 @@ def test_anonymous_resend_sends_email_for_unverified_user(monkeypatch):
     assert resp.status_code == 202
     assert resp.json()["detail"].startswith("If the account exists")
     assert sent_messages, "Expected resend email to be queued"
+
+
+def test_anonymous_resend_rate_limited(monkeypatch):
+    client.cookies.clear()
+    _reset_verify_rate_limits()
+
+    email = "throttle@example.com"
+    for _ in range(rate_limit.VERIFY_RESEND_IP_LIMIT):
+        resp = client.post(
+            "/auth/verification/request-resend",
+            json={"email": email},
+        )
+        assert resp.status_code == 202
+
+    blocked = client.post(
+        "/auth/verification/request-resend",
+        json={"email": email},
+    )
+    assert blocked.status_code == 429
+    assert blocked.json()["detail"].startswith("If the account exists")
+
+
+def test_anonymous_resend_ignored_for_verified_user(monkeypatch):
+    client.cookies.clear()
+    _reset_verify_rate_limits()
+    user_info, messages = _register_user(monkeypatch)
+    original_ids = []
+
+    with SessionLocal() as db:
+        user = db.get(models.User, user_info["id"])
+        assert user is not None
+        now = datetime.now(UTC)
+        user.email_verified_at = now
+        tokens = (
+            db.query(models.VerificationToken)
+            .filter(models.VerificationToken.user_id == user.id)
+            .all()
+        )
+        assert tokens
+        for token in tokens:
+            token.consumed_at = now
+            original_ids.append(token.id)
+        db.commit()
+
+    messages.clear()
+    resp = client.post(
+        "/auth/verification/request-resend",
+        json={"email": user_info["email"]},
+    )
+    assert resp.status_code == 202
+    assert messages == []
+
+    with SessionLocal() as db:
+        tokens = (
+            db.query(models.VerificationToken)
+            .filter(models.VerificationToken.user_id == uuid.UUID(user_info["id"]))
+            .all()
+        )
+        assert {token.id for token in tokens} == set(original_ids)
+
+
+def test_verification_revokes_active_sessions(monkeypatch):
+    client.cookies.clear()
+    _reset_verify_rate_limits()
+    user_info, messages = _register_user(monkeypatch)
+    token = _parse_token(messages[0].get_content())
+
+    with SessionLocal() as db:
+        user = db.get(models.User, user_info["id"])
+        assert user is not None
+        now = datetime.now(UTC)
+        for idx in range(2):
+            refresh = models.RefreshToken(
+                user_id=user.id,
+                token_hash=f"token-hash-{idx}-{uuid.uuid4()}",
+                family_id=uuid.uuid4(),
+                issued_at=now - timedelta(minutes=5),
+                expires_at=now + timedelta(days=1),
+                last_used_at=now - timedelta(minutes=1),
+            )
+            db.add(refresh)
+        db.commit()
+
+    verify_resp = client.post(
+        "/auth/verify",
+        json={"uid": user_info["id"], "token": token},
+    )
+    assert verify_resp.status_code == 200
+
+    with SessionLocal() as db:
+        records = (
+            db.query(models.RefreshToken)
+            .filter(models.RefreshToken.user_id == uuid.UUID(user_info["id"]))
+            .all()
+        )
+        assert records
+        for record in records:
+            assert record.revoked_at is not None
+            assert record.revocation_reason == "email_verified"
+
+
+def test_user_deletion_cascades_tokens(monkeypatch):
+    client.cookies.clear()
+    user_info, _messages = _register_user(monkeypatch)
+
+    with SessionLocal() as db:
+        count_before = (
+            db.query(models.VerificationToken)
+            .filter(models.VerificationToken.user_id == uuid.UUID(user_info["id"]))
+            .count()
+        )
+        assert count_before >= 1
+
+        db.query(models.User).filter(models.User.id == uuid.UUID(user_info["id"])).delete()
+        db.commit()
+
+        count_after = (
+            db.query(models.VerificationToken)
+            .filter(models.VerificationToken.user_id == uuid.UUID(user_info["id"]))
+            .count()
+        )
+        assert count_after == 0
