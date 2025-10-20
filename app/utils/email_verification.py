@@ -26,7 +26,7 @@ logger = logging.getLogger("app.email_verification")
 
 _PEPPER = TOKEN_PEPPER.encode("utf-8")
 _DAILY_WINDOW = timedelta(hours=24)
-_PURPOSE_EMAIL = "email_verification"
+_EMAIL_KIND = models.VerificationTokenKind.EMAIL_VERIFICATION
 
 
 def _now() -> datetime:
@@ -61,13 +61,13 @@ def issue_verification_token(
 
     db.query(models.VerificationToken).filter(
         models.VerificationToken.user_id == user.id,
-        models.VerificationToken.purpose == _PURPOSE_EMAIL,
+        models.VerificationToken.kind == _EMAIL_KIND,
         models.VerificationToken.consumed_at.is_(None),
     ).delete(synchronize_session=False)
 
     record = models.VerificationToken(
         user=user,
-        purpose=_PURPOSE_EMAIL,
+        kind=_EMAIL_KIND,
         token_hash=_hash_secret(token),
         code_hash=_hash_secret(code),
         expires_at=expires_at,
@@ -90,7 +90,7 @@ def can_issue_again(
     last_token = (
         db.query(models.VerificationToken)
         .filter(models.VerificationToken.user_id == user.id)
-        .filter(models.VerificationToken.purpose == _PURPOSE_EMAIL)
+        .filter(models.VerificationToken.kind == _EMAIL_KIND)
         .order_by(models.VerificationToken.created_at.desc())
         .first()
     )
@@ -101,7 +101,7 @@ def can_issue_again(
     recent_attempts = (
         db.query(models.VerificationToken)
         .filter(models.VerificationToken.user_id == user.id)
-        .filter(models.VerificationToken.purpose == _PURPOSE_EMAIL)
+        .filter(models.VerificationToken.kind == _EMAIL_KIND)
         .filter(models.VerificationToken.created_at >= window_start)
         .count()
     )
@@ -246,7 +246,7 @@ def clear_verification_state(
     user.email_verified_at = timestamp
     db.query(models.VerificationToken).filter(
         models.VerificationToken.user_id == user.id,
-        models.VerificationToken.purpose == _PURPOSE_EMAIL,
+        models.VerificationToken.kind == _EMAIL_KIND,
         models.VerificationToken.consumed_at.is_(None),
     ).update({models.VerificationToken.consumed_at: timestamp}, synchronize_session=False)
 
@@ -260,7 +260,7 @@ def get_latest_token(
     return (
         db.query(models.VerificationToken)
         .filter(models.VerificationToken.user_id == user.id)
-        .filter(models.VerificationToken.purpose == _PURPOSE_EMAIL)
+        .filter(models.VerificationToken.kind == _EMAIL_KIND)
         .order_by(models.VerificationToken.created_at.desc())
         .first()
     )

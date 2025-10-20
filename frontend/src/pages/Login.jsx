@@ -5,6 +5,7 @@ import { API } from '../api';
 import Seo from '../components/Seo';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { DATA_PROTECTION_VERSION } from './DataProtection.jsx';
+import { useVerificationResend } from '../hooks/useVerificationResend.js';
 
 // Combined authentication page with log in on top and sign up below.
 export default function LoginPage() {
@@ -32,18 +33,26 @@ export default function LoginPage() {
   const [pendingEmail, setPendingEmail] = useState('');
   const [loginError, setLoginError] = useState('');
   const [verificationBanner, setVerificationBanner] = useState('');
-  const [loginResendStatus, setLoginResendStatus] = useState('idle');
-  const [loginResendMessage, setLoginResendMessage] = useState('');
-  const [signupResendStatus, setSignupResendStatus] = useState('idle');
-  const [signupResendMessage, setSignupResendMessage] = useState('');
-  const [signupResendCooldown, setSignupResendCooldown] = useState(0);
+  const RESEND_DELAY_SECONDS = 60;
+  const {
+    status: loginResendStatus,
+    message: loginResendMessage,
+    request: triggerLoginResend,
+    reset: resetLoginResend,
+  } = useVerificationResend();
+  const {
+    status: signupResendStatus,
+    message: signupResendMessage,
+    cooldown: signupResendCooldown,
+    request: triggerSignupResend,
+    reset: resetSignupResend,
+  } = useVerificationResend({ cooldownSeconds: RESEND_DELAY_SECONDS });
   const verifyHref = pendingEmail
     ? `${prefix}/verify?email=${encodeURIComponent(pendingEmail)}`
     : `${prefix}/verify`;
   // Prevent double submits while network requests are pending
   const [loggingIn, setLoggingIn] = useState(false);
   const [signingUp, setSigningUp] = useState(false);
-  const RESEND_DELAY_SECONDS = 60;
 
   // Extract a one-time message from navigation state then clear it
   useEffect(() => {
@@ -57,7 +66,18 @@ export default function LoginPage() {
     const cookieParts = document.cookie.split('; ').filter(Boolean);
     const flag = cookieParts.find((part) => part.startsWith('ztr_verify_success='));
     if (flag) {
-      setVerificationBanner(t('auth.login.verificationSuccess'));
+      const [, rawValue = ''] = flag.split('=');
+      let decoded = '';
+      if (rawValue) {
+        try {
+          decoded = decodeURIComponent(rawValue);
+        } catch (err) {
+          decoded = rawValue;
+        }
+      }
+      setVerificationBanner(decoded
+        ? t('auth.login.verificationSuccessEmail', { email: decoded })
+        : t('auth.login.verificationSuccess'));
       document.cookie = 'ztr_verify_success=; Max-Age=0; path=/';
     }
   }, [t]);
@@ -80,66 +100,15 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (successMessage && pendingEmail) {
-      setSignupResendCooldown(RESEND_DELAY_SECONDS);
-      setSignupResendStatus('idle');
-      setSignupResendMessage('');
+      resetSignupResend();
     }
-  }, [successMessage, pendingEmail, RESEND_DELAY_SECONDS]);
-
-  useEffect(() => {
-    if (signupResendCooldown <= 0) return;
-    const timer = setTimeout(() => {
-      setSignupResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, [signupResendCooldown]);
+  }, [successMessage, pendingEmail, resetSignupResend]);
 
   useEffect(() => {
     if (!pendingEmail) {
-      setLoginResendStatus('idle');
-      setLoginResendMessage('');
+      resetLoginResend();
     }
-  }, [pendingEmail]);
-
-  const requestVerificationResend = async (targetEmail, setStatus, setMessage, onSuccess) => {
-    if (!targetEmail) return;
-    setStatus('loading');
-    setMessage('');
-    try {
-      const resp = await fetch(`${API}/auth/verification/request-resend`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: targetEmail }),
-      });
-      if (resp.status === 429) {
-        const data = await resp.json().catch(() => ({}));
-        const detail = typeof data.detail === 'string'
-          ? data.detail
-          : t('auth.verification.resendRateLimited');
-        setStatus('error');
-        setMessage(detail);
-        return;
-      }
-      if (!resp.ok) {
-        const detail = t('auth.verification.resendError');
-        setStatus('error');
-        setMessage(detail);
-        return;
-      }
-      const data = await resp.json().catch(() => ({}));
-      const detail = typeof data.detail === 'string'
-        ? data.detail
-        : t('auth.verification.resendGeneric', { email: targetEmail });
-      setStatus('success');
-      setMessage(detail);
-      if (typeof onSuccess === 'function') {
-        onSuccess();
-      }
-    } catch (err) {
-      setStatus('error');
-      setMessage(t('auth.common.networkError', { message: err.message }));
-    }
-  };
+  }, [pendingEmail, resetLoginResend]);
 
   // Submit credentials to the backend and store auth data. If the
   // request fails entirely (e.g. when the API URL is unreachable) an
@@ -169,16 +138,14 @@ export default function LoginPage() {
         });
         setPendingEmail('');
         setLoginError('');
-        setLoginResendStatus('idle');
-        setLoginResendMessage('');
+        resetLoginResend();
         navigate(prefix, { replace: true });
       } else if (resp.status === 403) {
         const payload = await resp.json().catch(() => ({}));
         const detail = typeof payload.detail === 'string' ? payload.detail : t('auth.login.unverified');
         setPendingEmail(cleanEmail);
         setLoginError(detail);
-        setLoginResendStatus('idle');
-        setLoginResendMessage('');
+        resetLoginResend();
       } else {
         setLoginError(t('auth.login.error'));
       }
@@ -226,8 +193,7 @@ export default function LoginPage() {
         setInputEmail(cleanEmail);
         setPendingEmail(cleanEmail);
         setSuccessMessage(t('auth.signup.success', { email: cleanEmail }));
-        setSignupResendStatus('idle');
-        setSignupResendMessage('');
+        resetSignupResend();
         setName('');
         setRegEmail('');
         setRegPassword('');
@@ -269,11 +235,7 @@ export default function LoginPage() {
                     <button
                       type="button"
                       className="btn btn-link p-0 align-baseline"
-                      onClick={() => requestVerificationResend(
-                        pendingEmail,
-                        setLoginResendStatus,
-                        setLoginResendMessage,
-                      )}
+                      onClick={() => triggerLoginResend(pendingEmail)}
                       disabled={loginResendStatus === 'loading'}
                     >
                       {loginResendStatus === 'loading'
@@ -304,12 +266,7 @@ export default function LoginPage() {
                 <button
                   type="button"
                   className="btn btn-outline-secondary"
-                  onClick={() => requestVerificationResend(
-                    pendingEmail,
-                    setSignupResendStatus,
-                    setSignupResendMessage,
-                    () => setSignupResendCooldown(RESEND_DELAY_SECONDS),
-                  )}
+                  onClick={() => triggerSignupResend(pendingEmail)}
                   disabled={signupResendStatus === 'loading' || signupResendCooldown > 0}
                 >
                   {signupResendStatus === 'loading'

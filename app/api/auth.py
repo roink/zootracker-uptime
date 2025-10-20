@@ -337,7 +337,7 @@ def request_verification_resend(
 ):
     """Allow users to request another verification email without authentication."""
 
-    anyio.from_thread.run(enforce_verification_resend_limit, request)
+    anyio.from_thread.run(enforce_verification_resend_limit, request, payload.email)
     generic = {"detail": "If the account exists, verification instructions will be sent."}
     user = get_user(db, payload.email)
     if not user or user.email_verified_at:

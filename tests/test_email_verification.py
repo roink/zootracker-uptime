@@ -90,7 +90,7 @@ def test_resend_respects_cooldown(monkeypatch):
         token_record = (
             db.query(models.VerificationToken)
             .filter(models.VerificationToken.user_id == uuid.UUID(user_info["id"]))
-            .filter(models.VerificationToken.purpose == "email_verification")
+            .filter(models.VerificationToken.kind == models.VerificationTokenKind.EMAIL_VERIFICATION)
             .order_by(models.VerificationToken.created_at.desc())
             .first()
         )
@@ -253,7 +253,7 @@ def test_anonymous_resend_sends_email_for_unverified_user(monkeypatch):
         token_record = (
             db.query(models.VerificationToken)
             .filter(models.VerificationToken.user_id == uuid.UUID(user_info["id"]))
-            .filter(models.VerificationToken.purpose == "email_verification")
+            .filter(models.VerificationToken.kind == models.VerificationTokenKind.EMAIL_VERIFICATION)
             .order_by(models.VerificationToken.created_at.desc())
             .first()
         )

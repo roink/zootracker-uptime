@@ -51,7 +51,7 @@ CREATE INDEX ix_refresh_tokens_expires_at ON refresh_tokens (expires_at);
 CREATE TABLE verification_tokens (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id      UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  purpose      VARCHAR(64) NOT NULL,
+  kind         VARCHAR(64) NOT NULL,
   token_hash   VARCHAR(128) NOT NULL,
   code_hash    VARCHAR(128),
   expires_at   TIMESTAMPTZ NOT NULL,
@@ -59,8 +59,8 @@ CREATE TABLE verification_tokens (
   consumed_at  TIMESTAMPTZ
 );
 
-CREATE INDEX ix_verification_tokens_user_purpose ON verification_tokens (user_id, purpose);
-CREATE INDEX ix_verification_tokens_active ON verification_tokens (user_id, purpose, consumed_at);
+CREATE INDEX ix_verification_tokens_user_kind ON verification_tokens (user_id, kind);
+CREATE INDEX ix_verification_tokens_active ON verification_tokens (user_id, kind, consumed_at);
 
 -- 2. Region reference tables
 CREATE TABLE continent_names (
