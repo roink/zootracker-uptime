@@ -727,7 +727,7 @@ async def reset_password(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
-    """Validate a reset token and persist a new password without revealing status."""
+    """Validate a reset token and persist a new password, revealing status on error."""
 
     generic_response = JSONResponse(
         _GENERIC_RESET_PAYLOAD.copy(),

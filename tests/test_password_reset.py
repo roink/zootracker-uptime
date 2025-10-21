@@ -289,6 +289,38 @@ def test_password_reset_invalid_token_backoff(monkeypatch):
     assert data["status"] == "rate_limited"
 
 
+def test_password_reset_status_invalid_token_backoff(monkeypatch):
+    _reset_password_reset_limits()
+    client.cookies.clear()
+    _capture_password_reset_email(monkeypatch)
+
+    # Issue a real reset to ensure baseline state but discard the token.
+    _token, _user_id, register_resp = register_and_login(return_register_resp=True)
+    email = register_resp.json()["email"]
+    client.post("/auth/password/forgot", json={"email": email})
+
+    limit = rate_limit.PASSWORD_RESET_FAILED_IP_LIMIT
+    for attempt in range(limit):
+        token = f"invalid-status-token-{attempt}"
+        resp = client.get(
+            "/auth/password/reset/status",
+            params={"token": token},
+        )
+        assert resp.status_code == status.HTTP_404_NOT_FOUND
+        body = resp.json()
+        assert body["status"] == "invalid"
+        assert "Request a new password reset email" in body["detail"]
+
+    resp = client.get(
+        "/auth/password/reset/status",
+        params={"token": "invalid-status-token-final"},
+    )
+    assert resp.status_code == status.HTTP_429_TOO_MANY_REQUESTS
+    data = resp.json()
+    assert data["detail"].startswith("If the reset token is valid")
+    assert data["status"] == "rate_limited"
+
+
 def test_password_reset_token_cannot_be_used_after_expiration(monkeypatch):
     _reset_password_reset_limits()
     client.cookies.clear()
