@@ -23,6 +23,8 @@ import RequireAuth from './auth/RequireAuth.jsx';
 // anymore, so we explicitly point to the backend running on port 8000.
 import Landing from "./pages/Landing";
 import LoginPage from "./pages/Login";
+import ForgotPasswordPage from "./pages/ForgotPassword";
+import ResetPasswordPage from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
 import ZoosPage from "./pages/Zoos";
 import AnimalsPage from "./pages/Animals";
@@ -116,6 +118,8 @@ function AppRoutes({ refreshCounter, refreshSeen }) {
             <Route path="profile" element={<ProfilePage />} />
           </Route>
           <Route path="login" element={<LoginPage />} />
+          <Route path="forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="reset-password" element={<ResetPasswordPage />} />
           <Route path="verify" element={<VerifyEmailPage />} />
           <Route path="zoos" element={<ZoosPage />} />
           <Route

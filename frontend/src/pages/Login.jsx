@@ -310,6 +310,12 @@ export default function LoginPage() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
+          <Link
+            to={`${prefix}/forgot-password`}
+            className="btn btn-link px-0 auth-forgot-link"
+          >
+            {t('auth.login.forgotLink')}
+          </Link>
         </div>
         <button className="btn btn-primary w-100" type="submit" disabled={loggingIn}>
           {loggingIn ? t('auth.login.submitting') : t('auth.login.submit')}
