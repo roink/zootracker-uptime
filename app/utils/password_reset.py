@@ -39,6 +39,12 @@ def _hash_secret(raw: str) -> str:
     return digest.hexdigest()
 
 
+def reset_token_identifier(raw: str) -> str:
+    """Return a deterministic identifier for rate limiting a reset token."""
+
+    return _hash_secret(raw)
+
+
 def can_issue_password_reset(
     db: Session,
     user: models.User,

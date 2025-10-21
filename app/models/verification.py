@@ -61,3 +61,7 @@ Index(
     VerificationToken.kind,
     VerificationToken.consumed_at,
 )
+Index(
+    "ix_verification_tokens_token_hash",
+    VerificationToken.token_hash,
+)

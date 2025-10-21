@@ -56,12 +56,14 @@ from ..utils.password_reset import (
     enqueue_password_reset_email,
     get_reset_token,
     issue_password_reset_token,
+    reset_token_identifier,
 )
 from ..rate_limit import (
     enforce_password_reset_request_limit,
     enforce_password_reset_token_limit,
     enforce_verify_rate_limit,
     enforce_verification_resend_limit,
+    register_failed_password_reset_attempt,
     register_failed_verification_attempt,
 )
 
@@ -620,8 +622,14 @@ async def reset_password(
     }
     generic_response = JSONResponse(generic, status_code=status.HTTP_202_ACCEPTED)
 
+    token_identifier = reset_token_identifier(payload.token)
+    client_ip = anonymize_ip(get_client_ip(request))
+
     try:
-        await enforce_password_reset_token_limit(request)
+        await enforce_password_reset_token_limit(
+            request,
+            identifier=token_identifier,
+        )
     except HTTPException as exc:
         if exc.status_code == status.HTTP_429_TOO_MANY_REQUESTS:
             auth_logger.warning(
@@ -630,7 +638,7 @@ async def reset_password(
                     "event_dataset": "zoo-tracker-api.auth",
                     "event_action": "password_reset_rate_limited",
                     "rate_limit_scope": "token",
-                    "client_ip": anonymize_ip(get_client_ip(request)),
+                    "client_ip": client_ip,
                 },
             )
             return JSONResponse(
@@ -640,53 +648,72 @@ async def reset_password(
             )
         raise
 
+    async def _handle_failure(
+        log_message: str,
+        *,
+        reason: str,
+        user_id: str | None = None,
+    ):
+        extra: dict[str, Any] = {
+            "event_dataset": "zoo-tracker-api.auth",
+            "event_action": "password_reset_failed",
+            "password_reset_failure_reason": reason,
+        }
+        if user_id:
+            extra["user_id"] = user_id
+        try:
+            await register_failed_password_reset_attempt(
+                request,
+                identifier=token_identifier,
+            )
+        except HTTPException as exc:
+            if exc.status_code == status.HTTP_429_TOO_MANY_REQUESTS:
+                auth_logger.warning(
+                    "Password reset failure rate limited",
+                    extra={
+                        "event_dataset": "zoo-tracker-api.auth",
+                        "event_action": "password_reset_rate_limited",
+                        "rate_limit_scope": "token_failure",
+                        "client_ip": client_ip,
+                        "password_reset_failure_reason": reason,
+                    },
+                )
+                return JSONResponse(
+                    generic,
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    headers=exc.headers,
+                )
+            raise
+        auth_logger.warning(log_message, extra=extra)
+        return generic_response
+
     token_record = get_reset_token(db, token=payload.token)
     if token_record is None:
-        auth_logger.warning(
+        return await _handle_failure(
             "Password reset attempt with missing token",
-            extra={
-                "event_dataset": "zoo-tracker-api.auth",
-                "event_action": "password_reset_failed",
-                "password_reset_failure_reason": "token_missing",
-            },
+            reason="token_missing",
         )
-        return generic_response
 
     now = _now()
     if token_record.consumed_at is not None:
-        auth_logger.warning(
+        return await _handle_failure(
             "Password reset attempt with consumed token",
-            extra={
-                "event_dataset": "zoo-tracker-api.auth",
-                "event_action": "password_reset_failed",
-                "password_reset_failure_reason": "token_consumed",
-                "user_id": str(token_record.user_id),
-            },
+            reason="token_consumed",
+            user_id=str(token_record.user_id),
         )
-        return generic_response
     if token_record.expires_at < now:
-        auth_logger.warning(
+        return await _handle_failure(
             "Password reset attempt with expired token",
-            extra={
-                "event_dataset": "zoo-tracker-api.auth",
-                "event_action": "password_reset_failed",
-                "password_reset_failure_reason": "token_expired",
-                "user_id": str(token_record.user_id),
-            },
+            reason="token_expired",
+            user_id=str(token_record.user_id),
         )
-        return generic_response
 
     user = token_record.user
     if user is None:
-        auth_logger.warning(
+        return await _handle_failure(
             "Password reset attempt for missing user",
-            extra={
-                "event_dataset": "zoo-tracker-api.auth",
-                "event_action": "password_reset_failed",
-                "password_reset_failure_reason": "user_missing",
-            },
+            reason="user_missing",
         )
-        return generic_response
 
     user.password_hash = hash_password(payload.password)
     user.last_active_at = now

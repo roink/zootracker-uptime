@@ -39,6 +39,9 @@ def _reset_password_reset_limits():
     rate_limit.password_reset_request_ip_limiter.history.clear()
     rate_limit.password_reset_request_identifier_limiter.history.clear()
     rate_limit.password_reset_token_ip_limiter.history.clear()
+    rate_limit.password_reset_token_identifier_limiter.history.clear()
+    rate_limit.password_reset_failed_ip_limiter.history.clear()
+    rate_limit.password_reset_failed_identifier_limiter.history.clear()
 
 
 def _parse_token(body: str) -> str:
@@ -164,3 +167,38 @@ def test_password_reset_flow_updates_password(monkeypatch):
         if active:
             latest = max(refresh_tokens, key=lambda token: token.issued_at)
             assert active[0].id == latest.id
+
+
+def test_password_reset_invalid_token_backoff(monkeypatch):
+    _reset_password_reset_limits()
+    client.cookies.clear()
+    _capture_password_reset_email(monkeypatch)
+
+    # Issue a real reset to ensure baseline state but discard the token.
+    _token, _user_id, register_resp = register_and_login(return_register_resp=True)
+    email = register_resp.json()["email"]
+    client.post("/auth/password/forgot", json={"email": email})
+
+    limit = rate_limit.PASSWORD_RESET_FAILED_IP_LIMIT
+    for attempt in range(limit):
+        token = f"invalid-token-{attempt}"
+        resp = client.post(
+            "/auth/password/reset",
+            json={
+                "token": token,
+                "password": "Another-pass1",
+                "confirmPassword": "Another-pass1",
+            },
+        )
+        assert resp.status_code == 202
+
+    resp = client.post(
+        "/auth/password/reset",
+        json={
+            "token": "invalid-token-final",
+            "password": "Another-pass1",
+            "confirmPassword": "Another-pass1",
+        },
+    )
+    assert resp.status_code == 429
+    assert resp.json()["detail"].startswith("If the reset token is valid")
