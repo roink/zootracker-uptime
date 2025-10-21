@@ -152,7 +152,15 @@ def decode_access_token(token: str) -> dict[str, Any]:
 def get_user(db: Session, email: str) -> models.User | None:
     """Retrieve a user by email or return ``None`` if not found."""
 
-    return db.query(models.User).filter(models.User.email == email).first()
+    normalized = email.strip()
+    if not normalized:
+        return None
+    lowered = normalized.lower()
+    return (
+        db.query(models.User)
+        .filter(sa.func.lower(models.User.email) == lowered)
+        .first()
+    )
 
 
 def get_current_user(
