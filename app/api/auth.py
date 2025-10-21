@@ -551,7 +551,12 @@ async def verify_email(
     await enforce_verify_rate_limit(request, identifier=identifier)
 
     generic = {"detail": "If the account exists, the verification state was updated."}
-    generic_response = JSONResponse(generic, status_code=status.HTTP_202_ACCEPTED)
+    def _generic_response(*, status_code: int = status.HTTP_202_ACCEPTED, headers=None):
+        response = JSONResponse(generic, status_code=status_code, headers=headers)
+        _cache_busting_headers(response)
+        return response
+
+    generic_response = _generic_response()
 
     user: models.User | None = None
     if payload.uid:
@@ -653,7 +658,15 @@ async def request_password_reset(
     generic = {
         "detail": "If an account exists for that email, we'll send password reset instructions shortly.",
     }
-    generic_response = JSONResponse(generic, status_code=status.HTTP_202_ACCEPTED)
+
+    def _build_generic_response(
+        *, status_code: int = status.HTTP_202_ACCEPTED, headers: dict[str, str] | None = None
+    ) -> JSONResponse:
+        response = JSONResponse(generic, status_code=status_code, headers=headers)
+        _cache_busting_headers(response)
+        return response
+
+    generic_response = _build_generic_response()
 
     try:
         await enforce_password_reset_request_limit(request, identifier=payload.email)
@@ -668,8 +681,7 @@ async def request_password_reset(
                     "client_ip": anonymize_ip(get_client_ip(request)),
                 },
             )
-            return JSONResponse(
-                generic,
+            return _build_generic_response(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 headers=exc.headers,
             )
