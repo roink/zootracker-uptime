@@ -50,9 +50,12 @@ def _register_user(monkeypatch, *, email: str | None = None):
             "privacy_consent_version": CONSENT_VERSION,
         },
     )
-    assert resp.status_code == 200
+    assert resp.status_code == 202
     assert sent_messages, "Expected verification email to be sent"
-    return resp.json(), sent_messages
+    with SessionLocal() as db:
+        user = db.query(models.User).filter(models.User.email == addr).one()
+        user_info = {"id": str(user.id), "name": user.name, "email": user.email}
+    return user_info, sent_messages
 
 
 def _reset_verify_rate_limits():
