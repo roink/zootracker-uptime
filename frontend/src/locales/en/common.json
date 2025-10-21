@@ -455,7 +455,11 @@
       "loginTitle": "Log In / Sign Up",
       "loginDescription": "Access your ZooTracker account or create a new one to log visits and sightings.",
       "verifyTitle": "Verify email",
-      "verifyDescription": "Confirm your ZooTracker email address to finish setting up your account."
+      "verifyDescription": "Confirm your ZooTracker email address to finish setting up your account.",
+      "forgotTitle": "Forgot password",
+      "forgotDescription": "Request a password reset link for your ZooTracker account.",
+      "resetTitle": "Reset password",
+      "resetDescription": "Choose a new password for your ZooTracker account."
     },
     "common": {
       "networkError": "Network error: {{message}}"
@@ -475,7 +479,8 @@
       "unverified": "You need to verify your email address before logging in.",
       "resendLink": "Didn't get the email? Resend verification instructions.",
       "verificationSuccess": "Email verified successfully. Please log in.",
-      "verificationSuccessEmail": "Email for {{email}} verified successfully. Please log in."
+      "verificationSuccessEmail": "Email for {{email}} verified successfully. Please log in.",
+      "forgotLink": "Forgot your password?"
     },
     "signup": {
       "heading": "Sign Up",
@@ -517,6 +522,53 @@
       "resendCta": "Send verification email again",
       "openForm": "Enter code manually",
       "backToLogin": "Back to login"
+    },
+    "passwordReset": {
+      "request": {
+        "heading": "Forgot your password?",
+        "intro": "Enter the email you use for ZooTracker. If an account exists, we’ll send reset instructions shortly.",
+        "emailLabel": "Email address",
+        "emailHelper": "We’ll email instructions to this address.",
+        "emailErrorRequired": "Enter your email address.",
+        "emailErrorInvalid": "Enter a valid email address.",
+        "submit": "Send reset link",
+        "submitting": "Sending…",
+        "statusLoading": "Sending password reset instructions…",
+        "successHeading": "Check your inbox",
+        "successBody": "If an account exists for {{email}}, we’ll email password reset instructions shortly. Check your spam folder too.",
+        "successCta": "Return to sign in",
+        "backToLogin": "Back to sign in",
+        "rateLimited": "Too many reset requests. Please wait a minute before trying again.",
+        "error": "We couldn't process your request. Please try again."
+      },
+      "reset": {
+        "heading": "Set a new password",
+        "intro": "Choose a new password for your ZooTracker account.",
+        "passwordLabel": "New password",
+        "passwordHelper": "Use at least 8 characters.",
+        "confirmLabel": "Confirm new password",
+        "confirmHelper": "Re-enter the new password to confirm.",
+        "showPassword": "Show password",
+        "hidePassword": "Hide password",
+        "showPasswordShort": "Show",
+        "hidePasswordShort": "Hide",
+        "submit": "Save new password",
+        "submitting": "Saving…",
+        "statusLoading": "Updating your password…",
+        "statusError": "We couldn't update your password. Try again.",
+        "statusRateLimited": "Too many attempts. Please wait and try again.",
+        "statusValidating": "Checking your reset link…",
+        "successHeading": "Password updated",
+        "successBody": "Your ZooTracker password has been updated. You can now sign in with your new password.",
+        "successBodyEmail": "Your ZooTracker password for {{email}} has been updated. You can now sign in with your new password.",
+        "loginCta": "Return to sign in",
+        "requestLink": "Need a new link? Request another email.",
+        "tokenMissing": "This reset link is invalid or has expired. Request a new password reset email to continue.",
+        "tokenInvalid": "This reset link is invalid. Request a new password reset email to continue.",
+        "tokenExpired": "This reset link has expired. Request a new password reset email to continue.",
+        "tokenConsumed": "This reset link has already been used. Request a new password reset email to continue.",
+        "tokenCheckError": "We couldn't verify this reset link. Request a new password reset email to continue."
+      }
     }
   }
 }

@@ -21,6 +21,7 @@ class VerificationTokenKind(str, Enum):
     """Supported verification token scopes."""
 
     EMAIL_VERIFICATION = "email_verification"
+    PASSWORD_RESET = "password_reset"
 
 
 class VerificationToken(Base):
@@ -59,4 +60,8 @@ Index(
     VerificationToken.user_id,
     VerificationToken.kind,
     VerificationToken.consumed_at,
+)
+Index(
+    "ix_verification_tokens_token_hash",
+    VerificationToken.token_hash,
 )

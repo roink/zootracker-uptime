@@ -4,15 +4,8 @@ from datetime import date, datetime
 from typing import Literal, Optional
 from uuid import UUID
 
-from pydantic import (
-    BaseModel,
-    ConfigDict,
-    EmailStr,
-    Field,
-    constr,
-    field_validator,
-    model_validator,
-)
+from pydantic import BaseModel, EmailStr, ConfigDict, Field, constr, field_validator, model_validator
+from pydantic_core import PydanticCustomError
 
 
 class UserCreate(BaseModel):
@@ -90,6 +83,52 @@ class VerificationResendRequest(BaseModel):
     """Payload accepted by the anonymous verification resend endpoint."""
 
     email: EmailStr
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class PasswordResetRequest(BaseModel):
+    """Payload accepted by the anonymous password reset endpoint."""
+
+    email: EmailStr
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class PasswordResetConfirm(BaseModel):
+    """Payload accepted by the password reset confirmation endpoint."""
+
+    token: str = Field(..., min_length=1, max_length=512)
+    password: constr(min_length=8, max_length=255)
+    confirm_password: str = Field(
+        ...,
+        min_length=8,
+        max_length=255,
+        alias="confirmPassword",
+        description="Confirmation of the new password.",
+    )
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    @field_validator("token", mode="before")
+    def _strip_token(cls, value: str | None) -> str | None:
+        return value.strip() if isinstance(value, str) else value
+
+    @model_validator(mode="after")
+    def _passwords_match(self):
+        if self.password != self.confirm_password:
+            raise PydanticCustomError(
+                "password_mismatch",
+                "password_mismatch",
+            )
+        return self
+
+
+class PasswordResetTokenStatus(BaseModel):
+    """Response describing the status of a password reset token."""
+
+    status: Literal["valid", "invalid", "consumed", "expired", "rate_limited"]
+    detail: Optional[str] = None
 
     model_config = ConfigDict(extra="forbid")
 

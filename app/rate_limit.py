@@ -49,6 +49,32 @@ VERIFY_RESEND_IDENTIFIER_LIMIT = int(
     os.getenv("VERIFY_RESEND_IDENTIFIER_LIMIT", str(VERIFY_RESEND_IP_LIMIT))
 )
 VERIFY_RESEND_PERIOD = int(os.getenv("VERIFY_RESEND_PERIOD", "3600"))
+PASSWORD_RESET_REQUEST_IP_LIMIT = int(
+    os.getenv("PASSWORD_RESET_REQUEST_IP_LIMIT", "5")
+)
+PASSWORD_RESET_REQUEST_IDENTIFIER_LIMIT = int(
+    os.getenv(
+        "PASSWORD_RESET_REQUEST_IDENTIFIER_LIMIT",
+        str(PASSWORD_RESET_REQUEST_IP_LIMIT),
+    )
+)
+PASSWORD_RESET_REQUEST_PERIOD = int(os.getenv("PASSWORD_RESET_REQUEST_PERIOD", "900"))
+PASSWORD_RESET_TOKEN_IP_LIMIT = int(os.getenv("PASSWORD_RESET_TOKEN_IP_LIMIT", "10"))
+PASSWORD_RESET_TOKEN_PERIOD = int(os.getenv("PASSWORD_RESET_TOKEN_PERIOD", "900"))
+PASSWORD_RESET_TOKEN_IDENTIFIER_LIMIT = int(
+    os.getenv(
+        "PASSWORD_RESET_TOKEN_IDENTIFIER_LIMIT",
+        str(PASSWORD_RESET_TOKEN_IP_LIMIT),
+    )
+)
+PASSWORD_RESET_FAILED_IP_LIMIT = int(os.getenv("PASSWORD_RESET_FAILED_IP_LIMIT", "5"))
+PASSWORD_RESET_FAILED_IDENTIFIER_LIMIT = int(
+    os.getenv(
+        "PASSWORD_RESET_FAILED_IDENTIFIER_LIMIT",
+        str(PASSWORD_RESET_FAILED_IP_LIMIT),
+    )
+)
+PASSWORD_RESET_FAILED_PERIOD = int(os.getenv("PASSWORD_RESET_FAILED_PERIOD", "900"))
 
 auth_limiter = RateLimiter(AUTH_RATE_LIMIT, RATE_PERIOD)
 general_limiter = RateLimiter(GENERAL_RATE_LIMIT, RATE_PERIOD)
@@ -59,6 +85,30 @@ verify_failed_ip_limiter = RateLimiter(VERIFY_FAILED_LIMIT, VERIFY_FAILED_PERIOD
 verify_failed_identifier_limiter = RateLimiter(VERIFY_FAILED_LIMIT, VERIFY_FAILED_PERIOD)
 verify_resend_ip_limiter = RateLimiter(VERIFY_RESEND_IP_LIMIT, VERIFY_RESEND_PERIOD)
 verify_resend_identifier_limiter = RateLimiter(VERIFY_RESEND_IDENTIFIER_LIMIT, VERIFY_RESEND_PERIOD)
+password_reset_request_ip_limiter = RateLimiter(
+    PASSWORD_RESET_REQUEST_IP_LIMIT,
+    PASSWORD_RESET_REQUEST_PERIOD,
+)
+password_reset_request_identifier_limiter = RateLimiter(
+    PASSWORD_RESET_REQUEST_IDENTIFIER_LIMIT,
+    PASSWORD_RESET_REQUEST_PERIOD,
+)
+password_reset_token_ip_limiter = RateLimiter(
+    PASSWORD_RESET_TOKEN_IP_LIMIT,
+    PASSWORD_RESET_TOKEN_PERIOD,
+)
+password_reset_token_identifier_limiter = RateLimiter(
+    PASSWORD_RESET_TOKEN_IDENTIFIER_LIMIT,
+    PASSWORD_RESET_TOKEN_PERIOD,
+)
+password_reset_failed_ip_limiter = RateLimiter(
+    PASSWORD_RESET_FAILED_IP_LIMIT,
+    PASSWORD_RESET_FAILED_PERIOD,
+)
+password_reset_failed_identifier_limiter = RateLimiter(
+    PASSWORD_RESET_FAILED_IDENTIFIER_LIMIT,
+    PASSWORD_RESET_FAILED_PERIOD,
+)
 
 
 async def rate_limit(request: Request, call_next):
@@ -207,3 +257,127 @@ async def enforce_verification_resend_limit(
         remaining = min(remaining, id_remaining)
 
     request.state.rate_limit_remaining = remaining
+
+
+async def enforce_password_reset_request_limit(
+    request: Request,
+    *,
+    identifier: str | None = None,
+) -> None:
+    """Limit anonymous password reset requests per client IP and identifier."""
+
+    ip = get_client_ip(request)
+    ip_key = ip or "unknown"
+    allowed_ip, ip_remaining, ip_retry_after = await password_reset_request_ip_limiter.is_allowed(
+        ip_key
+    )
+    if not allowed_ip:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too Many Requests",
+            headers={
+                "Retry-After": str(int(ip_retry_after)),
+                "X-RateLimit-Remaining": "0",
+            },
+        )
+
+    remaining = ip_remaining
+    if identifier:
+        key = identifier.strip().lower()
+        allowed_identifier, id_remaining, id_retry_after = await password_reset_request_identifier_limiter.is_allowed(  # noqa: E501
+            key
+        )
+        if not allowed_identifier:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too Many Requests",
+                headers={
+                    "Retry-After": str(int(id_retry_after)),
+                    "X-RateLimit-Remaining": "0",
+                },
+            )
+        remaining = min(remaining, id_remaining)
+
+    request.state.rate_limit_remaining = remaining
+
+
+async def enforce_password_reset_token_limit(
+    request: Request,
+    *,
+    identifier: str | None = None,
+) -> None:
+    """Throttle password reset token submissions per client IP and identifier."""
+
+    ip = get_client_ip(request)
+    ip_key = ip or "unknown"
+    allowed_ip, ip_remaining, retry_after = await password_reset_token_ip_limiter.is_allowed(
+        ip_key
+    )
+    if not allowed_ip:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too Many Requests",
+            headers={
+                "Retry-After": str(int(retry_after)),
+                "X-RateLimit-Remaining": "0",
+            },
+        )
+
+    remaining = ip_remaining
+    if identifier:
+        key = identifier.strip().lower()
+        (
+            allowed_identifier,
+            identifier_remaining,
+            identifier_retry_after,
+        ) = await password_reset_token_identifier_limiter.is_allowed(key)
+        if not allowed_identifier:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too Many Requests",
+                headers={
+                    "Retry-After": str(int(identifier_retry_after)),
+                    "X-RateLimit-Remaining": "0",
+                },
+            )
+        remaining = min(remaining, identifier_remaining)
+
+    request.state.rate_limit_remaining = remaining
+
+
+async def register_failed_password_reset_attempt(
+    request: Request,
+    *,
+    identifier: str | None = None,
+) -> None:
+    """Record a failed password reset attempt and raise if the limit is exceeded."""
+
+    ip = get_client_ip(request)
+    ip_key = ip or "unknown"
+    allowed_ip, _remaining, retry_after = await password_reset_failed_ip_limiter.is_allowed(
+        ip_key
+    )
+    if not allowed_ip:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too Many Requests",
+            headers={
+                "Retry-After": str(int(retry_after)),
+                "X-RateLimit-Remaining": "0",
+            },
+        )
+
+    if identifier:
+        key = identifier.strip().lower()
+        allowed_identifier, _id_remaining, id_retry_after = await (
+            password_reset_failed_identifier_limiter.is_allowed(key)
+        )
+        if not allowed_identifier:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too Many Requests",
+                headers={
+                    "Retry-After": str(int(id_retry_after)),
+                    "X-RateLimit-Remaining": "0",
+                },
+            )
