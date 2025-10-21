@@ -710,8 +710,15 @@ def test_password_reset_ignores_unverified_email(monkeypatch):
             "privacy_consent_version": "2025-10-01",
         },
     )
-    assert resp.status_code == 200
-    user_id = resp.json()["id"]
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+    with SessionLocal() as db:
+        user = (
+            db.query(models.User)
+            .filter(models.User.email == unique_email)
+            .one()
+        )
+        user_id = str(user.id)
 
     resp = client.post("/auth/password/forgot", json={"email": unique_email})
     assert resp.status_code == 202
