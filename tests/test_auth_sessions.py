@@ -142,14 +142,50 @@ def test_refresh_rotates_tokens_and_sets_cache_headers():
     # Attempt reuse of the old token should revoke the family
     reuse = _perform_refresh(original_csrf, original_refresh)
     assert reuse.status_code == 401
+    assert reuse.headers["Cache-Control"] == "no-store"
+    assert reuse.headers.get("Pragma") == "no-cache"
     failure = client.post("/auth/refresh", headers={CSRF_HEADER_NAME: rotated_csrf})
     assert failure.status_code == 401
+    assert failure.headers["Cache-Control"] == "no-store"
+    assert failure.headers.get("Pragma") == "no-cache"
 
 
 def test_refresh_requires_csrf_header():
     register_and_login()
     response = client.post("/auth/refresh")
     assert response.status_code == 403
+    assert response.headers["Cache-Control"] == "no-store"
+    assert response.headers.get("Pragma") == "no-cache"
+
+
+def test_refresh_requires_refresh_cookie_even_with_valid_csrf_pair():
+    register_and_login()
+    csrf_value = client.cookies.get(CSRF_COOKIE_NAME)
+    assert csrf_value is not None
+
+    if REFRESH_COOKIE_NAME in client.cookies:
+        del client.cookies[REFRESH_COOKIE_NAME]
+    response = _perform_refresh(csrf_token=csrf_value)
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Missing refresh token"
+    assert response.headers["Cache-Control"] == "no-store"
+    assert response.headers.get("Pragma") == "no-cache"
+
+
+def test_refresh_rejects_invalid_refresh_cookie():
+    register_and_login()
+    csrf_value = client.cookies.get(CSRF_COOKIE_NAME)
+    assert csrf_value is not None
+
+    if REFRESH_COOKIE_NAME in client.cookies:
+        del client.cookies[REFRESH_COOKIE_NAME]
+    response = _perform_refresh(
+        csrf_token=csrf_value, refresh_token="tampered-token"
+    )
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid refresh token"
+    assert response.headers["Cache-Control"] == "no-store"
+    assert response.headers.get("Pragma") == "no-cache"
 
 
 def test_authenticated_request_refreshes_last_active_when_stale():
@@ -232,6 +268,8 @@ def test_refresh_enforces_idle_timeout():
         headers={CSRF_HEADER_NAME: csrf_value},
     )
     assert response.status_code == 401
+    assert response.headers["Cache-Control"] == "no-store"
+    assert response.headers.get("Pragma") == "no-cache"
 
 
 def test_refresh_enforces_absolute_timeout():
@@ -249,6 +287,8 @@ def test_refresh_enforces_absolute_timeout():
         headers={CSRF_HEADER_NAME: csrf_value},
     )
     assert response.status_code == 401
+    assert response.headers["Cache-Control"] == "no-store"
+    assert response.headers.get("Pragma") == "no-cache"
 
 
 def test_logout_revokes_tokens_and_clears_cookies():
@@ -263,6 +303,8 @@ def test_logout_revokes_tokens_and_clears_cookies():
     failure = _perform_refresh(csrf_value, refresh_value)
     client.cookies.clear()
     assert failure.status_code == 401
+    assert failure.headers["Cache-Control"] == "no-store"
+    assert failure.headers.get("Pragma") == "no-cache"
 
 
 def test_cors_preflight_allows_credentials():
