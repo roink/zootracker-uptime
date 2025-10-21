@@ -10,6 +10,8 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
+from fastapi import status
+
 from app import models, rate_limit
 from app.auth import hash_refresh_token, verify_password
 from app.config import (
@@ -268,7 +270,10 @@ def test_password_reset_invalid_token_backoff(monkeypatch):
                 "confirmPassword": "Another-pass1",
             },
         )
-        assert resp.status_code == 202
+        assert resp.status_code == status.HTTP_404_NOT_FOUND
+        body = resp.json()
+        assert body["status"] == "invalid"
+        assert "Request a new password reset email" in body["detail"]
 
     resp = client.post(
         "/auth/password/reset",
@@ -278,8 +283,42 @@ def test_password_reset_invalid_token_backoff(monkeypatch):
             "confirmPassword": "Another-pass1",
         },
     )
-    assert resp.status_code == 429
-    assert resp.json()["detail"].startswith("If the reset token is valid")
+    assert resp.status_code == status.HTTP_429_TOO_MANY_REQUESTS
+    data = resp.json()
+    assert data["detail"].startswith("If the reset token is valid")
+    assert data["status"] == "rate_limited"
+
+
+def test_password_reset_status_invalid_token_backoff(monkeypatch):
+    _reset_password_reset_limits()
+    client.cookies.clear()
+    _capture_password_reset_email(monkeypatch)
+
+    # Issue a real reset to ensure baseline state but discard the token.
+    _token, _user_id, register_resp = register_and_login(return_register_resp=True)
+    email = register_resp.json()["email"]
+    client.post("/auth/password/forgot", json={"email": email})
+
+    limit = rate_limit.PASSWORD_RESET_FAILED_IP_LIMIT
+    for attempt in range(limit):
+        token = f"invalid-status-token-{attempt}"
+        resp = client.get(
+            "/auth/password/reset/status",
+            params={"token": token},
+        )
+        assert resp.status_code == status.HTTP_404_NOT_FOUND
+        body = resp.json()
+        assert body["status"] == "invalid"
+        assert "Request a new password reset email" in body["detail"]
+
+    resp = client.get(
+        "/auth/password/reset/status",
+        params={"token": "invalid-status-token-final"},
+    )
+    assert resp.status_code == status.HTTP_429_TOO_MANY_REQUESTS
+    data = resp.json()
+    assert data["detail"].startswith("If the reset token is valid")
+    assert data["status"] == "rate_limited"
 
 
 def test_password_reset_token_cannot_be_used_after_expiration(monkeypatch):
@@ -310,7 +349,10 @@ def test_password_reset_token_cannot_be_used_after_expiration(monkeypatch):
             "confirmPassword": "ExpiredPass1!",
         },
     )
-    assert resp.status_code == 202
+    assert resp.status_code == status.HTTP_410_GONE
+    body = resp.json()
+    assert body["status"] == "expired"
+    assert "Request a new password reset email" in body["detail"]
     assert len(sent_messages) == 1
 
     with SessionLocal() as db:
@@ -367,7 +409,10 @@ def test_password_reset_token_is_single_use(monkeypatch):
             "confirmPassword": second_password,
         },
     )
-    assert resp.status_code == 202
+    assert resp.status_code == status.HTTP_409_CONFLICT
+    body = resp.json()
+    assert body["status"] == "consumed"
+    assert "Request a new password reset email" in body["detail"]
     assert len(sent_messages) == 2
 
     with SessionLocal() as db:
@@ -438,7 +483,10 @@ def test_password_reset_new_request_invalidates_previous_token(monkeypatch):
             "confirmPassword": "IgnoredPass1!",
         },
     )
-    assert resp.status_code == 202
+    assert resp.status_code == status.HTTP_409_CONFLICT
+    body = resp.json()
+    assert body["status"] == "consumed"
+    assert "Request a new password reset email" in body["detail"]
     assert len(sent_messages) == 2
 
     with SessionLocal() as db:
@@ -478,6 +526,63 @@ def test_password_reset_new_request_invalidates_previous_token(monkeypatch):
         )
         assert second_record is not None
         assert second_record.consumed_at is not None
+
+
+def test_password_reset_status_endpoint_reports_consumed_token(monkeypatch):
+    _reset_password_reset_limits()
+    client.cookies.clear()
+    sent_messages = _capture_password_reset_email(monkeypatch)
+
+    _token, user_id, register_resp = register_and_login(return_register_resp=True)
+    email = register_resp.json()["email"]
+
+    resp = client.post("/auth/password/forgot", json={"email": email})
+    assert resp.status_code == 202
+    assert len(sent_messages) == 1
+
+    reset_token = _parse_token(sent_messages[0].get_content())
+
+    status_resp = client.get(
+        "/auth/password/reset/status",
+        params={"token": reset_token},
+    )
+    assert status_resp.status_code == status.HTTP_200_OK
+    assert status_resp.json() == {"status": "valid"}
+
+    new_password = "StatusCheckPass1!"
+    resp = client.post(
+        "/auth/password/reset",
+        json={
+            "token": reset_token,
+            "password": new_password,
+            "confirmPassword": new_password,
+        },
+    )
+    assert resp.status_code == 202
+    assert len(sent_messages) == 2
+
+    status_resp = client.get(
+        "/auth/password/reset/status",
+        params={"token": reset_token},
+    )
+    assert status_resp.status_code == status.HTTP_409_CONFLICT
+    consumed_body = status_resp.json()
+    assert consumed_body["status"] == "consumed"
+    assert "already been used" in consumed_body["detail"]
+
+
+def test_password_reset_status_endpoint_handles_invalid_token():
+    _reset_password_reset_limits()
+    client.cookies.clear()
+
+    resp = client.get(
+        "/auth/password/reset/status",
+        params={"token": "does-not-exist"},
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+    body = resp.json()
+    assert body["status"] == "invalid"
+    assert "Request a new password reset email" in body["detail"]
 
 
 def test_password_reset_request_respects_user_cooldown(monkeypatch):

@@ -49,12 +49,19 @@ describe('ResetPasswordPage', () => {
   });
 
   it('submits a new password and shows the success confirmation', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 202,
-      json: () =>
-        Promise.resolve({ detail: 'If the reset token is valid, your password has been updated.' }),
-    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ status: 'valid' }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 202,
+        json: () =>
+          Promise.resolve({ detail: 'If the reset token is valid, your password has been updated.' }),
+      });
     vi.stubGlobal('fetch', fetchMock);
     storageMock.getItem.mockReturnValueOnce('a•••e@example.com');
 
@@ -73,8 +80,11 @@ describe('ResetPasswordPage', () => {
     expect(success).toHaveTextContent(
       'Your ZooTracker password for a•••e@example.com has been updated. You can now sign in with your new password.'
     );
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, options] = fetchMock.mock.calls[0];
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const [statusUrl, statusOptions] = fetchMock.mock.calls[0];
+    expect(statusUrl).toMatch(/\/auth\/password\/reset\/status\?token=test-token$/);
+    expect(statusOptions).toBeUndefined();
+    const [url, options] = fetchMock.mock.calls[1];
     expect(url).toMatch(/\/auth\/password\/reset$/);
     expect(options.method).toBe('POST');
     expect(JSON.parse(options.body)).toEqual({
@@ -87,11 +97,18 @@ describe('ResetPasswordPage', () => {
   });
 
   it('shows a rate limit warning when the API throttles attempts', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 429,
-      json: () => Promise.resolve({}),
-    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ status: 'valid' }),
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 429,
+        json: () => Promise.resolve({}),
+      });
     vi.stubGlobal('fetch', fetchMock);
 
     renderReset('/en/reset-password?token=another-token');
@@ -107,8 +124,26 @@ describe('ResetPasswordPage', () => {
     expect(alert).toHaveClass('alert', 'alert-warning');
     expect(alert).toHaveTextContent('Too many attempts. Please wait and try again.');
     expect(document.activeElement).toBe(alert);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(storageMock.getItem).not.toHaveBeenCalled();
     expect(storageMock.removeItem).not.toHaveBeenCalled();
+  });
+
+  it('alerts when the reset token was already used', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 409,
+      json: () => Promise.resolve({ status: 'consumed' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderReset('/en/reset-password?token=used-token');
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(
+      'This reset link has already been used. Request a new password reset email to continue.'
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(screen.queryByLabelText('New password')).not.toBeInTheDocument();
   });
 });
