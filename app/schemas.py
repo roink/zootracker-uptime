@@ -115,6 +115,15 @@ class PasswordResetConfirm(BaseModel):
         return self
 
 
+class PasswordResetTokenStatus(BaseModel):
+    """Response describing the status of a password reset token."""
+
+    status: Literal["valid", "invalid", "consumed", "expired", "rate_limited"]
+    detail: Optional[str] = None
+
+    model_config = ConfigDict(extra="forbid")
+
+
 class Token(BaseModel):
     """Authentication token response."""
 

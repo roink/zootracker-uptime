@@ -14,6 +14,8 @@ export default function ResetPasswordPage() {
   const { lang } = useParams();
   const prefix = lang ? `/${lang}` : '';
   const [token, setToken] = useState(null);
+  const [tokenStatus, setTokenStatus] = useState('unknown');
+  const [tokenError, setTokenError] = useState('');
   const [emailFromLink, setEmailFromLink] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -31,6 +33,7 @@ export default function ResetPasswordPage() {
   const confirmRef = useRef(null);
   const alertRef = useRef(null);
   const successRef = useRef(null);
+  const tokenAlertRef = useRef(null);
 
   const maskedEmailFromLink = useMemo(() => maskEmail(emailFromLink), [emailFromLink]);
 
@@ -46,9 +49,13 @@ export default function ResetPasswordPage() {
     if (tokenParam) {
       if (token !== tokenParam) {
         setToken(tokenParam);
+        setTokenStatus('unknown');
+        setTokenError('');
       }
     } else if (token === null) {
       setToken('');
+      setTokenStatus('missing');
+      setTokenError('');
     }
 
     if (tokenParam || emailParam) {
@@ -66,6 +73,15 @@ export default function ResetPasswordPage() {
   }, [status, statusMessage]);
 
   useEffect(() => {
+    if (
+      ['missing', 'invalid', 'consumed', 'expired', 'rateLimited', 'error'].includes(tokenStatus) &&
+      tokenAlertRef.current
+    ) {
+      tokenAlertRef.current.focus();
+    }
+  }, [tokenStatus]);
+
+  useEffect(() => {
     if (status === 'success' && successRef.current) {
       successRef.current.focus();
     }
@@ -76,6 +92,98 @@ export default function ResetPasswordPage() {
       setSuccessEmailHint((previous) => previous || consumeMaskedEmailHint() || maskedEmailFromLink);
     }
   }, [status, maskedEmailFromLink]);
+
+  useEffect(() => {
+    if (token === null) {
+      return;
+    }
+    if (!token) {
+      setTokenStatus('missing');
+      setTokenError('');
+      return;
+    }
+
+    let cancelled = false;
+
+    const verifyToken = async () => {
+      setTokenStatus('checking');
+      setTokenError('');
+      try {
+        const response = await fetch(
+          `${API}/auth/password/reset/status?token=${encodeURIComponent(token)}`
+        );
+        const data = await response.json().catch(() => ({}));
+        const backendStatus = typeof data.status === 'string' ? data.status : '';
+        if (cancelled) {
+          return;
+        }
+        if (response.ok && backendStatus !== 'rate_limited') {
+          setTokenStatus('valid');
+          setTokenError('');
+        } else if (response.status === 429 || backendStatus === 'rate_limited') {
+          setTokenStatus('rateLimited');
+          setTokenError('');
+        } else if (response.status === 404 || backendStatus === 'invalid') {
+          setTokenStatus('invalid');
+          setTokenError('');
+        } else if (response.status === 409 || backendStatus === 'consumed') {
+          setTokenStatus('consumed');
+          setTokenError('');
+        } else if (response.status === 410 || backendStatus === 'expired') {
+          setTokenStatus('expired');
+          setTokenError('');
+        } else {
+          setTokenStatus('error');
+          setTokenError(
+            typeof data.detail === 'string' && data.detail
+              ? data.detail
+              : t('auth.passwordReset.reset.tokenCheckError')
+          );
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setTokenStatus('error');
+          setTokenError(t('auth.common.networkError', { message: error.message }));
+        }
+      }
+    };
+
+    verifyToken();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token, t]);
+
+  const renderTokenNotice = (
+    message,
+    variant = 'warning',
+    includeAction = true,
+    role = 'alert',
+    focus = true
+  ) => (
+    <div className="container auth-form">
+      <Seo
+        title={t('auth.seo.resetTitle')}
+        description={t('auth.seo.resetDescription')}
+      />
+      <h1 className="mb-3">{t('auth.passwordReset.reset.heading')}</h1>
+      <div
+        ref={focus ? tokenAlertRef : null}
+        className={`alert alert-${variant}`}
+        role={role}
+        aria-live={role === 'status' ? 'polite' : undefined}
+        tabIndex={focus ? -1 : undefined}
+      >
+        {message}
+      </div>
+      {includeAction ? (
+        <Link to={`${prefix}/forgot-password`} className="btn btn-primary w-100">
+          {t('auth.passwordReset.reset.requestLink')}
+        </Link>
+      ) : null}
+    </div>
+  );
 
   if (token === null) {
     return (
@@ -88,21 +196,40 @@ export default function ResetPasswordPage() {
     );
   }
 
-  if (!token) {
-    return (
-      <div className="container auth-form">
-        <Seo
-          title={t('auth.seo.resetTitle')}
-          description={t('auth.seo.resetDescription')}
-        />
-        <h1 className="mb-3">{t('auth.passwordReset.reset.heading')}</h1>
-        <div className="alert alert-warning" role="alert">
-          {t('auth.passwordReset.reset.tokenMissing')}
-        </div>
-        <Link to={`${prefix}/forgot-password`} className="btn btn-primary w-100">
-          {t('auth.passwordReset.reset.requestLink')}
-        </Link>
-      </div>
+  if (tokenStatus === 'unknown' || tokenStatus === 'checking') {
+    return renderTokenNotice(
+      t('auth.passwordReset.reset.statusValidating'),
+      'info',
+      false,
+      'status',
+      false
+    );
+  }
+
+  if (tokenStatus === 'missing') {
+    return renderTokenNotice(t('auth.passwordReset.reset.tokenMissing'));
+  }
+
+  if (tokenStatus === 'invalid') {
+    return renderTokenNotice(t('auth.passwordReset.reset.tokenInvalid'));
+  }
+
+  if (tokenStatus === 'expired') {
+    return renderTokenNotice(t('auth.passwordReset.reset.tokenExpired'));
+  }
+
+  if (tokenStatus === 'consumed') {
+    return renderTokenNotice(t('auth.passwordReset.reset.tokenConsumed'));
+  }
+
+  if (tokenStatus === 'rateLimited') {
+    return renderTokenNotice(t('auth.passwordReset.reset.statusRateLimited'));
+  }
+
+  if (tokenStatus === 'error') {
+    return renderTokenNotice(
+      tokenError || t('auth.passwordReset.reset.tokenCheckError'),
+      'danger'
     );
   }
 
@@ -115,7 +242,7 @@ export default function ResetPasswordPage() {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    if (submitting) return;
+    if (submitting || tokenStatus !== 'valid') return;
 
     setPasswordTouched(true);
     setConfirmTouched(true);
@@ -148,16 +275,32 @@ export default function ResetPasswordPage() {
         setStatusMessage('');
         setPassword('');
         setConfirmPassword('');
-      } else if (response.status === 429) {
-        const data = await response.json().catch(() => ({}));
-        const detail = typeof data.detail === 'string' ? data.detail : '';
-        setStatus('rateLimited');
-        setStatusMessage(detail || t('auth.passwordReset.reset.statusRateLimited'));
       } else {
         const data = await response.json().catch(() => ({}));
         const detail = typeof data.detail === 'string' ? data.detail : '';
-        setStatus('error');
-        setStatusMessage(detail || t('auth.passwordReset.reset.statusError'));
+        const backendStatus = typeof data.status === 'string' ? data.status : '';
+        if (response.status === 429 || backendStatus === 'rate_limited') {
+          setStatus('rateLimited');
+          setStatusMessage(detail || t('auth.passwordReset.reset.statusRateLimited'));
+        } else if (response.status === 404 || backendStatus === 'invalid') {
+          setTokenStatus('invalid');
+          setTokenError('');
+          setStatus('idle');
+          setStatusMessage('');
+        } else if (response.status === 409 || backendStatus === 'consumed') {
+          setTokenStatus('consumed');
+          setTokenError('');
+          setStatus('idle');
+          setStatusMessage('');
+        } else if (response.status === 410 || backendStatus === 'expired') {
+          setTokenStatus('expired');
+          setTokenError('');
+          setStatus('idle');
+          setStatusMessage('');
+        } else {
+          setStatus('error');
+          setStatusMessage(detail || t('auth.passwordReset.reset.statusError'));
+        }
       }
     } catch (error) {
       setStatus('error');

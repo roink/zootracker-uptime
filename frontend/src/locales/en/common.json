@@ -557,12 +557,17 @@
         "statusLoading": "Updating your password…",
         "statusError": "We couldn't update your password. Try again.",
         "statusRateLimited": "Too many attempts. Please wait and try again.",
+        "statusValidating": "Checking your reset link…",
         "successHeading": "Password updated",
         "successBody": "Your ZooTracker password has been updated. You can now sign in with your new password.",
         "successBodyEmail": "Your ZooTracker password for {{email}} has been updated. You can now sign in with your new password.",
         "loginCta": "Return to sign in",
         "requestLink": "Need a new link? Request another email.",
-        "tokenMissing": "This reset link is invalid or has expired. Request a new password reset email to continue."
+        "tokenMissing": "This reset link is invalid or has expired. Request a new password reset email to continue.",
+        "tokenInvalid": "This reset link is invalid. Request a new password reset email to continue.",
+        "tokenExpired": "This reset link has expired. Request a new password reset email to continue.",
+        "tokenConsumed": "This reset link has already been used. Request a new password reset email to continue.",
+        "tokenCheckError": "We couldn't verify this reset link. Request a new password reset email to continue."
       }
     }
   }
