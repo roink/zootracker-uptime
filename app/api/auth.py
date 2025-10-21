@@ -203,9 +203,19 @@ def _now() -> datetime:
     return datetime.now(UTC)
 
 
+_CACHE_BUSTER_HEADER_VALUES = {"Cache-Control": "no-store", "Pragma": "no-cache"}
+
+
 def _cache_busting_headers(response: Response) -> None:
-    response.headers["Cache-Control"] = "no-store"
-    response.headers["Pragma"] = "no-cache"
+    response.headers.update(_CACHE_BUSTER_HEADER_VALUES)
+
+
+def _cache_busting_http_exception(status_code: int, detail: str) -> HTTPException:
+    return HTTPException(
+        status_code=status_code,
+        detail=detail,
+        headers=_CACHE_BUSTER_HEADER_VALUES.copy(),
+    )
 
 
 _REFRESH_COOKIE_PATH = "/auth"
@@ -351,11 +361,15 @@ def refresh_token(request: Request, db: Session = Depends(get_db)):
     csrf_cookie = request.cookies.get(CSRF_COOKIE_NAME)
     csrf_header = request.headers.get(CSRF_HEADER_NAME)
     if not csrf_cookie or not csrf_header or csrf_cookie != csrf_header:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid CSRF token")
+        raise _cache_busting_http_exception(
+            status.HTTP_403_FORBIDDEN, "Invalid CSRF token"
+        )
 
     raw_refresh = request.cookies.get(REFRESH_COOKIE_NAME)
     if not raw_refresh:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing refresh token")
+        raise _cache_busting_http_exception(
+            status.HTTP_401_UNAUTHORIZED, "Missing refresh token"
+        )
 
     token_hash = hash_refresh_token(raw_refresh)
     token_record = (
@@ -366,21 +380,29 @@ def refresh_token(request: Request, db: Session = Depends(get_db)):
     )
     now = _now()
     if not token_record:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
+        raise _cache_busting_http_exception(
+            status.HTTP_401_UNAUTHORIZED, "Invalid refresh token"
+        )
 
     if token_record.rotated_at is not None:
         revoke_refresh_family(db, token_record.family_id, reason="reuse_detected", timestamp=now)
         db.commit()
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token reuse detected")
+        raise _cache_busting_http_exception(
+            status.HTTP_401_UNAUTHORIZED, "Refresh token reuse detected"
+        )
 
     if token_record.revoked_at is not None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token revoked")
+        raise _cache_busting_http_exception(
+            status.HTTP_401_UNAUTHORIZED, "Refresh token revoked"
+        )
 
     if refresh_token_expired(token_record, now=now):
         token_record.revoked_at = now
         token_record.revocation_reason = "expired"
         db.commit()
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token expired")
+        raise _cache_busting_http_exception(
+            status.HTTP_401_UNAUTHORIZED, "Refresh token expired"
+        )
 
     user_agent = token_record.user_agent
     user = token_record.user
