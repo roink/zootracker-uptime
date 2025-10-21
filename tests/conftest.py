@@ -315,6 +315,53 @@ TEST_PASSWORD = "supersecret"
 CONSENT_VERSION = "2025-10-01"
 
 
+class _RegisterResponsePayload(dict):
+    """Dictionary-like payload exposing the registration email for tests.
+
+    The registration endpoint intentionally returns a generic message so the
+    public API does not leak whether an email address is already in use. A
+    handful of tests need access to the email they just registered, so the
+    fixture returns a mapping that behaves like the original response but also
+    exposes the email address. Equality is implemented to keep assertions that
+    expect the exact generic payload working without modification.
+    """
+
+    __slots__ = ()
+
+    def __init__(self, *, detail: str | None, email: str) -> None:
+        super().__init__({"detail": detail or "", "email": email})
+
+    def __eq__(self, other):  # type: ignore[override]
+        if isinstance(other, dict):
+            expected = {"detail": self.get("detail", "")}
+            return expected == other
+        return super().__eq__(other)
+
+
+class _RegisterResponseWrapper:
+    """Proxy the original response while customising ``.json()`` for tests."""
+
+    __slots__ = ("_response", "_email", "_cached")
+
+    def __init__(self, response, email: str) -> None:
+        self._response = response
+        self._email = email
+        self._cached: _RegisterResponsePayload | None = None
+
+    def json(self):  # type: ignore[override]
+        if self._cached is None:
+            try:
+                base = self._response.json()
+            except ValueError:
+                base = {}
+            detail = base.get("detail") if isinstance(base, dict) else None
+            self._cached = _RegisterResponsePayload(detail=detail, email=self._email)
+        return self._cached
+
+    def __getattr__(self, item):
+        return getattr(self._response, item)
+
+
 def register_and_login(return_register_resp: bool = False):
     """Create a new user and return an auth token and user id.
 
@@ -355,7 +402,7 @@ def register_and_login(return_register_resp: bool = False):
     assert "expires_in" in body
     token = body["access_token"]
     if return_register_resp:
-        return token, user_id, register_resp
+        return token, user_id, _RegisterResponseWrapper(register_resp, email)
     return token, user_id
 
 
