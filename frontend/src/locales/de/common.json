@@ -420,7 +420,11 @@
       "loginTitle": "Anmelden / Registrieren",
       "loginDescription": "Greifen Sie auf Ihr ZooTracker-Konto zu oder erstellen Sie ein neues, um Besuche und Sichtungen zu protokollieren.",
       "verifyTitle": "E-Mail bestätigen",
-      "verifyDescription": "Bestätige deine ZooTracker-E-Mail-Adresse, um dein Konto abzuschließen."
+      "verifyDescription": "Bestätige deine ZooTracker-E-Mail-Adresse, um dein Konto abzuschließen.",
+      "forgotTitle": "Passwort vergessen",
+      "forgotDescription": "Fordere einen Link zum Zurücksetzen deines ZooTracker-Passworts an.",
+      "resetTitle": "Passwort zurücksetzen",
+      "resetDescription": "Wähle ein neues Passwort für dein ZooTracker-Konto."
     },
     "common": {
       "networkError": "Netzwerkfehler: {{message}}"
@@ -440,7 +444,8 @@
       "unverified": "Bitte bestätige deine E-Mail-Adresse, bevor du dich einloggst.",
       "resendLink": "E-Mail nicht erhalten? Bestätigungslink erneut senden.",
       "verificationSuccess": "E-Mail erfolgreich bestätigt. Bitte melde dich an.",
-      "verificationSuccessEmail": "E-Mail für {{email}} erfolgreich bestätigt. Bitte melde dich an."
+      "verificationSuccessEmail": "E-Mail für {{email}} erfolgreich bestätigt. Bitte melde dich an.",
+      "forgotLink": "Passwort vergessen?"
     },
     "signup": {
       "heading": "Registrieren",
@@ -482,6 +487,48 @@
       "resendCta": "Bestätigungs-E-Mail erneut senden",
       "openForm": "Code manuell eingeben",
       "backToLogin": "Zur Anmeldung"
+    },
+    "passwordReset": {
+      "request": {
+        "heading": "Passwort vergessen?",
+        "intro": "Gib die E-Mail-Adresse deines ZooTracker-Kontos ein. Falls ein Konto existiert, senden wir dir in Kürze Anweisungen zum Zurücksetzen.",
+        "emailLabel": "E-Mail-Adresse",
+        "emailHelper": "Wir senden die Anleitung an diese Adresse.",
+        "emailErrorRequired": "Bitte gib deine E-Mail-Adresse ein.",
+        "emailErrorInvalid": "Bitte gib eine gültige E-Mail-Adresse ein.",
+        "submit": "Link zum Zurücksetzen senden",
+        "submitting": "Wird gesendet…",
+        "statusLoading": "Sende Anweisungen zum Zurücksetzen…",
+        "successHeading": "Posteingang prüfen",
+        "successBody": "Falls ein Konto für {{email}} existiert, senden wir dir gleich einen Link zum Zurücksetzen. Sieh auch im Spam-Ordner nach.",
+        "successCta": "Zur Anmeldung",
+        "backToLogin": "Zur Anmeldung",
+        "rateLimited": "Zu viele Zurücksetz-Anfragen. Bitte warte einen Moment und versuche es erneut.",
+        "error": "Wir konnten deine Anfrage nicht verarbeiten. Bitte versuche es erneut."
+      },
+      "reset": {
+        "heading": "Neues Passwort festlegen",
+        "intro": "Wähle ein neues Passwort für dein ZooTracker-Konto.",
+        "passwordLabel": "Neues Passwort",
+        "passwordHelper": "Mindestens 8 Zeichen verwenden.",
+        "confirmLabel": "Neues Passwort bestätigen",
+        "confirmHelper": "Gib das neue Passwort zur Bestätigung erneut ein.",
+        "showPassword": "Passwort anzeigen",
+        "hidePassword": "Passwort verbergen",
+        "showPasswordShort": "Anzeigen",
+        "hidePasswordShort": "Verbergen",
+        "submit": "Neues Passwort speichern",
+        "submitting": "Speichere…",
+        "statusLoading": "Aktualisiere dein Passwort…",
+        "statusError": "Wir konnten dein Passwort nicht aktualisieren. Bitte versuche es erneut.",
+        "statusRateLimited": "Zu viele Versuche. Bitte warte und versuche es erneut.",
+        "successHeading": "Passwort aktualisiert",
+        "successBody": "Dein ZooTracker-Passwort wurde aktualisiert. Du kannst dich jetzt mit dem neuen Passwort anmelden.",
+        "successBodyEmail": "Das ZooTracker-Passwort für {{email}} wurde aktualisiert. Du kannst dich jetzt mit dem neuen Passwort anmelden.",
+        "loginCta": "Zur Anmeldung",
+        "requestLink": "Neue Zurücksetz-E-Mail anfordern",
+        "tokenMissing": "Dieser Zurücksetzlink ist ungültig oder abgelaufen. Fordere eine neue E-Mail an, um fortzufahren."
+      }
     }
   },
   "legalNoticePage": {
