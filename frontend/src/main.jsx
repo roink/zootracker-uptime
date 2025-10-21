@@ -25,6 +25,7 @@ import Landing from "./pages/Landing";
 import LoginPage from "./pages/Login";
 import ForgotPasswordPage from "./pages/ForgotPassword";
 import ResetPasswordPage from "./pages/ResetPassword";
+import ResetPasswordRedirect from "./pages/ResetPasswordRedirect.jsx";
 import Dashboard from "./pages/Dashboard";
 import ZoosPage from "./pages/Zoos";
 import AnimalsPage from "./pages/Animals";
@@ -240,6 +241,7 @@ function App() {
       <Routes>
         <Route path="/" element={<RootRedirect />} />
         <Route path="/verify" element={<VerifyEmailRedirect />} />
+        <Route path="/reset-password" element={<ResetPasswordRedirect />} />
         <Route
           path="/:lang/*"
           element={
