@@ -1,31 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useLocation, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
 import Seo from '../components/Seo';
 import { API } from '../api';
-
-const maskEmail = (value) => {
-  const [localPart, domain] = value.split('@');
-  if (!localPart || !domain) {
-    return '';
-  }
-  const first = localPart[0];
-  const last = localPart.length > 1 ? localPart[localPart.length - 1] : '';
-  const maskLength = Math.min(Math.max(localPart.length - 2, 3), 6);
-  const masked = '•'.repeat(maskLength);
-  return `${first}${masked}${last}@${domain}`;
-};
+import { consumeMaskedEmailHint, maskEmail } from '../utils/passwordReset.js';
 
 // Password reset confirmation page that validates the token and records a new password.
 export default function ResetPasswordPage() {
   const { t } = useTranslation();
   const location = useLocation();
+  const navigate = useNavigate();
   const { lang } = useParams();
   const prefix = lang ? `/${lang}` : '';
-  const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
-  const token = (searchParams.get('token') ?? '').trim();
-  const emailFromQuery = (searchParams.get('email') ?? '').trim();
+  const [token, setToken] = useState(null);
+  const [emailFromLink, setEmailFromLink] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordTouched, setPasswordTouched] = useState(false);
@@ -37,12 +26,38 @@ export default function ResetPasswordPage() {
   const [status, setStatus] = useState('idle');
   const [statusMessage, setStatusMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [successEmailHint, setSuccessEmailHint] = useState('');
   const passwordRef = useRef(null);
   const confirmRef = useRef(null);
   const alertRef = useRef(null);
   const successRef = useRef(null);
 
-  const maskedEmail = useMemo(() => maskEmail(emailFromQuery), [emailFromQuery]);
+  const maskedEmailFromLink = useMemo(() => maskEmail(emailFromLink), [emailFromLink]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const tokenParam = (params.get('token') ?? '').trim();
+    const emailParam = (params.get('email') ?? '').trim();
+
+    if (emailParam && emailParam !== emailFromLink) {
+      setEmailFromLink(emailParam);
+    }
+
+    if (tokenParam) {
+      if (token !== tokenParam) {
+        setToken(tokenParam);
+      }
+    } else if (token === null) {
+      setToken('');
+    }
+
+    if (tokenParam || emailParam) {
+      params.delete('token');
+      params.delete('email');
+      const nextSearch = params.toString();
+      navigate(`${location.pathname}${nextSearch ? `?${nextSearch}` : ''}`, { replace: true });
+    }
+  }, [location.pathname, location.search, navigate, emailFromLink, token]);
 
   useEffect(() => {
     if (['loading', 'error', 'rateLimited'].includes(status) && alertRef.current) {
@@ -55,6 +70,23 @@ export default function ResetPasswordPage() {
       successRef.current.focus();
     }
   }, [status]);
+
+  useEffect(() => {
+    if (status === 'success') {
+      setSuccessEmailHint((previous) => previous || consumeMaskedEmailHint() || maskedEmailFromLink);
+    }
+  }, [status, maskedEmailFromLink]);
+
+  if (token === null) {
+    return (
+      <div className="container auth-form">
+        <Seo
+          title={t('auth.seo.resetTitle')}
+          description={t('auth.seo.resetDescription')}
+        />
+      </div>
+    );
+  }
 
   if (!token) {
     return (
@@ -166,8 +198,10 @@ export default function ResetPasswordPage() {
         >
           <h2 className="h4">{t('auth.passwordReset.reset.successHeading')}</h2>
           <p className="mb-3">
-            {maskedEmail
-              ? t('auth.passwordReset.reset.successBodyEmail', { email: maskedEmail })
+            {successEmailHint || maskedEmailFromLink
+              ? t('auth.passwordReset.reset.successBodyEmail', {
+                  email: successEmailHint || maskedEmailFromLink,
+                })
               : t('auth.passwordReset.reset.successBody')}
           </p>
           <Link to={`${prefix}/login`} className="btn btn-primary w-100">

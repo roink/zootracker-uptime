@@ -312,6 +312,7 @@ export default function LoginPage() {
           />
           <Link
             to={`${prefix}/forgot-password`}
+            state={inputEmail.trim() ? { email: inputEmail.trim() } : undefined}
             className="btn btn-link px-0 auth-forgot-link"
           >
             {t('auth.login.forgotLink')}

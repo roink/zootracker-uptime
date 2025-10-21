@@ -1,16 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
 import Seo from '../components/Seo';
 import { API } from '../api';
+import { saveMaskedEmailHint } from '../utils/passwordReset.js';
 
 // Password reset request page that keeps the flow anonymous while guiding users.
 export default function ForgotPasswordPage() {
   const { t } = useTranslation();
+  const location = useLocation();
   const { lang } = useParams();
   const prefix = lang ? `/${lang}` : '';
-  const [email, setEmail] = useState('');
+  const locationEmail =
+    typeof location.state?.email === 'string' && location.state.email.trim() ? location.state.email.trim() : '';
+  const [email, setEmail] = useState(locationEmail);
   const [emailTouched, setEmailTouched] = useState(false);
   const [emailFocused, setEmailFocused] = useState(false);
   const [status, setStatus] = useState('idle');
@@ -75,6 +79,7 @@ export default function ForgotPasswordPage() {
         setSubmittedEmail(emailTrimmed);
         setStatus('success');
         setStatusMessage('');
+        saveMaskedEmailHint(emailTrimmed);
         setEmail('');
         setEmailTouched(false);
       } else if (response.status === 429) {

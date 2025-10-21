@@ -22,8 +22,16 @@ function renderReset(route = '/en/reset-password') {
 }
 
 describe('ResetPasswordPage', () => {
+  let storageMock;
+
   beforeEach(async () => {
     await loadLocale('en');
+    storageMock = {
+      getItem: vi.fn(),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    };
+    vi.stubGlobal('sessionStorage', storageMock);
   });
 
   afterEach(() => {
@@ -48,6 +56,7 @@ describe('ResetPasswordPage', () => {
         Promise.resolve({ detail: 'If the reset token is valid, your password has been updated.' }),
     });
     vi.stubGlobal('fetch', fetchMock);
+    storageMock.getItem.mockReturnValueOnce('a•••e@example.com');
 
     renderReset('/en/reset-password?token=test-token&email=alice@example.com');
 
@@ -73,6 +82,8 @@ describe('ResetPasswordPage', () => {
       password: 'password123',
       confirmPassword: 'password123',
     });
+    expect(storageMock.getItem).toHaveBeenCalledWith('ztr_password_reset_hint');
+    expect(storageMock.removeItem).toHaveBeenCalledWith('ztr_password_reset_hint');
   });
 
   it('shows a rate limit warning when the API throttles attempts', async () => {
@@ -97,5 +108,7 @@ describe('ResetPasswordPage', () => {
     expect(alert).toHaveTextContent('Too many attempts. Please wait and try again.');
     expect(document.activeElement).toBe(alert);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(storageMock.getItem).not.toHaveBeenCalled();
+    expect(storageMock.removeItem).not.toHaveBeenCalled();
   });
 });

@@ -10,20 +10,28 @@ import ForgotPasswordPage from './ForgotPassword.jsx';
 
 vi.mock('../components/Seo', () => ({ default: () => null }));
 
-function renderForgot(route = '/en/forgot-password') {
+function renderForgot(route = '/en/forgot-password', options = {}) {
   return renderWithRouter(
     (
       <Routes>
         <Route path="/:lang/forgot-password" element={<ForgotPasswordPage />} />
       </Routes>
     ),
-    { route }
+    { route, ...options }
   );
 }
 
 describe('ForgotPasswordPage', () => {
+  let storageMock;
+
   beforeEach(async () => {
     await loadLocale('en');
+    storageMock = {
+      getItem: vi.fn(),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    };
+    vi.stubGlobal('sessionStorage', storageMock);
   });
 
   afterEach(() => {
@@ -56,6 +64,7 @@ describe('ForgotPasswordPage', () => {
     expect(success).toHaveTextContent(
       'If an account exists for alice@example.com, we’ll email password reset instructions shortly.'
     );
+    expect(storageMock.setItem).toHaveBeenCalledWith('ztr_password_reset_hint', 'a•••e@example.com');
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, options] = fetchMock.mock.calls[0];
     expect(url).toMatch(/\/auth\/password\/forgot$/);
@@ -83,5 +92,20 @@ describe('ForgotPasswordPage', () => {
     expect(alert).toHaveTextContent('Too many reset requests. Please wait a minute before trying again.');
     expect(document.activeElement).toBe(alert);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(storageMock.setItem).not.toHaveBeenCalled();
+  });
+
+  it('prefills the email field from router state', async () => {
+    renderForgot('/en/forgot-password', {
+      initialEntries: [
+        {
+          pathname: '/en/forgot-password',
+          state: { email: 'prefill@example.com' },
+        },
+      ],
+    });
+
+    const emailField = await screen.findByLabelText('Email address');
+    expect(emailField).toHaveValue('prefill@example.com');
   });
 });
