@@ -5,6 +5,7 @@ from typing import Optional, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, ConfigDict, Field, constr, field_validator, model_validator
+from pydantic_core import PydanticCustomError
 
 
 class UserCreate(BaseModel):
@@ -107,7 +108,10 @@ class PasswordResetConfirm(BaseModel):
     @model_validator(mode="after")
     def _passwords_match(self):
         if self.password != self.confirm_password:
-            raise ValueError("password_mismatch")
+            raise PydanticCustomError(
+                "password_mismatch",
+                "password_mismatch",
+            )
         return self
 
 
