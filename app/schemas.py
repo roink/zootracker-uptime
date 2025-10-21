@@ -1,7 +1,7 @@
 """Pydantic schemas used for request and response models."""
 
 from datetime import date, datetime
-from typing import Optional, Literal
+from typing import Literal, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, ConfigDict, Field, constr, field_validator, model_validator
@@ -50,12 +50,21 @@ class Message(BaseModel):
 class EmailVerificationRequest(BaseModel):
     """Payload accepted by the email verification endpoint."""
 
-    uid: UUID | None = None
+    uid: str | None = None
     email: EmailStr | None = None
     token: str | None = None
     code: constr(min_length=6, max_length=8, pattern=r"^\d{6,8}$") | None = None
 
     model_config = ConfigDict(extra="forbid")
+
+    @field_validator("uid", mode="before")
+    def _coerce_uid(cls, value: str | UUID | None) -> str | None:
+        if isinstance(value, UUID):
+            return str(value)
+        if isinstance(value, str):
+            trimmed = value.strip()
+            return trimmed or None
+        return value
 
     @field_validator("token", "code", mode="before")
     def _strip_values(cls, value: str | None) -> str | None:

@@ -69,6 +69,9 @@ def build_email(
     message["From"] = from_addr
     message["To"] = to_addr
     message["Date"] = formatdate(localtime=True)
+    # Mark messages as automated to avoid responder loops and suppress OOO replies.
+    message["Auto-Submitted"] = "auto-generated"
+    message["X-Auto-Response-Suppress"] = "All"
     domain = from_addr.split("@", 1)[1] if "@" in from_addr else None
     message["Message-ID"] = make_msgid(domain=domain)
     if reply_to:

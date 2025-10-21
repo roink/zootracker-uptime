@@ -1,4 +1,5 @@
 from app import models
+from app.api.users import GENERIC_SIGNUP_MESSAGE
 from app.database import SessionLocal
 
 from .conftest import (
@@ -170,14 +171,12 @@ def test_create_user_accepts_charset():
         },
         headers={"content-type": "application/json; charset=utf-8"},
     )
-    assert resp.status_code == 200
-    # response should only include id, name and email
+    assert resp.status_code == 202
     body = resp.json()
-    assert set(body.keys()) == {"id", "name", "email", "email_verified"}
-    assert body["email_verified"] is False
+    assert body == {"detail": GENERIC_SIGNUP_MESSAGE}
 
 def test_create_user_response_fields():
-    """Successful user creation returns only id, name and email."""
+    """Registration response should not expose account details."""
     global _counter
     email = f"fields{_counter}@example.com"
     _counter += 1
@@ -191,10 +190,9 @@ def test_create_user_response_fields():
             "privacy_consent_version": CONSENT_VERSION,
         },
     )
-    assert resp.status_code == 200
+    assert resp.status_code == 202
     body = resp.json()
-    assert set(body.keys()) == {"id", "name", "email", "email_verified"}
-    assert body["email_verified"] is False
+    assert body == {"detail": GENERIC_SIGNUP_MESSAGE}
 
 def test_login_empty_username_password():
     """Login with empty credentials should return 400."""
@@ -219,8 +217,10 @@ def test_login_endpoint():
             "privacy_consent_version": CONSENT_VERSION,
         },
     )
-    assert resp.status_code == 200
-    mark_user_verified(resp.json()["id"])
+    assert resp.status_code == 202
+    with SessionLocal() as db:
+        user = db.query(models.User).filter(models.User.email == email).one()
+        mark_user_verified(user.id)
     resp = client.post(
         "/auth/login",
         data={"username": email, "password": TEST_PASSWORD},
@@ -250,8 +250,10 @@ def test_login_response_excludes_password_fields():
             "privacy_consent_version": CONSENT_VERSION,
         },
     )
-    assert resp.status_code == 200
-    mark_user_verified(resp.json()["id"])
+    assert resp.status_code == 202
+    with SessionLocal() as db:
+        user = db.query(models.User).filter(models.User.email == email).one()
+        mark_user_verified(user.id)
     resp = client.post(
         "/auth/login",
         data={"username": email, "password": TEST_PASSWORD},
@@ -272,18 +274,12 @@ def test_no_user_listing_endpoint():
 
 
 def test_register_response_sanitized():
-    """Ensure password fields are not returned in registration responses."""
-    token, user_id, resp = register_and_login(return_register_resp=True)
+    """Ensure registration responses remain generic."""
+    _token, _user_id, resp = register_and_login(return_register_resp=True)
 
     data = resp.json()
 
-    # Sensitive fields should not be included
-    assert "password" not in data
-    assert "password_hash" not in data
-    assert "password_salt" not in data
-
-    # Only expected fields are present
-    assert set(data.keys()) == {"id", "name", "email", "email_verified"}
+    assert data == {"detail": GENERIC_SIGNUP_MESSAGE}
 
 
 def test_registration_persists_privacy_consent_metadata():
@@ -301,7 +297,7 @@ def test_registration_persists_privacy_consent_metadata():
             "privacy_consent_version": CONSENT_VERSION,
         },
     )
-    assert resp.status_code == 200
+    assert resp.status_code == 202
 
     db = SessionLocal()
     try:
@@ -330,7 +326,8 @@ def test_register_rejects_email_with_different_case():
             "privacy_consent_version": CONSENT_VERSION,
         },
     )
-    assert first.status_code == 200
+    assert first.status_code == 202
+    assert first.json() == {"detail": GENERIC_SIGNUP_MESSAGE}
     duplicate = client.post(
         "/users",
         json={
@@ -341,6 +338,10 @@ def test_register_rejects_email_with_different_case():
             "privacy_consent_version": CONSENT_VERSION,
         },
     )
-    assert duplicate.status_code == 400
-    assert duplicate.json()["detail"] == "Email already registered"
+    assert duplicate.status_code == 202
+    assert duplicate.json() == {"detail": GENERIC_SIGNUP_MESSAGE}
+
+    with SessionLocal() as db:
+        count = db.query(models.User).filter(models.User.email == email).count()
+        assert count == 1
 
