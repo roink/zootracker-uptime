@@ -15,6 +15,10 @@ This directory contains all the files and configuration templates needed to depl
   6. Copies the pre-made systemd service unit and nginx site configuration to the VM.
   7. Reloads systemd, enables and starts the API service, tests and reloads nginx, and issues a Let’s Encrypt certificate.
 
+* **setup-cloudflare-realip.yml**
+  An Ansible playbook that installs the `cf-realip-sync` helper under `/usr/local/sbin/`, generates `/etc/nginx/conf.d/20-cloudflare-realip.conf`,
+  and configures the matching `cf-realip-sync.service`/`.timer` so nginx always recognizes the correct client IP addresses when running behind Cloudflare.
+
 * **zoo\_tracker.service**
   A systemd unit file for running the FastAPI backend under `gunicorn + uvicorn` bound to `127.0.0.1:8000`. Place in `/etc/systemd/system/` on the server.
 

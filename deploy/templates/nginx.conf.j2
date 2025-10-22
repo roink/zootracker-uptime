@@ -52,5 +52,6 @@ http {
   zstd_types application/json application/javascript text/plain text/css application/xml application/wasm;
   zstd_static on;
 
+  include /etc/nginx/conf.d/*.conf;
   include /etc/nginx/sites-enabled/*;
 }
