@@ -24,7 +24,7 @@
         dest: /etc/apt/preferences.d/99debmyguard.nl
         mode: '0644'
         content: |
-          Package: nginx nginx-core nginx-common libnginx-mod-http-zstd
+          Package: nginx nginx-core nginx-common libnginx-mod-http-zstd libnginx-mod-http-brotli
           Pin: origin deb.myguard.nl
           Pin-Priority: 700
 
@@ -43,12 +43,16 @@
         update_cache: yes
 
     # -- Compression modules --
-    # Brotli (from Ubuntu Noble official repos)
-    - name: Install Brotli dynamic modules (Ubuntu 24.04+)
+    - name: Remove Ubuntu Brotli modules to avoid modules-path mismatch
       ansible.builtin.apt:
         name:
           - libnginx-mod-http-brotli-filter
           - libnginx-mod-http-brotli-static
+        state: absent
+
+    - name: Install Brotli dynamic module (myguard)
+      ansible.builtin.apt:
+        name: libnginx-mod-http-brotli
         state: present
 
     # Zstd (from myguard)
@@ -56,6 +60,14 @@
       ansible.builtin.apt:
         name: libnginx-mod-http-zstd
         state: present
+
+    - name: Show nginx build information
+      ansible.builtin.command: nginx -V
+      register: nginx_v
+      changed_when: false
+
+    - ansible.builtin.debug:
+        msg: "{{ nginx_v.stderr }}"
 
     # -- Fs prep --
     - name: Ensure proxy cache directory

@@ -12,4 +12,4 @@ This directory contains automation and configuration assets for provisioning the
 ## Conventions
 - Keep Ansible tasks idempotent and prefer built-in modules (`ansible.builtin.*`).
 - Use two-space indentation in YAML and Jinja2 templates to match the existing style.
-- When modifying nginx templates, ensure TLS and compression modules remain unconditionally loaded, reflecting the assumptions baked into the playbooks.
+- When modifying nginx templates, keep TLS hardening directives intact and assume Brotli/Zstd modules are provided by the package manager via `/etc/nginx/modules-enabled/` snippets (do not add manual `load_module` directives).
