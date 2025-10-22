@@ -183,3 +183,5 @@
       ansible.builtin.service:
         name: nginx
         state: reloaded
+
+- import_playbook: setup-cloudflare-realip.yml
