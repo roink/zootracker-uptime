@@ -11,6 +11,8 @@ Project structure overview:
   - `src/styles/` – custom CSS loaded by `main.jsx`
 - `tests/` – pytest suite for the backend
 - `docs/` – architecture and planning documents
+- `deploy/` – Ansible inventories, playbooks, and nginx templates used to provision the production server. See `deploy/AGENTS.md`
+  for a detailed overview of the deployment assets and configuration guidance.
 - `schema.sql` – database schema
 
 ## Running tests

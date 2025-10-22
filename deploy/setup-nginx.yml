@@ -1,0 +1,173 @@
+- hosts: zoo_server
+  become: true
+
+  tasks:
+    # -- myguard APT repo (adds source + pins via their .deb) --
+    - name: Download myguard repo bootstrap .deb
+      ansible.builtin.get_url:
+        url: https://deb.myguard.nl/pool/myguard.deb
+        dest: /tmp/myguard.deb
+        mode: '0644'
+
+    - name: Install myguard repo (adds list + key + pinning)
+      ansible.builtin.apt:
+        deb: /tmp/myguard.deb
+      register: myguard_repo
+
+    - name: apt update (after repo add)
+      ansible.builtin.apt:
+        update_cache: yes
+
+    # Optional: ensure a pin to prefer myguard over Ubuntu when both provide nginx
+    - name: Prefer myguard origin for nginx and modules
+      ansible.builtin.copy:
+        dest: /etc/apt/preferences.d/99debmyguard.nl
+        mode: '0644'
+        content: |
+          Package: nginx nginx-core nginx-common libnginx-mod-http-zstd
+          Pin: origin deb.myguard.nl
+          Pin-Priority: 700
+
+    - name: apt update (after pin)
+      ansible.builtin.apt:
+        update_cache: yes
+
+    # -- Install nginx from myguard + certbot helper --
+    - name: Install nginx and TLS helpers
+      ansible.builtin.apt:
+        name:
+          - nginx
+          - certbot
+          - python3-certbot-nginx
+        state: present
+        update_cache: yes
+
+    # -- Compression modules --
+    # Brotli (from Ubuntu Noble official repos)
+    - name: Install Brotli dynamic modules (Ubuntu 24.04+)
+      ansible.builtin.apt:
+        name:
+          - libnginx-mod-http-brotli-filter
+          - libnginx-mod-http-brotli-static
+        state: present
+
+    # Zstd (from myguard)
+    - name: Install zstd dynamic module (myguard)
+      ansible.builtin.apt:
+        name: libnginx-mod-http-zstd
+        state: present
+
+    # -- Fs prep --
+    - name: Ensure proxy cache directory
+      ansible.builtin.file:
+        path: /var/cache/nginx/zootracker
+        state: directory
+        owner: www-data
+        group: www-data
+        mode: '0755'
+
+    - name: Ensure web root exists
+      ansible.builtin.file:
+        path: "{{ web_root }}"
+        state: directory
+        owner: www-data
+        group: www-data
+        mode: '0755'
+
+    - name: Ensure ACME challenge webroot exists
+      ansible.builtin.file:
+        path: /var/www/letsencrypt
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    # -- Temporary config for certificate issuance --
+    - name: Deploy temporary nginx config for ACME challenge
+      ansible.builtin.template:
+        src: templates/nginx_cert_challenge.conf.j2
+        dest: /etc/nginx/nginx.conf
+        mode: '0644'
+      notify: reload nginx
+
+    - name: Test temporary nginx config
+      ansible.builtin.command: nginx -t
+      changed_when: false
+
+    - name: Ensure nginx is enabled and running
+      ansible.builtin.service:
+        name: nginx
+        state: started
+        enabled: true
+
+    - name: Flush handlers to activate temporary config
+      ansible.builtin.meta: flush_handlers
+
+    - name: Obtain certificate with certbot (webroot)
+      ansible.builtin.command: >
+        certbot --non-interactive --agree-tos --webroot
+        -w /var/www/letsencrypt
+        -d {{ domain }}
+        -d {{ domain | regex_replace('^www\\.', '') }}
+        -m contact@{{ domain | regex_replace('^www\\.', '') }}
+      args:
+        creates: "/etc/letsencrypt/live/{{ domain }}/fullchain.pem"
+
+    - name: Ensure Certbot deploy hook directory exists
+      ansible.builtin.file:
+        path: /etc/letsencrypt/renewal-hooks/deploy
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Configure Certbot deploy hook to reload nginx
+      ansible.builtin.copy:
+        dest: /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh
+        mode: '0755'
+        owner: root
+        group: root
+        content: |
+          #!/bin/sh
+          systemctl reload nginx
+
+    # -- Final configs --
+    - name: Deploy /etc/nginx/nginx.conf (loads zstd then brotli; enables cache+compression)
+      ansible.builtin.template:
+        src: templates/nginx.conf.j2
+        dest: /etc/nginx/nginx.conf
+        mode: '0644'
+      notify: reload nginx
+
+    - name: Deploy site config
+      ansible.builtin.template:
+        src: templates/zoo_tracker.nginx.j2
+        dest: /etc/nginx/sites-available/zoo_tracker
+        mode: '0644'
+      notify: reload nginx
+
+    - name: Enable site
+      ansible.builtin.file:
+        src: /etc/nginx/sites-available/zoo_tracker
+        dest: /etc/nginx/sites-enabled/zoo_tracker
+        state: link
+        force: true
+      notify: reload nginx
+
+    - name: Test final nginx config
+      ansible.builtin.command: nginx -t
+      changed_when: false
+
+    - name: Flush handlers to activate final config
+      ansible.builtin.meta: flush_handlers
+
+    - name: Clean up myguard repo .deb
+      ansible.builtin.file:
+        path: /tmp/myguard.deb
+        state: absent
+
+  handlers:
+    - name: reload nginx
+      ansible.builtin.service:
+        name: nginx
+        state: reloaded

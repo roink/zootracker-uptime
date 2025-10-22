@@ -1,0 +1,38 @@
+- hosts: zoo_server
+  become: true
+
+  tasks:
+    - name: Deploy /etc/nginx/nginx.conf (loads zstd then brotli; enables cache+compression)
+      ansible.builtin.template:
+        src: templates/nginx.conf.j2
+        dest: /etc/nginx/nginx.conf
+        mode: '0644'
+      notify: reload nginx
+
+    - name: Deploy site config
+      ansible.builtin.template:
+        src: templates/zoo_tracker.nginx.j2
+        dest: /etc/nginx/sites-available/zoo_tracker
+        mode: '0644'
+      notify: reload nginx
+
+    - name: Enable site
+      ansible.builtin.file:
+        src: /etc/nginx/sites-available/zoo_tracker
+        dest: /etc/nginx/sites-enabled/zoo_tracker
+        state: link
+        force: true
+      notify: reload nginx
+
+    - name: Test nginx config
+      ansible.builtin.command: nginx -t
+      changed_when: false
+
+    - name: Flush handlers to activate updated config
+      ansible.builtin.meta: flush_handlers
+
+  handlers:
+    - name: reload nginx
+      ansible.builtin.service:
+        name: nginx
+        state: reloaded
