@@ -1,0 +1,86 @@
+server {
+  server_name {{ domain }} {{ domain | regex_replace('^www\\.', '') }};
+
+  # --------- API (FastAPI behind Nginx) ----------
+  location /api/ {
+    proxy_pass {{ app_upstream | regex_replace('/+$','') }}/;
+
+    # Correct proxy headers
+    proxy_http_version 1.1;
+    proxy_set_header Host              $http_host;
+    proxy_set_header X-Real-IP         $remote_addr;
+    proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Host  $host;
+    proxy_set_header Connection "";
+
+    # Normalize: upstream does NOT compress; Nginx will (zstd → br → gzip)
+    proxy_set_header Accept-Encoding "";
+
+    # Limits/timeouts
+    client_max_body_size 10m;
+    client_body_timeout   10s;
+    send_timeout          10s;
+
+    proxy_connect_timeout 5s;
+    proxy_send_timeout   60s;
+    proxy_read_timeout   60s;
+
+    # Small buffering to smooth bursts
+    proxy_buffering on;
+    proxy_buffers 16 16k;
+    proxy_busy_buffers_size 24k;
+
+    # --------- Proxy cache ----------
+    proxy_cache zootracker_cache;
+    proxy_cache_methods GET HEAD;
+    proxy_cache_revalidate on;
+    proxy_cache_lock on;
+    proxy_cache_lock_timeout 5s;
+    proxy_cache_use_stale error timeout updating http_500 http_502 http_503 http_504;
+    proxy_cache_background_update on;
+
+    # Never cache when Authorization header present
+    proxy_cache_bypass $skip_cache;
+    proxy_no_cache     $skip_cache;
+
+    add_header X-Cache-Status $upstream_cache_status always;
+  }
+
+  # --------- Static site (served by Nginx) ----------
+  location ~* \.(?:css|js|mjs|ico|png|jpg|jpeg|gif|svg|webp|woff2?)$ {
+    root {{ web_root }};
+    try_files $uri =404;
+    add_header Cache-Control "public, max-age=31536000, immutable";
+  }
+
+  location = /index.html {
+    root {{ web_root }};
+    add_header Cache-Control "no-store";
+  }
+
+  location / {
+    root {{ web_root }};
+    try_files $uri /index.html;
+  }
+
+  # --- Security headers ---
+  add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+  add_header X-Content-Type-Options "nosniff" always;
+  add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+  add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
+
+  listen 443 ssl;
+  listen [::]:443 ssl;
+  http2 on;
+  ssl_certificate     /etc/letsencrypt/live/{{ domain }}/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/{{ domain }}/privkey.pem;
+  include /etc/letsencrypt/options-ssl-nginx.conf;
+}
+
+server {
+  listen 80;
+  listen [::]:80;
+  server_name {{ domain }} {{ domain | regex_replace('^www\\.', '') }};
+  return 301 https://{{ domain }}$request_uri;
+}

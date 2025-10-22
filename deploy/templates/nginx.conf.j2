@@ -1,0 +1,56 @@
+user www-data;
+worker_processes auto;
+pid /run/nginx.pid;
+
+# Dynamic modules (installed from myguard builds)
+load_module modules/ngx_http_zstd_filter_module.so;
+load_module modules/ngx_http_zstd_static_module.so;
+load_module modules/ngx_http_brotli_filter_module.so;
+load_module modules/ngx_http_brotli_static_module.so;
+
+events { worker_connections 1024; }
+
+http {
+  include /etc/nginx/mime.types;
+  default_type application/octet-stream;
+  server_tokens off;
+  ssl_protocols TLSv1.2 TLSv1.3;
+
+  # ---- Proxy cache (shared across sites) ----
+  proxy_cache_path /var/cache/nginx/zootracker
+                   levels=1:2
+                   keys_zone=zootracker_cache:100m
+                   max_size=5g
+                   inactive=60m
+                   use_temp_path=off;
+
+  # Bypass cache on authenticated requests
+  map $http_authorization $skip_cache { "" 0; default 1; }
+
+  # Downstream cache friendliness
+  add_header Vary Accept-Encoding always;
+
+  # ---------- gzip (fallback) ----------
+  gzip on;
+  gzip_comp_level 4;
+  gzip_min_length 512;
+  gzip_vary on;
+  gzip_proxied any;
+  gzip_types application/json application/javascript text/plain text/css application/xml;
+  gzip_static on;  # allow .gz assets if present
+
+  # ---------- brotli (middle priority) ----------
+  brotli on;
+  brotli_comp_level 5;
+  brotli_types application/json application/javascript text/plain text/css application/xml application/wasm;
+  brotli_static on;
+
+  # ---------- zstd (highest priority) ----------
+  zstd on;
+  zstd_comp_level 7;
+  zstd_min_length 512;
+  zstd_types application/json application/javascript text/plain text/css application/xml application/wasm;
+  zstd_static on;
+
+  include /etc/nginx/sites-enabled/*;
+}
