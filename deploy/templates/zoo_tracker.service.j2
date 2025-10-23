@@ -14,10 +14,12 @@ ExecStart=/opt/zoo_tracker/venv/bin/gunicorn \
           --graceful-timeout 30 \
           --max-requests 10000 \
           --max-requests-jitter 1000 \
-          -b 127.0.0.1:8000 app.main:app
+          -b 127.0.0.1:8000 \
+          --proxy-headers \
+          --forwarded-allow-ips=127.0.0.1 \
+          app.main:app
 Restart=always
 RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
-

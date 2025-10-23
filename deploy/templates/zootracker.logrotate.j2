@@ -1,0 +1,30 @@
+# /etc/logrotate.d/zootracker
+
+# 1) RAW logs — delete after ~30 days
+/var/log/zoo-tracker/raw/*.log {
+  daily
+  dateext
+  copytruncate
+  compress
+  delaycompress
+  missingok
+  notifempty
+  su www-data adm
+  create 0640 www-data adm
+  rotate 30
+  maxage 30
+}
+
+# 2) ANONYMIZED logs — keep indefinitely (monitor disk usage)
+/var/log/zoo-tracker/anon/*.log {
+  weekly
+  dateext
+  copytruncate
+  compress
+  delaycompress
+  missingok
+  notifempty
+  su www-data adm
+  create 0640 www-data adm
+  rotate 9999
+}

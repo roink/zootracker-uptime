@@ -19,8 +19,24 @@ This directory contains all the files and configuration templates needed to depl
   An Ansible playbook that installs the `cf-realip-sync` helper under `/usr/local/sbin/`, generates `/etc/nginx/conf.d/20-cloudflare-realip.conf`,
   and configures the matching `cf-realip-sync.service`/`.timer` so nginx always recognizes the correct client IP addresses when running behind Cloudflare.
 
-* **zoo\_tracker.service**
-  A systemd unit file for running the FastAPI backend under `gunicorn + uvicorn` bound to `127.0.0.1:8000`. Place in `/etc/systemd/system/` on the server.
+* **setup-zoo-tracker-service.yml**
+  An Ansible playbook that deploys the Zoo Tracker systemd unit together with the hardening and logging drop-ins in `/etc/systemd/system/zoo_tracker.service.d/` and the matching logrotate policy under `/etc/logrotate.d/zootracker`.
+
+* **templates/zoo\_tracker.service.j2**
+  A systemd unit template for running the FastAPI backend under `gunicorn + uvicorn` bound to `127.0.0.1:8000` with loopback forwarding enabled.
+
+* **templates/zootracker-service-hardening.conf.j2**
+  A systemd drop-in template that enables strict sandboxing and read-only filesystem access for the service.
+
+* **templates/zootracker-service-logs.conf.j2**
+  A systemd drop-in template that provisions dedicated log directories and environment variables for raw/anonymized streams.
+
+  The service enables Uvicorn proxy header parsing so `request.client.host` is
+  the real client IP (behind Nginx on loopback), which is important for rate
+  limiting and observability.
+
+* **templates/zootracker.logrotate.j2**
+  A logrotate policy template that keeps raw logs for 30 days and anonymized logs indefinitely (subject to disk monitoring).
 
 * **zoo\_tracker.nginx**
   An nginx server block to serve static files from `/var/www/zootracker` and proxy `/api/` requests to the FastAPI backend. Place in `/etc/nginx/sites-available/` and symlink to `sites-enabled/`.
@@ -105,43 +121,17 @@ The drop-in `zootracker-service-logs.conf` sets two environment variables so the
 app writes ECS JSON to both an anonymized file (`LOG_FILE_ANON`) and a short-term
 raw file (`LOG_FILE_RAW`). Systemd creates `/var/log/zoo-tracker/anon` and
 `/var/log/zoo-tracker/raw` with `0750` permissions at start-up, allowing only the
-service account and administrators to read archived entries.
-
-To keep retention aligned with GDPR while preserving security evidence, install
-a logrotate policy under `/etc/logrotate.d/zootracker`:
-
-```conf
-# 1) RAW logs — delete after ~30 days
-/var/log/zoo-tracker/raw/*.log {
-    daily
-    dateext
-    compress
-    delaycompress
-    missingok
-    notifempty
-    create 0640 www-data adm
-    rotate 30
-    maxage 30
-}
-
-# 2) ANONYMIZED logs — keep indefinitely (monitor disk usage)
-/var/log/zoo-tracker/anon/*.log {
-    weekly
-    dateext
-    compress
-    delaycompress
-    missingok
-    notifempty
-    create 0640 www-data adm
-    rotate 9999
-}
-```
-
-Reload logrotate (`sudo systemctl reload logrotate`) after placing the snippet
-so new rotations take effect. Because the application uses `WatchedFileHandler`
-it will automatically reopen files after logrotate moves them aside; no service
-restart is required. Adjust the `create` owner/group to match the system user
-that runs Gunicorn (for the provided unit file this is `www-data`).
+service account and administrators to read archived entries. The
+`setup-zoo-tracker-service.yml` playbook installs the accompanying
+`templates/zootracker.logrotate.j2` snippet to `/etc/logrotate.d/zootracker` so
+retention is managed automatically; adjust the template before running the
+playbook if different retention windows are required. The playbook validates the
+configuration with `logrotate -d` when the template changes, and the existing
+systemd timer/cron will pick up the new policy automatically. Because the
+application uses `WatchedFileHandler` it will automatically reopen files after
+logrotate moves them aside; no service restart is required. Adjust the `create`
+owner/group to match the system user that runs Gunicorn (for the provided unit
+file this is `www-data`).
 
 ## Troubleshooting
 
