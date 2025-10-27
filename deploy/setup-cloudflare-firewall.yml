@@ -1,0 +1,95 @@
+---
+- name: Configure Cloudflare UFW firewall
+  hosts: zoo_server
+  become: true
+  vars:
+    firewall_script_path: /usr/local/bin/update_cf_firewall.sh
+    systemd_service: /etc/systemd/system/cf-ufw-sync.service
+    systemd_timer: /etc/systemd/system/cf-ufw-sync.timer
+  tasks:
+    - name: Install firewall prerequisites
+      ansible.builtin.package:
+        name:
+          - ufw
+          - curl
+        state: present
+
+    - name: Ensure UFW IPv6 is enabled
+      ansible.builtin.lineinfile:
+        path: /etc/default/ufw
+        regexp: '^IPV6='
+        line: 'IPV6=yes'
+        create: true
+        backup: true
+      notify: Reload ufw
+
+    - name: Deny all incoming by default
+      community.general.ufw:
+        state: enabled
+        direction: incoming
+        policy: deny
+
+    - name: Allow all outgoing by default
+      community.general.ufw:
+        direction: outgoing
+        policy: allow
+
+    - name: Allow SSH through UFW (22/tcp)
+      community.general.ufw:
+        rule: allow
+        port: '22'
+        proto: tcp
+        comment: 'SSH'
+
+    - name: Check current UFW status
+      ansible.builtin.command: ufw status
+      register: ufw_status
+      changed_when: false
+
+    - name: Enable UFW if it is inactive
+      ansible.builtin.command: ufw --force enable
+      when: "'Status: inactive' in ufw_status.stdout"
+
+    - name: Deploy Cloudflare firewall update script
+      ansible.builtin.template:
+        src: update_cf_firewall.sh.j2
+        dest: "{{ firewall_script_path }}"
+        owner: root
+        group: root
+        mode: '0700'
+      notify: Run Cloudflare firewall sync
+
+    - name: Install systemd service for CF UFW sync
+      ansible.builtin.template:
+        src: cf-ufw-sync.service.j2
+        dest: "{{ systemd_service }}"
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Install systemd timer for CF UFW sync (02:15 daily)
+      ansible.builtin.template:
+        src: cf-ufw-sync.timer.j2
+        dest: "{{ systemd_timer }}"
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Enable and start Cloudflare UFW sync timer
+      ansible.builtin.systemd:
+        name: cf-ufw-sync.timer
+        enabled: true
+        state: started
+
+    - name: Run initial Cloudflare firewall sync (once)
+      ansible.builtin.command: "{{ firewall_script_path }}"
+
+  handlers:
+    - name: Run Cloudflare firewall sync
+      ansible.builtin.command: "{{ firewall_script_path }}"
+    - name: Reload ufw
+      ansible.builtin.command: ufw reload

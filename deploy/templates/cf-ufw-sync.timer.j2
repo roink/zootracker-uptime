@@ -1,0 +1,10 @@
+[Unit]
+Description=Run cf-ufw-sync daily
+
+[Timer]
+OnCalendar=02:15
+RandomizedDelaySec=5m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

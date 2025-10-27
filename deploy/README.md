@@ -19,6 +19,9 @@ This directory contains all the files and configuration templates needed to depl
   An Ansible playbook that installs the `cf-realip-sync` helper under `/usr/local/sbin/`, generates `/etc/nginx/conf.d/20-cloudflare-realip.conf`,
   and configures the matching `cf-realip-sync.service`/`.timer` so nginx always recognizes the correct client IP addresses when running behind Cloudflare.
 
+* **setup-cloudflare-firewall.yml**
+  An Ansible playbook that installs UFW, deploys the Cloudflare-aware allow-list script, and enables a systemd timer so the firewall stays in sync with Cloudflare's published IPv4/IPv6 ranges. Requires the `community.general` collection.
+
 * **setup-zoo-tracker-service.yml**
   An Ansible playbook that deploys the Zoo Tracker systemd unit together with the hardening and logging drop-ins in `/etc/systemd/system/zoo_tracker.service.d/` and the matching logrotate policy under `/etc/logrotate.d/zootracker`.
 
@@ -57,6 +60,53 @@ This directory contains all the files and configuration templates needed to depl
    * Cloudflare's **Add visitor location headers** Managed Transform enabled for the
      zone so the API receives `cf-iplatitude`/`cf-iplongitude` headers used by the
      `/location/estimate` endpoint.
+
+## Cloudflare DNS credentials
+
+Certbot now uses the Cloudflare DNS-01 plugin so TLS renewals succeed even when the site is fully locked down behind the Cloudflare firewall. Create a restricted API token and store it with Ansible Vault before running `setup-nginx.yml`:
+
+1. In the Cloudflare dashboard open **My Profile → API Tokens → Create Token**.
+2. Start from the **Edit zone DNS** template, then restrict the token to the Zoo Tracker zone only.
+3. Copy the generated token string.
+4. Encrypt it in `deploy/group_vars/zoo_server.vault.yml`:
+
+   ```bash
+   ansible-vault create deploy/group_vars/zoo_server.vault.yml
+   ```
+
+5. Add the following YAML to the vault file and save:
+
+   ```yaml
+   vault_cloudflare_api_token: "<paste-the-token>"
+   ```
+
+6. When running any playbook that touches nginx/Certbot, include the vault password (e.g. `ansible-playbook setup-nginx.yml --ask-vault-pass`). The playbook asserts that `cloudflare_api_token` is set, so the run will fail fast if the credentials are missing.
+
+## Verifying the firewall
+
+Run the playbook with:
+
+```bash
+ansible-playbook -i inventory.ini setup-cloudflare-firewall.yml
+```
+
+> **Dependency:** Install the `community.general` collection first if it is not already present: `ansible-galaxy collection install community.general`.
+
+After applying `setup-cloudflare-firewall.yml`, confirm that the expected rules are present:
+
+```bash
+sudo ufw status verbose     # ensure Status: active and see defaults/comments
+sudo ufw status numbered    # verify Cloudflare HTTP/S rules are present
+```
+
+To check the timer and logs:
+
+```bash
+systemctl list-timers cf-ufw-sync.timer
+journalctl -u cf-ufw-sync.service --since today
+```
+
+> **ACME note:** DNS-01 validation works with proxied (orange-cloud) records, so there is no need to grey-cloud the zone for certificate issuance. If you fall back to HTTP-01 for any reason, remember that direct Let’s Encrypt probes bypass Cloudflare and will be blocked unless you temporarily relax the firewall.
 
 ## Usage
 
