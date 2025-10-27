@@ -1,0 +1,90 @@
+---
+- name: Deploy Zoo Tracker systemd service
+  hosts: zoo_server
+  become: true
+
+  vars:
+    zoo_tracker_service_unit: "/etc/systemd/system/zoo_tracker.service"
+    zoo_tracker_service_drop_in_dir: "/etc/systemd/system/zoo_tracker.service.d"
+    zoo_tracker_logrotate_config: "/etc/logrotate.d/zootracker"
+
+  tasks:
+    - name: Gather service facts (optional; kept for future handlers)
+      ansible.builtin.service_facts:
+
+    - name: Ensure Zoo Tracker service drop-in directory exists
+      ansible.builtin.file:
+        path: "{{ zoo_tracker_service_drop_in_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Install Zoo Tracker systemd unit
+      ansible.builtin.template:
+        src: zoo_tracker.service.j2
+        dest: "{{ zoo_tracker_service_unit }}"
+        owner: root
+        group: root
+        mode: "0644"
+      notify:
+        - Reload systemd
+        - Restart Zoo Tracker service
+
+    - name: Install Zoo Tracker service hardening drop-in
+      ansible.builtin.template:
+        src: zootracker-service-hardening.conf.j2
+        dest: "{{ zoo_tracker_service_drop_in_dir }}/hardening.conf"
+        owner: root
+        group: root
+        mode: "0644"
+      notify:
+        - Reload systemd
+        - Restart Zoo Tracker service
+
+    - name: Install Zoo Tracker service logging drop-in
+      ansible.builtin.template:
+        src: zootracker-service-logs.conf.j2
+        dest: "{{ zoo_tracker_service_drop_in_dir }}/logs.conf"
+        owner: root
+        group: root
+        mode: "0644"
+      notify:
+        - Reload systemd
+        - Restart Zoo Tracker service
+
+    - name: Install Zoo Tracker logrotate policy
+      ansible.builtin.template:
+        src: zootracker.logrotate.j2
+        dest: "{{ zoo_tracker_logrotate_config }}"
+        owner: root
+        group: root
+        mode: "0644"
+      register: logrotate_tpl
+
+    - name: Validate logrotate policy (dry run)
+      ansible.builtin.command:
+        cmd: "logrotate -d {{ zoo_tracker_logrotate_config }}"
+      register: logrotate_check
+      changed_when: false
+      failed_when: logrotate_check.rc != 0
+      when: logrotate_tpl is changed
+
+    - name: Ensure Zoo Tracker service is enabled and started
+      ansible.builtin.systemd:
+        name: zoo_tracker.service
+        enabled: true
+        state: started
+
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Restart Zoo Tracker service
+      ansible.builtin.systemd:
+        name: zoo_tracker.service
+        state: restarted
+
+    #
+    # Note: no handler to restart logrotate; the timer/cron will pick up changes automatically.
