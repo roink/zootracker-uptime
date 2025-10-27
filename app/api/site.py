@@ -114,25 +114,16 @@ def _etag_for_bytes(data: bytes) -> str:
     return '"' + hashlib.sha256(data).hexdigest() + '"'
 
 
-def _indent_xml(element: ET.Element) -> None:
-    """Add indentation and line breaks to XML output for readability."""
-
-    ET.indent(element, space="  ")
-
-
 def _xml_response(
     element: ET.Element,
     request: Request,
     *,
     max_age: int,
     last_modified: datetime | None = None,
-    pretty_print: bool = True,
 ) -> Response:
     """Serialize an XML element tree, attach cache headers, and honor ETags."""
 
     cache_control = f"public, max-age={max_age}, stale-while-revalidate={max_age * 2}"
-    if pretty_print:
-        _indent_xml(element)
     xml_bytes = ET.tostring(element, encoding="utf-8", xml_declaration=True)
     etag = _etag_for_bytes(xml_bytes)
 
@@ -297,13 +288,11 @@ def get_animals_sitemap(request: Request, db: Session = Depends(get_db)) -> Resp
             if latest_lastmod is None or normalized_lastmod > latest_lastmod:
                 latest_lastmod = normalized_lastmod
 
-    pretty_print = len(animals) <= 5000
     return _xml_response(
         root,
         request,
         max_age=900,
         last_modified=latest_lastmod,
-        pretty_print=pretty_print,
     )
 
 
@@ -348,13 +337,11 @@ def get_zoos_sitemap(request: Request, db: Session = Depends(get_db)) -> Respons
             if latest_lastmod is None or normalized_lastmod > latest_lastmod:
                 latest_lastmod = normalized_lastmod
 
-    pretty_print = len(zoos) <= 5000
     return _xml_response(
         root,
         request,
         max_age=900,
         last_modified=latest_lastmod,
-        pretty_print=pretty_print,
     )
 
 
