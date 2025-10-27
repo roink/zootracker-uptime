@@ -163,27 +163,32 @@ def test_animals_sitemap_includes_animals(data):
     root = ET.fromstring(resp.content)
     locs = [loc.text for loc in root.findall("sm:url/sm:loc", NS)]
 
-    canonical_lang = SITE_DEFAULT_LANGUAGE if SITE_LANGUAGES else None
-    assert _expected_entity_href("animals", "lion", canonical_lang) in locs
-    assert _expected_entity_href("animals", "tiger", canonical_lang) in locs
-
-    lion_entry = _find_url_entry(
-        root, _expected_entity_href("animals", "lion", canonical_lang)
-    )
-    hreflangs = {
-        link.attrib["hreflang"]: link.attrib["href"]
-        for link in lion_entry.findall("xhtml:link", NS)
-    }
+    canonical_lang = SITE_DEFAULT_LANGUAGE
     for lang in SITE_LANGUAGES:
-        assert hreflangs[lang] == _expected_entity_href("animals", "lion", lang)
-    assert hreflangs["x-default"] == _expected_entity_href(
-        "animals", "lion", canonical_lang
-    )
+        assert _expected_entity_href("animals", "lion", lang) in locs
+        assert _expected_entity_href("animals", "tiger", lang) in locs
 
-    lastmod_el = lion_entry.find("sm:lastmod", NS)
-    assert lastmod_el is not None
     expected_lastmod = _animal_lastmod("lion")
-    assert lastmod_el.text == expected_lastmod
+
+    for lang in SITE_LANGUAGES:
+        lion_entry = _find_url_entry(
+            root, _expected_entity_href("animals", "lion", lang)
+        )
+        hreflangs = {
+            link.attrib["hreflang"]: link.attrib["href"]
+            for link in lion_entry.findall("xhtml:link", NS)
+        }
+        for alt_lang in SITE_LANGUAGES:
+            assert hreflangs[alt_lang] == _expected_entity_href(
+                "animals", "lion", alt_lang
+            )
+        assert hreflangs["x-default"] == _expected_entity_href(
+            "animals", "lion", canonical_lang
+        )
+
+        lastmod_el = lion_entry.find("sm:lastmod", NS)
+        assert lastmod_el is not None
+        assert lastmod_el.text == expected_lastmod
 
     with SessionLocal() as db:
         newest_animal = db.query(func.max(models.Animal.updated_at)).scalar()
@@ -214,27 +219,32 @@ def test_zoos_sitemap_includes_zoos(data):
     root = ET.fromstring(resp.content)
     locs = [loc.text for loc in root.findall("sm:url/sm:loc", NS)]
 
-    canonical_lang = SITE_DEFAULT_LANGUAGE if SITE_LANGUAGES else None
-    assert _expected_entity_href("zoos", "central-zoo", canonical_lang) in locs
-    assert _expected_entity_href("zoos", "far-zoo", canonical_lang) in locs
-
-    central_entry = _find_url_entry(
-        root, _expected_entity_href("zoos", "central-zoo", canonical_lang)
-    )
-    hreflangs = {
-        link.attrib["hreflang"]: link.attrib["href"]
-        for link in central_entry.findall("xhtml:link", NS)
-    }
+    canonical_lang = SITE_DEFAULT_LANGUAGE
     for lang in SITE_LANGUAGES:
-        assert hreflangs[lang] == _expected_entity_href("zoos", "central-zoo", lang)
-    assert hreflangs["x-default"] == _expected_entity_href(
-        "zoos", "central-zoo", canonical_lang
-    )
+        assert _expected_entity_href("zoos", "central-zoo", lang) in locs
+        assert _expected_entity_href("zoos", "far-zoo", lang) in locs
 
-    lastmod_el = central_entry.find("sm:lastmod", NS)
-    assert lastmod_el is not None
     expected_lastmod = _zoo_lastmod("central-zoo")
-    assert lastmod_el.text == expected_lastmod
+
+    for lang in SITE_LANGUAGES:
+        central_entry = _find_url_entry(
+            root, _expected_entity_href("zoos", "central-zoo", lang)
+        )
+        hreflangs = {
+            link.attrib["hreflang"]: link.attrib["href"]
+            for link in central_entry.findall("xhtml:link", NS)
+        }
+        for alt_lang in SITE_LANGUAGES:
+            assert hreflangs[alt_lang] == _expected_entity_href(
+                "zoos", "central-zoo", alt_lang
+            )
+        assert hreflangs["x-default"] == _expected_entity_href(
+            "zoos", "central-zoo", canonical_lang
+        )
+
+        lastmod_el = central_entry.find("sm:lastmod", NS)
+        assert lastmod_el is not None
+        assert lastmod_el.text == expected_lastmod
 
     with SessionLocal() as db:
         newest_zoo = db.query(func.max(models.Zoo.updated_at)).scalar()

@@ -195,12 +195,7 @@ def _build_entity_href(kind: str, slug: str, *, lang: str | None) -> str:
     return build_absolute_url(path)
 
 
-def _append_alternate_links(
-    url_el: ET.Element, kind: str, slug: str, canonical_href: str
-) -> None:
-    if not SITE_LANGUAGES:
-        return
-
+def _append_alternate_links(url_el: ET.Element, kind: str, slug: str) -> None:
     for lang in SITE_LANGUAGES:
         href = _build_entity_href(kind, slug, lang=lang)
         link_el = ET.SubElement(url_el, f"{{{XHTML_NS}}}link")
@@ -208,10 +203,13 @@ def _append_alternate_links(
         link_el.set("hreflang", lang)
         link_el.set("href", href)
 
+    default_href = _build_entity_href(
+        kind, slug, lang=SITE_DEFAULT_LANGUAGE if SITE_LANGUAGES else None
+    )
     default_link = ET.SubElement(url_el, f"{{{XHTML_NS}}}link")
     default_link.set("rel", "alternate")
     default_link.set("hreflang", "x-default")
-    default_link.set("href", canonical_href)
+    default_link.set("href", default_href)
 
 
 @router.get("/sitemap.xml", include_in_schema=False)
@@ -274,19 +272,22 @@ def get_animals_sitemap(request: Request, db: Session = Depends(get_db)) -> Resp
     latest_lastmod: datetime | None = None
 
     for slug, updated_at in animals:
-        url_el = ET.SubElement(root, f"{{{SITEMAP_NS}}}url")
-        loc_el = ET.SubElement(url_el, f"{{{SITEMAP_NS}}}loc")
-        canonical_href = _build_entity_href(
-            "animals", slug, lang=SITE_DEFAULT_LANGUAGE
-        )
-        loc_el.text = canonical_href
-        _append_alternate_links(url_el, "animals", slug, canonical_href)
         normalized_lastmod = _normalize_lastmod(updated_at)
-        if normalized_lastmod:
-            lastmod_el = ET.SubElement(url_el, f"{{{SITEMAP_NS}}}lastmod")
-            lastmod_el.text = normalized_lastmod.isoformat().replace("+00:00", "Z")
-            if latest_lastmod is None or normalized_lastmod > latest_lastmod:
-                latest_lastmod = normalized_lastmod
+
+        for lang in SITE_LANGUAGES:
+            url_el = ET.SubElement(root, f"{{{SITEMAP_NS}}}url")
+            loc_el = ET.SubElement(url_el, f"{{{SITEMAP_NS}}}loc")
+            loc_href = _build_entity_href("animals", slug, lang=lang)
+            loc_el.text = loc_href
+            _append_alternate_links(url_el, "animals", slug)
+            if normalized_lastmod:
+                lastmod_el = ET.SubElement(url_el, f"{{{SITEMAP_NS}}}lastmod")
+                lastmod_el.text = normalized_lastmod.isoformat().replace("+00:00", "Z")
+
+        if normalized_lastmod and (
+            latest_lastmod is None or normalized_lastmod > latest_lastmod
+        ):
+            latest_lastmod = normalized_lastmod
 
     return _xml_response(
         root,
@@ -323,19 +324,22 @@ def get_zoos_sitemap(request: Request, db: Session = Depends(get_db)) -> Respons
     latest_lastmod: datetime | None = None
 
     for slug, updated_at in zoos:
-        url_el = ET.SubElement(root, f"{{{SITEMAP_NS}}}url")
-        loc_el = ET.SubElement(url_el, f"{{{SITEMAP_NS}}}loc")
-        canonical_href = _build_entity_href(
-            "zoos", slug, lang=SITE_DEFAULT_LANGUAGE
-        )
-        loc_el.text = canonical_href
-        _append_alternate_links(url_el, "zoos", slug, canonical_href)
         normalized_lastmod = _normalize_lastmod(updated_at)
-        if normalized_lastmod:
-            lastmod_el = ET.SubElement(url_el, f"{{{SITEMAP_NS}}}lastmod")
-            lastmod_el.text = normalized_lastmod.isoformat().replace("+00:00", "Z")
-            if latest_lastmod is None or normalized_lastmod > latest_lastmod:
-                latest_lastmod = normalized_lastmod
+
+        for lang in SITE_LANGUAGES:
+            url_el = ET.SubElement(root, f"{{{SITEMAP_NS}}}url")
+            loc_el = ET.SubElement(url_el, f"{{{SITEMAP_NS}}}loc")
+            loc_href = _build_entity_href("zoos", slug, lang=lang)
+            loc_el.text = loc_href
+            _append_alternate_links(url_el, "zoos", slug)
+            if normalized_lastmod:
+                lastmod_el = ET.SubElement(url_el, f"{{{SITEMAP_NS}}}lastmod")
+                lastmod_el.text = normalized_lastmod.isoformat().replace("+00:00", "Z")
+
+        if normalized_lastmod and (
+            latest_lastmod is None or normalized_lastmod > latest_lastmod
+        ):
+            latest_lastmod = normalized_lastmod
 
     return _xml_response(
         root,
