@@ -1,5 +1,8 @@
 - hosts: zoo_server
   become: true
+  vars:
+    cloudflare_credentials_path: /etc/letsencrypt/cloudflare.ini
+    cloudflare_dns_propagation_seconds: 60
 
   tasks:
     # -- myguard APT repo (adds source + pins via their .deb) --
@@ -38,7 +41,7 @@
         name:
           - nginx
           - certbot
-          - python3-certbot-nginx
+          - python3-certbot-dns-cloudflare
         state: present
         update_cache: yes
 
@@ -86,39 +89,27 @@
         group: www-data
         mode: '0755'
 
-    - name: Ensure ACME challenge webroot exists
-      ansible.builtin.file:
-        path: /var/www/letsencrypt
-        state: directory
+    - name: Ensure Cloudflare API token provided
+      ansible.builtin.assert:
+        that:
+          - cloudflare_api_token | default('', true) | length > 0
+        fail_msg: "cloudflare_api_token is not defined. Store it in group_vars/zoo_server.vault.yml and re-run with ansible-vault."
+
+    - name: Install Cloudflare API credentials file for Certbot
+      ansible.builtin.copy:
+        dest: "{{ cloudflare_credentials_path }}"
         owner: root
         group: root
-        mode: '0755'
+        mode: '0600'
+        content: |
+          dns_cloudflare_api_token = {{ cloudflare_api_token }}
 
-    # -- Temporary config for certificate issuance --
-    - name: Deploy temporary nginx config for ACME challenge
-      ansible.builtin.template:
-        src: templates/nginx_cert_challenge.conf.j2
-        dest: /etc/nginx/nginx.conf
-        mode: '0644'
-      notify: reload nginx
-
-    - name: Test temporary nginx config
-      ansible.builtin.command: nginx -t
-      changed_when: false
-
-    - name: Ensure nginx is enabled and running
-      ansible.builtin.service:
-        name: nginx
-        state: started
-        enabled: true
-
-    - name: Flush handlers to activate temporary config
-      ansible.builtin.meta: flush_handlers
-
-    - name: Obtain certificate with certbot (webroot)
+    - name: Obtain certificate with certbot (Cloudflare DNS-01)
       ansible.builtin.command: >
-        certbot --non-interactive --agree-tos --webroot
-        -w /var/www/letsencrypt
+        certbot certonly --non-interactive --agree-tos
+        --dns-cloudflare
+        --dns-cloudflare-credentials {{ cloudflare_credentials_path }}
+        --dns-cloudflare-propagation-seconds {{ cloudflare_dns_propagation_seconds }}
         -d {{ domain }}
         -d {{ domain | regex_replace('^www\\.', '') }}
         -m contact@{{ domain | regex_replace('^www\\.', '') }}
@@ -143,6 +134,12 @@
           #!/bin/sh
           systemctl reload nginx
 
+    - name: Certbot renew (dry run)
+      ansible.builtin.command: certbot renew --dry-run
+      changed_when: false
+      register: certbot_dry_run
+      failed_when: certbot_dry_run.rc != 0
+
     # -- Final configs --
     - name: Deploy /etc/nginx/nginx.conf (loads zstd then brotli; enables cache+compression)
       ansible.builtin.template:
@@ -165,6 +162,12 @@
         state: link
         force: true
       notify: reload nginx
+
+    - name: Ensure nginx is enabled and running
+      ansible.builtin.service:
+        name: nginx
+        state: started
+        enabled: true
 
     - name: Test final nginx config
       ansible.builtin.command: nginx -t

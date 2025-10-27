@@ -1,0 +1,15 @@
+[Unit]
+Description=Refresh UFW allowlist with Cloudflare IP ranges
+After=network-online.target
+Wants=network-online.target
+ConditionPathIsExecutable={{ firewall_script_path }}
+
+[Service]
+Type=oneshot
+ExecStart={{ firewall_script_path }}
+User=root
+Group=root
+SyslogIdentifier=cf-ufw-sync
+
+[Install]
+WantedBy=multi-user.target
