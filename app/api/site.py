@@ -31,6 +31,22 @@ ET.register_namespace("xhtml", XHTML_NS)
 logger = logging.getLogger(__name__)
 
 
+# Routes that should appear in the general pages sitemap for every language.
+PUBLIC_STATIC_PAGE_PATHS: tuple[str, ...] = (
+    "",
+    "login",
+    "forgot-password",
+    "reset-password",
+    "verify",
+    "zoos",
+    "animals",
+    "search",
+    "legal-notice",
+    "data-protection",
+    "contact",
+)
+
+
 @router.get("/site/summary", response_model=schemas.SiteSummary)
 def get_site_summary(
     response: Response, db: Session = Depends(get_db)
@@ -212,6 +228,31 @@ def _append_alternate_links(url_el: ET.Element, kind: str, slug: str) -> None:
     default_link.set("href", default_href)
 
 
+def _build_page_href(path: str, *, lang: str) -> str:
+    lang_segment = quote(lang, safe="-")
+    if path:
+        page_segment = "/".join(quote(part, safe="-") for part in path.split("/"))
+        suffix = f"/{lang_segment}/{page_segment}"
+    else:
+        suffix = f"/{lang_segment}"
+    return build_absolute_url(suffix)
+
+
+def _append_page_alternate_links(url_el: ET.Element, path: str) -> None:
+    for lang in SITE_LANGUAGES:
+        href = _build_page_href(path, lang=lang)
+        link_el = ET.SubElement(url_el, f"{{{XHTML_NS}}}link")
+        link_el.set("rel", "alternate")
+        link_el.set("hreflang", lang)
+        link_el.set("href", href)
+
+    default_href = _build_page_href(path, lang=SITE_DEFAULT_LANGUAGE)
+    default_link = ET.SubElement(url_el, f"{{{XHTML_NS}}}link")
+    default_link.set("rel", "alternate")
+    default_link.set("hreflang", "x-default")
+    default_link.set("href", default_href)
+
+
 @router.get("/sitemap.xml", include_in_schema=False)
 def get_sitemap_index(request: Request, db: Session = Depends(get_db)) -> Response:
     """Expose the sitemap index pointing to sub-sitemaps for animals and zoos."""
@@ -227,6 +268,7 @@ def get_sitemap_index(request: Request, db: Session = Depends(get_db)) -> Respon
 
     animals_lastmod = _normalize_lastmod(animals_lastmod_raw)
     zoos_lastmod = _normalize_lastmod(zoos_lastmod_raw)
+    pages_lastmod: datetime | None = None
 
     def _add_entry(path: str, lastmod: datetime | None) -> None:
         sitemap_el = ET.SubElement(root, f"{{{SITEMAP_NS}}}sitemap")
@@ -238,8 +280,11 @@ def get_sitemap_index(request: Request, db: Session = Depends(get_db)) -> Respon
 
     _add_entry("/sitemaps/animals.xml", animals_lastmod)
     _add_entry("/sitemaps/zoos.xml", zoos_lastmod)
+    _add_entry("/sitemaps/site-pages.xml", pages_lastmod)
 
-    last_modified_candidates = [value for value in (animals_lastmod, zoos_lastmod) if value]
+    last_modified_candidates = [
+        value for value in (animals_lastmod, zoos_lastmod, pages_lastmod) if value
+    ]
     last_modified = max(last_modified_candidates) if last_modified_candidates else None
 
     return _xml_response(root, request, max_age=900, last_modified=last_modified)
@@ -250,6 +295,35 @@ def head_sitemap_index(request: Request, db: Session = Depends(get_db)) -> Respo
     """Serve HEAD responses for the sitemap index."""
 
     response = get_sitemap_index(request, db)
+    return _head_response(response)
+
+
+@router.get("/sitemaps/site-pages.xml", include_in_schema=False)
+def get_site_pages_sitemap(request: Request) -> Response:
+    """Return the sitemap entries for general marketing pages."""
+
+    root = ET.Element(f"{{{SITEMAP_NS}}}urlset")
+
+    for path in PUBLIC_STATIC_PAGE_PATHS:
+        for lang in SITE_LANGUAGES:
+            url_el = ET.SubElement(root, f"{{{SITEMAP_NS}}}url")
+            loc_el = ET.SubElement(url_el, f"{{{SITEMAP_NS}}}loc")
+            loc_el.text = _build_page_href(path, lang=lang)
+            _append_page_alternate_links(url_el, path)
+
+    return _xml_response(
+        root,
+        request,
+        max_age=900,
+        last_modified=None,
+    )
+
+
+@router.head("/sitemaps/site-pages.xml", include_in_schema=False)
+def head_site_pages_sitemap(request: Request) -> Response:
+    """Serve HEAD responses for the site pages sitemap."""
+
+    response = get_site_pages_sitemap(request)
     return _head_response(response)
 
 
