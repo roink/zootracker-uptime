@@ -25,6 +25,9 @@ SITEMAP_NS = "http://www.sitemaps.org/schemas/sitemap/0.9"
 XHTML_NS = "http://www.w3.org/1999/xhtml"
 _RETRY_AFTER_SECONDS = "600"
 
+ET.register_namespace("", SITEMAP_NS)
+ET.register_namespace("xhtml", XHTML_NS)
+
 logger = logging.getLogger(__name__)
 
 
@@ -84,8 +87,8 @@ def get_popular_animals(
     ]
 
 
-def _format_lastmod(value: datetime | None) -> str | None:
-    """Render timestamps in the ISO 8601 format required by sitemaps."""
+def _normalize_lastmod(value: datetime | None) -> datetime | None:
+    """Normalize timestamps to UTC without microseconds."""
 
     if value is None:
         return None
@@ -93,8 +96,16 @@ def _format_lastmod(value: datetime | None) -> str | None:
         aware = value.replace(tzinfo=timezone.utc)
     else:
         aware = value.astimezone(timezone.utc)
-    trimmed = aware.replace(microsecond=0)
-    return trimmed.isoformat().replace("+00:00", "Z")
+    return aware.replace(microsecond=0)
+
+
+def _format_lastmod(value: datetime | None) -> str | None:
+    """Render timestamps in the ISO 8601 format required by sitemaps."""
+
+    normalized = _normalize_lastmod(value)
+    if normalized is None:
+        return None
+    return normalized.isoformat().replace("+00:00", "Z")
 
 
 def _etag_for_bytes(data: bytes) -> str:
@@ -103,7 +114,13 @@ def _etag_for_bytes(data: bytes) -> str:
     return '"' + hashlib.sha256(data).hexdigest() + '"'
 
 
-def _xml_response(element: ET.Element, request: Request, *, max_age: int) -> Response:
+def _xml_response(
+    element: ET.Element,
+    request: Request,
+    *,
+    max_age: int,
+    last_modified: datetime | None = None,
+) -> Response:
     """Serialize an XML element tree, attach cache headers, and honor ETags."""
 
     cache_control = f"public, max-age={max_age}, stale-while-revalidate={max_age * 2}"
@@ -115,6 +132,12 @@ def _xml_response(element: ET.Element, request: Request, *, max_age: int) -> Res
         "Cache-Control": cache_control,
         "Vary": "Accept-Encoding",
     }
+
+    if last_modified is not None:
+        common_headers["Last-Modified"] = last_modified.strftime(
+            "%a, %d %b %Y %H:%M:%S GMT"
+        )
+    common_headers["X-Robots-Tag"] = "noindex"
 
     inm = request.headers.get("if-none-match")
     if inm:
@@ -172,12 +195,7 @@ def _build_entity_href(kind: str, slug: str, *, lang: str | None) -> str:
     return build_absolute_url(path)
 
 
-def _append_alternate_links(
-    url_el: ET.Element, kind: str, slug: str, canonical_href: str
-) -> None:
-    if not SITE_LANGUAGES:
-        return
-
+def _append_alternate_links(url_el: ET.Element, kind: str, slug: str) -> None:
     for lang in SITE_LANGUAGES:
         href = _build_entity_href(kind, slug, lang=lang)
         link_el = ET.SubElement(url_el, f"{{{XHTML_NS}}}link")
@@ -185,38 +203,46 @@ def _append_alternate_links(
         link_el.set("hreflang", lang)
         link_el.set("href", href)
 
+    default_href = _build_entity_href(
+        kind, slug, lang=SITE_DEFAULT_LANGUAGE if SITE_LANGUAGES else None
+    )
     default_link = ET.SubElement(url_el, f"{{{XHTML_NS}}}link")
     default_link.set("rel", "alternate")
     default_link.set("hreflang", "x-default")
-    default_link.set("href", canonical_href)
+    default_link.set("href", default_href)
 
 
 @router.get("/sitemap.xml", include_in_schema=False)
 def get_sitemap_index(request: Request, db: Session = Depends(get_db)) -> Response:
     """Expose the sitemap index pointing to sub-sitemaps for animals and zoos."""
     try:
-        animals_lastmod = db.query(func.max(models.Animal.updated_at)).scalar()
-        zoos_lastmod = db.query(func.max(models.Zoo.updated_at)).scalar()
+        animals_lastmod_raw = db.query(func.max(models.Animal.updated_at)).scalar()
+        zoos_lastmod_raw = db.query(func.max(models.Zoo.updated_at)).scalar()
     except SQLAlchemyError:
         db.rollback()
         logger.exception("Failed to build sitemap index due to database error")
         return _sitemap_service_unavailable()
 
-    root = ET.Element("sitemapindex", attrib={"xmlns": SITEMAP_NS})
+    root = ET.Element(f"{{{SITEMAP_NS}}}sitemapindex")
+
+    animals_lastmod = _normalize_lastmod(animals_lastmod_raw)
+    zoos_lastmod = _normalize_lastmod(zoos_lastmod_raw)
 
     def _add_entry(path: str, lastmod: datetime | None) -> None:
-        sitemap_el = ET.SubElement(root, "sitemap")
-        loc_el = ET.SubElement(sitemap_el, "loc")
+        sitemap_el = ET.SubElement(root, f"{{{SITEMAP_NS}}}sitemap")
+        loc_el = ET.SubElement(sitemap_el, f"{{{SITEMAP_NS}}}loc")
         loc_el.text = build_absolute_url(path)
-        lastmod_str = _format_lastmod(lastmod)
-        if lastmod_str:
-            lastmod_el = ET.SubElement(sitemap_el, "lastmod")
-            lastmod_el.text = lastmod_str
+        if lastmod:
+            lastmod_el = ET.SubElement(sitemap_el, f"{{{SITEMAP_NS}}}lastmod")
+            lastmod_el.text = lastmod.isoformat().replace("+00:00", "Z")
 
     _add_entry("/sitemaps/animals.xml", animals_lastmod)
     _add_entry("/sitemaps/zoos.xml", zoos_lastmod)
 
-    return _xml_response(root, request, max_age=900)
+    last_modified_candidates = [value for value in (animals_lastmod, zoos_lastmod) if value]
+    last_modified = max(last_modified_candidates) if last_modified_candidates else None
+
+    return _xml_response(root, request, max_age=900, last_modified=last_modified)
 
 
 @router.head("/sitemap.xml", include_in_schema=False)
@@ -241,24 +267,34 @@ def get_animals_sitemap(request: Request, db: Session = Depends(get_db)) -> Resp
         logger.exception("Failed to build animals sitemap due to database error")
         return _sitemap_service_unavailable()
 
-    root = ET.Element(
-        "urlset", attrib={"xmlns": SITEMAP_NS, "xmlns:xhtml": XHTML_NS}
-    )
+    root = ET.Element(f"{{{SITEMAP_NS}}}urlset")
+
+    latest_lastmod: datetime | None = None
 
     for slug, updated_at in animals:
-        url_el = ET.SubElement(root, "url")
-        loc_el = ET.SubElement(url_el, "loc")
-        canonical_href = _build_entity_href(
-            "animals", slug, lang=SITE_DEFAULT_LANGUAGE
-        )
-        loc_el.text = canonical_href
-        _append_alternate_links(url_el, "animals", slug, canonical_href)
-        lastmod_str = _format_lastmod(updated_at)
-        if lastmod_str:
-            lastmod_el = ET.SubElement(url_el, "lastmod")
-            lastmod_el.text = lastmod_str
+        normalized_lastmod = _normalize_lastmod(updated_at)
 
-    return _xml_response(root, request, max_age=900)
+        for lang in SITE_LANGUAGES:
+            url_el = ET.SubElement(root, f"{{{SITEMAP_NS}}}url")
+            loc_el = ET.SubElement(url_el, f"{{{SITEMAP_NS}}}loc")
+            loc_href = _build_entity_href("animals", slug, lang=lang)
+            loc_el.text = loc_href
+            _append_alternate_links(url_el, "animals", slug)
+            if normalized_lastmod:
+                lastmod_el = ET.SubElement(url_el, f"{{{SITEMAP_NS}}}lastmod")
+                lastmod_el.text = normalized_lastmod.isoformat().replace("+00:00", "Z")
+
+        if normalized_lastmod and (
+            latest_lastmod is None or normalized_lastmod > latest_lastmod
+        ):
+            latest_lastmod = normalized_lastmod
+
+    return _xml_response(
+        root,
+        request,
+        max_age=900,
+        last_modified=latest_lastmod,
+    )
 
 
 @router.head("/sitemaps/animals.xml", include_in_schema=False)
@@ -283,24 +319,34 @@ def get_zoos_sitemap(request: Request, db: Session = Depends(get_db)) -> Respons
         logger.exception("Failed to build zoos sitemap due to database error")
         return _sitemap_service_unavailable()
 
-    root = ET.Element(
-        "urlset", attrib={"xmlns": SITEMAP_NS, "xmlns:xhtml": XHTML_NS}
-    )
+    root = ET.Element(f"{{{SITEMAP_NS}}}urlset")
+
+    latest_lastmod: datetime | None = None
 
     for slug, updated_at in zoos:
-        url_el = ET.SubElement(root, "url")
-        loc_el = ET.SubElement(url_el, "loc")
-        canonical_href = _build_entity_href(
-            "zoos", slug, lang=SITE_DEFAULT_LANGUAGE
-        )
-        loc_el.text = canonical_href
-        _append_alternate_links(url_el, "zoos", slug, canonical_href)
-        lastmod_str = _format_lastmod(updated_at)
-        if lastmod_str:
-            lastmod_el = ET.SubElement(url_el, "lastmod")
-            lastmod_el.text = lastmod_str
+        normalized_lastmod = _normalize_lastmod(updated_at)
 
-    return _xml_response(root, request, max_age=900)
+        for lang in SITE_LANGUAGES:
+            url_el = ET.SubElement(root, f"{{{SITEMAP_NS}}}url")
+            loc_el = ET.SubElement(url_el, f"{{{SITEMAP_NS}}}loc")
+            loc_href = _build_entity_href("zoos", slug, lang=lang)
+            loc_el.text = loc_href
+            _append_alternate_links(url_el, "zoos", slug)
+            if normalized_lastmod:
+                lastmod_el = ET.SubElement(url_el, f"{{{SITEMAP_NS}}}lastmod")
+                lastmod_el.text = normalized_lastmod.isoformat().replace("+00:00", "Z")
+
+        if normalized_lastmod and (
+            latest_lastmod is None or normalized_lastmod > latest_lastmod
+        ):
+            latest_lastmod = normalized_lastmod
+
+    return _xml_response(
+        root,
+        request,
+        max_age=900,
+        last_modified=latest_lastmod,
+    )
 
 
 @router.head("/sitemaps/zoos.xml", include_in_schema=False)
