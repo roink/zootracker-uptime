@@ -11,6 +11,7 @@ from app.database import SessionLocal
 from app.main import app, get_db
 
 from .conftest import client, override_get_db
+from app.api.site import PUBLIC_STATIC_PAGE_PATHS
 
 NS = {
     "sm": "http://www.sitemaps.org/schemas/sitemap/0.9",
@@ -33,6 +34,15 @@ def _find_url_entry(root: ET.Element, href: str) -> ET.Element:
         if loc_el is not None and loc_el.text == href:
             return url_el
     raise AssertionError(f"Sitemap entry with href={href!r} not found")
+
+
+def _expected_page_href(path: str, lang: str) -> str:
+    base = SITE_BASE_URL.rstrip("/")
+    lang_segment = quote(lang, safe="-")
+    if path:
+        page_segment = "/".join(quote(part, safe="-") for part in path.split("/"))
+        return f"{base}/{lang_segment}/{page_segment}"
+    return f"{base}/{lang_segment}"
 
 
 def _normalize(value):
@@ -106,6 +116,7 @@ def test_sitemap_index_lists_submaps(data):
 
     assert f"{SITE_BASE_URL.rstrip('/')}/sitemaps/animals.xml" in locs
     assert f"{SITE_BASE_URL.rstrip('/')}/sitemaps/zoos.xml" in locs
+    assert f"{SITE_BASE_URL.rstrip('/')}/sitemaps/site-pages.xml" in locs
 
     sitemap_entries = {
         entry.find("sm:loc", NS).text: entry for entry in root.findall("sm:sitemap", NS)
@@ -113,9 +124,11 @@ def test_sitemap_index_lists_submaps(data):
 
     animals_entry = sitemap_entries[f"{SITE_BASE_URL.rstrip('/')}/sitemaps/animals.xml"]
     zoos_entry = sitemap_entries[f"{SITE_BASE_URL.rstrip('/')}/sitemaps/zoos.xml"]
+    pages_entry = sitemap_entries[f"{SITE_BASE_URL.rstrip('/')}/sitemaps/site-pages.xml"]
 
     animals_lastmod = animals_entry.find("sm:lastmod", NS)
     zoos_lastmod = zoos_entry.find("sm:lastmod", NS)
+    assert pages_entry.find("sm:lastmod", NS) is None
 
     with SessionLocal() as db:
         animals_raw = db.query(func.max(models.Animal.updated_at)).scalar()
@@ -144,6 +157,48 @@ def test_sitemap_index_head_matches_get(data):
     assert base.status_code == 200
 
     head = client.head("/sitemap.xml")
+    assert head.status_code == 200
+    assert head.content == b""
+    assert head.headers["ETag"] == base.headers["ETag"]
+    assert head.headers["Cache-Control"] == base.headers["Cache-Control"]
+    assert head.headers["vary"] == "Accept-Encoding"
+    assert head.headers.get("Last-Modified") == base.headers.get("Last-Modified")
+
+
+def test_site_pages_sitemap_includes_pages(data):
+    resp = client.get("/sitemaps/site-pages.xml")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "application/xml; charset=utf-8"
+    assert "stale-while-revalidate" in resp.headers["cache-control"]
+    assert resp.headers["vary"] == "Accept-Encoding"
+    assert resp.headers["X-Robots-Tag"] == "noindex"
+
+    root = ET.fromstring(resp.content)
+    locs = [loc.text for loc in root.findall("sm:url/sm:loc", NS)]
+
+    for path in PUBLIC_STATIC_PAGE_PATHS:
+        for lang in SITE_LANGUAGES:
+            expected_href = _expected_page_href(path, lang)
+            assert expected_href in locs
+            entry = _find_url_entry(root, expected_href)
+            hreflangs = {
+                link.attrib["hreflang"]: link.attrib["href"]
+                for link in entry.findall("xhtml:link", NS)
+            }
+            for alt_lang in SITE_LANGUAGES:
+                assert hreflangs[alt_lang] == _expected_page_href(path, alt_lang)
+            assert hreflangs["x-default"] == _expected_page_href(
+                path, SITE_DEFAULT_LANGUAGE
+            )
+
+    assert "Last-Modified" not in resp.headers
+
+
+def test_site_pages_sitemap_head_matches_get(data):
+    base = client.get("/sitemaps/site-pages.xml")
+    assert base.status_code == 200
+
+    head = client.head("/sitemaps/site-pages.xml")
     assert head.status_code == 200
     assert head.content == b""
     assert head.headers["ETag"] == base.headers["ETag"]
@@ -315,6 +370,19 @@ def test_robots_txt_etag_304(data):
     assert cached.status_code == 304
     assert cached.headers.get("ETag") == etag
     assert "Cache-Control" in cached.headers
+
+
+def test_site_pages_sitemap_etag_304(data):
+    first = client.get("/sitemaps/site-pages.xml")
+    assert first.status_code == 200
+    etag = first.headers.get("ETag")
+    assert etag
+
+    cached = client.get("/sitemaps/site-pages.xml", headers={"If-None-Match": etag})
+    assert cached.status_code == 304
+    assert cached.headers.get("ETag") == etag
+    assert cached.headers.get("Vary") == "Accept-Encoding"
+    assert cached.headers.get("Last-Modified") == first.headers.get("Last-Modified")
 
 
 def test_animals_sitemap_etag_304(data):
