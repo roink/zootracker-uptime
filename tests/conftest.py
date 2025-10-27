@@ -76,6 +76,7 @@ os.environ.setdefault(
 os.environ.setdefault("JWT_SECRET", os.environ["SECRET_KEY"])
 os.environ.setdefault("TOKEN_PEPPER", "unit-test-pepper")
 os.environ.setdefault("APP_BASE_URL", "http://frontend.test")
+os.environ.setdefault("SITE_BASE_URL", os.environ["APP_BASE_URL"])
 os.environ.setdefault("EMAIL_VERIFICATION_RESEND_COOLDOWN", "60")
 os.environ.setdefault("EMAIL_VERIFICATION_DAILY_LIMIT", "5")
 os.environ.setdefault("COOKIE_SECURE", "false")

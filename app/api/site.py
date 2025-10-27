@@ -1,11 +1,20 @@
 """Public endpoints that power the marketing landing page."""
 
-from fastapi import APIRouter, Depends, Query, Response
+from __future__ import annotations
+
+from datetime import datetime, timezone
+import hashlib
+import xml.etree.ElementTree as ET
+from urllib.parse import quote
+
+from fastapi import APIRouter, Depends, Query, Request, Response
+from fastapi.responses import PlainTextResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from .. import models, schemas
 from ..database import get_db
+from ..utils.urls import build_absolute_url
 
 router = APIRouter()
 
@@ -64,3 +73,148 @@ def get_popular_animals(
         )
         for a in animals
     ]
+
+
+def _format_lastmod(value: datetime | None) -> str | None:
+    """Render timestamps in the ISO 8601 format required by sitemaps."""
+
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        aware = value.replace(tzinfo=timezone.utc)
+    else:
+        aware = value.astimezone(timezone.utc)
+    trimmed = aware.replace(microsecond=0)
+    return trimmed.isoformat().replace("+00:00", "Z")
+
+
+def _etag_for_bytes(data: bytes) -> str:
+    """Compute a strong ETag for cached sitemap payloads."""
+
+    return '"' + hashlib.sha256(data).hexdigest() + '"'
+
+
+def _xml_response(element: ET.Element, request: Request, *, max_age: int) -> Response:
+    """Serialize an XML element tree, attach cache headers, and honor ETags."""
+
+    cache_control = f"public, max-age={max_age}, stale-while-revalidate={max_age * 2}"
+    xml_bytes = ET.tostring(element, encoding="utf-8", xml_declaration=True)
+    etag = _etag_for_bytes(xml_bytes)
+
+    inm = request.headers.get("if-none-match")
+    if inm:
+        presented = [value.strip() for value in inm.split(",")]
+        if etag in presented:
+            return Response(
+                status_code=304,
+                headers={"ETag": etag, "Cache-Control": cache_control},
+            )
+
+    return Response(
+        content=xml_bytes,
+        media_type="application/xml",
+        headers={"ETag": etag, "Cache-Control": cache_control},
+    )
+
+
+@router.get("/sitemap.xml", include_in_schema=False)
+def get_sitemap_index(request: Request, db: Session = Depends(get_db)) -> Response:
+    """Expose the sitemap index pointing to sub-sitemaps for animals and zoos."""
+
+    animals_lastmod = db.query(func.max(models.Animal.updated_at)).scalar()
+    zoos_lastmod = db.query(func.max(models.Zoo.updated_at)).scalar()
+
+    namespace = "http://www.sitemaps.org/schemas/sitemap/0.9"
+    root = ET.Element("sitemapindex", attrib={"xmlns": namespace})
+
+    def _add_entry(path: str, lastmod: datetime | None) -> None:
+        sitemap_el = ET.SubElement(root, "sitemap")
+        loc_el = ET.SubElement(sitemap_el, "loc")
+        loc_el.text = build_absolute_url(path)
+        lastmod_str = _format_lastmod(lastmod)
+        if lastmod_str:
+            lastmod_el = ET.SubElement(sitemap_el, "lastmod")
+            lastmod_el.text = lastmod_str
+
+    _add_entry("/sitemaps/animals.xml", animals_lastmod)
+    _add_entry("/sitemaps/zoos.xml", zoos_lastmod)
+
+    return _xml_response(root, request, max_age=900)
+
+
+@router.get("/sitemaps/animals.xml", include_in_schema=False)
+def get_animals_sitemap(request: Request, db: Session = Depends(get_db)) -> Response:
+    """Return the sitemap entries for all public animal pages."""
+
+    animals = (
+        db.query(models.Animal.slug, models.Animal.updated_at)
+        .order_by(models.Animal.updated_at.desc(), models.Animal.slug)
+        .all()
+    )
+
+    namespace = "http://www.sitemaps.org/schemas/sitemap/0.9"
+    root = ET.Element("urlset", attrib={"xmlns": namespace})
+
+    for slug, updated_at in animals:
+        url_el = ET.SubElement(root, "url")
+        loc_el = ET.SubElement(url_el, "loc")
+        loc_el.text = build_absolute_url(f"/animals/{quote(slug, safe='')}")
+        lastmod_str = _format_lastmod(updated_at)
+        if lastmod_str:
+            lastmod_el = ET.SubElement(url_el, "lastmod")
+            lastmod_el.text = lastmod_str
+
+    return _xml_response(root, request, max_age=900)
+
+
+@router.get("/sitemaps/zoos.xml", include_in_schema=False)
+def get_zoos_sitemap(request: Request, db: Session = Depends(get_db)) -> Response:
+    """Return the sitemap entries for all public zoo pages."""
+
+    zoos = (
+        db.query(models.Zoo.slug, models.Zoo.updated_at)
+        .order_by(models.Zoo.updated_at.desc(), models.Zoo.slug)
+        .all()
+    )
+
+    namespace = "http://www.sitemaps.org/schemas/sitemap/0.9"
+    root = ET.Element("urlset", attrib={"xmlns": namespace})
+
+    for slug, updated_at in zoos:
+        url_el = ET.SubElement(root, "url")
+        loc_el = ET.SubElement(url_el, "loc")
+        loc_el.text = build_absolute_url(f"/zoos/{quote(slug, safe='')}")
+        lastmod_str = _format_lastmod(updated_at)
+        if lastmod_str:
+            lastmod_el = ET.SubElement(url_el, "lastmod")
+            lastmod_el.text = lastmod_str
+
+    return _xml_response(root, request, max_age=900)
+
+
+@router.get(
+    "/robots.txt",
+    include_in_schema=False,
+    response_class=PlainTextResponse,
+)
+def get_robots(request: Request) -> Response:
+    """Expose a robots.txt file that advertises the sitemap index."""
+
+    cache_control = "public, max-age=86400, stale-while-revalidate=172800"
+    sitemap_url = build_absolute_url("/sitemap.xml")
+    body = f"User-agent: *\nAllow: /\n\nSitemap: {sitemap_url}\n"
+    etag = _etag_for_bytes(body.encode("utf-8"))
+
+    inm = request.headers.get("if-none-match")
+    if inm:
+        presented = [value.strip() for value in inm.split(",")]
+        if etag in presented:
+            return Response(
+                status_code=304,
+                headers={"ETag": etag, "Cache-Control": cache_control},
+            )
+
+    return PlainTextResponse(
+        content=body,
+        headers={"ETag": etag, "Cache-Control": cache_control},
+    )

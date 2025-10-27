@@ -234,6 +234,30 @@ ALLOWED_ORIGINS=https://zootracker.app,https://admin.zootracker.app
 Requests from other origins will fail CORS preflight checks and browsers will
 block access to the API.
 
+### Public site base URLs
+
+Two environment variables control how the backend builds absolute links for
+outbound communication and crawlers:
+
+- `APP_BASE_URL` – the canonical origin for email verification and password
+  reset links.
+- `SITE_BASE_URL` – the public marketing domain that hosts the front-end site.
+
+Both default to `http://localhost:5173` for local development. In production set
+`SITE_BASE_URL` to the public marketing host (for example,
+`https://www.zootracker.app`). The sitemap index exposed at `/sitemap.xml` and
+the `/robots.txt` asset use this value when advertising animal and zoo detail
+pages, so keeping it accurate ensures search engines crawl the correct domain.
+
+**Requirements & limits**
+
+- `SITE_BASE_URL` **must be an absolute** `http(s)` URL (for example:
+  `https://www.zootracker.app`). Sitemap `<loc>` values are always absolute.
+- Each sitemap is limited to **50,000 URLs** and **50 MB uncompressed**. If the
+  animals or zoos sitemap grows beyond that, shard into multiple files
+  (e.g., `animals-0001.xml`, `animals-0002.xml`, …) and list them in
+  `/sitemap.xml`.
+
 ### Animals API
 
 `GET /animals` now returns detailed animal information including scientific
