@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+{% raw %}#!/usr/bin/env bash
 set -euo pipefail
 IFS=$'\n\t'
 umask 077
@@ -73,3 +73,4 @@ cp -f "$IPV4_LIST" "$STATE_DIR/ips-v4.txt"
 cp -f "$IPV6_LIST" "$STATE_DIR/ips-v6.txt"
 
 echo "Update complete at $(date --iso-8601=seconds)"
+{% endraw %}
