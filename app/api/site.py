@@ -4,13 +4,15 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import hashlib
+import logging
 import xml.etree.ElementTree as ET
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, Query, Request, Response
+from fastapi import APIRouter, Depends, Query, Request, Response, status
 from fastapi.responses import PlainTextResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 
 from .. import models, schemas
 from ..database import get_db
@@ -21,6 +23,9 @@ router = APIRouter()
 
 SITEMAP_NS = "http://www.sitemaps.org/schemas/sitemap/0.9"
 XHTML_NS = "http://www.w3.org/1999/xhtml"
+_RETRY_AFTER_SECONDS = "600"
+
+logger = logging.getLogger(__name__)
 
 
 @router.get("/site/summary", response_model=schemas.SiteSummary)
@@ -126,6 +131,23 @@ def _xml_response(element: ET.Element, request: Request, *, max_age: int) -> Res
     return response
 
 
+def _sitemap_service_unavailable() -> Response:
+    """Return a 503 response with XML content-type for crawlers."""
+
+    response = Response(
+        content=b"",
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        media_type="application/xml",
+        headers={
+            "Retry-After": _RETRY_AFTER_SECONDS,
+            "Cache-Control": "no-store",
+            "Vary": "Accept-Encoding",
+        },
+    )
+    response.headers["content-type"] = "application/xml; charset=utf-8"
+    return response
+
+
 def _build_entity_href(kind: str, slug: str, *, lang: str | None) -> str:
     slug_segment = quote(slug, safe="")
     if lang:
@@ -158,9 +180,13 @@ def _append_alternate_links(
 @router.get("/sitemap.xml", include_in_schema=False)
 def get_sitemap_index(request: Request, db: Session = Depends(get_db)) -> Response:
     """Expose the sitemap index pointing to sub-sitemaps for animals and zoos."""
-
-    animals_lastmod = db.query(func.max(models.Animal.updated_at)).scalar()
-    zoos_lastmod = db.query(func.max(models.Zoo.updated_at)).scalar()
+    try:
+        animals_lastmod = db.query(func.max(models.Animal.updated_at)).scalar()
+        zoos_lastmod = db.query(func.max(models.Zoo.updated_at)).scalar()
+    except SQLAlchemyError:
+        db.rollback()
+        logger.exception("Failed to build sitemap index due to database error")
+        return _sitemap_service_unavailable()
 
     root = ET.Element("sitemapindex", attrib={"xmlns": SITEMAP_NS})
 
@@ -182,12 +208,16 @@ def get_sitemap_index(request: Request, db: Session = Depends(get_db)) -> Respon
 @router.get("/sitemaps/animals.xml", include_in_schema=False)
 def get_animals_sitemap(request: Request, db: Session = Depends(get_db)) -> Response:
     """Return the sitemap entries for all public animal pages."""
-
-    animals = (
-        db.query(models.Animal.slug, models.Animal.updated_at)
-        .order_by(models.Animal.updated_at.desc(), models.Animal.slug)
-        .all()
-    )
+    try:
+        animals = (
+            db.query(models.Animal.slug, models.Animal.updated_at)
+            .order_by(models.Animal.updated_at.desc(), models.Animal.slug)
+            .all()
+        )
+    except SQLAlchemyError:
+        db.rollback()
+        logger.exception("Failed to build animals sitemap due to database error")
+        return _sitemap_service_unavailable()
 
     root = ET.Element(
         "urlset", attrib={"xmlns": SITEMAP_NS, "xmlns:xhtml": XHTML_NS}
@@ -212,12 +242,16 @@ def get_animals_sitemap(request: Request, db: Session = Depends(get_db)) -> Resp
 @router.get("/sitemaps/zoos.xml", include_in_schema=False)
 def get_zoos_sitemap(request: Request, db: Session = Depends(get_db)) -> Response:
     """Return the sitemap entries for all public zoo pages."""
-
-    zoos = (
-        db.query(models.Zoo.slug, models.Zoo.updated_at)
-        .order_by(models.Zoo.updated_at.desc(), models.Zoo.slug)
-        .all()
-    )
+    try:
+        zoos = (
+            db.query(models.Zoo.slug, models.Zoo.updated_at)
+            .order_by(models.Zoo.updated_at.desc(), models.Zoo.slug)
+            .all()
+        )
+    except SQLAlchemyError:
+        db.rollback()
+        logger.exception("Failed to build zoos sitemap due to database error")
+        return _sitemap_service_unavailable()
 
     root = ET.Element(
         "urlset", attrib={"xmlns": SITEMAP_NS, "xmlns:xhtml": XHTML_NS}

@@ -7,7 +7,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import ORJSONResponse, Response
+from fastapi.responses import ORJSONResponse, Response, JSONResponse
+from sqlalchemy.exc import SQLAlchemyError
 
 from .config import ALLOWED_ORIGINS, SECURITY_HEADERS, CSRF_HEADER_NAME
 
@@ -20,6 +21,8 @@ from .rate_limit import rate_limit
 configure_logging()
 
 logger = logging.getLogger("app.main")
+
+_DB_RETRY_AFTER_SECONDS = "600"
 
 
 def _check_env_vars() -> None:
@@ -138,6 +141,35 @@ async def http_exception_handler_logged(request: Request, exc: HTTPException):
         content={"detail": exc.detail},
         headers=exc.headers,
     )
+    _set_request_id_header(response, request)
+    return response
+
+
+@app.exception_handler(SQLAlchemyError)
+async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError):
+    """Convert transient database errors into a cache-friendly 503 response."""
+
+    logger.exception(
+        "Database error while handling request",
+        extra={
+            "event_dataset": "zoo-tracker-api.app",
+            "event_action": "database_error",
+            "http_status_code": status.HTTP_503_SERVICE_UNAVAILABLE,
+            "http_request_method": request.method,
+            "url_path": request.url.path,
+            "error_type": type(exc).__name__,
+        },
+    )
+
+    response = JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={"detail": "Temporary database issue. Please retry later."},
+        headers={
+            "Retry-After": _DB_RETRY_AFTER_SECONDS,
+            "Cache-Control": "no-store",
+        },
+    )
+    response.headers["Pragma"] = "no-cache"
     _set_request_id_header(response, request)
     return response
 

@@ -1,9 +1,12 @@
 import xml.etree.ElementTree as ET
 from urllib.parse import quote
 
-from app.config import SITE_BASE_URL, SITE_DEFAULT_LANGUAGE, SITE_LANGUAGES
+from sqlalchemy.exc import SQLAlchemyError
 
-from .conftest import client
+from app.config import SITE_BASE_URL, SITE_DEFAULT_LANGUAGE, SITE_LANGUAGES
+from app.main import app, get_db
+
+from .conftest import client, override_get_db
 
 NS = {
     "sm": "http://www.sitemaps.org/schemas/sitemap/0.9",
@@ -128,3 +131,38 @@ def test_robots_txt_etag_304(data):
     assert cached.status_code == 304
     assert cached.headers.get("ETag") == etag
     assert "Cache-Control" in cached.headers
+
+
+def test_animals_sitemap_database_error():
+    class BrokenSession:
+        def __init__(self) -> None:
+            self.rolled_back = False
+
+        def query(self, *args, **kwargs):
+            raise SQLAlchemyError("boom")
+
+        def rollback(self) -> None:
+            self.rolled_back = True
+
+        def close(self) -> None:
+            pass
+
+    broken_session = BrokenSession()
+
+    def broken_db():
+        try:
+            yield broken_session
+        finally:
+            broken_session.close()
+
+    app.dependency_overrides[get_db] = broken_db
+    try:
+        resp = client.get("/sitemaps/animals.xml")
+    finally:
+        app.dependency_overrides[get_db] = override_get_db
+
+    assert resp.status_code == 503
+    assert resp.headers["Retry-After"] == "600"
+    assert resp.headers["Cache-Control"] == "no-store"
+    assert resp.headers["content-type"] == "application/xml; charset=utf-8"
+    assert broken_session.rolled_back is True
