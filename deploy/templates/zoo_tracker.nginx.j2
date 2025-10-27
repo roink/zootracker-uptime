@@ -47,6 +47,37 @@ server {
     add_header X-Cache-Status $upstream_cache_status always;
   }
 
+  location ~ ^/(?:sitemap\.xml|robots\.txt|sitemaps/.*)$ {
+    proxy_pass {{ app_upstream | regex_replace('/+$','') }};
+
+    proxy_http_version 1.1;
+    proxy_set_header Host              $http_host;
+    proxy_set_header X-Real-IP         $remote_addr;
+    proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Host  $host;
+    proxy_set_header Connection "";
+
+    proxy_set_header Accept-Encoding "";
+
+    proxy_connect_timeout 5s;
+    proxy_send_timeout   60s;
+    proxy_read_timeout   60s;
+
+    proxy_cache zootracker_cache;
+    proxy_cache_methods GET HEAD;
+    proxy_cache_revalidate on;
+    proxy_cache_lock on;
+    proxy_cache_lock_timeout 5s;
+    proxy_cache_use_stale error timeout updating http_500 http_502 http_503 http_504;
+    proxy_cache_background_update on;
+
+    proxy_cache_bypass $skip_cache;
+    proxy_no_cache     $skip_cache;
+
+    add_header X-Cache-Status $upstream_cache_status always;
+  }
+
   # --------- Static site (served by Nginx) ----------
   location ~* \.(?:css|js|mjs|ico|png|jpg|jpeg|gif|svg|webp|woff2?)$ {
     root {{ web_root }};

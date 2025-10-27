@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+import re
+from urllib.parse import urlsplit
 from typing import Final
 
 
@@ -73,7 +75,55 @@ PASSWORD_RESET_REQUEST_COOLDOWN = int(
 PASSWORD_RESET_DAILY_LIMIT = int(
     _get_env("PASSWORD_RESET_DAILY_LIMIT", default="3")
 )
-APP_BASE_URL = _get_env("APP_BASE_URL", default="http://localhost:5173") or "http://localhost:5173"
+APP_BASE_URL = (
+    _get_env("APP_BASE_URL", default="http://localhost:5173")
+    or "http://localhost:5173"
+)
+
+_site_base_url = _get_env("SITE_BASE_URL")
+if _site_base_url:
+    SITE_BASE_URL = _site_base_url
+else:
+    SITE_BASE_URL = APP_BASE_URL
+
+
+def _is_absolute_http_url(url: str) -> bool:
+    try:
+        parts = urlsplit(url)
+    except Exception:  # pragma: no cover - defensive guard for malformed URLs
+        return False
+    return parts.scheme in {"http", "https"} and bool(parts.netloc)
+
+
+if not _is_absolute_http_url(SITE_BASE_URL):
+    raise RuntimeError(
+        f"SITE_BASE_URL must be an absolute http(s) URL, got: {SITE_BASE_URL!r}"
+    )
+
+_site_languages_env = _get_env("SITE_LANGUAGES")
+if _site_languages_env is None:
+    _site_languages_raw = "en,de"
+else:
+    _site_languages_raw = _site_languages_env
+    if not _site_languages_raw:
+        raise RuntimeError("SITE_LANGUAGES must list at least one language code")
+
+_site_languages = [
+    item.strip() for item in _site_languages_raw.split(",") if item.strip()
+]
+if not _site_languages:
+    raise RuntimeError("SITE_LANGUAGES must list at least one language code")
+
+_lang_pattern = re.compile(r"^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$")
+for code in _site_languages:
+    if not _lang_pattern.fullmatch(code):
+        raise RuntimeError(
+            "SITE_LANGUAGES entries must be valid BCP 47 language tags; "
+            f"got: {code!r}"
+        )
+
+SITE_LANGUAGES: Final[tuple[str, ...]] = tuple(_site_languages)
+SITE_DEFAULT_LANGUAGE: Final[str] = SITE_LANGUAGES[0]
 
 ALLOWED_ORIGINS = [
     origin.strip()

@@ -1,13 +1,31 @@
 """Public endpoints that power the marketing landing page."""
 
-from fastapi import APIRouter, Depends, Query, Response
+from __future__ import annotations
+
+from datetime import datetime, timezone
+import hashlib
+import logging
+import xml.etree.ElementTree as ET
+from urllib.parse import quote
+
+from fastapi import APIRouter, Depends, Query, Request, Response, status
+from fastapi.responses import PlainTextResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 
 from .. import models, schemas
 from ..database import get_db
+from ..config import SITE_DEFAULT_LANGUAGE, SITE_LANGUAGES
+from ..utils.urls import build_absolute_url
 
 router = APIRouter()
+
+SITEMAP_NS = "http://www.sitemaps.org/schemas/sitemap/0.9"
+XHTML_NS = "http://www.w3.org/1999/xhtml"
+_RETRY_AFTER_SECONDS = "600"
+
+logger = logging.getLogger(__name__)
 
 
 @router.get("/site/summary", response_model=schemas.SiteSummary)
@@ -64,3 +82,270 @@ def get_popular_animals(
         )
         for a in animals
     ]
+
+
+def _format_lastmod(value: datetime | None) -> str | None:
+    """Render timestamps in the ISO 8601 format required by sitemaps."""
+
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        aware = value.replace(tzinfo=timezone.utc)
+    else:
+        aware = value.astimezone(timezone.utc)
+    trimmed = aware.replace(microsecond=0)
+    return trimmed.isoformat().replace("+00:00", "Z")
+
+
+def _etag_for_bytes(data: bytes) -> str:
+    """Compute a strong ETag for cached sitemap payloads."""
+
+    return '"' + hashlib.sha256(data).hexdigest() + '"'
+
+
+def _xml_response(element: ET.Element, request: Request, *, max_age: int) -> Response:
+    """Serialize an XML element tree, attach cache headers, and honor ETags."""
+
+    cache_control = f"public, max-age={max_age}, stale-while-revalidate={max_age * 2}"
+    xml_bytes = ET.tostring(element, encoding="utf-8", xml_declaration=True)
+    etag = _etag_for_bytes(xml_bytes)
+
+    common_headers = {
+        "ETag": etag,
+        "Cache-Control": cache_control,
+        "Vary": "Accept-Encoding",
+    }
+
+    inm = request.headers.get("if-none-match")
+    if inm:
+        presented = [value.strip() for value in inm.split(",")]
+        if etag in presented:
+            return Response(status_code=304, headers=common_headers)
+
+    response = Response(
+        content=xml_bytes,
+        media_type="application/xml",
+        headers=common_headers,
+    )
+    response.headers["content-type"] = "application/xml; charset=utf-8"
+    return response
+
+
+def _sitemap_service_unavailable() -> Response:
+    """Return a 503 response with XML content-type for crawlers."""
+
+    response = Response(
+        content=b"",
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        media_type="application/xml",
+        headers={
+            "Retry-After": _RETRY_AFTER_SECONDS,
+            "Cache-Control": "no-store",
+            "Vary": "Accept-Encoding",
+        },
+    )
+    response.headers["content-type"] = "application/xml; charset=utf-8"
+    return response
+
+
+def _head_response(response: Response) -> Response:
+    """Trim the body for HEAD requests while preserving headers and status."""
+
+    if response.status_code == status.HTTP_304_NOT_MODIFIED:
+        return response
+
+    if response.body == b"":
+        return response
+
+    response.body = b""
+    response.headers["content-length"] = "0"
+    return response
+
+
+def _build_entity_href(kind: str, slug: str, *, lang: str | None) -> str:
+    slug_segment = quote(slug, safe="")
+    if lang:
+        lang_segment = quote(lang, safe="-")
+        path = f"/{lang_segment}/{kind}/{slug_segment}"
+    else:
+        path = f"/{kind}/{slug_segment}"
+    return build_absolute_url(path)
+
+
+def _append_alternate_links(
+    url_el: ET.Element, kind: str, slug: str, canonical_href: str
+) -> None:
+    if not SITE_LANGUAGES:
+        return
+
+    for lang in SITE_LANGUAGES:
+        href = _build_entity_href(kind, slug, lang=lang)
+        link_el = ET.SubElement(url_el, f"{{{XHTML_NS}}}link")
+        link_el.set("rel", "alternate")
+        link_el.set("hreflang", lang)
+        link_el.set("href", href)
+
+    default_link = ET.SubElement(url_el, f"{{{XHTML_NS}}}link")
+    default_link.set("rel", "alternate")
+    default_link.set("hreflang", "x-default")
+    default_link.set("href", canonical_href)
+
+
+@router.get("/sitemap.xml", include_in_schema=False)
+def get_sitemap_index(request: Request, db: Session = Depends(get_db)) -> Response:
+    """Expose the sitemap index pointing to sub-sitemaps for animals and zoos."""
+    try:
+        animals_lastmod = db.query(func.max(models.Animal.updated_at)).scalar()
+        zoos_lastmod = db.query(func.max(models.Zoo.updated_at)).scalar()
+    except SQLAlchemyError:
+        db.rollback()
+        logger.exception("Failed to build sitemap index due to database error")
+        return _sitemap_service_unavailable()
+
+    root = ET.Element("sitemapindex", attrib={"xmlns": SITEMAP_NS})
+
+    def _add_entry(path: str, lastmod: datetime | None) -> None:
+        sitemap_el = ET.SubElement(root, "sitemap")
+        loc_el = ET.SubElement(sitemap_el, "loc")
+        loc_el.text = build_absolute_url(path)
+        lastmod_str = _format_lastmod(lastmod)
+        if lastmod_str:
+            lastmod_el = ET.SubElement(sitemap_el, "lastmod")
+            lastmod_el.text = lastmod_str
+
+    _add_entry("/sitemaps/animals.xml", animals_lastmod)
+    _add_entry("/sitemaps/zoos.xml", zoos_lastmod)
+
+    return _xml_response(root, request, max_age=900)
+
+
+@router.head("/sitemap.xml", include_in_schema=False)
+def head_sitemap_index(request: Request, db: Session = Depends(get_db)) -> Response:
+    """Serve HEAD responses for the sitemap index."""
+
+    response = get_sitemap_index(request, db)
+    return _head_response(response)
+
+
+@router.get("/sitemaps/animals.xml", include_in_schema=False)
+def get_animals_sitemap(request: Request, db: Session = Depends(get_db)) -> Response:
+    """Return the sitemap entries for all public animal pages."""
+    try:
+        animals = (
+            db.query(models.Animal.slug, models.Animal.updated_at)
+            .order_by(models.Animal.updated_at.desc(), models.Animal.slug)
+            .all()
+        )
+    except SQLAlchemyError:
+        db.rollback()
+        logger.exception("Failed to build animals sitemap due to database error")
+        return _sitemap_service_unavailable()
+
+    root = ET.Element(
+        "urlset", attrib={"xmlns": SITEMAP_NS, "xmlns:xhtml": XHTML_NS}
+    )
+
+    for slug, updated_at in animals:
+        url_el = ET.SubElement(root, "url")
+        loc_el = ET.SubElement(url_el, "loc")
+        canonical_href = _build_entity_href(
+            "animals", slug, lang=SITE_DEFAULT_LANGUAGE
+        )
+        loc_el.text = canonical_href
+        _append_alternate_links(url_el, "animals", slug, canonical_href)
+        lastmod_str = _format_lastmod(updated_at)
+        if lastmod_str:
+            lastmod_el = ET.SubElement(url_el, "lastmod")
+            lastmod_el.text = lastmod_str
+
+    return _xml_response(root, request, max_age=900)
+
+
+@router.head("/sitemaps/animals.xml", include_in_schema=False)
+def head_animals_sitemap(request: Request, db: Session = Depends(get_db)) -> Response:
+    """Serve HEAD responses for the animals sitemap."""
+
+    response = get_animals_sitemap(request, db)
+    return _head_response(response)
+
+
+@router.get("/sitemaps/zoos.xml", include_in_schema=False)
+def get_zoos_sitemap(request: Request, db: Session = Depends(get_db)) -> Response:
+    """Return the sitemap entries for all public zoo pages."""
+    try:
+        zoos = (
+            db.query(models.Zoo.slug, models.Zoo.updated_at)
+            .order_by(models.Zoo.updated_at.desc(), models.Zoo.slug)
+            .all()
+        )
+    except SQLAlchemyError:
+        db.rollback()
+        logger.exception("Failed to build zoos sitemap due to database error")
+        return _sitemap_service_unavailable()
+
+    root = ET.Element(
+        "urlset", attrib={"xmlns": SITEMAP_NS, "xmlns:xhtml": XHTML_NS}
+    )
+
+    for slug, updated_at in zoos:
+        url_el = ET.SubElement(root, "url")
+        loc_el = ET.SubElement(url_el, "loc")
+        canonical_href = _build_entity_href(
+            "zoos", slug, lang=SITE_DEFAULT_LANGUAGE
+        )
+        loc_el.text = canonical_href
+        _append_alternate_links(url_el, "zoos", slug, canonical_href)
+        lastmod_str = _format_lastmod(updated_at)
+        if lastmod_str:
+            lastmod_el = ET.SubElement(url_el, "lastmod")
+            lastmod_el.text = lastmod_str
+
+    return _xml_response(root, request, max_age=900)
+
+
+@router.head("/sitemaps/zoos.xml", include_in_schema=False)
+def head_zoos_sitemap(request: Request, db: Session = Depends(get_db)) -> Response:
+    """Serve HEAD responses for the zoos sitemap."""
+
+    response = get_zoos_sitemap(request, db)
+    return _head_response(response)
+
+
+@router.get(
+    "/robots.txt",
+    include_in_schema=False,
+    response_class=PlainTextResponse,
+)
+def get_robots(request: Request) -> Response:
+    """Expose a robots.txt file that advertises the sitemap index."""
+
+    cache_control = "public, max-age=86400, stale-while-revalidate=172800"
+    sitemap_url = build_absolute_url("/sitemap.xml")
+    body = f"User-agent: *\nAllow: /\n\nSitemap: {sitemap_url}\n"
+    etag = _etag_for_bytes(body.encode("utf-8"))
+
+    common_headers = {
+        "ETag": etag,
+        "Cache-Control": cache_control,
+        "Vary": "Accept-Encoding",
+    }
+
+    inm = request.headers.get("if-none-match")
+    if inm:
+        presented = [value.strip() for value in inm.split(",")]
+        if etag in presented:
+            return Response(status_code=304, headers=common_headers)
+
+    return PlainTextResponse(content=body, headers=common_headers)
+
+
+@router.head(
+    "/robots.txt",
+    include_in_schema=False,
+    response_class=PlainTextResponse,
+)
+def head_robots(request: Request) -> Response:
+    """Serve HEAD responses for robots.txt."""
+
+    response = get_robots(request)
+    return _head_response(response)
