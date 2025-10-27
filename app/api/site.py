@@ -148,6 +148,20 @@ def _sitemap_service_unavailable() -> Response:
     return response
 
 
+def _head_response(response: Response) -> Response:
+    """Trim the body for HEAD requests while preserving headers and status."""
+
+    if response.status_code == status.HTTP_304_NOT_MODIFIED:
+        return response
+
+    if response.body == b"":
+        return response
+
+    response.body = b""
+    response.headers["content-length"] = "0"
+    return response
+
+
 def _build_entity_href(kind: str, slug: str, *, lang: str | None) -> str:
     slug_segment = quote(slug, safe="")
     if lang:
@@ -205,6 +219,14 @@ def get_sitemap_index(request: Request, db: Session = Depends(get_db)) -> Respon
     return _xml_response(root, request, max_age=900)
 
 
+@router.head("/sitemap.xml", include_in_schema=False)
+def head_sitemap_index(request: Request, db: Session = Depends(get_db)) -> Response:
+    """Serve HEAD responses for the sitemap index."""
+
+    response = get_sitemap_index(request, db)
+    return _head_response(response)
+
+
 @router.get("/sitemaps/animals.xml", include_in_schema=False)
 def get_animals_sitemap(request: Request, db: Session = Depends(get_db)) -> Response:
     """Return the sitemap entries for all public animal pages."""
@@ -237,6 +259,14 @@ def get_animals_sitemap(request: Request, db: Session = Depends(get_db)) -> Resp
             lastmod_el.text = lastmod_str
 
     return _xml_response(root, request, max_age=900)
+
+
+@router.head("/sitemaps/animals.xml", include_in_schema=False)
+def head_animals_sitemap(request: Request, db: Session = Depends(get_db)) -> Response:
+    """Serve HEAD responses for the animals sitemap."""
+
+    response = get_animals_sitemap(request, db)
+    return _head_response(response)
 
 
 @router.get("/sitemaps/zoos.xml", include_in_schema=False)
@@ -273,6 +303,14 @@ def get_zoos_sitemap(request: Request, db: Session = Depends(get_db)) -> Respons
     return _xml_response(root, request, max_age=900)
 
 
+@router.head("/sitemaps/zoos.xml", include_in_schema=False)
+def head_zoos_sitemap(request: Request, db: Session = Depends(get_db)) -> Response:
+    """Serve HEAD responses for the zoos sitemap."""
+
+    response = get_zoos_sitemap(request, db)
+    return _head_response(response)
+
+
 @router.get(
     "/robots.txt",
     include_in_schema=False,
@@ -299,3 +337,15 @@ def get_robots(request: Request) -> Response:
             return Response(status_code=304, headers=common_headers)
 
     return PlainTextResponse(content=body, headers=common_headers)
+
+
+@router.head(
+    "/robots.txt",
+    include_in_schema=False,
+    response_class=PlainTextResponse,
+)
+def head_robots(request: Request) -> Response:
+    """Serve HEAD responses for robots.txt."""
+
+    response = get_robots(request)
+    return _head_response(response)

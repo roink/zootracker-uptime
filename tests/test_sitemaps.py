@@ -117,6 +117,18 @@ def test_sitemap_index_lists_submaps(data):
     assert zoos_lastmod.text == expected_zoos
 
 
+def test_sitemap_index_head_matches_get(data):
+    base = client.get("/sitemap.xml")
+    assert base.status_code == 200
+
+    head = client.head("/sitemap.xml")
+    assert head.status_code == 200
+    assert head.content == b""
+    assert head.headers["ETag"] == base.headers["ETag"]
+    assert head.headers["Cache-Control"] == base.headers["Cache-Control"]
+    assert head.headers["vary"] == "Accept-Encoding"
+
+
 def test_animals_sitemap_includes_animals(data):
     resp = client.get("/sitemaps/animals.xml")
     assert resp.status_code == 200
@@ -147,6 +159,18 @@ def test_animals_sitemap_includes_animals(data):
     lastmod_el = lion_entry.find("sm:lastmod", NS)
     assert lastmod_el is not None
     assert lastmod_el.text == _animal_lastmod("lion")
+
+
+def test_animals_sitemap_head_matches_get(data):
+    base = client.get("/sitemaps/animals.xml")
+    assert base.status_code == 200
+
+    head = client.head("/sitemaps/animals.xml")
+    assert head.status_code == 200
+    assert head.content == b""
+    assert head.headers["ETag"] == base.headers["ETag"]
+    assert head.headers["Cache-Control"] == base.headers["Cache-Control"]
+    assert head.headers["vary"] == "Accept-Encoding"
 
 
 def test_zoos_sitemap_includes_zoos(data):
@@ -181,12 +205,36 @@ def test_zoos_sitemap_includes_zoos(data):
     assert lastmod_el.text == _zoo_lastmod("central-zoo")
 
 
+def test_zoos_sitemap_head_matches_get(data):
+    base = client.get("/sitemaps/zoos.xml")
+    assert base.status_code == 200
+
+    head = client.head("/sitemaps/zoos.xml")
+    assert head.status_code == 200
+    assert head.content == b""
+    assert head.headers["ETag"] == base.headers["ETag"]
+    assert head.headers["Cache-Control"] == base.headers["Cache-Control"]
+    assert head.headers["vary"] == "Accept-Encoding"
+
+
 def test_robots_txt_references_sitemap(data):
     resp = client.get("/robots.txt")
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("text/plain")
     assert resp.headers["vary"] == "Accept-Encoding"
     assert f"Sitemap: {SITE_BASE_URL.rstrip('/')}/sitemap.xml" in resp.text
+
+
+def test_robots_txt_head_matches_get(data):
+    base = client.get("/robots.txt")
+    assert base.status_code == 200
+
+    head = client.head("/robots.txt")
+    assert head.status_code == 200
+    assert head.content == b""
+    assert head.headers["ETag"] == base.headers["ETag"]
+    assert head.headers["Cache-Control"] == base.headers["Cache-Control"]
+    assert head.headers["vary"] == "Accept-Encoding"
 
 
 def test_sitemap_index_etag_304(data):
@@ -199,6 +247,14 @@ def test_sitemap_index_etag_304(data):
     assert cached.status_code == 304
     assert cached.headers.get("ETag") == etag
     assert "Cache-Control" in cached.headers
+
+
+def test_sitemap_index_head_etag_304(data):
+    etag = client.get("/sitemap.xml").headers["ETag"]
+
+    cached = client.head("/sitemap.xml", headers={"If-None-Match": etag})
+    assert cached.status_code == 304
+    assert cached.content == b""
 
 
 def test_robots_txt_etag_304(data):
