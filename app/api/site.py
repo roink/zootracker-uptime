@@ -25,6 +25,9 @@ SITEMAP_NS = "http://www.sitemaps.org/schemas/sitemap/0.9"
 XHTML_NS = "http://www.w3.org/1999/xhtml"
 _RETRY_AFTER_SECONDS = "600"
 
+ET.register_namespace("", SITEMAP_NS)
+ET.register_namespace("xhtml", XHTML_NS)
+
 logger = logging.getLogger(__name__)
 
 
@@ -103,10 +106,35 @@ def _etag_for_bytes(data: bytes) -> str:
     return '"' + hashlib.sha256(data).hexdigest() + '"'
 
 
+def _indent_xml(element: ET.Element) -> None:
+    """Add indentation and line breaks to XML output for readability."""
+
+    if hasattr(ET, "indent"):
+        # Python 3.9+ offers xml.etree.ElementTree.indent for pretty printing.
+        ET.indent(element, space="  ")  # type: ignore[attr-defined]
+        return
+
+    def _indent_fallback(node: ET.Element, level: int = 0) -> None:
+        indent = "\n" + ("  " * level)
+        children = list(node)
+        if children:
+            if not node.text or not node.text.strip():
+                node.text = indent + "  "
+            for child in children:
+                _indent_fallback(child, level + 1)
+            if not children[-1].tail or not children[-1].tail.strip():
+                children[-1].tail = indent
+        elif level and (not node.tail or not node.tail.strip()):
+            node.tail = indent
+
+    _indent_fallback(element)
+
+
 def _xml_response(element: ET.Element, request: Request, *, max_age: int) -> Response:
     """Serialize an XML element tree, attach cache headers, and honor ETags."""
 
     cache_control = f"public, max-age={max_age}, stale-while-revalidate={max_age * 2}"
+    _indent_xml(element)
     xml_bytes = ET.tostring(element, encoding="utf-8", xml_declaration=True)
     etag = _etag_for_bytes(xml_bytes)
 
@@ -202,15 +230,15 @@ def get_sitemap_index(request: Request, db: Session = Depends(get_db)) -> Respon
         logger.exception("Failed to build sitemap index due to database error")
         return _sitemap_service_unavailable()
 
-    root = ET.Element("sitemapindex", attrib={"xmlns": SITEMAP_NS})
+    root = ET.Element(f"{{{SITEMAP_NS}}}sitemapindex")
 
     def _add_entry(path: str, lastmod: datetime | None) -> None:
-        sitemap_el = ET.SubElement(root, "sitemap")
-        loc_el = ET.SubElement(sitemap_el, "loc")
+        sitemap_el = ET.SubElement(root, f"{{{SITEMAP_NS}}}sitemap")
+        loc_el = ET.SubElement(sitemap_el, f"{{{SITEMAP_NS}}}loc")
         loc_el.text = build_absolute_url(path)
         lastmod_str = _format_lastmod(lastmod)
         if lastmod_str:
-            lastmod_el = ET.SubElement(sitemap_el, "lastmod")
+            lastmod_el = ET.SubElement(sitemap_el, f"{{{SITEMAP_NS}}}lastmod")
             lastmod_el.text = lastmod_str
 
     _add_entry("/sitemaps/animals.xml", animals_lastmod)
@@ -241,13 +269,11 @@ def get_animals_sitemap(request: Request, db: Session = Depends(get_db)) -> Resp
         logger.exception("Failed to build animals sitemap due to database error")
         return _sitemap_service_unavailable()
 
-    root = ET.Element(
-        "urlset", attrib={"xmlns": SITEMAP_NS, "xmlns:xhtml": XHTML_NS}
-    )
+    root = ET.Element(f"{{{SITEMAP_NS}}}urlset")
 
     for slug, updated_at in animals:
-        url_el = ET.SubElement(root, "url")
-        loc_el = ET.SubElement(url_el, "loc")
+        url_el = ET.SubElement(root, f"{{{SITEMAP_NS}}}url")
+        loc_el = ET.SubElement(url_el, f"{{{SITEMAP_NS}}}loc")
         canonical_href = _build_entity_href(
             "animals", slug, lang=SITE_DEFAULT_LANGUAGE
         )
@@ -255,7 +281,7 @@ def get_animals_sitemap(request: Request, db: Session = Depends(get_db)) -> Resp
         _append_alternate_links(url_el, "animals", slug, canonical_href)
         lastmod_str = _format_lastmod(updated_at)
         if lastmod_str:
-            lastmod_el = ET.SubElement(url_el, "lastmod")
+            lastmod_el = ET.SubElement(url_el, f"{{{SITEMAP_NS}}}lastmod")
             lastmod_el.text = lastmod_str
 
     return _xml_response(root, request, max_age=900)
@@ -283,13 +309,11 @@ def get_zoos_sitemap(request: Request, db: Session = Depends(get_db)) -> Respons
         logger.exception("Failed to build zoos sitemap due to database error")
         return _sitemap_service_unavailable()
 
-    root = ET.Element(
-        "urlset", attrib={"xmlns": SITEMAP_NS, "xmlns:xhtml": XHTML_NS}
-    )
+    root = ET.Element(f"{{{SITEMAP_NS}}}urlset")
 
     for slug, updated_at in zoos:
-        url_el = ET.SubElement(root, "url")
-        loc_el = ET.SubElement(url_el, "loc")
+        url_el = ET.SubElement(root, f"{{{SITEMAP_NS}}}url")
+        loc_el = ET.SubElement(url_el, f"{{{SITEMAP_NS}}}loc")
         canonical_href = _build_entity_href(
             "zoos", slug, lang=SITE_DEFAULT_LANGUAGE
         )
@@ -297,7 +321,7 @@ def get_zoos_sitemap(request: Request, db: Session = Depends(get_db)) -> Respons
         _append_alternate_links(url_el, "zoos", slug, canonical_href)
         lastmod_str = _format_lastmod(updated_at)
         if lastmod_str:
-            lastmod_el = ET.SubElement(url_el, "lastmod")
+            lastmod_el = ET.SubElement(url_el, f"{{{SITEMAP_NS}}}lastmod")
             lastmod_el.text = lastmod_str
 
     return _xml_response(root, request, max_age=900)
