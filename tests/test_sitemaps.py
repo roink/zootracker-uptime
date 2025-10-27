@@ -1,9 +1,13 @@
 import xml.etree.ElementTree as ET
+from datetime import timezone
 from urllib.parse import quote
 
+from sqlalchemy import func
 from sqlalchemy.exc import SQLAlchemyError
 
+from app import models
 from app.config import SITE_BASE_URL, SITE_DEFAULT_LANGUAGE, SITE_LANGUAGES
+from app.database import SessionLocal
 from app.main import app, get_db
 
 from .conftest import client, override_get_db
@@ -31,6 +35,51 @@ def _find_url_entry(root: ET.Element, href: str) -> ET.Element:
     raise AssertionError(f"Sitemap entry with href={href!r} not found")
 
 
+def _format_lastmod(value):
+    if value is None:
+        raise AssertionError("Expected timestamp, got None")
+    if value.tzinfo is None:
+        aware = value.replace(tzinfo=timezone.utc)
+    else:
+        aware = value.astimezone(timezone.utc)
+    trimmed = aware.replace(microsecond=0)
+    return trimmed.isoformat().replace("+00:00", "Z")
+
+
+def _animal_lastmod(slug: str) -> str:
+    with SessionLocal() as db:
+        value = (
+            db.query(models.Animal.updated_at)
+            .filter(models.Animal.slug == slug)
+            .scalar()
+        )
+    return _format_lastmod(value)
+
+
+def _zoo_lastmod(slug: str) -> str:
+    with SessionLocal() as db:
+        value = (
+            db.query(models.Zoo.updated_at)
+            .filter(models.Zoo.slug == slug)
+            .scalar()
+        )
+    return _format_lastmod(value)
+
+
+class BrokenSession:
+    def __init__(self) -> None:
+        self.rolled_back = False
+
+    def query(self, *args, **kwargs):  # noqa: D401 - matches Session interface
+        raise SQLAlchemyError("boom")
+
+    def rollback(self) -> None:
+        self.rolled_back = True
+
+    def close(self) -> None:
+        pass
+
+
 def test_sitemap_index_lists_submaps(data):
     resp = client.get("/sitemap.xml")
     assert resp.status_code == 200
@@ -43,6 +92,29 @@ def test_sitemap_index_lists_submaps(data):
 
     assert f"{SITE_BASE_URL.rstrip('/')}/sitemaps/animals.xml" in locs
     assert f"{SITE_BASE_URL.rstrip('/')}/sitemaps/zoos.xml" in locs
+
+    sitemap_entries = {
+        entry.find("sm:loc", NS).text: entry for entry in root.findall("sm:sitemap", NS)
+    }
+
+    animals_entry = sitemap_entries[f"{SITE_BASE_URL.rstrip('/')}/sitemaps/animals.xml"]
+    zoos_entry = sitemap_entries[f"{SITE_BASE_URL.rstrip('/')}/sitemaps/zoos.xml"]
+
+    animals_lastmod = animals_entry.find("sm:lastmod", NS)
+    zoos_lastmod = zoos_entry.find("sm:lastmod", NS)
+
+    with SessionLocal() as db:
+        expected_animals = _format_lastmod(
+            db.query(func.max(models.Animal.updated_at)).scalar()
+        )
+        expected_zoos = _format_lastmod(
+            db.query(func.max(models.Zoo.updated_at)).scalar()
+        )
+
+    assert animals_lastmod is not None
+    assert animals_lastmod.text == expected_animals
+    assert zoos_lastmod is not None
+    assert zoos_lastmod.text == expected_zoos
 
 
 def test_animals_sitemap_includes_animals(data):
@@ -72,6 +144,10 @@ def test_animals_sitemap_includes_animals(data):
         "animals", "lion", canonical_lang
     )
 
+    lastmod_el = lion_entry.find("sm:lastmod", NS)
+    assert lastmod_el is not None
+    assert lastmod_el.text == _animal_lastmod("lion")
+
 
 def test_zoos_sitemap_includes_zoos(data):
     resp = client.get("/sitemaps/zoos.xml")
@@ -99,6 +175,10 @@ def test_zoos_sitemap_includes_zoos(data):
     assert hreflangs["x-default"] == _expected_entity_href(
         "zoos", "central-zoo", canonical_lang
     )
+
+    lastmod_el = central_entry.find("sm:lastmod", NS)
+    assert lastmod_el is not None
+    assert lastmod_el.text == _zoo_lastmod("central-zoo")
 
 
 def test_robots_txt_references_sitemap(data):
@@ -133,20 +213,31 @@ def test_robots_txt_etag_304(data):
     assert "Cache-Control" in cached.headers
 
 
+def test_animals_sitemap_etag_304(data):
+    first = client.get("/sitemaps/animals.xml")
+    assert first.status_code == 200
+    etag = first.headers.get("ETag")
+    assert etag
+
+    cached = client.get("/sitemaps/animals.xml", headers={"If-None-Match": etag})
+    assert cached.status_code == 304
+    assert cached.headers.get("ETag") == etag
+    assert cached.headers.get("Vary") == "Accept-Encoding"
+
+
+def test_zoos_sitemap_etag_304(data):
+    first = client.get("/sitemaps/zoos.xml")
+    assert first.status_code == 200
+    etag = first.headers.get("ETag")
+    assert etag
+
+    cached = client.get("/sitemaps/zoos.xml", headers={"If-None-Match": etag})
+    assert cached.status_code == 304
+    assert cached.headers.get("ETag") == etag
+    assert cached.headers.get("Vary") == "Accept-Encoding"
+
+
 def test_animals_sitemap_database_error():
-    class BrokenSession:
-        def __init__(self) -> None:
-            self.rolled_back = False
-
-        def query(self, *args, **kwargs):
-            raise SQLAlchemyError("boom")
-
-        def rollback(self) -> None:
-            self.rolled_back = True
-
-        def close(self) -> None:
-            pass
-
     broken_session = BrokenSession()
 
     def broken_db():
@@ -158,6 +249,28 @@ def test_animals_sitemap_database_error():
     app.dependency_overrides[get_db] = broken_db
     try:
         resp = client.get("/sitemaps/animals.xml")
+    finally:
+        app.dependency_overrides[get_db] = override_get_db
+
+    assert resp.status_code == 503
+    assert resp.headers["Retry-After"] == "600"
+    assert resp.headers["Cache-Control"] == "no-store"
+    assert resp.headers["content-type"] == "application/xml; charset=utf-8"
+    assert broken_session.rolled_back is True
+
+
+def test_sitemap_index_database_error():
+    broken_session = BrokenSession()
+
+    def broken_db():
+        try:
+            yield broken_session
+        finally:
+            broken_session.close()
+
+    app.dependency_overrides[get_db] = broken_db
+    try:
+        resp = client.get("/sitemap.xml")
     finally:
         app.dependency_overrides[get_db] = override_get_db
 

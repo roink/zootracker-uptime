@@ -100,7 +100,14 @@ if not _is_absolute_http_url(SITE_BASE_URL):
         f"SITE_BASE_URL must be an absolute http(s) URL, got: {SITE_BASE_URL!r}"
     )
 
-_site_languages_raw = _get_env("SITE_LANGUAGES", default="en,de") or "en,de"
+_site_languages_env = _get_env("SITE_LANGUAGES")
+if _site_languages_env is None:
+    _site_languages_raw = "en,de"
+else:
+    _site_languages_raw = _site_languages_env
+    if not _site_languages_raw:
+        raise RuntimeError("SITE_LANGUAGES must list at least one language code")
+
 _site_languages = [
     item.strip() for item in _site_languages_raw.split(",") if item.strip()
 ]
