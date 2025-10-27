@@ -117,25 +117,7 @@ def _etag_for_bytes(data: bytes) -> str:
 def _indent_xml(element: ET.Element) -> None:
     """Add indentation and line breaks to XML output for readability."""
 
-    if hasattr(ET, "indent"):
-        # Python 3.9+ offers xml.etree.ElementTree.indent for pretty printing.
-        ET.indent(element, space="  ")  # type: ignore[attr-defined]
-        return
-
-    def _indent_fallback(node: ET.Element, level: int = 0) -> None:
-        indent = "\n" + ("  " * level)
-        children = list(node)
-        if children:
-            if not node.text or not node.text.strip():
-                node.text = indent + "  "
-            for child in children:
-                _indent_fallback(child, level + 1)
-            if not children[-1].tail or not children[-1].tail.strip():
-                children[-1].tail = indent
-        elif level and (not node.tail or not node.tail.strip()):
-            node.tail = indent
-
-    _indent_fallback(element)
+    ET.indent(element, space="  ")
 
 
 def _xml_response(
