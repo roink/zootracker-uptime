@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 from urllib.parse import urlsplit
 from typing import Final
 
@@ -98,6 +99,24 @@ if not _is_absolute_http_url(SITE_BASE_URL):
     raise RuntimeError(
         f"SITE_BASE_URL must be an absolute http(s) URL, got: {SITE_BASE_URL!r}"
     )
+
+_site_languages_raw = _get_env("SITE_LANGUAGES", default="en,de") or "en,de"
+_site_languages = [
+    item.strip() for item in _site_languages_raw.split(",") if item.strip()
+]
+if not _site_languages:
+    raise RuntimeError("SITE_LANGUAGES must list at least one language code")
+
+_lang_pattern = re.compile(r"^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$")
+for code in _site_languages:
+    if not _lang_pattern.fullmatch(code):
+        raise RuntimeError(
+            "SITE_LANGUAGES entries must be valid BCP 47 language tags; "
+            f"got: {code!r}"
+        )
+
+SITE_LANGUAGES: Final[tuple[str, ...]] = tuple(_site_languages)
+SITE_DEFAULT_LANGUAGE: Final[str] = SITE_LANGUAGES[0]
 
 ALLOWED_ORIGINS = [
     origin.strip()

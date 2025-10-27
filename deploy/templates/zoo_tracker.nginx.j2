@@ -1,6 +1,10 @@
 server {
   server_name {{ domain }} {{ domain | regex_replace('^www\\.', '') }};
 
+  # Ensure compressed variants advertise Vary: Accept-Encoding for downstream caches.
+  gzip_vary on;
+  brotli_static on;
+
   # --------- API (FastAPI behind Nginx) ----------
   location /api/ {
     proxy_pass {{ app_upstream | regex_replace('/+$','') }}/;
@@ -48,7 +52,7 @@ server {
   }
 
   location ~ ^/(?:sitemap\.xml|robots\.txt|sitemaps/.*)$ {
-    proxy_pass {{ app_upstream | regex_replace('/+$','') }}/;
+    proxy_pass {{ app_upstream | regex_replace('/+$','') }};
 
     proxy_http_version 1.1;
     proxy_set_header Host              $http_host;

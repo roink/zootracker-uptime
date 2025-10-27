@@ -14,9 +14,13 @@ from sqlalchemy.orm import Session
 
 from .. import models, schemas
 from ..database import get_db
+from ..config import SITE_DEFAULT_LANGUAGE, SITE_LANGUAGES
 from ..utils.urls import build_absolute_url
 
 router = APIRouter()
+
+SITEMAP_NS = "http://www.sitemaps.org/schemas/sitemap/0.9"
+XHTML_NS = "http://www.w3.org/1999/xhtml"
 
 
 @router.get("/site/summary", response_model=schemas.SiteSummary)
@@ -101,20 +105,54 @@ def _xml_response(element: ET.Element, request: Request, *, max_age: int) -> Res
     xml_bytes = ET.tostring(element, encoding="utf-8", xml_declaration=True)
     etag = _etag_for_bytes(xml_bytes)
 
+    common_headers = {
+        "ETag": etag,
+        "Cache-Control": cache_control,
+        "Vary": "Accept-Encoding",
+    }
+
     inm = request.headers.get("if-none-match")
     if inm:
         presented = [value.strip() for value in inm.split(",")]
         if etag in presented:
-            return Response(
-                status_code=304,
-                headers={"ETag": etag, "Cache-Control": cache_control},
-            )
+            return Response(status_code=304, headers=common_headers)
 
-    return Response(
+    response = Response(
         content=xml_bytes,
         media_type="application/xml",
-        headers={"ETag": etag, "Cache-Control": cache_control},
+        headers=common_headers,
     )
+    response.headers["content-type"] = "application/xml; charset=utf-8"
+    return response
+
+
+def _build_entity_href(kind: str, slug: str, *, lang: str | None) -> str:
+    slug_segment = quote(slug, safe="")
+    if lang:
+        lang_segment = quote(lang, safe="-")
+        path = f"/{lang_segment}/{kind}/{slug_segment}"
+    else:
+        path = f"/{kind}/{slug_segment}"
+    return build_absolute_url(path)
+
+
+def _append_alternate_links(
+    url_el: ET.Element, kind: str, slug: str, canonical_href: str
+) -> None:
+    if not SITE_LANGUAGES:
+        return
+
+    for lang in SITE_LANGUAGES:
+        href = _build_entity_href(kind, slug, lang=lang)
+        link_el = ET.SubElement(url_el, f"{{{XHTML_NS}}}link")
+        link_el.set("rel", "alternate")
+        link_el.set("hreflang", lang)
+        link_el.set("href", href)
+
+    default_link = ET.SubElement(url_el, f"{{{XHTML_NS}}}link")
+    default_link.set("rel", "alternate")
+    default_link.set("hreflang", "x-default")
+    default_link.set("href", canonical_href)
 
 
 @router.get("/sitemap.xml", include_in_schema=False)
@@ -124,8 +162,7 @@ def get_sitemap_index(request: Request, db: Session = Depends(get_db)) -> Respon
     animals_lastmod = db.query(func.max(models.Animal.updated_at)).scalar()
     zoos_lastmod = db.query(func.max(models.Zoo.updated_at)).scalar()
 
-    namespace = "http://www.sitemaps.org/schemas/sitemap/0.9"
-    root = ET.Element("sitemapindex", attrib={"xmlns": namespace})
+    root = ET.Element("sitemapindex", attrib={"xmlns": SITEMAP_NS})
 
     def _add_entry(path: str, lastmod: datetime | None) -> None:
         sitemap_el = ET.SubElement(root, "sitemap")
@@ -152,13 +189,18 @@ def get_animals_sitemap(request: Request, db: Session = Depends(get_db)) -> Resp
         .all()
     )
 
-    namespace = "http://www.sitemaps.org/schemas/sitemap/0.9"
-    root = ET.Element("urlset", attrib={"xmlns": namespace})
+    root = ET.Element(
+        "urlset", attrib={"xmlns": SITEMAP_NS, "xmlns:xhtml": XHTML_NS}
+    )
 
     for slug, updated_at in animals:
         url_el = ET.SubElement(root, "url")
         loc_el = ET.SubElement(url_el, "loc")
-        loc_el.text = build_absolute_url(f"/animals/{quote(slug, safe='')}")
+        canonical_href = _build_entity_href(
+            "animals", slug, lang=SITE_DEFAULT_LANGUAGE
+        )
+        loc_el.text = canonical_href
+        _append_alternate_links(url_el, "animals", slug, canonical_href)
         lastmod_str = _format_lastmod(updated_at)
         if lastmod_str:
             lastmod_el = ET.SubElement(url_el, "lastmod")
@@ -177,13 +219,18 @@ def get_zoos_sitemap(request: Request, db: Session = Depends(get_db)) -> Respons
         .all()
     )
 
-    namespace = "http://www.sitemaps.org/schemas/sitemap/0.9"
-    root = ET.Element("urlset", attrib={"xmlns": namespace})
+    root = ET.Element(
+        "urlset", attrib={"xmlns": SITEMAP_NS, "xmlns:xhtml": XHTML_NS}
+    )
 
     for slug, updated_at in zoos:
         url_el = ET.SubElement(root, "url")
         loc_el = ET.SubElement(url_el, "loc")
-        loc_el.text = build_absolute_url(f"/zoos/{quote(slug, safe='')}")
+        canonical_href = _build_entity_href(
+            "zoos", slug, lang=SITE_DEFAULT_LANGUAGE
+        )
+        loc_el.text = canonical_href
+        _append_alternate_links(url_el, "zoos", slug, canonical_href)
         lastmod_str = _format_lastmod(updated_at)
         if lastmod_str:
             lastmod_el = ET.SubElement(url_el, "lastmod")
@@ -205,16 +252,16 @@ def get_robots(request: Request) -> Response:
     body = f"User-agent: *\nAllow: /\n\nSitemap: {sitemap_url}\n"
     etag = _etag_for_bytes(body.encode("utf-8"))
 
+    common_headers = {
+        "ETag": etag,
+        "Cache-Control": cache_control,
+        "Vary": "Accept-Encoding",
+    }
+
     inm = request.headers.get("if-none-match")
     if inm:
         presented = [value.strip() for value in inm.split(",")]
         if etag in presented:
-            return Response(
-                status_code=304,
-                headers={"ETag": etag, "Cache-Control": cache_control},
-            )
+            return Response(status_code=304, headers=common_headers)
 
-    return PlainTextResponse(
-        content=body,
-        headers={"ETag": etag, "Cache-Control": cache_control},
-    )
+    return PlainTextResponse(content=body, headers=common_headers)

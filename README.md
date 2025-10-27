@@ -242,6 +242,10 @@ outbound communication and crawlers:
 - `APP_BASE_URL` – the canonical origin for email verification and password
   reset links.
 - `SITE_BASE_URL` – the public marketing domain that hosts the front-end site.
+- `SITE_LANGUAGES` – comma-separated list of locale codes served by the
+  marketing site. The first language becomes the canonical sitemap `<loc>` and
+  `x-default` entry, while every language is emitted as an `<xhtml:link`>
+  alternate.
 
 Both default to `http://localhost:5173` for local development. In production set
 `SITE_BASE_URL` to the public marketing host (for example,
@@ -253,6 +257,8 @@ pages, so keeping it accurate ensures search engines crawl the correct domain.
 
 - `SITE_BASE_URL` **must be an absolute** `http(s)` URL (for example:
   `https://www.zootracker.app`). Sitemap `<loc>` values are always absolute.
+- `SITE_LANGUAGES` must contain at least one valid [BCP 47][bcp47] language tag.
+  Separate entries with commas (for example, `en,de` or `en,de-AT`).
 - Each sitemap is limited to **50,000 URLs** and **50 MB uncompressed**. If the
   animals or zoos sitemap grows beyond that, shard into multiple files
   (e.g., `animals-0001.xml`, `animals-0002.xml`, …) and list them in
@@ -348,4 +354,6 @@ deploying to staging or production.
   (`python -c "import secrets; print(secrets.token_urlsafe(32))"`).
 - **Never reuse** the same key across environments (production, staging,
   development). Generate a new one for each deployment.
+
+[bcp47]: https://www.rfc-editor.org/rfc/bcp47
 
