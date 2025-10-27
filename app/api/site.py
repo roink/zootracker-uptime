@@ -87,8 +87,8 @@ def get_popular_animals(
     ]
 
 
-def _format_lastmod(value: datetime | None) -> str | None:
-    """Render timestamps in the ISO 8601 format required by sitemaps."""
+def _normalize_lastmod(value: datetime | None) -> datetime | None:
+    """Normalize timestamps to UTC without microseconds."""
 
     if value is None:
         return None
@@ -96,8 +96,16 @@ def _format_lastmod(value: datetime | None) -> str | None:
         aware = value.replace(tzinfo=timezone.utc)
     else:
         aware = value.astimezone(timezone.utc)
-    trimmed = aware.replace(microsecond=0)
-    return trimmed.isoformat().replace("+00:00", "Z")
+    return aware.replace(microsecond=0)
+
+
+def _format_lastmod(value: datetime | None) -> str | None:
+    """Render timestamps in the ISO 8601 format required by sitemaps."""
+
+    normalized = _normalize_lastmod(value)
+    if normalized is None:
+        return None
+    return normalized.isoformat().replace("+00:00", "Z")
 
 
 def _etag_for_bytes(data: bytes) -> str:
@@ -130,11 +138,19 @@ def _indent_xml(element: ET.Element) -> None:
     _indent_fallback(element)
 
 
-def _xml_response(element: ET.Element, request: Request, *, max_age: int) -> Response:
+def _xml_response(
+    element: ET.Element,
+    request: Request,
+    *,
+    max_age: int,
+    last_modified: datetime | None = None,
+    pretty_print: bool = True,
+) -> Response:
     """Serialize an XML element tree, attach cache headers, and honor ETags."""
 
     cache_control = f"public, max-age={max_age}, stale-while-revalidate={max_age * 2}"
-    _indent_xml(element)
+    if pretty_print:
+        _indent_xml(element)
     xml_bytes = ET.tostring(element, encoding="utf-8", xml_declaration=True)
     etag = _etag_for_bytes(xml_bytes)
 
@@ -143,6 +159,12 @@ def _xml_response(element: ET.Element, request: Request, *, max_age: int) -> Res
         "Cache-Control": cache_control,
         "Vary": "Accept-Encoding",
     }
+
+    if last_modified is not None:
+        common_headers["Last-Modified"] = last_modified.strftime(
+            "%a, %d %b %Y %H:%M:%S GMT"
+        )
+    common_headers["X-Robots-Tag"] = "noindex"
 
     inm = request.headers.get("if-none-match")
     if inm:
@@ -223,8 +245,8 @@ def _append_alternate_links(
 def get_sitemap_index(request: Request, db: Session = Depends(get_db)) -> Response:
     """Expose the sitemap index pointing to sub-sitemaps for animals and zoos."""
     try:
-        animals_lastmod = db.query(func.max(models.Animal.updated_at)).scalar()
-        zoos_lastmod = db.query(func.max(models.Zoo.updated_at)).scalar()
+        animals_lastmod_raw = db.query(func.max(models.Animal.updated_at)).scalar()
+        zoos_lastmod_raw = db.query(func.max(models.Zoo.updated_at)).scalar()
     except SQLAlchemyError:
         db.rollback()
         logger.exception("Failed to build sitemap index due to database error")
@@ -232,19 +254,24 @@ def get_sitemap_index(request: Request, db: Session = Depends(get_db)) -> Respon
 
     root = ET.Element(f"{{{SITEMAP_NS}}}sitemapindex")
 
+    animals_lastmod = _normalize_lastmod(animals_lastmod_raw)
+    zoos_lastmod = _normalize_lastmod(zoos_lastmod_raw)
+
     def _add_entry(path: str, lastmod: datetime | None) -> None:
         sitemap_el = ET.SubElement(root, f"{{{SITEMAP_NS}}}sitemap")
         loc_el = ET.SubElement(sitemap_el, f"{{{SITEMAP_NS}}}loc")
         loc_el.text = build_absolute_url(path)
-        lastmod_str = _format_lastmod(lastmod)
-        if lastmod_str:
+        if lastmod:
             lastmod_el = ET.SubElement(sitemap_el, f"{{{SITEMAP_NS}}}lastmod")
-            lastmod_el.text = lastmod_str
+            lastmod_el.text = lastmod.isoformat().replace("+00:00", "Z")
 
     _add_entry("/sitemaps/animals.xml", animals_lastmod)
     _add_entry("/sitemaps/zoos.xml", zoos_lastmod)
 
-    return _xml_response(root, request, max_age=900)
+    last_modified_candidates = [value for value in (animals_lastmod, zoos_lastmod) if value]
+    last_modified = max(last_modified_candidates) if last_modified_candidates else None
+
+    return _xml_response(root, request, max_age=900, last_modified=last_modified)
 
 
 @router.head("/sitemap.xml", include_in_schema=False)
@@ -271,6 +298,8 @@ def get_animals_sitemap(request: Request, db: Session = Depends(get_db)) -> Resp
 
     root = ET.Element(f"{{{SITEMAP_NS}}}urlset")
 
+    latest_lastmod: datetime | None = None
+
     for slug, updated_at in animals:
         url_el = ET.SubElement(root, f"{{{SITEMAP_NS}}}url")
         loc_el = ET.SubElement(url_el, f"{{{SITEMAP_NS}}}loc")
@@ -279,12 +308,21 @@ def get_animals_sitemap(request: Request, db: Session = Depends(get_db)) -> Resp
         )
         loc_el.text = canonical_href
         _append_alternate_links(url_el, "animals", slug, canonical_href)
-        lastmod_str = _format_lastmod(updated_at)
-        if lastmod_str:
+        normalized_lastmod = _normalize_lastmod(updated_at)
+        if normalized_lastmod:
             lastmod_el = ET.SubElement(url_el, f"{{{SITEMAP_NS}}}lastmod")
-            lastmod_el.text = lastmod_str
+            lastmod_el.text = normalized_lastmod.isoformat().replace("+00:00", "Z")
+            if latest_lastmod is None or normalized_lastmod > latest_lastmod:
+                latest_lastmod = normalized_lastmod
 
-    return _xml_response(root, request, max_age=900)
+    pretty_print = len(animals) <= 5000
+    return _xml_response(
+        root,
+        request,
+        max_age=900,
+        last_modified=latest_lastmod,
+        pretty_print=pretty_print,
+    )
 
 
 @router.head("/sitemaps/animals.xml", include_in_schema=False)
@@ -311,6 +349,8 @@ def get_zoos_sitemap(request: Request, db: Session = Depends(get_db)) -> Respons
 
     root = ET.Element(f"{{{SITEMAP_NS}}}urlset")
 
+    latest_lastmod: datetime | None = None
+
     for slug, updated_at in zoos:
         url_el = ET.SubElement(root, f"{{{SITEMAP_NS}}}url")
         loc_el = ET.SubElement(url_el, f"{{{SITEMAP_NS}}}loc")
@@ -319,12 +359,21 @@ def get_zoos_sitemap(request: Request, db: Session = Depends(get_db)) -> Respons
         )
         loc_el.text = canonical_href
         _append_alternate_links(url_el, "zoos", slug, canonical_href)
-        lastmod_str = _format_lastmod(updated_at)
-        if lastmod_str:
+        normalized_lastmod = _normalize_lastmod(updated_at)
+        if normalized_lastmod:
             lastmod_el = ET.SubElement(url_el, f"{{{SITEMAP_NS}}}lastmod")
-            lastmod_el.text = lastmod_str
+            lastmod_el.text = normalized_lastmod.isoformat().replace("+00:00", "Z")
+            if latest_lastmod is None or normalized_lastmod > latest_lastmod:
+                latest_lastmod = normalized_lastmod
 
-    return _xml_response(root, request, max_age=900)
+    pretty_print = len(zoos) <= 5000
+    return _xml_response(
+        root,
+        request,
+        max_age=900,
+        last_modified=latest_lastmod,
+        pretty_print=pretty_print,
+    )
 
 
 @router.head("/sitemaps/zoos.xml", include_in_schema=False)
