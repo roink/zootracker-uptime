@@ -32,15 +32,13 @@ logger = logging.getLogger(__name__)
 
 
 # Routes that should appear in the general pages sitemap for every language.
+# Utility flows (login, password reset, verification, internal search results)
+# stay linked for users but are omitted here so the sitemap only advertises
+# canonical, index-worthy destinations.
 PUBLIC_STATIC_PAGE_PATHS: tuple[str, ...] = (
     "",
-    "login",
-    "forgot-password",
-    "reset-password",
-    "verify",
     "zoos",
     "animals",
-    "search",
     "legal-notice",
     "data-protection",
     "contact",

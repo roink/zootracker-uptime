@@ -114,6 +114,7 @@ export default function ForgotPasswordPage() {
       <Seo
         title={t('auth.seo.forgotTitle')}
         description={t('auth.seo.forgotDescription')}
+        robots="noindex, follow"
       />
       <h1 className="mb-3">{t('auth.passwordReset.request.heading')}</h1>
       <p>{t('auth.passwordReset.request.intro')}</p>

@@ -35,6 +35,13 @@ export default function ResetPasswordPage() {
   const successRef = useRef(null);
   const tokenAlertRef = useRef(null);
 
+  // Shared SEO props to keep the reset flow hidden from search results.
+  const seoProps = {
+    title: t('auth.seo.resetTitle'),
+    description: t('auth.seo.resetDescription'),
+    robots: 'noindex, follow',
+  };
+
   const maskedEmailFromLink = useMemo(() => maskEmail(emailFromLink), [emailFromLink]);
 
   useEffect(() => {
@@ -163,10 +170,7 @@ export default function ResetPasswordPage() {
     focus = true
   ) => (
     <div className="container auth-form">
-      <Seo
-        title={t('auth.seo.resetTitle')}
-        description={t('auth.seo.resetDescription')}
-      />
+      <Seo {...seoProps} />
       <h1 className="mb-3">{t('auth.passwordReset.reset.heading')}</h1>
       <div
         ref={focus ? tokenAlertRef : null}
@@ -188,10 +192,7 @@ export default function ResetPasswordPage() {
   if (token === null) {
     return (
       <div className="container auth-form">
-        <Seo
-          title={t('auth.seo.resetTitle')}
-          description={t('auth.seo.resetDescription')}
-        />
+        <Seo {...seoProps} />
       </div>
     );
   }
@@ -312,10 +313,7 @@ export default function ResetPasswordPage() {
 
   return (
     <div className="container auth-form">
-      <Seo
-        title={t('auth.seo.resetTitle')}
-        description={t('auth.seo.resetDescription')}
-      />
+      <Seo {...seoProps} />
       <h1 className="mb-3">{t('auth.passwordReset.reset.heading')}</h1>
       <p>{t('auth.passwordReset.reset.intro')}</p>
 
