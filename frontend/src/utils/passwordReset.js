@@ -27,7 +27,7 @@ export function saveMaskedEmailHint(email) {
     } else {
       sessionStorage.removeItem(STORAGE_KEY);
     }
-  } catch (error) {
+  } catch {
     // Ignore storage errors (e.g. quota exceeded or disabled storage)
   }
 }
@@ -42,7 +42,7 @@ export function consumeMaskedEmailHint() {
       sessionStorage.removeItem(STORAGE_KEY);
     }
     return stored;
-  } catch (error) {
+  } catch {
     return '';
   }
 }

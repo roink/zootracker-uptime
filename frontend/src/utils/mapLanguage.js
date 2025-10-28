@@ -49,7 +49,7 @@ export function applyBaseMapLanguage(map, language) {
       if (typeof map.setLayoutProperty !== 'function') return;
       try {
         map.setLayoutProperty(layer.id, 'text-field', textField);
-      } catch (error) {
+      } catch {
         // Ignore errors from attempts to update readonly layers.
       }
     });

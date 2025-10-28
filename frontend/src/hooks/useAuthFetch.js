@@ -18,7 +18,7 @@ export default function useAuthFetch() {
       if (authToken && tokenExpiresAt && tokenExpiresAt - now < REFRESH_THRESHOLD_MS) {
         try {
           authToken = await refreshAccessToken();
-        } catch (err) {
+        } catch {
           await logout({ reason: 'refresh_failed' });
           return fetch(input, { ...options, headers });
         }
@@ -45,7 +45,7 @@ export default function useAuthFetch() {
           await logout({ reason: '401' });
         }
         return response;
-      } catch (err) {
+      } catch {
         await logout({ reason: '401' });
         return response;
       }
