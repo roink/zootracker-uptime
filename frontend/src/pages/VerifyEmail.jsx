@@ -145,6 +145,7 @@ export default function VerifyEmailPage() {
       <Seo
         title={t('auth.seo.verifyTitle')}
         description={t('auth.seo.verifyDescription')}
+        robots="noindex, follow"
       />
       <h1 className="mb-3">{t('auth.verification.heading')}</h1>
       {(!isMagicLink || showForm) && <p>{t('auth.verification.intro')}</p>}

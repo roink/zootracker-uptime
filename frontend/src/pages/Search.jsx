@@ -146,6 +146,7 @@ export default function SearchPage() {
       <Seo
         title={t('searchPage.seoTitle')}
         description={t('searchPage.seoDescription')}
+        robots="noindex, follow"
       />
       <div className="mb-4">
         <h2 className="mb-2">

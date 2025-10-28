@@ -9,6 +9,7 @@ export default function Seo({
   image,
   canonical,
   jsonLd,
+  robots,
 }) {
   const { lang } = useParams();
   const activeLang =
@@ -26,6 +27,8 @@ export default function Seo({
       : `/${activeLang}`);
   const alternateUrl = `${siteUrl}${altPath.replace(/^\/(en|de)/, `/${other}`)}`;
   const xDefaultUrl = `${siteUrl}${altPath.replace(/^\/(en|de)/, '/en')}`;
+  const robotsContent =
+    typeof robots === 'string' && robots.trim().length > 0 ? robots : null;
   return (
     <Helmet>
       {/* Keep the html lang in sync for crawlers */}
@@ -54,6 +57,7 @@ export default function Seo({
       <meta name="twitter:title" content={title} />
       <meta name="twitter:description" content={description} />
       <meta name="twitter:image" content={imageUrl} />
+      {robotsContent ? <meta name="robots" content={robotsContent} /> : null}
       {jsonLd && (
         <script type="application/ld+json">
           {JSON.stringify(jsonLd, null, 2)}
@@ -69,4 +73,5 @@ Seo.propTypes = {
   image: PropTypes.string,
   canonical: PropTypes.string,
   jsonLd: PropTypes.oneOfType([PropTypes.object, PropTypes.array]),
+  robots: PropTypes.string,
 };
