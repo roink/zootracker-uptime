@@ -10,7 +10,7 @@ export async function requestVerificationEmailResend(email) {
   let data = {};
   try {
     data = await response.json();
-  } catch (err) {
+  } catch {
     data = {};
   }
   const detail = typeof data.detail === 'string' ? data.detail : undefined;
