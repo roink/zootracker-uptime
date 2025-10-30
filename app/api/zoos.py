@@ -1,3 +1,5 @@
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import exists, text
 from sqlalchemy.orm import Session, joinedload, load_only
@@ -20,13 +22,13 @@ def search_zoos(
     q: str = "",
     continent_id: int | None = None,
     country_id: int | None = None,
-    limit: int = Query(default=20, ge=1, le=10000),
-    offset: int = Query(default=0, ge=0),
+    limit: Annotated[int, Query(ge=1, le=10000)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
     coords: tuple[float | None, float | None] = Depends(resolve_coords),
     db: Session = Depends(get_db),
     user: models.User | None = Depends(get_optional_user),
     favorites_only: bool = False,
-):
+) -> schemas.ZooSearchPage:
     """Search for zoos by name, region and optional distance."""
 
     set_personalized_cache_headers(response)
@@ -100,7 +102,7 @@ def list_zoos_for_map(
     db: Session = Depends(get_db),
     user: models.User | None = Depends(get_optional_user),
     favorites_only: bool = False,
-):
+) -> list[schemas.ZooMapPoint]:
     """Return minimal data for plotting zoos on the world map."""
 
     set_personalized_cache_headers(response)
@@ -145,7 +147,7 @@ def list_zoos_for_map(
 
 
 @router.get("/zoos/continents", response_model=list[schemas.TaxonName])
-def list_continents(db: Session = Depends(get_db)):
+def list_continents(db: Session = Depends(get_db)) -> list[schemas.TaxonName]:
     """Return continents that have zoos."""
 
     continents = (
@@ -162,7 +164,9 @@ def list_continents(db: Session = Depends(get_db)):
 
 
 @router.get("/zoos/countries", response_model=list[schemas.TaxonName])
-def list_countries(continent_id: int, db: Session = Depends(get_db)):
+def list_countries(
+    continent_id: int, db: Session = Depends(get_db)
+) -> list[schemas.TaxonName]:
     """Return countries for a given continent that have zoos."""
 
     countries = (
@@ -194,7 +198,7 @@ def get_zoo(
     zoo_slug: str,
     db: Session = Depends(get_db),
     user: models.User | None = Depends(get_optional_user),
-):
+) -> models.Zoo:
     """Retrieve detailed information about a zoo."""
 
     set_personalized_cache_headers(response)
@@ -223,7 +227,7 @@ def mark_zoo_favorite(
     zoo_slug: str,
     db: Session = Depends(get_db),
     user: models.User = Depends(get_current_user),
-):
+) -> schemas.FavoriteStatus:
     """Mark a zoo as a favorite for the authenticated user."""
 
     zoo = _get_zoo_or_404(zoo_slug, db)
@@ -250,7 +254,7 @@ def unmark_zoo_favorite(
     zoo_slug: str,
     db: Session = Depends(get_db),
     user: models.User = Depends(get_current_user),
-):
+) -> schemas.FavoriteStatus:
     """Remove a zoo from the authenticated user's favorites."""
 
     zoo = _get_zoo_or_404(zoo_slug, db)
@@ -271,7 +275,7 @@ def has_visited_zoo(
     zoo_slug: str,
     db: Session = Depends(get_db),
     user: models.User = Depends(get_current_user),
-):
+) -> schemas.Visited:
     """Return whether the authenticated user has visited a given zoo."""
 
     zoo = _get_zoo_or_404(zoo_slug, db)
@@ -288,7 +292,7 @@ def has_visited_zoo(
                 models.AnimalSighting.zoo_id == zoo.id,
             )
         ).scalar()
-    return {"visited": bool(visited)}
+    return schemas.Visited(visited=bool(visited))
 
 
 @router.get(
@@ -298,11 +302,11 @@ def has_visited_zoo(
 def list_zoo_sightings(
     response: Response,
     zoo_slug: str,
-    limit: int = Query(default=50, ge=1, le=200),
-    offset: int = Query(default=0, ge=0),
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
     db: Session = Depends(get_db),
     user: models.User = Depends(get_current_user),
-):
+) -> schemas.AnimalSightingPage:
     """Return the authenticated user's sightings for a specific zoo."""
 
     zoo = _get_zoo_or_404(zoo_slug, db)
@@ -331,7 +335,7 @@ def list_zoo_animals(
     zoo_slug: str,
     db: Session = Depends(get_db),
     user: models.User | None = Depends(get_optional_user),
-):
+) -> list[schemas.AnimalRead]:
     """Return animals that are associated with a specific zoo."""
 
     set_personalized_cache_headers(response)

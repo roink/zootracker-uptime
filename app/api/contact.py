@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import os
 
-import bleach
+import bleach  # type: ignore[import-untyped]
 
 from fastapi import BackgroundTasks, APIRouter, Depends, HTTPException, Request, Response, status
 

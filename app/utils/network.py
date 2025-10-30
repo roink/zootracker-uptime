@@ -4,12 +4,16 @@ from __future__ import annotations
 
 import ipaddress
 
+from typing import Final
+
 from fastapi import Request
 
 _CF_LATITUDE_HEADER = "cf-iplatitude"
 _CF_LONGITUDE_HEADER = "cf-iplongitude"
 
-_TRUSTED_PROXY_RANGES = (
+_TRUSTED_PROXY_RANGES: Final[
+    tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...]
+] = (
     ipaddress.ip_network("127.0.0.0/8"),
     ipaddress.ip_network("10.0.0.0/8"),
     ipaddress.ip_network("172.16.0.0/12"),
@@ -41,7 +45,7 @@ def _is_trusted_proxy(host: str | None) -> bool:
 def get_client_ip(request: Request) -> str:
     """Return the originating client IP address for a request."""
 
-    host_ip = None
+    host_ip: str | None = None
     trusted_proxy = False
     if request.client and request.client.host:
         host_ip = _normalise_ip(request.client.host)

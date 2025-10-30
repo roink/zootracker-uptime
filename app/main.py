@@ -2,6 +2,7 @@
 
 import logging
 import os
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request, status
@@ -35,23 +36,30 @@ def _check_env_vars() -> None:
         "SMTP_HOST",
         "CONTACT_EMAIL",
     ]
-    missing = [
-        name for name in required if not (os.getenv(name) and os.getenv(name).strip())
-    ]
+    missing = []
+    for name in required:
+        value = os.getenv(name)
+        if value is None or not value.strip():
+            missing.append(name)
     if missing:
         missing_str = ", ".join(missing)
         raise RuntimeError(f"Missing required environment variables: {missing_str}")
 
-    secret_key = (os.getenv("SECRET_KEY") or "").strip()
+    secret_key_env = os.getenv("SECRET_KEY")
+    secret_key = secret_key_env.strip() if secret_key_env else ""
     if len(secret_key) < 32:
         raise RuntimeError("SECRET_KEY must be at least 32 characters long")
 
-    contact_email = (os.getenv("CONTACT_EMAIL") or "").strip()
+    contact_email_env = os.getenv("CONTACT_EMAIL")
+    contact_email = contact_email_env.strip() if contact_email_env else ""
     if "@" not in contact_email:
         raise RuntimeError("CONTACT_EMAIL must be a valid email address")
 
-    raw_origins = os.getenv("ALLOWED_ORIGINS", "")
-    origins = [origin.strip() for origin in raw_origins.split(",") if origin.strip()]
+    raw_origins_env = os.getenv("ALLOWED_ORIGINS")
+    if raw_origins_env:
+        origins = [origin.strip() for origin in raw_origins_env.split(",") if origin.strip()]
+    else:
+        origins = []
     if not origins:
         raise RuntimeError(
             "ALLOWED_ORIGINS must contain at least one comma-separated origin"
@@ -59,7 +67,7 @@ def _check_env_vars() -> None:
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     _check_env_vars()
     yield
 
@@ -90,7 +98,9 @@ def _set_request_id_header(response: Response, request: Request) -> None:
         response.headers["X-Request-ID"] = request_id
 
 @app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request: Request, exc: RequestValidationError):
+async def validation_exception_handler(
+    request: Request, exc: RequestValidationError
+) -> Response:
     """Log validation errors and return the standard 422 response."""
 
     errors = exc.errors()
@@ -118,7 +128,9 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 
 @app.exception_handler(HTTPException)
-async def http_exception_handler_logged(request: Request, exc: HTTPException):
+async def http_exception_handler_logged(
+    request: Request, exc: HTTPException
+) -> Response:
     """Log HTTP exceptions with path and user information."""
 
     level = logging.ERROR if exc.status_code >= 500 else logging.WARNING
@@ -146,7 +158,9 @@ async def http_exception_handler_logged(request: Request, exc: HTTPException):
 
 
 @app.exception_handler(SQLAlchemyError)
-async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError):
+async def sqlalchemy_exception_handler(
+    request: Request, exc: SQLAlchemyError
+) -> Response:
     """Convert transient database errors into a cache-friendly 503 response."""
 
     logger.exception(
@@ -175,7 +189,7 @@ async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError):
 
 
 @app.exception_handler(Exception)
-async def unhandled_exception_handler(request: Request, exc: Exception):
+async def unhandled_exception_handler(request: Request, exc: Exception) -> Response:
     """Ensure all responses include the request id header on failure."""
 
     response = ORJSONResponse(
@@ -187,7 +201,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 
 
 @app.get("/")
-def read_root():
+def read_root() -> dict[str, str]:
     """Health check endpoint for the API."""
     return {"message": "Zoo Tracker API"}
 

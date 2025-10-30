@@ -17,9 +17,10 @@ schema matches the ORM model after the function runs.
 from datetime import datetime, timezone
 import re
 from sqlalchemy import inspect, text
+from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.orm import Session
 from sqlalchemy.schema import CreateColumn
-from sqlalchemy.exc import ProgrammingError
+from typing import SupportsInt
 
 # ``models`` is imported lazily inside ``_ensure_animal_columns`` to avoid a
 # circular import during normal application start-up.
@@ -154,7 +155,7 @@ def _parse_datetime(value: str | None) -> datetime | None:
     return dt
 
 
-def normalize_art_value(value):
+def normalize_art_value(value: SupportsInt | str | None) -> int | None:
     """Normalize raw ``art`` identifiers from source tables to integers."""
 
     if value is None:

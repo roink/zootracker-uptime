@@ -4,17 +4,21 @@ from fastapi import HTTPException, Request, status
 
 
 def validate_coords(latitude: float | None, longitude: float | None) -> None:
-    if (latitude is None) ^ (longitude is None):
+    if latitude is None or longitude is None:
+        if latitude is None and longitude is None:
+            return
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Provide both latitude and longitude together."
+            detail="Provide both latitude and longitude together.",
         )
-    if latitude is None:
-        return
     if not (-90 <= latitude <= 90):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid latitude")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid latitude"
+        )
     if not (-180 <= longitude <= 180):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid longitude")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid longitude"
+        )
 
 
 def get_request_coords(

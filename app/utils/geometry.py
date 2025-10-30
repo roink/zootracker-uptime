@@ -1,6 +1,6 @@
 """Geometry utilities for distance calculations."""
 
-from typing import Optional
+from __future__ import annotations
 
 from sqlalchemy import cast, func, or_
 from sqlalchemy.orm import Query
@@ -11,14 +11,14 @@ from .. import models
 
 def query_zoos_with_distance(
     query: Query,
-    latitude: Optional[float],
-    longitude: Optional[float],
-    radius_km: Optional[float] = None,
+    latitude: float | None,
+    longitude: float | None,
+    radius_km: float | None = None,
     include_no_coords: bool = False,
     *,
-    limit: Optional[int] = None,
+    limit: int | None = None,
     offset: int = 0,
-) -> list[tuple[models.Zoo, Optional[float]]]:
+) -> list[tuple[models.Zoo, float | None]]:
     """Return zoos paired with distance in kilometers ordered by proximity.
 
     The ``query`` should return :class:`~app.models.Zoo` rows. Distance is

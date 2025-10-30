@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from typing import Dict
+from typing import Any, Dict
 
 from sqlalchemy import Table, bindparam, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -47,7 +47,7 @@ def import_links(
     _update_counts(dst)
 
 
-def _flush_batch(dst: Session, stmt, batch: list[dict], processed: int) -> int:
+def _flush_batch(dst: Session, stmt: Any, batch: list[dict], processed: int) -> int:
     try:
         dst.execute(stmt, batch)
     except Exception as exc:  # pragma: no cover - defensive

@@ -13,7 +13,7 @@ router = APIRouter()
 def list_visits(
     db: Session = Depends(get_db),
     user: models.User = Depends(get_current_user),
-):
+) -> list[models.ZooVisit]:
     """List all visits for the authenticated user."""
     return db.query(models.ZooVisit).filter_by(user_id=user.id).all()
 
@@ -23,7 +23,7 @@ def list_visited_zoo_ids(
     response: Response,
     db: Session = Depends(get_db),
     user: models.User = Depends(get_current_user),
-):
+) -> list[UUID]:
     """Return unique zoo IDs where the user has a visit or sighting.
 
     A zoo is considered *visited* when there is a :class:`ZooVisit` row or at

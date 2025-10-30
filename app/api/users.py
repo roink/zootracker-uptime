@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime, timezone
+from typing import Annotated
 
 from fastapi import (
     APIRouter,
@@ -12,7 +13,8 @@ from fastapi import (
     status,
 )
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session, joinedload, load_only
+from sqlalchemy.orm import Query as SAQuery, Session, joinedload, load_only
+from sqlalchemy.sql.selectable import Subquery
 
 from .. import schemas, models
 from ..auth import get_current_user, get_user, hash_password
@@ -42,7 +44,7 @@ def ensure_same_user(user_id: uuid.UUID, current_user: models.User) -> None:
         )
 
 
-def _visited_zoo_ids_subquery(db: Session, user_id: uuid.UUID):
+def _visited_zoo_ids_subquery(db: Session, user_id: uuid.UUID) -> Subquery:
     """Return a subquery selecting zoo IDs the user has visited."""
 
     visits = (
@@ -72,13 +74,13 @@ def _favorite_zoo_ids(db: Session, user_id: uuid.UUID) -> set[uuid.UUID]:
 
 
 def _build_user_zoo_page(
-    query,
+    query: SAQuery[models.Zoo],
     latitude: float | None,
     longitude: float | None,
     limit: int,
     offset: int,
     favorite_ids: set[uuid.UUID] | None = None,
-):
+) -> schemas.ZooSearchPage:
     """Execute a paginated zoo query and serialize the response."""
 
     favorite_ids = favorite_ids or set()
@@ -114,7 +116,7 @@ def _build_user_zoo_page(
     )
 
 
-def _serialize_map_points(zoos: list[models.Zoo]):
+def _serialize_map_points(zoos: list[models.Zoo]) -> list[schemas.ZooMapPoint]:
     """Transform zoos into lightweight map points."""
 
     return [
@@ -140,7 +142,7 @@ def create_user(
     request: Request,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-):
+) -> schemas.Message:
     """Register a new user with a hashed password."""
     existing_user = get_user(db, user_in.email)
     if existing_user:
@@ -181,12 +183,12 @@ def list_user_visited_zoos(
     q: str = "",
     continent_id: int | None = None,
     country_id: int | None = None,
-    limit: int = Query(default=20, ge=1, le=10000),
-    offset: int = Query(default=0, ge=0),
+    limit: Annotated[int, Query(ge=1, le=10000)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
     coords: tuple[float | None, float | None] = Depends(resolve_coords),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
-):
+) -> schemas.ZooSearchPage:
     """Return zoos visited by the authenticated user with pagination."""
 
     ensure_same_user(user_id, current_user)
@@ -218,12 +220,12 @@ def list_user_not_visited_zoos(
     q: str = "",
     continent_id: int | None = None,
     country_id: int | None = None,
-    limit: int = Query(default=20, ge=1, le=10000),
-    offset: int = Query(default=0, ge=0),
+    limit: Annotated[int, Query(ge=1, le=10000)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
     coords: tuple[float | None, float | None] = Depends(resolve_coords),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
-):
+) -> schemas.ZooSearchPage:
     """Return zoos the authenticated user has not yet visited."""
 
     ensure_same_user(user_id, current_user)
@@ -254,7 +256,7 @@ def list_user_visited_zoos_for_map(
     country_id: int | None = None,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
-):
+) -> list[schemas.ZooMapPoint]:
     """Return lightweight map data for zoos visited by the user."""
 
     ensure_same_user(user_id, current_user)
@@ -293,7 +295,7 @@ def list_user_not_visited_zoos_for_map(
     country_id: int | None = None,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
-):
+) -> list[schemas.ZooMapPoint]:
     """Return map data for zoos the user has not visited."""
 
     ensure_same_user(user_id, current_user)
@@ -324,7 +326,7 @@ def list_seen_animals(
     user_id: uuid.UUID,
     db: Session = Depends(get_db),
     user: models.User = Depends(get_current_user),
-):
+) -> list[models.Animal]:
     """Return all unique animals seen by the specified user."""
     ensure_same_user(user_id, user)
     animals = (
@@ -342,7 +344,7 @@ def list_seen_animal_ids(
     user_id: uuid.UUID,
     db: Session = Depends(get_db),
     user: models.User = Depends(get_current_user),
-):
+) -> list[uuid.UUID]:
     """Return IDs of unique animals seen by the specified user."""
     ensure_same_user(user_id, user)
     ids = (
@@ -359,7 +361,7 @@ def count_seen_animals(
     user_id: uuid.UUID,
     db: Session = Depends(get_db),
     user: models.User = Depends(get_current_user),
-):
+) -> schemas.Count:
     """Return the number of unique animals seen by the specified user."""
     ensure_same_user(user_id, user)
     count = (
@@ -367,4 +369,4 @@ def count_seen_animals(
         .filter(models.AnimalSighting.user_id == user_id)
         .scalar()
     ) or 0
-    return {"count": count}
+    return schemas.Count(count=count)

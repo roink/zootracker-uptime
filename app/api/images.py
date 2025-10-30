@@ -19,7 +19,7 @@ def get_image_metadata(
     mid: str = Query(..., description="Wikimedia Commons media ID"),
     response: Response,
     db: Session = Depends(get_db),
-):
+) -> schemas.ImageAttribution:
     """Return image attribution metadata for the given media id."""
     image = (
         db.query(models.Image)

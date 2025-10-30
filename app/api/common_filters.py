@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable, Sequence
+import re
+from typing import Any
 
 from fastapi import HTTPException, status
 from sqlalchemy import and_, func, literal, or_
@@ -52,7 +54,7 @@ def _build_pattern(value: str) -> str:
     return f"%{escaped}%"
 
 
-def _with_unaccent(expr, dialect: str):
+def _with_unaccent(expr: Any, dialect: str) -> Any:
     """Wrap the expression with the immutable f_unaccent helper when available."""
 
     if dialect == "postgresql":
@@ -63,7 +65,7 @@ def _with_unaccent(expr, dialect: str):
 def apply_tokenized_text_filter(
     query: SQLAQuery,
     q: str,
-    columns: Sequence,
+    columns: Sequence[Any],
     *,
     ignored_terms: Iterable[str] | None = None,
     suffixes: Iterable[str] | None = None,
@@ -159,7 +161,7 @@ def validate_region_filters(
 
 def apply_zoo_filters(
     query: SQLAQuery, q: str, continent_id: int | None, country_id: int | None
-):
+) -> SQLAQuery:
     """Apply textual and region filters to a base zoo query."""
 
     query = apply_tokenized_text_filter(

@@ -14,6 +14,7 @@ from fastapi import HTTPException, Request
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
+from starlette.types import ASGIApp
 
 from ..logging import anonymize_ip, bind_request_context, reset_request_context
 from ..logging import set_user_context  # re-exported for convenience
@@ -38,7 +39,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 
     noise_paths = {"/health", "/healthz", "/ready", "/live"}
 
-    def __init__(self, app) -> None:  # type: ignore[override]
+    def __init__(self, app: ASGIApp) -> None:  # type: ignore[override]
         super().__init__(app)
         self.logger = logging.getLogger("app.access")
         self.sample_rate = max(0.0, min(1.0, _load_float_env("ACCESS_LOG_SAMPLE", 1.0)))

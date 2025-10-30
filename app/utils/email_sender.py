@@ -133,13 +133,25 @@ def send_email_via_smtp(
 
     attempts: list[str] = []
 
+    host = settings.host
+    if not host:
+        logger.error(
+            send_failure[0],
+            extra=_build_log_extra(
+                base=log_extra,
+                attempts=attempts,
+                action=send_failure[1],
+            ),
+        )
+        return
+
     def _deliver(via_ssl: bool) -> None:
         label = "ssl" if via_ssl else "starttls"
         attempts.append(label)
         if via_ssl:
             def factory() -> smtplib.SMTP:
                 return smtplib.SMTP_SSL(
-                    settings.host,
+                    host,
                     settings.port,
                     context=context,
                     timeout=settings.timeout,
@@ -148,7 +160,7 @@ def send_email_via_smtp(
         else:
             def factory() -> smtplib.SMTP:
                 return smtplib.SMTP(
-                    settings.host,
+                    host,
                     settings.port,
                     timeout=settings.timeout,
                 )
@@ -172,17 +184,6 @@ def send_email_via_smtp(
             if settings.user and settings.password:
                 server.login(settings.user, settings.password)
             server.send_message(message)
-
-    if not settings.host:
-        logger.error(
-            send_failure[0],
-            extra=_build_log_extra(
-                base=log_extra,
-                attempts=attempts,
-                action=send_failure[1],
-            ),
-        )
-        return
 
     try:
         _deliver(settings.use_ssl)

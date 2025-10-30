@@ -1,5 +1,7 @@
 """Animal sighting models."""
 
+from __future__ import annotations
+
 import uuid
 
 from sqlalchemy import Column, DateTime, ForeignKey, Index, String, Text, text
@@ -70,21 +72,21 @@ class AnimalSighting(Base):
     animal = relationship("Animal", back_populates="sightings")
 
     @property
-    def animal_name_de(self):
+    def animal_name_de(self) -> str | None:
         """Return the German name for the sighted animal if available."""
         if self.animal is None:
             return None
         return self.animal.name_de or self.animal.name_en
 
     @property
-    def animal_name_en(self):
+    def animal_name_en(self) -> str | None:
         """Return the English name for the sighted animal if available."""
         if self.animal is None:
             return None
         return self.animal.name_en or self.animal.name_de
 
     @property
-    def zoo_name(self):
+    def zoo_name(self) -> str | None:
         """Return the name of the zoo where the sighting occurred."""
         if self.zoo is None:
             return None

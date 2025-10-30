@@ -6,6 +6,7 @@ import hashlib
 import hmac
 import logging
 import secrets
+from email.message import EmailMessage
 from datetime import UTC, datetime, timedelta
 from urllib.parse import quote_plus
 
@@ -20,7 +21,12 @@ from ..config import (
     EMAIL_VERIFICATION_TTL_MINUTES,
     TOKEN_PEPPER,
 )
-from .email_sender import build_email, load_smtp_settings, send_email_via_smtp
+from .email_sender import (
+    SMTPSettings,
+    build_email,
+    load_smtp_settings,
+    send_email_via_smtp,
+)
 
 logger = logging.getLogger("app.email_verification")
 
@@ -119,7 +125,7 @@ def build_verification_email(
     *,
     token: str,
     code: str,
-):
+) -> tuple[SMTPSettings, EmailMessage]:
     """Compose the plain-text verification email for ``user``."""
 
     base_url = APP_BASE_URL.rstrip("/") or "http://localhost:5173"
@@ -164,16 +170,17 @@ def enqueue_verification_email(
     """Schedule delivery of the verification email if SMTP is configured."""
 
     settings, message = build_verification_email(user, token=token, code=code)
+    log_extra: dict[str, str] = {"verification_user_id": str(user.id)}
     if not settings.host:
         logger.error(
             "Email service misconfigured for verification email",
-            extra={"verification_user_id": str(user.id)},
+            extra=log_extra,
         )
         return
     if execute_immediately:
         logger.info(
             "Sending verification email immediately",
-            extra={"verification_user_id": str(user.id)},
+            extra=log_extra,
         )
         try:
             send_email_via_smtp(
@@ -192,12 +199,12 @@ def enqueue_verification_email(
                     "Failed to send verification email",
                     "verification_email_failed",
                 ),
-                log_extra={"verification_user_id": str(user.id)},
+                log_extra=log_extra,
             )
         except Exception:
             logger.exception(
                 "Immediate verification email delivery failed",
-                extra={"verification_user_id": str(user.id)},
+                extra=log_extra,
             )
         return
     background_tasks.add_task(
@@ -217,7 +224,7 @@ def enqueue_verification_email(
             "Failed to send verification email",
             "verification_email_failed",
         ),
-        log_extra={"verification_user_id": str(user.id)},
+        log_extra=log_extra,
     )
 
 

@@ -29,7 +29,7 @@ def create_sighting(
     sighting_in: schemas.AnimalSightingCreate,
     db: Session = Depends(get_db),
     user: models.User = Depends(get_current_user),
-):
+) -> models.AnimalSighting:
     """Record an animal sighting for the authenticated user."""
 
     if db.get(models.Zoo, sighting_in.zoo_id) is None:
@@ -66,7 +66,7 @@ def read_sighting(
     sighting_id: uuid.UUID,
     db: Session = Depends(get_db),
     user: models.User = Depends(get_current_user),
-):
+) -> models.AnimalSighting:
     """Retrieve a single sighting owned by the current user."""
 
     sighting = (
@@ -101,7 +101,7 @@ def update_sighting(
     sighting_in: schemas.AnimalSightingUpdate,
     db: Session = Depends(get_db),
     user: models.User = Depends(get_current_user),
-):
+) -> models.AnimalSighting:
     """Update fields of a sighting owned by the current user."""
 
     sighting = db.get(models.AnimalSighting, sighting_id)
@@ -150,7 +150,7 @@ def update_sighting(
 def list_sightings(
     db: Session = Depends(get_db),
     user: models.User = Depends(get_current_user),
-):
+) -> list[models.AnimalSighting]:
     """Retrieve all animal sightings recorded by the current user."""
 
     query = build_user_sightings_query(db, user.id)
@@ -162,7 +162,7 @@ def delete_sighting(
     sighting_id: uuid.UUID,
     db: Session = Depends(get_db),
     user: models.User = Depends(get_current_user),
-):
+) -> Response:
     """Delete an animal sighting if owned by the current user."""
 
     sighting = db.get(models.AnimalSighting, sighting_id)

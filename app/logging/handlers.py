@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import os
+from io import TextIOWrapper
 from logging.handlers import WatchedFileHandler
 
 
 class SecureWatchedFileHandler(WatchedFileHandler):
     """File handler enforcing restrictive file permissions."""
 
-    def _open(self):  # noqa: D401
+    def _open(self) -> TextIOWrapper:  # noqa: D401
         stream = super()._open()
         try:
             os.chmod(self.baseFilename, 0o600)
