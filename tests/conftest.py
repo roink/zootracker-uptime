@@ -55,7 +55,7 @@ else:
 # run the test suite without provisioning a dedicated database. Individual
 # environments can still override DATABASE_URL before importing the fixtures.
 DEFAULT_TEST_DATABASE_URL = (
-    "postgresql://postgres:postgres@localhost:5432/postgres"
+    "postgresql+psycopg://postgres:postgres@localhost:5432/postgres"
 )
 DATABASE_URL = os.getenv("DATABASE_URL", DEFAULT_TEST_DATABASE_URL)
 

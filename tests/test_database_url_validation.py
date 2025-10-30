@@ -40,7 +40,8 @@ def test_insecure_placeholder_allowed_in_dev(monkeypatch):
     try:
         monkeypatch.setenv("APP_ENV", "development")
         monkeypatch.setenv(
-            "DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/postgres"
+            "DATABASE_URL",
+            "postgresql+psycopg://postgres:postgres@localhost:5432/postgres",
         )
 
         # Should not raise during reload in development.
@@ -59,7 +60,8 @@ def test_insecure_placeholder_blocked_in_production(monkeypatch):
     try:
         monkeypatch.setenv("APP_ENV", "production")
         monkeypatch.setenv(
-            "DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/postgres"
+            "DATABASE_URL",
+            "postgresql+psycopg://postgres:postgres@localhost:5432/postgres",
         )
 
         with pytest.raises(RuntimeError, match="Refusing to start in production"):

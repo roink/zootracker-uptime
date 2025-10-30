@@ -29,7 +29,7 @@ database and execute:
 
 ```bash
 docker compose up -d db
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres pytest --pg
+DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/postgres pytest --pg
 ```
 
 Frontend clustering is covered by dedicated tests. To confirm the structural

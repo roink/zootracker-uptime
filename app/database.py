@@ -18,7 +18,7 @@ if not DATABASE_URL:
         "DATABASE_URL environment variable is required to connect to PostgreSQL"
     )
 
-placeholder = "postgresql://postgres:postgres@"
+placeholder = "postgresql+psycopg://postgres:postgres@"
 if APP_ENV == "production" and placeholder in DATABASE_URL:
     raise RuntimeError(
         "Refusing to start in production with the legacy postgres:postgres placeholder in DATABASE_URL."
