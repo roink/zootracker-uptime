@@ -7,7 +7,7 @@
     app_root: /opt/zoo_tracker
     venv_path: /opt/zoo_tracker/venv
     python_executable: /usr/bin/python3.14
-    local_project_path: "{{ playbook_dir | dirname }}"
+    local_project_path: "{{ playbook_dir | path_join('..') | realpath }}"
 
   tasks:
     - name: Ensure Deadsnakes PPA is configured
@@ -53,7 +53,6 @@
           - --exclude=.git
           - --exclude=venv
           - --exclude=frontend/node_modules
-          - --exclude=__pycache__
           - --exclude=.pytest_cache
           - --exclude=*.pyc
           - --exclude=*.pyo
