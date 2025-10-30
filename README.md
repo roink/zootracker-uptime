@@ -15,7 +15,7 @@ environment variable to connect.
 cp .env.example .env
 docker compose up -d db
 python -m app.create_tables
-gunicorn -k uvicorn.workers.UvicornWorker -w 5 app.main:app
+gunicorn -k uvicorn_worker.UvicornWorker -w 5 app.main:app
 ```
 
 The API will be available at `http://localhost:8000` and the database listens on `localhost:5432`.
