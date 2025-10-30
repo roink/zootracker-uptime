@@ -1,5 +1,5 @@
 import uuid
-from typing import Annotated
+from typing import Annotated, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import or_, text
@@ -43,12 +43,13 @@ router = APIRouter()
 def _get_animal_or_404(animal_slug: str, db: Session) -> models.Animal:
     """Return an animal by slug or raise a 404 error."""
 
-    animal = (
+    result = (
         db.query(models.Animal)
         .options(load_only(models.Animal.id, models.Animal.slug))
         .filter(models.Animal.slug == animal_slug)
         .first()
     )
+    animal = cast(models.Animal | None, result)
     if animal is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Animal not found"

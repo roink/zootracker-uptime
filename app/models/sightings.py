@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import uuid
 
+from typing import cast
+
 from sqlalchemy import Column, DateTime, ForeignKey, Index, String, Text, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -76,18 +78,18 @@ class AnimalSighting(Base):
         """Return the German name for the sighted animal if available."""
         if self.animal is None:
             return None
-        return self.animal.name_de or self.animal.name_en
+        return cast(str | None, self.animal.name_de or self.animal.name_en)
 
     @property
     def animal_name_en(self) -> str | None:
         """Return the English name for the sighted animal if available."""
         if self.animal is None:
             return None
-        return self.animal.name_en or self.animal.name_de
+        return cast(str | None, self.animal.name_en or self.animal.name_de)
 
     @property
     def zoo_name(self) -> str | None:
         """Return the name of the zoo where the sighting occurred."""
         if self.zoo is None:
             return None
-        return self.zoo.name
+        return cast(str | None, self.zoo.name)

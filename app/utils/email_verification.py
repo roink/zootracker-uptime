@@ -8,6 +8,7 @@ import logging
 import secrets
 from email.message import EmailMessage
 from datetime import UTC, datetime, timedelta
+from typing import cast
 from urllib.parse import quote_plus
 
 from fastapi import BackgroundTasks
@@ -267,10 +268,11 @@ def get_latest_token(
 ) -> models.VerificationToken | None:
     """Return the most recent verification token for the user."""
 
-    return (
+    result = (
         db.query(models.VerificationToken)
         .filter(models.VerificationToken.user_id == user.id)
         .filter(models.VerificationToken.kind == _EMAIL_KIND)
         .order_by(models.VerificationToken.created_at.desc())
         .first()
     )
+    return cast(models.VerificationToken | None, result)

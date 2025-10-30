@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import uuid
 
+from typing import cast
+
 from sqlalchemy import func, select
 from sqlalchemy.orm import Query, Session, joinedload
 
@@ -36,6 +38,7 @@ def count_query_rows(query: Query) -> int:
     """Return the number of rows a SQLAlchemy 1.x Query would emit."""
 
     subquery = query.order_by(None).subquery()
-    return query.session.execute(
+    result = query.session.execute(
         select(func.count()).select_from(subquery)
     ).scalar_one()
+    return cast(int, result)

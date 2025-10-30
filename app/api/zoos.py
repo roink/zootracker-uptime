@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import exists, text
@@ -186,7 +186,8 @@ def list_countries(
 def _get_zoo_or_404(zoo_slug: str, db: Session) -> models.Zoo:
     """Return a zoo by slug or raise a 404 error."""
 
-    zoo = db.query(models.Zoo).filter(models.Zoo.slug == zoo_slug).first()
+    result = db.query(models.Zoo).filter(models.Zoo.slug == zoo_slug).first()
+    zoo = cast(models.Zoo | None, result)
     if zoo is None:
         raise HTTPException(status_code=404, detail="Zoo not found")
     return zoo

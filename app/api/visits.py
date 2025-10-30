@@ -1,6 +1,8 @@
+from typing import cast
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
-from uuid import UUID
 
 from .. import models, schemas
 from ..database import get_db
@@ -15,7 +17,8 @@ def list_visits(
     user: models.User = Depends(get_current_user),
 ) -> list[models.ZooVisit]:
     """List all visits for the authenticated user."""
-    return db.query(models.ZooVisit).filter_by(user_id=user.id).all()
+    visits = db.query(models.ZooVisit).filter_by(user_id=user.id).all()
+    return cast(list[models.ZooVisit], visits)
 
 
 @router.get("/visits/ids", response_model=list[UUID])

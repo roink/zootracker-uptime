@@ -7,6 +7,7 @@ import logging
 import secrets
 from datetime import UTC, datetime, timedelta
 from email.message import EmailMessage
+from typing import cast
 
 from fastapi import BackgroundTasks
 from sqlalchemy.orm import Session
@@ -126,13 +127,14 @@ def get_reset_token(
     """Return the password reset token matching ``token`` if it exists."""
 
     hashed = _hash_secret(token)
-    return (
+    result = (
         db.query(models.VerificationToken)
         .filter(models.VerificationToken.kind == _KIND)
         .filter(models.VerificationToken.token_hash == hashed)
         .order_by(models.VerificationToken.created_at.desc())
         .first()
     )
+    return cast(models.VerificationToken | None, result)
 
 
 def consume_reset_token(

@@ -9,7 +9,7 @@ import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 import bcrypt
 from fastapi import Depends, HTTPException, status
@@ -92,13 +92,13 @@ def _maybe_touch_last_active(
 def hash_password(password: str) -> str:
     """Return a hashed password for storage using bcrypt with SHA-256 pre-hashing."""
 
-    return pwd_context.hash(password)
+    return cast(str, pwd_context.hash(password))
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against the stored hash using bcrypt with SHA-256 pre-hashing."""
 
-    return pwd_context.verify(plain_password, hashed_password)
+    return cast(bool, pwd_context.verify(plain_password, hashed_password))
 
 
 def create_access_token(
@@ -141,12 +141,13 @@ def decode_access_token(token: str) -> dict[str, Any]:
     kwargs: dict[str, Any] = {"options": options}
     if ACCESS_TOKEN_LEEWAY and _DECODE_SUPPORTS_LEEWAY:
         kwargs["leeway"] = ACCESS_TOKEN_LEEWAY
-    return jwt.decode(
+    decoded = jwt.decode(
         token,
         JWT_VERIFYING_KEY,
         algorithms=[JWT_ALGORITHM],
         **kwargs,
     )
+    return cast(dict[str, Any], decoded)
 
 
 def get_user(db: Session, email: str) -> models.User | None:
@@ -156,11 +157,12 @@ def get_user(db: Session, email: str) -> models.User | None:
     if not normalized:
         return None
     lowered = normalized.lower()
-    return (
+    result = (
         db.query(models.User)
         .filter(sa.func.lower(models.User.email) == lowered)
         .first()
     )
+    return cast(models.User | None, result)
 
 
 def get_current_user(
@@ -187,7 +189,7 @@ def get_current_user(
     except ValueError:
         raise credentials_exception
 
-    user = db.get(models.User, uuid_val)
+    user = cast(models.User | None, db.get(models.User, uuid_val))
     if user is None:
         raise credentials_exception
     set_user_context(str(user.id))
@@ -222,7 +224,7 @@ def get_optional_user(
     except ValueError:
         raise credentials_exception
 
-    user = db.get(models.User, uuid_val)
+    user = cast(models.User | None, db.get(models.User, uuid_val))
     if user is None:
         raise credentials_exception
     set_user_context(str(user.id))

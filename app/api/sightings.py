@@ -2,6 +2,7 @@
 
 import logging
 import uuid
+from typing import cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
@@ -69,7 +70,7 @@ def read_sighting(
 ) -> models.AnimalSighting:
     """Retrieve a single sighting owned by the current user."""
 
-    sighting = (
+    result = (
         db.query(models.AnimalSighting)
         .options(
             joinedload(models.AnimalSighting.animal),
@@ -78,6 +79,7 @@ def read_sighting(
         .filter(models.AnimalSighting.id == sighting_id)
         .first()
     )
+    sighting = cast(models.AnimalSighting | None, result)
     if sighting is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -104,7 +106,9 @@ def update_sighting(
 ) -> models.AnimalSighting:
     """Update fields of a sighting owned by the current user."""
 
-    sighting = db.get(models.AnimalSighting, sighting_id)
+    sighting = cast(
+        models.AnimalSighting | None, db.get(models.AnimalSighting, sighting_id)
+    )
     if sighting is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Sighting not found"
@@ -154,7 +158,8 @@ def list_sightings(
     """Retrieve all animal sightings recorded by the current user."""
 
     query = build_user_sightings_query(db, user.id)
-    return apply_recent_first_order(query).all()
+    sightings = apply_recent_first_order(query).all()
+    return cast(list[models.AnimalSighting], sightings)
 
 
 @router.delete("/sightings/{sighting_id}", status_code=status.HTTP_204_NO_CONTENT)

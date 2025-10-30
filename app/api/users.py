@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from typing import Annotated
+from typing import Annotated, cast
 
 from fastapi import (
     APIRouter,
@@ -336,7 +336,7 @@ def list_seen_animals(
         .distinct()
         .all()
     )
-    return animals
+    return cast(list[models.Animal], animals)
 
 
 @router.get("/users/{user_id}/animals/ids", response_model=list[uuid.UUID])
@@ -347,13 +347,14 @@ def list_seen_animal_ids(
 ) -> list[uuid.UUID]:
     """Return IDs of unique animals seen by the specified user."""
     ensure_same_user(user_id, user)
-    ids = (
+    raw_ids = (
         db.query(models.AnimalSighting.animal_id)
         .filter(models.AnimalSighting.user_id == user_id)
         .distinct()
         .all()
     )
-    return [row[0] for row in ids]
+    rows = cast(list[tuple[uuid.UUID]], raw_ids)
+    return [row[0] for row in rows]
 
 
 @router.get("/users/{user_id}/animals/count", response_model=schemas.Count)
@@ -364,9 +365,10 @@ def count_seen_animals(
 ) -> schemas.Count:
     """Return the number of unique animals seen by the specified user."""
     ensure_same_user(user_id, user)
-    count = (
+    count_value = (
         db.query(func.count(func.distinct(models.AnimalSighting.animal_id)))
         .filter(models.AnimalSighting.user_id == user_id)
         .scalar()
-    ) or 0
-    return schemas.Count(count=count)
+    )
+    total = cast(int | None, count_value) or 0
+    return schemas.Count(count=total)
