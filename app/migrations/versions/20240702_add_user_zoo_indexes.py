@@ -2,7 +2,6 @@
 
 from alembic import op
 
-
 # revision identifiers, used by Alembic.
 revision = "20240702_add_user_zoo_indexes"
 down_revision = None

@@ -6,7 +6,6 @@ import logging
 import re
 import uuid
 from datetime import datetime, timezone
-from typing import Dict
 
 from sqlalchemy import Table, bindparam, select
 from sqlalchemy.orm import Session
@@ -25,7 +24,7 @@ def import_images(
     dst: Session,
     image_table: Table,
     variant_table: Table,
-    animal_map: Dict[int | str, uuid.UUID],
+    animal_map: dict[int | str, uuid.UUID],
     *,
     overwrite: bool = False,
 ) -> None:
@@ -33,7 +32,7 @@ def import_images(
 
     img_rows = list(src.execute(select(image_table)).mappings())
     images: list[models.Image] = []
-    mid_to_animal: Dict[str, uuid.UUID] = {}
+    mid_to_animal: dict[str, uuid.UUID] = {}
     existing = {img.mid: img for img in dst.execute(select(models.Image)).scalars()}
     banned_license_skips = 0
 
@@ -136,7 +135,7 @@ def import_images(
 
     var_rows = list(src.execute(select(variant_table)).mappings())
     variants: list[models.ImageVariant] = []
-    best_variant: Dict[uuid.UUID, tuple[int, str]] = {}
+    best_variant: dict[uuid.UUID, tuple[int, str]] = {}
     existing_vars = set(
         dst.execute(select(models.ImageVariant.mid, models.ImageVariant.width)).all()
     )
@@ -144,8 +143,8 @@ def import_images(
         mid = row.get("mid")
         if mid in BANNED_MIDS or mid not in mid_to_animal:
             continue
-        key = (mid, row.get("width"))
-        if key in existing_vars:
+        variant_key = (mid, row.get("width"))
+        if variant_key in existing_vars:
             continue
         variants.append(
             models.ImageVariant(
@@ -157,13 +156,17 @@ def import_images(
         )
         animal_id = mid_to_animal.get(mid)
         if animal_id:
-            width = row.get("width")
-            url = row.get("thumb_url")
+            width_value = row.get("width")
+            url_value = row.get("thumb_url")
+            if not (isinstance(width_value, int) and width_value > 0):
+                continue
+            if not (isinstance(url_value, str) and url_value):
+                continue
             current = best_variant.get(animal_id)
             if current is None or (
-                current[0] != 640 and (width == 640 or width > current[0])
+                current[0] != 640 and (width_value == 640 or width_value > current[0])
             ):
-                best_variant[animal_id] = (width, url)
+                best_variant[animal_id] = (width_value, url_value)
     if variants:
         dst.bulk_save_objects(variants)
 

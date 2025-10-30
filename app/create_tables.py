@@ -1,10 +1,11 @@
 """Utility to create database tables."""
 
+from sqlalchemy import text
+
 from .database import engine
+from .db_extensions import ensure_pg_extensions
 from .models import Base
 from .triggers import create_triggers
-from .db_extensions import ensure_pg_extensions
-from sqlalchemy import text
 
 
 def create_tables() -> None:

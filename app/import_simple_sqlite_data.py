@@ -11,8 +11,6 @@ from sqlalchemy.orm import Session
 
 from app.db_extensions import ensure_pg_extensions
 
-load_dotenv()
-
 from .database import Base, SessionLocal
 from .import_utils import _ensure_animal_columns, _ensure_image_columns
 from .importers import (
@@ -24,6 +22,8 @@ from .importers import (
     import_zoos,
     stage_categories,
 )
+
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 

@@ -1,10 +1,18 @@
 """Pydantic schemas used for request and response models."""
 
 from datetime import date, datetime
-from typing import Literal, Optional
+from typing import Annotated, Literal, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, ConfigDict, Field, constr, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
 from pydantic_core import PydanticCustomError
 
 
@@ -47,13 +55,22 @@ class Message(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+VerificationCode = Annotated[
+    str, StringConstraints(min_length=6, max_length=8, pattern=r"^\d{6,8}$")
+]
+
+StrongPassword = Annotated[str, StringConstraints(min_length=8, max_length=255)]
+ShortName = Annotated[str, StringConstraints(min_length=1, max_length=100)]
+ContactBody = Annotated[str, StringConstraints(min_length=10, max_length=2000)]
+
+
 class EmailVerificationRequest(BaseModel):
     """Payload accepted by the email verification endpoint."""
 
     uid: str | None = None
     email: EmailStr | None = None
     token: str | None = None
-    code: constr(min_length=6, max_length=8, pattern=r"^\d{6,8}$") | None = None
+    code: VerificationCode | None = None
 
     model_config = ConfigDict(extra="forbid")
 
@@ -71,7 +88,7 @@ class EmailVerificationRequest(BaseModel):
         return value.strip() if isinstance(value, str) else value
 
     @model_validator(mode="after")
-    def _ensure_fields(self):
+    def _ensure_fields(self) -> "EmailVerificationRequest":
         if not (self.uid or self.email):
             raise ValueError("identifier_required")
         if not (self.token or self.code):
@@ -99,7 +116,7 @@ class PasswordResetConfirm(BaseModel):
     """Payload accepted by the password reset confirmation endpoint."""
 
     token: str = Field(..., min_length=1, max_length=512)
-    password: constr(min_length=8, max_length=255)
+    password: StrongPassword
     confirm_password: str = Field(
         ...,
         min_length=8,
@@ -115,7 +132,7 @@ class PasswordResetConfirm(BaseModel):
         return value.strip() if isinstance(value, str) else value
 
     @model_validator(mode="after")
-    def _passwords_match(self):
+    def _passwords_match(self) -> "PasswordResetConfirm":
         if self.password != self.confirm_password:
             raise PydanticCustomError(
                 "password_mismatch",
@@ -329,7 +346,7 @@ class AnimalSightingCreate(BaseModel):
 
     @field_validator("notes", mode="before")
     @classmethod
-    def _normalize_notes(cls, value: Optional[str]):
+    def _normalize_notes(cls, value: Optional[str]) -> Optional[str]:
         """Trim whitespace and collapse empty notes to ``None``."""
         if value is None:
             return None
@@ -386,7 +403,7 @@ class AnimalSightingUpdate(BaseModel):
 
     @field_validator("notes", mode="before")
     @classmethod
-    def _normalize_notes(cls, value: Optional[str]):
+    def _normalize_notes(cls, value: Optional[str]) -> Optional[str]:
         """Trim whitespace and collapse empty notes to ``None``."""
         if value is None:
             return None
@@ -467,9 +484,9 @@ class PopularAnimal(BaseModel):
 class ContactMessage(BaseModel):
     """Input for a contact form submission."""
 
-    name: constr(min_length=1, max_length=100)
+    name: ShortName
     email: EmailStr
-    message: constr(min_length=10, max_length=2000)
+    message: ContactBody
 
     model_config = ConfigDict(extra="forbid")
 

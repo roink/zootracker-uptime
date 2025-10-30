@@ -1,10 +1,8 @@
 """Utilities for working with IUCN conservation status codes."""
 from __future__ import annotations
 
-from typing import Optional
-
 # Canonical IUCN status codes and human readable labels
-IUCN_CODES = {
+IUCN_CODES: dict[str, str] = {
     "EX": "Extinct",
     "EW": "Extinct in the Wild",
     "CR": "Critically Endangered",
@@ -17,7 +15,7 @@ IUCN_CODES = {
 }
 
 # Lowercase synonyms mapping to canonical codes
-_IUCN_SYNONYMS = {
+_IUCN_SYNONYMS: dict[str, str] = {
     "extinct": "EX",
     "extinct in the wild": "EW",
     "critically endangered": "CR",
@@ -30,7 +28,7 @@ _IUCN_SYNONYMS = {
 }
 
 
-def normalize_status(value: Optional[str]) -> Optional[str]:
+def normalize_status(value: str | None) -> str | None:
     """Return a canonical IUCN status code for *value*.
 
     The lookup is case-insensitive and accepts both the short code and full

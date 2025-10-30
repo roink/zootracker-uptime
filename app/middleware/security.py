@@ -2,7 +2,9 @@
 
 from collections.abc import Mapping
 
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+from starlette.requests import Request
+from starlette.responses import Response
 from starlette.types import ASGIApp
 
 
@@ -17,7 +19,11 @@ class SecureHeadersMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
         self._headers: Mapping[str, str | None] = headers or {}
 
-    async def dispatch(self, request, call_next):  # type: ignore[override]
+    async def dispatch(
+        self,
+        request: Request,
+        call_next: RequestResponseEndpoint,
+    ) -> Response:
         response = await call_next(request)
 
         scheme = request.url.scheme

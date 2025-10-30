@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import uuid
-from typing import Dict
 
 from sqlalchemy import Table, exists, or_, select
 from sqlalchemy.orm import Session
@@ -16,7 +15,7 @@ def stage_categories(
     dst: Session,
     animal_table: Table,
     link_table: Table,
-) -> Dict[int | None, uuid.UUID]:
+) -> dict[int | None, uuid.UUID]:
     """Ensure a :class:`Category` exists for each distinct ``klasse`` value."""
 
     zoo_count_col = getattr(animal_table.c, "zoo_count", None)
@@ -74,7 +73,7 @@ def stage_categories(
         row.name: row.id
         for row in dst.execute(select(models.Category.id, models.Category.name)).mappings()
     }
-    mapping: Dict[int | None, uuid.UUID] = {}
+    mapping: dict[int | None, uuid.UUID] = {}
     to_add = []
     for klasse in klasses:
         name = f"Klasse {klasse}" if klasse is not None else "Uncategorized"

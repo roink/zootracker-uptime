@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import re
 import uuid
-from typing import Dict
 
 from sqlalchemy import Table, select
 from sqlalchemy.orm import Session
@@ -16,7 +15,7 @@ from app.import_utils import _clean_text
 logger = logging.getLogger(__name__)
 
 
-def import_zoos(src: Session, dst: Session, zoo_table: Table) -> Dict[int, uuid.UUID]:
+def import_zoos(src: Session, dst: Session, zoo_table: Table) -> dict[int, uuid.UUID]:
     """Insert zoos and build id mapping."""
 
     existing_rows = list(
@@ -30,12 +29,12 @@ def import_zoos(src: Session, dst: Session, zoo_table: Table) -> Dict[int, uuid.
             )
         ).mappings()
     )
-    existing_by_key: Dict[tuple[str, str, int | None], uuid.UUID] = {}
-    existing_by_slug: Dict[str, uuid.UUID] = {}
+    existing_by_key: dict[tuple[str, str, int | None], uuid.UUID] = {}
+    existing_by_slug: dict[str, uuid.UUID] = {}
     seen_slugs: set[str] = set()
     for row in existing_rows:
-        key = (row["name"], row["city"], row["country_id"])
-        existing_by_key[key] = row["id"]
+        existing_key = (row["name"], row["city"], row["country_id"])
+        existing_by_key[existing_key] = row["id"]
         slug = row.get("slug")
         if slug:
             existing_by_slug[slug] = row["id"]
@@ -55,9 +54,9 @@ def import_zoos(src: Session, dst: Session, zoo_table: Table) -> Dict[int, uuid.
 
     rows = list(src.execute(select(zoo_table)).mappings())
     zoos = []
-    mapping: Dict[int, uuid.UUID] = {}
+    mapping: dict[int, uuid.UUID] = {}
     for row in rows:
-        key: tuple[str, str, int | None] = (
+        zoo_key: tuple[str, str, int | None] = (
             row.get("name"),
             row.get("city"),
             row.get("country"),
@@ -92,10 +91,10 @@ def import_zoos(src: Session, dst: Session, zoo_table: Table) -> Dict[int, uuid.
                     dst.add(zoo_obj)
             mapping[row["zoo_id"]] = zoo_id
             seen_slugs.add(slug)
-            existing_by_key[key] = zoo_id
+            existing_by_key[zoo_key] = zoo_id
             continue
-        if key in existing_by_key:
-            zoo_id = existing_by_key[key]
+        if zoo_key in existing_by_key:
+            zoo_id = existing_by_key[zoo_key]
             zoo_obj = dst.get(models.Zoo, zoo_id)
             changed = False
             if desc_en or desc_de:
@@ -157,7 +156,7 @@ def import_zoos(src: Session, dst: Session, zoo_table: Table) -> Dict[int, uuid.
             )
         )
         mapping[row["zoo_id"]] = zoo_id
-        existing_by_key[key] = zoo_id
+        existing_by_key[zoo_key] = zoo_id
     if zoos:
         dst.bulk_save_objects(zoos)
     return mapping

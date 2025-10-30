@@ -14,12 +14,15 @@ missing ones.  This mirrors what a migration would do and ensures the database
 schema matches the ORM model after the function runs.
 """
 
-from datetime import datetime, timezone
 import re
+from contextlib import suppress
+from datetime import datetime, timezone
+from typing import SupportsInt
+
 from sqlalchemy import inspect, text
+from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.orm import Session
 from sqlalchemy.schema import CreateColumn
-from sqlalchemy.exc import ProgrammingError
 
 # ``models`` is imported lazily inside ``_ensure_animal_columns`` to avoid a
 # circular import during normal application start-up.
@@ -43,21 +46,18 @@ def _ensure_animal_columns(dst: Session) -> None:
 
     with bind.begin() as conn:
         if bind.dialect.name == "postgresql" and "default_image_url" in cols:
-            try:
+            with suppress(ProgrammingError):
                 conn.execute(
                     text(
                         "ALTER TABLE animals ALTER COLUMN default_image_url TYPE TEXT"
                     )
                 )
-            except ProgrammingError:
-                # Already TEXT or not changeable; ignore to keep idempotence.
-                pass
 
         if bind.dialect.name == "postgresql":
             if art_exists:
                 art_type = str(cols["art"]["type"]).upper()
                 if art_type != "INTEGER":
-                    try:
+                    with suppress(ProgrammingError):
                         conn.execute(
                             text(
                                 """
@@ -67,12 +67,10 @@ def _ensure_animal_columns(dst: Session) -> None:
                                 """
                             )
                         )
-                    except ProgrammingError:
-                        pass
             if parent_art_exists:
                 parent_type = str(cols["parent_art"]["type"]).upper()
                 if parent_type != "INTEGER":
-                    try:
+                    with suppress(ProgrammingError):
                         conn.execute(
                             text(
                                 """
@@ -82,8 +80,6 @@ def _ensure_animal_columns(dst: Session) -> None:
                                 """
                             )
                         )
-                    except ProgrammingError:
-                        pass
 
         # Add any columns missing from the current ``animals`` table by
         # comparing against the ORM model definition.  ``CreateColumn`` generates
@@ -154,7 +150,7 @@ def _parse_datetime(value: str | None) -> datetime | None:
     return dt
 
 
-def normalize_art_value(value):
+def normalize_art_value(value: SupportsInt | str | None) -> int | None:
     """Normalize raw ``art`` identifiers from source tables to integers."""
 
     if value is None:

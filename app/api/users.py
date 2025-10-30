@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime, timezone
+from typing import Annotated, cast
 
 from fastapi import (
     APIRouter,
@@ -12,20 +13,29 @@ from fastapi import (
     status,
 )
 from sqlalchemy import func, select
+from sqlalchemy.orm import Query as SAQuery
 from sqlalchemy.orm import Session, joinedload, load_only
+from sqlalchemy.sql.selectable import Subquery
 
-from .. import schemas, models
+from .. import models, schemas
 from ..auth import get_current_user, get_user, hash_password
-from ..utils.account_notifications import enqueue_existing_signup_notice
-from ..utils.email_verification import enqueue_verification_email, issue_verification_token
 from ..database import get_db
 from ..logging import anonymize_ip
-from .deps import require_json, resolve_coords
-from .common_filters import apply_zoo_filters, validate_region_filters
+from ..utils.account_notifications import enqueue_existing_signup_notice
+from ..utils.email_verification import (
+    enqueue_verification_email,
+    issue_verification_token,
+)
 from ..utils.geometry import query_zoos_with_distance
 from ..utils.http import set_personalized_cache_headers
+from .common_filters import apply_zoo_filters, validate_region_filters
+from .deps import require_json, resolve_coords
 
 router = APIRouter()
+
+_db_dependency = Depends(get_db)
+_current_user_dependency = Depends(get_current_user)
+_coords_dependency = Depends(resolve_coords)
 
 
 GENERIC_SIGNUP_MESSAGE = (
@@ -42,7 +52,7 @@ def ensure_same_user(user_id: uuid.UUID, current_user: models.User) -> None:
         )
 
 
-def _visited_zoo_ids_subquery(db: Session, user_id: uuid.UUID):
+def _visited_zoo_ids_subquery(db: Session, user_id: uuid.UUID) -> Subquery:
     """Return a subquery selecting zoo IDs the user has visited."""
 
     visits = (
@@ -72,13 +82,13 @@ def _favorite_zoo_ids(db: Session, user_id: uuid.UUID) -> set[uuid.UUID]:
 
 
 def _build_user_zoo_page(
-    query,
+    query: SAQuery[models.Zoo],
     latitude: float | None,
     longitude: float | None,
     limit: int,
     offset: int,
     favorite_ids: set[uuid.UUID] | None = None,
-):
+) -> schemas.ZooSearchPage:
     """Execute a paginated zoo query and serialize the response."""
 
     favorite_ids = favorite_ids or set()
@@ -114,7 +124,7 @@ def _build_user_zoo_page(
     )
 
 
-def _serialize_map_points(zoos: list[models.Zoo]):
+def _serialize_map_points(zoos: list[models.Zoo]) -> list[schemas.ZooMapPoint]:
     """Transform zoos into lightweight map points."""
 
     return [
@@ -139,8 +149,8 @@ def create_user(
     user_in: schemas.UserCreate,
     request: Request,
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
-):
+    db: Session = _db_dependency,
+) -> schemas.Message:
     """Register a new user with a hashed password."""
     existing_user = get_user(db, user_in.email)
     if existing_user:
@@ -181,12 +191,12 @@ def list_user_visited_zoos(
     q: str = "",
     continent_id: int | None = None,
     country_id: int | None = None,
-    limit: int = Query(default=20, ge=1, le=10000),
-    offset: int = Query(default=0, ge=0),
-    coords: tuple[float | None, float | None] = Depends(resolve_coords),
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
-):
+    limit: Annotated[int, Query(ge=1, le=10000)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    coords: tuple[float | None, float | None] = _coords_dependency,
+    db: Session = _db_dependency,
+    current_user: models.User = _current_user_dependency,
+) -> schemas.ZooSearchPage:
     """Return zoos visited by the authenticated user with pagination."""
 
     ensure_same_user(user_id, current_user)
@@ -218,12 +228,12 @@ def list_user_not_visited_zoos(
     q: str = "",
     continent_id: int | None = None,
     country_id: int | None = None,
-    limit: int = Query(default=20, ge=1, le=10000),
-    offset: int = Query(default=0, ge=0),
-    coords: tuple[float | None, float | None] = Depends(resolve_coords),
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
-):
+    limit: Annotated[int, Query(ge=1, le=10000)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    coords: tuple[float | None, float | None] = _coords_dependency,
+    db: Session = _db_dependency,
+    current_user: models.User = _current_user_dependency,
+) -> schemas.ZooSearchPage:
     """Return zoos the authenticated user has not yet visited."""
 
     ensure_same_user(user_id, current_user)
@@ -252,9 +262,9 @@ def list_user_visited_zoos_for_map(
     q: str = "",
     continent_id: int | None = None,
     country_id: int | None = None,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
-):
+    db: Session = _db_dependency,
+    current_user: models.User = _current_user_dependency,
+) -> list[schemas.ZooMapPoint]:
     """Return lightweight map data for zoos visited by the user."""
 
     ensure_same_user(user_id, current_user)
@@ -291,9 +301,9 @@ def list_user_not_visited_zoos_for_map(
     q: str = "",
     continent_id: int | None = None,
     country_id: int | None = None,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
-):
+    db: Session = _db_dependency,
+    current_user: models.User = _current_user_dependency,
+) -> list[schemas.ZooMapPoint]:
     """Return map data for zoos the user has not visited."""
 
     ensure_same_user(user_id, current_user)
@@ -322,9 +332,9 @@ def list_user_not_visited_zoos_for_map(
 @router.get("/users/{user_id}/animals", response_model=list[schemas.AnimalRead])
 def list_seen_animals(
     user_id: uuid.UUID,
-    db: Session = Depends(get_db),
-    user: models.User = Depends(get_current_user),
-):
+    db: Session = _db_dependency,
+    user: models.User = _current_user_dependency,
+) -> list[models.Animal]:
     """Return all unique animals seen by the specified user."""
     ensure_same_user(user_id, user)
     animals = (
@@ -334,37 +344,39 @@ def list_seen_animals(
         .distinct()
         .all()
     )
-    return animals
+    return cast(list[models.Animal], animals)
 
 
 @router.get("/users/{user_id}/animals/ids", response_model=list[uuid.UUID])
 def list_seen_animal_ids(
     user_id: uuid.UUID,
-    db: Session = Depends(get_db),
-    user: models.User = Depends(get_current_user),
-):
+    db: Session = _db_dependency,
+    user: models.User = _current_user_dependency,
+) -> list[uuid.UUID]:
     """Return IDs of unique animals seen by the specified user."""
     ensure_same_user(user_id, user)
-    ids = (
+    raw_ids = (
         db.query(models.AnimalSighting.animal_id)
         .filter(models.AnimalSighting.user_id == user_id)
         .distinct()
         .all()
     )
-    return [row[0] for row in ids]
+    rows = cast(list[tuple[uuid.UUID]], raw_ids)
+    return [row[0] for row in rows]
 
 
 @router.get("/users/{user_id}/animals/count", response_model=schemas.Count)
 def count_seen_animals(
     user_id: uuid.UUID,
-    db: Session = Depends(get_db),
-    user: models.User = Depends(get_current_user),
-):
+    db: Session = _db_dependency,
+    user: models.User = _current_user_dependency,
+) -> schemas.Count:
     """Return the number of unique animals seen by the specified user."""
     ensure_same_user(user_id, user)
-    count = (
+    count_value = (
         db.query(func.count(func.distinct(models.AnimalSighting.animal_id)))
         .filter(models.AnimalSighting.user_id == user_id)
         .scalar()
-    ) or 0
-    return {"count": count}
+    )
+    total = cast(int | None, count_value) or 0
+    return schemas.Count(count=total)

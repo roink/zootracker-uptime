@@ -50,9 +50,12 @@ def configure_logging() -> None:
 
     root_handlers = ["stdout_json"]
 
-    if anon_log_file and raw_log_file:
-        if os.path.abspath(anon_log_file) == os.path.abspath(raw_log_file):
-            raise ValueError("LOG_FILE_ANON and LOG_FILE_RAW must point to different files")
+    if (
+        anon_log_file
+        and raw_log_file
+        and os.path.abspath(anon_log_file) == os.path.abspath(raw_log_file)
+    ):
+        raise ValueError("LOG_FILE_ANON and LOG_FILE_RAW must point to different files")
 
     configured_paths: set[str] = set()
 

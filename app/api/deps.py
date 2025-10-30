@@ -1,3 +1,5 @@
+from typing import Annotated
+
 from fastapi import HTTPException, Query, Request, status
 
 from ._validation import get_request_coords
@@ -5,8 +7,8 @@ from ._validation import get_request_coords
 
 def resolve_coords(
     request: Request,
-    latitude: float | None = Query(default=None),
-    longitude: float | None = Query(default=None),
+    latitude: Annotated[float | None, Query()] = None,
+    longitude: Annotated[float | None, Query()] = None,
 ) -> tuple[float | None, float | None]:
     """FastAPI dependency to resolve coordinates from query params or headers."""
     return get_request_coords(request, latitude, longitude)

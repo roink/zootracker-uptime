@@ -9,7 +9,9 @@ def set_personalized_cache_headers(response: Response) -> None:
     response.headers["Cache-Control"] = "private, no-store, max-age=0"
     existing_vary = response.headers.get("Vary")
     if existing_vary:
-        tokens = [token.strip() for token in existing_vary.split(",") if token.strip()]
+        tokens: list[str] = [
+            token.strip() for token in existing_vary.split(",") if token.strip()
+        ]
         if not any(token.lower() == "authorization" for token in tokens):
             tokens.append("Authorization")
         response.headers["Vary"] = ", ".join(tokens)

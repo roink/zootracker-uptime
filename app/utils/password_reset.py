@@ -1,5 +1,4 @@
 """Helpers for issuing and validating password reset tokens."""
-
 from __future__ import annotations
 
 import hashlib
@@ -7,6 +6,8 @@ import hmac
 import logging
 import secrets
 from datetime import UTC, datetime, timedelta
+from email.message import EmailMessage
+from typing import cast
 
 from fastapi import BackgroundTasks
 from sqlalchemy.orm import Session
@@ -19,7 +20,12 @@ from ..config import (
     PASSWORD_RESET_TTL_MINUTES,
     TOKEN_PEPPER,
 )
-from .email_sender import build_email, load_smtp_settings, send_email_via_smtp
+from .email_sender import (
+    SMTPSettings,
+    build_email,
+    load_smtp_settings,
+    send_email_via_smtp,
+)
 
 logger = logging.getLogger("app.password_reset")
 
@@ -121,13 +127,14 @@ def get_reset_token(
     """Return the password reset token matching ``token`` if it exists."""
 
     hashed = _hash_secret(token)
-    return (
+    result = (
         db.query(models.VerificationToken)
         .filter(models.VerificationToken.kind == _KIND)
         .filter(models.VerificationToken.token_hash == hashed)
         .order_by(models.VerificationToken.created_at.desc())
         .first()
     )
+    return cast(models.VerificationToken | None, result)
 
 
 def consume_reset_token(
@@ -152,7 +159,7 @@ def build_password_reset_email(
     *,
     token: str,
     expires_at: datetime,
-):
+) -> tuple[SMTPSettings, EmailMessage]:
     """Compose the password reset email for ``user``."""
 
     base_url = APP_BASE_URL.rstrip("/") or "http://localhost:5173"
@@ -178,7 +185,9 @@ def build_password_reset_email(
     return settings, message
 
 
-def build_password_reset_confirmation_email(user: models.User):
+def build_password_reset_confirmation_email(
+    user: models.User,
+) -> tuple[SMTPSettings, EmailMessage]:
     """Compose the follow-up email sent after a successful password reset."""
 
     subject = "Your ZooTracker password was reset"
@@ -202,8 +211,8 @@ def build_password_reset_confirmation_email(user: models.User):
 def _send_email(
     background_tasks: BackgroundTasks,
     *,
-    settings,
-    message,
+    settings: SMTPSettings,
+    message: EmailMessage,
     execute_immediately: bool,
     log_extra: dict[str, str],
     auth_error: tuple[str, str],
@@ -211,6 +220,8 @@ def _send_email(
     send_failure: tuple[str, str],
     immediate_log: str,
 ) -> None:
+    """Deliver a password reset related email immediately or via background task."""
+
     if not settings.host:
         logger.error(
             "Email service misconfigured for password reset delivery",
@@ -262,7 +273,7 @@ def enqueue_password_reset_email(
         token=token,
         expires_at=expires_at,
     )
-    log_extra = {"password_reset_user_id": str(user.id)}
+    log_extra: dict[str, str] = {"password_reset_user_id": str(user.id)}
     _send_email(
         background_tasks,
         settings=settings,
@@ -294,7 +305,7 @@ def enqueue_password_reset_confirmation(
     """Notify the user that their password was changed."""
 
     settings, message = build_password_reset_confirmation_email(user)
-    log_extra = {"password_reset_user_id": str(user.id)}
+    log_extra: dict[str, str] = {"password_reset_user_id": str(user.id)}
     _send_email(
         background_tasks,
         settings=settings,

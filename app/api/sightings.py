@@ -2,6 +2,7 @@
 
 import logging
 import uuid
+from typing import cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
@@ -10,14 +11,16 @@ from sqlalchemy.orm import Session, joinedload
 from .. import models, schemas
 from ..auth import get_current_user
 from ..database import get_db
-from .deps import require_json
 from .common_sightings import apply_recent_first_order, build_user_sightings_query
-
+from .deps import require_json
 
 audit_logger = logging.getLogger("app.audit")
 
 
 router = APIRouter()
+
+_db_dependency = Depends(get_db)
+_current_user_dependency = Depends(get_current_user)
 
 
 @router.post(
@@ -27,9 +30,9 @@ router = APIRouter()
 )
 def create_sighting(
     sighting_in: schemas.AnimalSightingCreate,
-    db: Session = Depends(get_db),
-    user: models.User = Depends(get_current_user),
-):
+    db: Session = _db_dependency,
+    user: models.User = _current_user_dependency,
+) -> models.AnimalSighting:
     """Record an animal sighting for the authenticated user."""
 
     if db.get(models.Zoo, sighting_in.zoo_id) is None:
@@ -64,12 +67,12 @@ def create_sighting(
 @router.get("/sightings/{sighting_id}", response_model=schemas.AnimalSightingRead)
 def read_sighting(
     sighting_id: uuid.UUID,
-    db: Session = Depends(get_db),
-    user: models.User = Depends(get_current_user),
-):
+    db: Session = _db_dependency,
+    user: models.User = _current_user_dependency,
+) -> models.AnimalSighting:
     """Retrieve a single sighting owned by the current user."""
 
-    sighting = (
+    result = (
         db.query(models.AnimalSighting)
         .options(
             joinedload(models.AnimalSighting.animal),
@@ -78,6 +81,7 @@ def read_sighting(
         .filter(models.AnimalSighting.id == sighting_id)
         .first()
     )
+    sighting = cast(models.AnimalSighting | None, result)
     if sighting is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -99,12 +103,14 @@ def read_sighting(
 def update_sighting(
     sighting_id: uuid.UUID,
     sighting_in: schemas.AnimalSightingUpdate,
-    db: Session = Depends(get_db),
-    user: models.User = Depends(get_current_user),
-):
+    db: Session = _db_dependency,
+    user: models.User = _current_user_dependency,
+) -> models.AnimalSighting:
     """Update fields of a sighting owned by the current user."""
 
-    sighting = db.get(models.AnimalSighting, sighting_id)
+    sighting = cast(
+        models.AnimalSighting | None, db.get(models.AnimalSighting, sighting_id)
+    )
     if sighting is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Sighting not found"
@@ -148,21 +154,22 @@ def update_sighting(
 
 @router.get("/sightings", response_model=list[schemas.AnimalSightingRead])
 def list_sightings(
-    db: Session = Depends(get_db),
-    user: models.User = Depends(get_current_user),
-):
+    db: Session = _db_dependency,
+    user: models.User = _current_user_dependency,
+) -> list[models.AnimalSighting]:
     """Retrieve all animal sightings recorded by the current user."""
 
     query = build_user_sightings_query(db, user.id)
-    return apply_recent_first_order(query).all()
+    sightings = apply_recent_first_order(query).all()
+    return cast(list[models.AnimalSighting], sightings)
 
 
 @router.delete("/sightings/{sighting_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_sighting(
     sighting_id: uuid.UUID,
-    db: Session = Depends(get_db),
-    user: models.User = Depends(get_current_user),
-):
+    db: Session = _db_dependency,
+    user: models.User = _current_user_dependency,
+) -> Response:
     """Delete an animal sighting if owned by the current user."""
 
     sighting = db.get(models.AnimalSighting, sighting_id)

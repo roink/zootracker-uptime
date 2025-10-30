@@ -1,10 +1,11 @@
-import os
 import asyncio
+import os
 import time
 from collections import defaultdict, deque
+from collections.abc import Awaitable, Callable
 
-from fastapi import Request, status, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi import HTTPException, Request, status
+from fastapi.responses import JSONResponse, Response
 
 from .utils.network import get_client_ip
 
@@ -111,7 +112,9 @@ password_reset_failed_identifier_limiter = RateLimiter(
 )
 
 
-async def rate_limit(request: Request, call_next):
+async def rate_limit(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
     """Apply simple rate limiting per client IP, honoring proxy headers."""
     ip = get_client_ip(request)
     path = request.url.path

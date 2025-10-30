@@ -1,21 +1,22 @@
 import uuid
+from typing import Annotated, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import or_, text
 from sqlalchemy.orm import Session, joinedload, load_only
 
-from .. import schemas, models
-from ..database import get_db
+from .. import models, schemas
 from ..auth import get_current_user, get_optional_user
+from ..database import get_db
 from ..utils.geometry import query_zoos_with_distance
-from ..utils.images import build_unique_variants
 from ..utils.http import set_personalized_cache_headers
-from .deps import resolve_coords
+from ..utils.images import build_unique_variants
 from .common_sightings import (
     apply_recent_first_order,
     build_user_sightings_query,
     count_query_rows,
 )
+from .deps import resolve_coords
 
 
 def to_zoodetail(
@@ -38,16 +39,22 @@ def to_zoodetail(
 
 router = APIRouter()
 
+_db_dependency = Depends(get_db)
+_optional_user_dependency = Depends(get_optional_user)
+_current_user_dependency = Depends(get_current_user)
+_coords_dependency = Depends(resolve_coords)
+
 
 def _get_animal_or_404(animal_slug: str, db: Session) -> models.Animal:
     """Return an animal by slug or raise a 404 error."""
 
-    animal = (
+    result = (
         db.query(models.Animal)
         .options(load_only(models.Animal.id, models.Animal.slug))
         .filter(models.Animal.slug == animal_slug)
         .first()
     )
+    animal = cast(models.Animal | None, result)
     if animal is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Animal not found"
@@ -59,16 +66,16 @@ def _get_animal_or_404(animal_slug: str, db: Session) -> models.Animal:
 def list_animals(
     response: Response,
     q: str = "",
-    limit: int = Query(50, ge=1, le=100),
-    offset: int = Query(0, ge=0),
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
     category: str | None = None,
     class_id: int | None = None,
     order_id: int | None = None,
     family_id: int | None = None,
     favorites_only: bool = False,
-    db: Session = Depends(get_db),
-    user: models.User | None = Depends(get_optional_user),
-):
+    db: Session = _db_dependency,
+    user: models.User | None = _optional_user_dependency,
+) -> list[schemas.AnimalListItem]:
     """List animals filtered by search query, taxonomy and pagination."""
 
     set_personalized_cache_headers(response)
@@ -175,7 +182,7 @@ def list_animals(
 
 
 @router.get("/animals/classes", response_model=list[schemas.TaxonName])
-def list_classes(db: Session = Depends(get_db)):
+def list_classes(db: Session = _db_dependency) -> list[schemas.TaxonName]:
     """Return all available classes that have animals."""
 
     classes = (
@@ -192,7 +199,7 @@ def list_classes(db: Session = Depends(get_db)):
 
 
 @router.get("/animals/orders", response_model=list[schemas.TaxonName])
-def list_orders(class_id: int, db: Session = Depends(get_db)):
+def list_orders(class_id: int, db: Session = _db_dependency) -> list[schemas.TaxonName]:
     """Return orders available for a given class."""
 
     orders = (
@@ -210,7 +217,7 @@ def list_orders(class_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/animals/families", response_model=list[schemas.TaxonName])
-def list_families(order_id: int, db: Session = Depends(get_db)):
+def list_families(order_id: int, db: Session = _db_dependency) -> list[schemas.TaxonName]:
     """Return families available for a given order."""
 
     families = (
@@ -234,9 +241,9 @@ def list_families(order_id: int, db: Session = Depends(get_db)):
 )
 def mark_animal_favorite(
     animal_slug: str,
-    db: Session = Depends(get_db),
-    user: models.User = Depends(get_current_user),
-):
+    db: Session = _db_dependency,
+    user: models.User = _current_user_dependency,
+) -> schemas.FavoriteStatus:
     """Mark an animal as a favorite for the authenticated user."""
 
     animal = _get_animal_or_404(animal_slug, db)
@@ -261,9 +268,9 @@ def mark_animal_favorite(
 )
 def unmark_animal_favorite(
     animal_slug: str,
-    db: Session = Depends(get_db),
-    user: models.User = Depends(get_current_user),
-):
+    db: Session = _db_dependency,
+    user: models.User = _current_user_dependency,
+) -> schemas.FavoriteStatus:
     """Remove an animal from the authenticated user's favorites."""
 
     animal = _get_animal_or_404(animal_slug, db)
@@ -283,10 +290,10 @@ def unmark_animal_favorite(
 def get_animal_detail(
     response: Response,
     animal_slug: str,
-    coords: tuple[float | None, float | None] = Depends(resolve_coords),
-    db: Session = Depends(get_db),
-    user: models.User | None = Depends(get_optional_user),
-):
+    coords: tuple[float | None, float | None] = _coords_dependency,
+    db: Session = _db_dependency,
+    user: models.User | None = _optional_user_dependency,
+) -> schemas.AnimalDetail:
     """Retrieve a single animal and the zoos where it can be found.
 
     When ``latitude`` and ``longitude`` are supplied the zoos are ordered by
@@ -478,11 +485,11 @@ def get_animal_detail(
 def list_animal_sightings(
     response: Response,
     animal_slug: str,
-    limit: int = Query(default=50, ge=1, le=200),
-    offset: int = Query(default=0, ge=0),
-    db: Session = Depends(get_db),
-    user: models.User = Depends(get_current_user),
-):
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    db: Session = _db_dependency,
+    user: models.User = _current_user_dependency,
+) -> schemas.AnimalSightingPage:
     """Return the authenticated user's sightings for a specific animal."""
 
     animal = _get_animal_or_404(animal_slug, db)

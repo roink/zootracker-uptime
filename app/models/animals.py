@@ -19,7 +19,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from ..database import Base
-from .imagery import Image, SOURCE_ORDER
+from .imagery import SOURCE_ORDER, Image
 
 
 class Category(Base):

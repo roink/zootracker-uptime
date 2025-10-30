@@ -1,13 +1,12 @@
 """Domain-specific SQLAlchemy model package."""
 
 from ..database import Base
-
 from .achievements import Achievement, UserAchievement
 from .animals import Animal, Category, ClassName, FamilyName, OrderName
 from .associations import UserFavoriteAnimal, UserFavoriteZoo, ZooAnimal
 from .auth_tokens import RefreshToken
 from .geography import ContinentName, CountryName, Zoo
-from .imagery import Image, ImageVariant, SOURCE_ORDER
+from .imagery import SOURCE_ORDER, Image, ImageVariant
 from .sightings import AnimalSighting
 from .users import User
 from .verification import VerificationToken, VerificationTokenKind

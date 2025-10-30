@@ -1,7 +1,8 @@
 from sqlalchemy import text
+from sqlalchemy.engine import Engine
 
 
-def ensure_pg_extensions(engine) -> None:
+def ensure_pg_extensions(engine: Engine) -> None:
     if engine.dialect.name != "postgresql":
         raise RuntimeError("PostgreSQL/PostGIS is required")
     with engine.begin() as conn:

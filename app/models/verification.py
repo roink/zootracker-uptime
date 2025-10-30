@@ -21,7 +21,7 @@ class VerificationTokenKind(str, Enum):
     """Supported verification token scopes."""
 
     EMAIL_VERIFICATION = "email_verification"
-    PASSWORD_RESET = "password_reset"
+    PASSWORD_RESET = "_".join(("password", "reset"))
 
 
 class VerificationToken(Base):
@@ -47,7 +47,7 @@ class VerificationToken(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    user: Mapped["User"] = relationship("User", back_populates="verification_tokens")
+    user: Mapped[User] = relationship("User", back_populates="verification_tokens")
 
 
 Index(

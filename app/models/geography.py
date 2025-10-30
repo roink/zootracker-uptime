@@ -1,13 +1,17 @@
 """Geographic and location models."""
 
+from __future__ import annotations
+
 import uuid
+from decimal import Decimal
+from typing import NoReturn
 
 from geoalchemy2 import Geography, WKTElement
 from sqlalchemy import (
+    DECIMAL,
     CheckConstraint,
     Column,
     DateTime,
-    DECIMAL,
     ForeignKey,
     Index,
     Integer,
@@ -102,7 +106,11 @@ class Zoo(Base):
     )
 
     @validates("latitude", "longitude")
-    def _sync_location(self, key, value):
+    def _sync_location(
+        self,
+        key: str,
+        value: Decimal | float | str | None,
+    ) -> Decimal | float | str | None:
         lat = value if key == "latitude" else self.latitude
         lon = value if key == "longitude" else self.longitude
         if lat is not None and lon is not None:
@@ -113,7 +121,7 @@ class Zoo(Base):
         return value
 
     @validates("location")
-    def _no_user_location(self, key, value):
+    def _no_user_location(self, key: str, value: WKTElement | None) -> NoReturn:
         raise ValueError("location is managed automatically; set latitude and longitude instead")
 
     __table_args__ = (

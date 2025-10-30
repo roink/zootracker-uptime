@@ -3,17 +3,25 @@
 from __future__ import annotations
 
 import logging
+from email.message import EmailMessage
 
 from fastapi import BackgroundTasks
 
 from .. import models
 from ..config import APP_BASE_URL
-from .email_sender import build_email, load_smtp_settings, send_email_via_smtp
+from .email_sender import (
+    SMTPSettings,
+    build_email,
+    load_smtp_settings,
+    send_email_via_smtp,
+)
 
 logger = logging.getLogger("app.account_notifications")
 
 
-def build_existing_signup_notice_email(user: models.User):
+def build_existing_signup_notice_email(
+    user: models.User,
+) -> tuple[SMTPSettings, EmailMessage]:
     """Compose the email sent when a signup uses an existing address."""
 
     base_url = APP_BASE_URL.rstrip("/") or "http://localhost:5173"
@@ -49,7 +57,7 @@ def enqueue_existing_signup_notice(
     """Schedule delivery of the duplicate-signup notice email."""
 
     settings, message = build_existing_signup_notice_email(user)
-    log_extra = {"existing_account_user_id": str(user.id)}
+    log_extra: dict[str, str] = {"existing_account_user_id": str(user.id)}
     if not settings.host:
         logger.error(
             "Email service misconfigured for existing signup notice",
