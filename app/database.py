@@ -18,12 +18,15 @@ if not DATABASE_URL:
         "DATABASE_URL environment variable is required to connect to PostgreSQL"
     )
 
-placeholder = "postgresql+psycopg://postgres:postgres@"
-if APP_ENV == "production" and placeholder in DATABASE_URL:
+placeholders = (
+    "postgresql://postgres:postgres@",
+    "postgresql+psycopg://postgres:postgres@",
+)
+if APP_ENV == "production" and any(p in DATABASE_URL for p in placeholders):
     raise RuntimeError(
         "Refusing to start in production with the legacy postgres:postgres placeholder in DATABASE_URL."
     )
-if placeholder in DATABASE_URL:
+if any(p in DATABASE_URL for p in placeholders):
     warnings.warn(
         "DATABASE_URL appears to use the 'postgres:postgres' placeholder. "
         "This is acceptable for local development and tests but must not be used in production.",
