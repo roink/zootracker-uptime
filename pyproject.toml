@@ -22,7 +22,7 @@ strict_equality = true
 # - UP: pyupgrade (use modern syntax, e.g. f-strings, remove obsolete code)
 # - SIM: flake8-simplify (simplify overly complex if/else etc.)
 # - S: bandit (security checks; see `ignore` below for tuning)
-select = ["F", "E", "W"]
+select = ["F", "E", "W", "I", "N", "B", "C4", "UP", "SIM", "S"]
 
 # Rules you DON'T want yelling at you.
 # E501 is line length; let the formatter handle wrapping, not Ruff's linter.
@@ -32,3 +32,6 @@ ignore = [
     "E501",
     "S101",
 ]
+
+[tool.ruff.lint.pep8-naming]
+classmethod-decorators = ["classmethod", "field_validator"]

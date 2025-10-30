@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import base64
-import inspect
 import hashlib
+import inspect
 import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -12,12 +12,12 @@ from types import SimpleNamespace
 from typing import Any, cast
 
 import bcrypt
+import sqlalchemy as sa
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from passlib.handlers.bcrypt import _BcryptBackend
-import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
 from . import models
@@ -55,6 +55,10 @@ optional_oauth2_scheme = OAuth2PasswordBearer(
     description="Optional authentication for endpoints that personalize responses",
     auto_error=False,
 )
+
+_oauth2_dependency = Depends(oauth2_scheme)
+_optional_oauth2_dependency = Depends(optional_oauth2_scheme)
+_db_dependency = Depends(get_db)
 
 _PEPPER = TOKEN_PEPPER.encode("utf-8")
 _DECODE_SUPPORTS_LEEWAY = "leeway" in inspect.signature(jwt.decode).parameters
@@ -166,8 +170,8 @@ def get_user(db: Session, email: str) -> models.User | None:
 
 
 def get_current_user(
-    token: str = Depends(oauth2_scheme),
-    db: Session = Depends(get_db),
+    token: str = _oauth2_dependency,
+    db: Session = _db_dependency,
 ) -> models.User:
     """Return the authenticated user based on the provided JWT token."""
 
@@ -181,13 +185,13 @@ def get_current_user(
         user_id: str | None = payload.get("sub")
         if user_id is None:
             raise credentials_exception
-    except JWTError:
-        raise credentials_exception
+    except JWTError as err:
+        raise credentials_exception from err
 
     try:
         uuid_val = uuid.UUID(str(user_id))
-    except ValueError:
-        raise credentials_exception
+    except ValueError as err:
+        raise credentials_exception from err
 
     user = cast(models.User | None, db.get(models.User, uuid_val))
     if user is None:
@@ -198,8 +202,8 @@ def get_current_user(
 
 
 def get_optional_user(
-    token: str | None = Depends(optional_oauth2_scheme),
-    db: Session = Depends(get_db),
+    token: str | None = _optional_oauth2_dependency,
+    db: Session = _db_dependency,
 ) -> models.User | None:
     """Return the authenticated user when a bearer token is supplied."""
 
@@ -216,13 +220,13 @@ def get_optional_user(
         user_id: str | None = payload.get("sub")
         if user_id is None:
             raise credentials_exception
-    except JWTError:
-        raise credentials_exception
+    except JWTError as err:
+        raise credentials_exception from err
 
     try:
         uuid_val = uuid.UUID(str(user_id))
-    except ValueError:
-        raise credentials_exception
+    except ValueError as err:
+        raise credentials_exception from err
 
     user = cast(models.User | None, db.get(models.User, uuid_val))
     if user is None:
@@ -249,11 +253,9 @@ def refresh_token_expired(token: models.RefreshToken, *, now: datetime | None = 
     """Return ``True`` when the refresh token has exceeded idle or absolute limits."""
 
     current_time = now or _now()
-    if token.expires_at <= current_time:
-        return True
-    if token.last_used_at + timedelta(seconds=REFRESH_IDLE_TTL) <= current_time:
-        return True
-    return False
+    last_used_at = cast(datetime, token.last_used_at)
+    idle_expired = last_used_at + timedelta(seconds=REFRESH_IDLE_TTL) <= current_time
+    return token.expires_at <= current_time or idle_expired
 
 
 def issue_refresh_token(

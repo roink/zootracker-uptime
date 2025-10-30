@@ -6,8 +6,15 @@ import logging
 import os
 
 import bleach  # type: ignore[import-untyped]
-
-from fastapi import BackgroundTasks, APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    Request,
+    Response,
+    status,
+)
 
 from .. import schemas
 from ..logging import anonymize_ip
@@ -20,7 +27,6 @@ from ..utils.email_sender import (
 )
 from ..utils.network import get_client_ip
 from .deps import require_json
-
 
 logger = logging.getLogger("app.api.contact")
 

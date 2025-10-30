@@ -1,11 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, Response, status, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session, joinedload
 
-from .. import schemas, models
+from .. import models, schemas
 from ..database import get_db
 from ..utils.images import build_unique_variants
 
 router = APIRouter()
+
+_db_dependency = Depends(get_db)
 
 
 @router.get(
@@ -18,7 +20,7 @@ def get_image_metadata(
     *,
     mid: str = Query(..., description="Wikimedia Commons media ID"),
     response: Response,
-    db: Session = Depends(get_db),
+    db: Session = _db_dependency,
 ) -> schemas.ImageAttribution:
     """Return image attribution metadata for the given media id."""
     image = (

@@ -8,7 +8,8 @@ from typing import Any
 
 from fastapi import HTTPException, status
 from sqlalchemy import and_, func, literal, or_
-from sqlalchemy.orm import Query as SQLAQuery, Session
+from sqlalchemy.orm import Query as SQLAQuery
+from sqlalchemy.orm import Session
 
 from .. import models
 

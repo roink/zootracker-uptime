@@ -2,24 +2,26 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import hashlib
 import logging
 import xml.etree.ElementTree as ET
+from datetime import datetime, timezone
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, Query, Request, Response, status
 from fastapi.responses import PlainTextResponse
 from sqlalchemy import func
-from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 
 from .. import models, schemas
-from ..database import get_db
 from ..config import SITE_DEFAULT_LANGUAGE, SITE_LANGUAGES
+from ..database import get_db
 from ..utils.urls import build_absolute_url
 
 router = APIRouter()
+
+_db_dependency = Depends(get_db)
 
 SITEMAP_NS = "http://www.sitemaps.org/schemas/sitemap/0.9"
 XHTML_NS = "http://www.w3.org/1999/xhtml"
@@ -47,7 +49,7 @@ PUBLIC_STATIC_PAGE_PATHS: tuple[str, ...] = (
 
 @router.get("/site/summary", response_model=schemas.SiteSummary)
 def get_site_summary(
-    response: Response, db: Session = Depends(get_db)
+    response: Response, db: Session = _db_dependency
 ) -> schemas.SiteSummary:
     """Return aggregate counts for species, zoos, countries and sightings."""
 
@@ -75,7 +77,7 @@ def get_site_summary(
 
 @router.get("/site/popular-animals", response_model=list[schemas.PopularAnimal])
 def get_popular_animals(
-    limit: int = Query(8, ge=1, le=20), db: Session = Depends(get_db)
+    limit: int = Query(8, ge=1, le=20), db: Session = _db_dependency
 ) -> list[schemas.PopularAnimal]:
     """Return the most represented animals based on zoo coverage."""
 
@@ -252,7 +254,7 @@ def _append_page_alternate_links(url_el: ET.Element, path: str) -> None:
 
 
 @router.get("/sitemap.xml", include_in_schema=False)
-def get_sitemap_index(request: Request, db: Session = Depends(get_db)) -> Response:
+def get_sitemap_index(request: Request, db: Session = _db_dependency) -> Response:
     """Expose the sitemap index pointing to sub-sitemaps for animals and zoos."""
     try:
         animals_lastmod_raw = db.query(func.max(models.Animal.updated_at)).scalar()
@@ -289,7 +291,7 @@ def get_sitemap_index(request: Request, db: Session = Depends(get_db)) -> Respon
 
 
 @router.head("/sitemap.xml", include_in_schema=False)
-def head_sitemap_index(request: Request, db: Session = Depends(get_db)) -> Response:
+def head_sitemap_index(request: Request, db: Session = _db_dependency) -> Response:
     """Serve HEAD responses for the sitemap index."""
 
     response = get_sitemap_index(request, db)
@@ -326,7 +328,7 @@ def head_site_pages_sitemap(request: Request) -> Response:
 
 
 @router.get("/sitemaps/animals.xml", include_in_schema=False)
-def get_animals_sitemap(request: Request, db: Session = Depends(get_db)) -> Response:
+def get_animals_sitemap(request: Request, db: Session = _db_dependency) -> Response:
     """Return the sitemap entries for all public animal pages."""
     try:
         animals = (
@@ -370,7 +372,7 @@ def get_animals_sitemap(request: Request, db: Session = Depends(get_db)) -> Resp
 
 
 @router.head("/sitemaps/animals.xml", include_in_schema=False)
-def head_animals_sitemap(request: Request, db: Session = Depends(get_db)) -> Response:
+def head_animals_sitemap(request: Request, db: Session = _db_dependency) -> Response:
     """Serve HEAD responses for the animals sitemap."""
 
     response = get_animals_sitemap(request, db)
@@ -378,7 +380,7 @@ def head_animals_sitemap(request: Request, db: Session = Depends(get_db)) -> Res
 
 
 @router.get("/sitemaps/zoos.xml", include_in_schema=False)
-def get_zoos_sitemap(request: Request, db: Session = Depends(get_db)) -> Response:
+def get_zoos_sitemap(request: Request, db: Session = _db_dependency) -> Response:
     """Return the sitemap entries for all public zoo pages."""
     try:
         zoos = (
@@ -422,7 +424,7 @@ def get_zoos_sitemap(request: Request, db: Session = Depends(get_db)) -> Respons
 
 
 @router.head("/sitemaps/zoos.xml", include_in_schema=False)
-def head_zoos_sitemap(request: Request, db: Session = Depends(get_db)) -> Response:
+def head_zoos_sitemap(request: Request, db: Session = _db_dependency) -> Response:
     """Serve HEAD responses for the zoos sitemap."""
 
     response = get_zoos_sitemap(request, db)

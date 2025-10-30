@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import ipaddress
 import os
-from typing import Optional
 
 
-def anonymize_ip(ip: Optional[str], mode: Optional[str] = None) -> Optional[str]:
+def anonymize_ip(ip: str | None, mode: str | None = None) -> str | None:
     """Return an IP address formatted according to the configured mode."""
 
     mode_source = mode if mode is not None else os.getenv("LOG_IP_MODE")

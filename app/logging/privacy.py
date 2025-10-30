@@ -151,9 +151,10 @@ def _apply_geolocation_policy(key: str | None, value: Any) -> Any:
     if GEO_LON_KEY_PATTERN.search(normalized):
         return _coarsen_coordinate(value, -180.0, 180.0)
 
-    if normalized.startswith("geo") or "geolocation" in normalized:
-        if isinstance(value, str):
-            return _coarsen_lat_lon_string(value)
+    if (normalized.startswith("geo") or "geolocation" in normalized) and isinstance(
+        value, str
+    ):
+        return _coarsen_lat_lon_string(value)
 
     if isinstance(value, str):
         return _maybe_sanitize_query_string(value)

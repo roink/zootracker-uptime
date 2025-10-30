@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import re
 import uuid
-from typing import Dict
 
 from sqlalchemy import Table, select
 from sqlalchemy.orm import Session
@@ -16,7 +15,7 @@ from app.import_utils import _clean_text
 logger = logging.getLogger(__name__)
 
 
-def import_zoos(src: Session, dst: Session, zoo_table: Table) -> Dict[int, uuid.UUID]:
+def import_zoos(src: Session, dst: Session, zoo_table: Table) -> dict[int, uuid.UUID]:
     """Insert zoos and build id mapping."""
 
     existing_rows = list(
@@ -30,8 +29,8 @@ def import_zoos(src: Session, dst: Session, zoo_table: Table) -> Dict[int, uuid.
             )
         ).mappings()
     )
-    existing_by_key: Dict[tuple[str, str, int | None], uuid.UUID] = {}
-    existing_by_slug: Dict[str, uuid.UUID] = {}
+    existing_by_key: dict[tuple[str, str, int | None], uuid.UUID] = {}
+    existing_by_slug: dict[str, uuid.UUID] = {}
     seen_slugs: set[str] = set()
     for row in existing_rows:
         existing_key = (row["name"], row["city"], row["country_id"])
@@ -55,7 +54,7 @@ def import_zoos(src: Session, dst: Session, zoo_table: Table) -> Dict[int, uuid.
 
     rows = list(src.execute(select(zoo_table)).mappings())
     zoos = []
-    mapping: Dict[int, uuid.UUID] = {}
+    mapping: dict[int, uuid.UUID] = {}
     for row in rows:
         zoo_key: tuple[str, str, int | None] = (
             row.get("name"),

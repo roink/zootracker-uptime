@@ -8,10 +8,10 @@ from typing import NoReturn
 
 from geoalchemy2 import Geography, WKTElement
 from sqlalchemy import (
+    DECIMAL,
     CheckConstraint,
     Column,
     DateTime,
-    DECIMAL,
     ForeignKey,
     Index,
     Integer,

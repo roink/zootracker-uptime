@@ -8,11 +8,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import ORJSONResponse, Response, JSONResponse
+from fastapi.responses import JSONResponse, ORJSONResponse, Response
 from sqlalchemy.exc import SQLAlchemyError
 
-from .config import ALLOWED_ORIGINS, SECURITY_HEADERS, CSRF_HEADER_NAME
-
+from .config import ALLOWED_ORIGINS, CSRF_HEADER_NAME, SECURITY_HEADERS
 from .database import get_db  # noqa: F401 - re-exported for tests and scripts
 from .logging import configure_logging
 from .middleware.logging import LoggingMiddleware

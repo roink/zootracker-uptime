@@ -86,10 +86,7 @@ APP_BASE_URL = (
 )
 
 _site_base_url = _get_env("SITE_BASE_URL")
-if _site_base_url:
-    SITE_BASE_URL = _site_base_url
-else:
-    SITE_BASE_URL = APP_BASE_URL
+SITE_BASE_URL = _site_base_url or APP_BASE_URL
 
 
 def _is_absolute_http_url(url: str) -> bool:

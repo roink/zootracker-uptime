@@ -15,8 +15,12 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.responses import Response
 from starlette.types import ASGIApp
 
-from ..logging import anonymize_ip, bind_request_context, reset_request_context
-from ..logging import set_user_context  # re-exported for convenience
+from ..logging import (
+    anonymize_ip,
+    bind_request_context,
+    reset_request_context,
+    set_user_context,  # re-exported for convenience
+)
 from ..utils.network import get_client_ip as resolve_client_ip
 
 
@@ -44,7 +48,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         self.sample_rate = max(0.0, min(1.0, _load_float_env("ACCESS_LOG_SAMPLE", 1.0)))
         slow_ms = _load_float_env("SLOW_REQUEST_MS", 500.0)
         self.slow_request_ns = int(slow_ms * 1_000_000)
-        self.random = random.Random()
+        self.random = random.SystemRandom()
 
     async def dispatch(
         self, request: Request, call_next: RequestResponseEndpoint

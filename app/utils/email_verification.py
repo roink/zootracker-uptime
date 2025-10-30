@@ -6,8 +6,8 @@ import hashlib
 import hmac
 import logging
 import secrets
-from email.message import EmailMessage
 from datetime import UTC, datetime, timedelta
+from email.message import EmailMessage
 from typing import cast
 from urllib.parse import quote_plus
 

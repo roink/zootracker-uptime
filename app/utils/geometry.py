@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from geoalchemy2 import Geography, Geometry
 from sqlalchemy import cast, func, or_
 from sqlalchemy.orm import Query
-from geoalchemy2 import Geography, Geometry
 
 from .. import models
 

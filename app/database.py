@@ -2,7 +2,7 @@
 
 import os
 import warnings
-from typing import Generator
+from collections.abc import Generator
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
@@ -28,6 +28,7 @@ if placeholder in DATABASE_URL:
         "DATABASE_URL appears to use the 'postgres:postgres' placeholder. "
         "This is acceptable for local development and tests but must not be used in production.",
         RuntimeWarning,
+        stacklevel=2,
     )
 
 # Global engine and session factory used by the application.  Zoo Tracker relies

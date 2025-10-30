@@ -4,16 +4,21 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import exists, text
 from sqlalchemy.orm import Session, joinedload, load_only
 
-from .. import schemas, models
+from .. import models, schemas
+from ..auth import get_current_user, get_optional_user
 from ..database import get_db
 from ..utils.geometry import query_zoos_with_distance
 from ..utils.http import set_personalized_cache_headers
-from ..auth import get_current_user, get_optional_user
-from .deps import resolve_coords
 from .common_filters import apply_zoo_filters, validate_region_filters
 from .common_sightings import apply_recent_first_order, build_user_sightings_query
+from .deps import resolve_coords
 
 router = APIRouter()
+
+_coords_dependency = Depends(resolve_coords)
+_db_dependency = Depends(get_db)
+_optional_user_dependency = Depends(get_optional_user)
+_current_user_dependency = Depends(get_current_user)
 
 
 @router.get("/zoos", response_model=schemas.ZooSearchPage)
@@ -24,9 +29,9 @@ def search_zoos(
     country_id: int | None = None,
     limit: Annotated[int, Query(ge=1, le=10000)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
-    coords: tuple[float | None, float | None] = Depends(resolve_coords),
-    db: Session = Depends(get_db),
-    user: models.User | None = Depends(get_optional_user),
+    coords: tuple[float | None, float | None] = _coords_dependency,
+    db: Session = _db_dependency,
+    user: models.User | None = _optional_user_dependency,
     favorites_only: bool = False,
 ) -> schemas.ZooSearchPage:
     """Search for zoos by name, region and optional distance."""
@@ -99,8 +104,8 @@ def list_zoos_for_map(
     q: str = "",
     continent_id: int | None = None,
     country_id: int | None = None,
-    db: Session = Depends(get_db),
-    user: models.User | None = Depends(get_optional_user),
+    db: Session = _db_dependency,
+    user: models.User | None = _optional_user_dependency,
     favorites_only: bool = False,
 ) -> list[schemas.ZooMapPoint]:
     """Return minimal data for plotting zoos on the world map."""
@@ -147,7 +152,7 @@ def list_zoos_for_map(
 
 
 @router.get("/zoos/continents", response_model=list[schemas.TaxonName])
-def list_continents(db: Session = Depends(get_db)) -> list[schemas.TaxonName]:
+def list_continents(db: Session = _db_dependency) -> list[schemas.TaxonName]:
     """Return continents that have zoos."""
 
     continents = (
@@ -165,7 +170,7 @@ def list_continents(db: Session = Depends(get_db)) -> list[schemas.TaxonName]:
 
 @router.get("/zoos/countries", response_model=list[schemas.TaxonName])
 def list_countries(
-    continent_id: int, db: Session = Depends(get_db)
+    continent_id: int, db: Session = _db_dependency
 ) -> list[schemas.TaxonName]:
     """Return countries for a given continent that have zoos."""
 
@@ -197,8 +202,8 @@ def _get_zoo_or_404(zoo_slug: str, db: Session) -> models.Zoo:
 def get_zoo(
     response: Response,
     zoo_slug: str,
-    db: Session = Depends(get_db),
-    user: models.User | None = Depends(get_optional_user),
+    db: Session = _db_dependency,
+    user: models.User | None = _optional_user_dependency,
 ) -> models.Zoo:
     """Retrieve detailed information about a zoo."""
 
@@ -215,7 +220,7 @@ def get_zoo(
             .first()
             is not None
         )
-        setattr(zoo, "is_favorite", is_favorite)
+        zoo.is_favorite = is_favorite
     return zoo
 
 
@@ -226,8 +231,8 @@ def get_zoo(
 )
 def mark_zoo_favorite(
     zoo_slug: str,
-    db: Session = Depends(get_db),
-    user: models.User = Depends(get_current_user),
+    db: Session = _db_dependency,
+    user: models.User = _current_user_dependency,
 ) -> schemas.FavoriteStatus:
     """Mark a zoo as a favorite for the authenticated user."""
 
@@ -253,8 +258,8 @@ def mark_zoo_favorite(
 )
 def unmark_zoo_favorite(
     zoo_slug: str,
-    db: Session = Depends(get_db),
-    user: models.User = Depends(get_current_user),
+    db: Session = _db_dependency,
+    user: models.User = _current_user_dependency,
 ) -> schemas.FavoriteStatus:
     """Remove a zoo from the authenticated user's favorites."""
 
@@ -274,8 +279,8 @@ def unmark_zoo_favorite(
 @router.get("/zoos/{zoo_slug}/visited", response_model=schemas.Visited)
 def has_visited_zoo(
     zoo_slug: str,
-    db: Session = Depends(get_db),
-    user: models.User = Depends(get_current_user),
+    db: Session = _db_dependency,
+    user: models.User = _current_user_dependency,
 ) -> schemas.Visited:
     """Return whether the authenticated user has visited a given zoo."""
 
@@ -305,8 +310,8 @@ def list_zoo_sightings(
     zoo_slug: str,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
-    db: Session = Depends(get_db),
-    user: models.User = Depends(get_current_user),
+    db: Session = _db_dependency,
+    user: models.User = _current_user_dependency,
 ) -> schemas.AnimalSightingPage:
     """Return the authenticated user's sightings for a specific zoo."""
 
@@ -334,8 +339,8 @@ def list_zoo_sightings(
 def list_zoo_animals(
     response: Response,
     zoo_slug: str,
-    db: Session = Depends(get_db),
-    user: models.User | None = Depends(get_optional_user),
+    db: Session = _db_dependency,
+    user: models.User | None = _optional_user_dependency,
 ) -> list[schemas.AnimalRead]:
     """Return animals that are associated with a specific zoo."""
 

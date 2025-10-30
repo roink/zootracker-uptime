@@ -13,7 +13,7 @@ from .context import (
     user_id_ctx_var,
 )
 from .filters import IPOverrideFilter, PrivacyFilter, RequestContextFilter
-from .formatter import ECSJsonFormatter, FIELD_MAP, SERVICE_NAME
+from .formatter import FIELD_MAP, SERVICE_NAME, ECSJsonFormatter
 from .handlers import SecureWatchedFileHandler
 from .ip_utils import anonymize_ip
 from .privacy import sanitize_value

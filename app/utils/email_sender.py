@@ -6,6 +6,7 @@ import logging
 import os
 import smtplib
 import ssl
+from contextlib import suppress
 from dataclasses import dataclass
 from email.message import EmailMessage
 from email.utils import formatdate, make_msgid
@@ -126,10 +127,8 @@ def send_email_via_smtp(
     """Deliver ``message`` using the provided SMTP settings with robust logging."""
 
     context = ssl.create_default_context()
-    try:
+    with suppress(AttributeError):  # pragma: no cover - Python < 3.7 compatibility
         context.minimum_version = ssl.TLSVersion.TLSv1_2
-    except AttributeError:  # pragma: no cover - Python < 3.7 compatibility
-        pass
 
     attempts: list[str] = []
 
@@ -225,7 +224,15 @@ def send_email_via_smtp(
                 )
                 return
             except Exception:
-                pass
+                logger.warning(
+                    "Fallback SMTP delivery attempt failed",
+                    extra=_build_log_extra(
+                        base=log_extra,
+                        attempts=attempts,
+                        action="smtp_fallback_failure",
+                    ),
+                    exc_info=True,
+                )
         logger.error(
             send_failure[0],
             extra=_build_log_extra(

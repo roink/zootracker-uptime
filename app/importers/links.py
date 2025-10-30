@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from typing import Any, Dict
+from typing import Any
 
 from sqlalchemy import Table, bindparam, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -20,8 +20,8 @@ def import_links(
     src: Session,
     dst: Session,
     link_table: Table,
-    zoo_map: Dict[int, uuid.UUID],
-    animal_map: Dict[int | str, uuid.UUID],
+    zoo_map: dict[int, uuid.UUID],
+    animal_map: dict[int | str, uuid.UUID],
 ) -> None:
     rows = src.execute(select(link_table)).mappings()
     stmt = pg_insert(models.ZooAnimal.__table__).on_conflict_do_nothing()

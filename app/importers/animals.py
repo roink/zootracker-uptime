@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import uuid
-from typing import Dict
 
 from sqlalchemy import Table, exists, func, select, text
 from sqlalchemy.orm import Session
@@ -21,13 +20,13 @@ def import_animals(
     dst: Session,
     animal_table: Table,
     link_table: Table,
-    category_map: Dict[int | None, uuid.UUID],
+    category_map: dict[int | None, uuid.UUID],
     *,
     overwrite: bool = False,
-) -> Dict[int | str, uuid.UUID]:
+) -> dict[int | str, uuid.UUID]:
     """Insert animals and build id mapping keyed by ``art``."""
 
-    existing: Dict[int | str, uuid.UUID] = {}
+    existing: dict[int | str, uuid.UUID] = {}
     for row in dst.execute(select(models.Animal.id, models.Animal.art)).mappings():
         art = normalize_art_value(row.art)
         if art is None:
@@ -84,7 +83,7 @@ def import_animals(
     n_zoo_animals = len(main_art_values)
     n_parent_animals = len(parent_targets)
     animals = []
-    id_map: Dict[int | str, uuid.UUID] = {}
+    id_map: dict[int | str, uuid.UUID] = {}
     n_inserted = 0
     n_updated = 0
     n_skipped = 0
@@ -93,9 +92,11 @@ def import_animals(
         bind = dst.get_bind()
         if bind.dialect.name == "postgresql":
             dst.execute(text("SET CONSTRAINTS fk_animals_parent_art DEFERRED"))
-    except Exception:
-        # Best effort – SQLite and older PostgreSQL releases may not support deferrable constraints.
-        pass
+    except Exception as exc:  # pragma: no cover - advisory logging only
+        logger.debug(
+            "Skipping constraint deferral for animals import due to database capabilities",
+            exc_info=exc,
+        )
 
     processed_arts: set[int] = set()
     # Insert parent taxa before main rows; duplicates are skipped via processed_arts.
@@ -124,25 +125,24 @@ def import_animals(
             animal_id = existing[art]
             animal = dst.get(models.Animal, animal_id)
             changed = False
+            field_updates = {
+                "description_de": desc_de,
+                "description_en": desc_en,
+                "conservation_state": status,
+                "taxon_rank": taxon_rank,
+            }
+            if slug is not None:
+                field_updates["slug"] = slug
 
-            def assign(attr: str, value: str | None) -> None:
-                nonlocal changed
+            for attr, value in field_updates.items():
                 current = getattr(animal, attr)
                 if overwrite:
                     if current != value:
                         setattr(animal, attr, value)
                         changed = True
-                else:
-                    if current in (None, "") and value:
-                        setattr(animal, attr, value)
-                        changed = True
-
-            assign("description_de", desc_de)
-            assign("description_en", desc_en)
-            assign("conservation_state", status)
-            assign("taxon_rank", taxon_rank)
-            if slug is not None:
-                assign("slug", slug)
+                elif current in (None, "") and value:
+                    setattr(animal, attr, value)
+                    changed = True
             if overwrite and animal.parent_art != parent_art:
                 animal.parent_art = parent_art
                 changed = True

@@ -6,7 +6,6 @@ import logging
 import re
 import uuid
 from datetime import datetime, timezone
-from typing import Dict
 
 from sqlalchemy import Table, bindparam, select
 from sqlalchemy.orm import Session
@@ -25,7 +24,7 @@ def import_images(
     dst: Session,
     image_table: Table,
     variant_table: Table,
-    animal_map: Dict[int | str, uuid.UUID],
+    animal_map: dict[int | str, uuid.UUID],
     *,
     overwrite: bool = False,
 ) -> None:
@@ -33,7 +32,7 @@ def import_images(
 
     img_rows = list(src.execute(select(image_table)).mappings())
     images: list[models.Image] = []
-    mid_to_animal: Dict[str, uuid.UUID] = {}
+    mid_to_animal: dict[str, uuid.UUID] = {}
     existing = {img.mid: img for img in dst.execute(select(models.Image)).scalars()}
     banned_license_skips = 0
 
@@ -136,7 +135,7 @@ def import_images(
 
     var_rows = list(src.execute(select(variant_table)).mappings())
     variants: list[models.ImageVariant] = []
-    best_variant: Dict[uuid.UUID, tuple[int, str]] = {}
+    best_variant: dict[uuid.UUID, tuple[int, str]] = {}
     existing_vars = set(
         dst.execute(select(models.ImageVariant.mid, models.ImageVariant.width)).all()
     )

@@ -9,24 +9,24 @@ import uuid
 from collections import defaultdict, deque
 from collections.abc import Mapping
 from datetime import UTC, datetime
-from typing import Any, Deque
+from typing import Any
 
 import anyio
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, Response, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    status,
+)
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from .. import models, schemas
-from ..utils.email_verification import (
-    can_issue_again,
-    clear_verification_state,
-    code_matches,
-    enqueue_verification_email,
-    get_latest_token,
-    issue_verification_token,
-    token_matches,
-)
 from ..auth import (
     create_access_token,
     get_current_user,
@@ -50,6 +50,23 @@ from ..config import (
 from ..database import get_db
 from ..logging import anonymize_ip
 from ..middleware.logging import set_user_context
+from ..rate_limit import (
+    enforce_password_reset_request_limit,
+    enforce_password_reset_token_limit,
+    enforce_verification_resend_limit,
+    enforce_verify_rate_limit,
+    register_failed_password_reset_attempt,
+    register_failed_verification_attempt,
+)
+from ..utils.email_verification import (
+    can_issue_again,
+    clear_verification_state,
+    code_matches,
+    enqueue_verification_email,
+    get_latest_token,
+    issue_verification_token,
+    token_matches,
+)
 from ..utils.network import get_client_ip
 from ..utils.password_reset import (
     can_issue_password_reset,
@@ -60,23 +77,19 @@ from ..utils.password_reset import (
     issue_password_reset_token,
     reset_token_identifier,
 )
-from ..rate_limit import (
-    enforce_password_reset_request_limit,
-    enforce_password_reset_token_limit,
-    enforce_verify_rate_limit,
-    enforce_verification_resend_limit,
-    register_failed_password_reset_attempt,
-    register_failed_verification_attempt,
-)
 
 router = APIRouter()
+
+_db_dependency = Depends(get_db)
+_oauth_form_dependency = Depends()
+_current_user_dependency = Depends(get_current_user)
 
 
 auth_logger = logging.getLogger("app.auth")
 
 _FAILURE_WINDOW_SECONDS = 60
 _FAILURE_LOG_LIMIT = 10
-_failure_attempts: dict[str, Deque[float]] = defaultdict(deque)
+_failure_attempts: dict[str, deque[float]] = defaultdict(deque)
 
 _GENERIC_RESET_DETAIL = "If the reset token is valid, your password has been updated."
 _GENERIC_RESET_PAYLOAD = {"detail": _GENERIC_RESET_DETAIL}
@@ -278,8 +291,8 @@ def _build_token_response(user: models.User, access_token: str, expires_at: date
 @router.post("/auth/login", response_model=schemas.Token)
 def login(
     request: Request,
-    form_data: OAuth2PasswordRequestForm = Depends(),
-    db: Session = Depends(get_db),
+    form_data: OAuth2PasswordRequestForm = _oauth_form_dependency,
+    db: Session = _db_dependency,
 ) -> JSONResponse:
     """Authenticate a user and return an access token."""
 
@@ -356,7 +369,7 @@ def login(
 
 
 @router.post("/auth/refresh", response_model=schemas.Token)
-def refresh_token(request: Request, db: Session = Depends(get_db)) -> JSONResponse:
+def refresh_token(request: Request, db: Session = _db_dependency) -> JSONResponse:
     """Rotate the refresh token and issue a new access token."""
 
     csrf_cookie = request.cookies.get(CSRF_COOKIE_NAME)
@@ -439,8 +452,8 @@ def refresh_token(request: Request, db: Session = Depends(get_db)) -> JSONRespon
 )
 def resend_verification_email(
     background_tasks: BackgroundTasks,
-    current_user: models.User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: models.User = _current_user_dependency,
+    db: Session = _db_dependency,
 ) -> schemas.Message:
     """Re-issue an email verification token for the authenticated user."""
 
@@ -482,7 +495,7 @@ def request_verification_resend(
     request: Request,
     payload: schemas.VerificationResendRequest,
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
+    db: Session = _db_dependency,
 ) -> schemas.Message | JSONResponse:
     """Allow users to request another verification email without authentication."""
 
@@ -564,7 +577,7 @@ def request_verification_resend(
 async def verify_email(
     request: Request,
     payload: schemas.EmailVerificationRequest,
-    db: Session = Depends(get_db),
+    db: Session = _db_dependency,
 ) -> schemas.Message | JSONResponse:
     """Validate a verification token or code and mark the user as verified."""
 
@@ -629,11 +642,10 @@ async def verify_email(
         )
         return generic_response
 
-    matched = False
-    if payload.token and token_matches(token_record, payload.token):
-        matched = True
-    elif payload.code and code_matches(token_record, payload.code):
-        matched = True
+    matched = bool(
+        (payload.token and token_matches(token_record, payload.token))
+        or (payload.code and code_matches(token_record, payload.code))
+    )
 
     if not matched:
         await register_failed_verification_attempt(request, identifier=identifier)
@@ -683,7 +695,7 @@ async def request_password_reset(
     request: Request,
     payload: schemas.PasswordResetRequest,
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
+    db: Session = _db_dependency,
 ) -> JSONResponse:
     """Handle anonymous password reset requests without leaking account status."""
 
@@ -774,7 +786,7 @@ async def reset_password(
     request: Request,
     payload: schemas.PasswordResetConfirm,
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
+    db: Session = _db_dependency,
 ) -> JSONResponse:
     """Validate a reset token and persist a new password, revealing status on error."""
 
@@ -873,7 +885,7 @@ async def reset_password(
 async def get_password_reset_status(
     request: Request,
     token: str = Query(..., min_length=1, max_length=512),
-    db: Session = Depends(get_db),
+    db: Session = _db_dependency,
 ) -> JSONResponse:
     """Return the current status of a password reset token."""
 
@@ -936,7 +948,7 @@ async def get_password_reset_status(
 
 
 @router.post("/auth/logout", status_code=status.HTTP_204_NO_CONTENT)
-def logout(request: Request, db: Session = Depends(get_db)) -> Response:
+def logout(request: Request, db: Session = _db_dependency) -> Response:
     """Invalidate the current refresh token and clear cookies."""
 
     response = Response(status_code=status.HTTP_204_NO_CONTENT)
