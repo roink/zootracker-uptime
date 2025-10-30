@@ -22,7 +22,7 @@ from fastapi import (
     Response,
     status,
 )
-from fastapi.responses import JSONResponse
+from fastapi.responses import ORJSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
@@ -159,7 +159,7 @@ async def _build_reset_failure_response(
     log_message: str,
     client_ip: str | None,
     user_id: str | None = None,
-) -> JSONResponse:
+) -> ORJSONResponse:
     extra: dict[str, Any] = {
         "event_dataset": "zoo-tracker-api.auth",
         "event_action": "password_reset_failed",
@@ -185,7 +185,7 @@ async def _build_reset_failure_response(
                 },
             )
             payload = {**_GENERIC_RESET_PAYLOAD, "status": "rate_limited"}
-            response = JSONResponse(
+            response = ORJSONResponse(
                 payload,
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 headers=exc.headers,
@@ -199,7 +199,7 @@ async def _build_reset_failure_response(
         (status.HTTP_400_BAD_REQUEST, "invalid", _GENERIC_RESET_DETAIL),
     )
     payload = {"detail": detail, "status": status_name}
-    response = JSONResponse(payload, status_code=status_code)
+    response = ORJSONResponse(payload, status_code=status_code)
     _cache_busting_headers(response)
     return response
 
@@ -274,7 +274,7 @@ def _clear_cookies(response: Response) -> None:
     )
 
 
-def _build_token_response(user: models.User, access_token: str, expires_at: datetime) -> JSONResponse:
+def _build_token_response(user: models.User, access_token: str, expires_at: datetime) -> ORJSONResponse:
     expires_in = max(0, int((expires_at - _now()).total_seconds()))
     payload: dict[str, Any] = {
         "access_token": access_token,
@@ -283,7 +283,7 @@ def _build_token_response(user: models.User, access_token: str, expires_at: date
         "user_id": str(user.id),
         "email_verified": bool(user.email_verified_at),
     }
-    response = JSONResponse(payload)
+    response = ORJSONResponse(payload)
     _cache_busting_headers(response)
     return response
 
@@ -293,7 +293,7 @@ def login(
     request: Request,
     form_data: OAuth2PasswordRequestForm = _oauth_form_dependency,
     db: Session = _db_dependency,
-) -> JSONResponse:
+) -> ORJSONResponse:
     """Authenticate a user and return an access token."""
 
     if not form_data.username or not form_data.password:
@@ -369,7 +369,7 @@ def login(
 
 
 @router.post("/auth/refresh", response_model=schemas.Token)
-def refresh_token(request: Request, db: Session = _db_dependency) -> JSONResponse:
+def refresh_token(request: Request, db: Session = _db_dependency) -> ORJSONResponse:
     """Rotate the refresh token and issue a new access token."""
 
     csrf_cookie = request.cookies.get(CSRF_COOKIE_NAME)
@@ -496,7 +496,7 @@ def request_verification_resend(
     payload: schemas.VerificationResendRequest,
     background_tasks: BackgroundTasks,
     db: Session = _db_dependency,
-) -> schemas.Message | JSONResponse:
+) -> schemas.Message | ORJSONResponse:
     """Allow users to request another verification email without authentication."""
 
     generic_payload = {
@@ -516,7 +516,7 @@ def request_verification_resend(
                     "verification_throttle_reason": "rate_limit",
                 },
             )
-            return JSONResponse(
+            return ORJSONResponse(
                 generic_payload,
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 headers=exc.headers,
@@ -578,7 +578,7 @@ async def verify_email(
     request: Request,
     payload: schemas.EmailVerificationRequest,
     db: Session = _db_dependency,
-) -> schemas.Message | JSONResponse:
+) -> schemas.Message | ORJSONResponse:
     """Validate a verification token or code and mark the user as verified."""
 
     identifier: str | None = None
@@ -596,8 +596,8 @@ async def verify_email(
         *,
         status_code: int = status.HTTP_202_ACCEPTED,
         headers: Mapping[str, str] | None = None,
-    ) -> JSONResponse:
-        response = JSONResponse(generic_payload, status_code=status_code, headers=headers)
+    ) -> ORJSONResponse:
+        response = ORJSONResponse(generic_payload, status_code=status_code, headers=headers)
         _cache_busting_headers(response)
         return response
 
@@ -696,7 +696,7 @@ async def request_password_reset(
     payload: schemas.PasswordResetRequest,
     background_tasks: BackgroundTasks,
     db: Session = _db_dependency,
-) -> JSONResponse:
+) -> ORJSONResponse:
     """Handle anonymous password reset requests without leaking account status."""
 
     generic = {
@@ -705,8 +705,8 @@ async def request_password_reset(
 
     def _build_generic_response(
         *, status_code: int = status.HTTP_202_ACCEPTED, headers: dict[str, str] | None = None
-    ) -> JSONResponse:
-        response = JSONResponse(generic, status_code=status_code, headers=headers)
+    ) -> ORJSONResponse:
+        response = ORJSONResponse(generic, status_code=status_code, headers=headers)
         _cache_busting_headers(response)
         return response
 
@@ -787,10 +787,10 @@ async def reset_password(
     payload: schemas.PasswordResetConfirm,
     background_tasks: BackgroundTasks,
     db: Session = _db_dependency,
-) -> JSONResponse:
+) -> ORJSONResponse:
     """Validate a reset token and persist a new password, revealing status on error."""
 
-    generic_response = JSONResponse(
+    generic_response = ORJSONResponse(
         _GENERIC_RESET_PAYLOAD.copy(),
         status_code=status.HTTP_202_ACCEPTED,
     )
@@ -816,7 +816,7 @@ async def reset_password(
                 },
             )
             response_payload = {**_GENERIC_RESET_PAYLOAD, "status": "rate_limited"}
-            response = JSONResponse(
+            response = ORJSONResponse(
                 response_payload,
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 headers=exc.headers,
@@ -886,7 +886,7 @@ async def get_password_reset_status(
     request: Request,
     token: str = Query(..., min_length=1, max_length=512),
     db: Session = _db_dependency,
-) -> JSONResponse:
+) -> ORJSONResponse:
     """Return the current status of a password reset token."""
 
     trimmed_token = token.strip()
@@ -910,7 +910,7 @@ async def get_password_reset_status(
                 },
             )
             payload = {**_GENERIC_RESET_PAYLOAD, "status": "rate_limited"}
-            response = JSONResponse(
+            response = ORJSONResponse(
                 payload,
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 headers=exc.headers,
@@ -942,7 +942,7 @@ async def get_password_reset_status(
                 "user_id": str(token_record.user_id),
             },
         )
-    response = JSONResponse({"status": "valid"})
+    response = ORJSONResponse({"status": "valid"})
     _cache_busting_headers(response)
     return response
 

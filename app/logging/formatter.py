@@ -1,4 +1,4 @@
-"""Custom JSON formatter compatible with ECS."""
+"""Custom JSON formatter compatible with ECS using orjson serialization."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import traceback
 from datetime import datetime, timezone
 from typing import Any
 
-from pythonjsonlogger import jsonlogger
+from pythonjsonlogger.orjson import OrjsonFormatter
 
 SERVICE_NAME = os.getenv("SERVICE_NAME", "zoo-tracker-api")
 
@@ -38,7 +38,7 @@ FIELD_MAP = {
 }
 
 
-class ECSJsonFormatter(jsonlogger.JsonFormatter):
+class ECSJsonFormatter(OrjsonFormatter):
     """Custom JSON formatter that emits ECS aligned fields."""
 
     def __init__(self, *args: Any, service_name: str = SERVICE_NAME, **kwargs: Any) -> None:

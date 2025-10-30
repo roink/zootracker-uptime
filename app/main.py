@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, ORJSONResponse, Response
+from fastapi.responses import ORJSONResponse, Response
 from sqlalchemy.exc import SQLAlchemyError
 
 from .config import ALLOWED_ORIGINS, CSRF_HEADER_NAME, SECURITY_HEADERS
@@ -174,7 +174,7 @@ async def sqlalchemy_exception_handler(
         },
     )
 
-    response = JSONResponse(
+    response = ORJSONResponse(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         content={"detail": "Temporary database issue. Please retry later."},
         headers={
