@@ -25,6 +25,9 @@ This directory contains all the files and configuration templates needed to depl
 * **setup-zoo-tracker-service.yml**
   An Ansible playbook that deploys the Zoo Tracker systemd unit together with the hardening and logging drop-ins in `/etc/systemd/system/zoo_tracker.service.d/` and the matching logrotate policy under `/etc/logrotate.d/zootracker`.
 
+* **deploy-zoo-tracker-app.yml**
+  An Ansible playbook that installs Python 3.14 from the Deadsnakes PPA, synchronizes the FastAPI project source to `/opt/zoo_tracker`, refreshes the virtual environment, and restarts the `zoo_tracker` systemd service.
+
 * **templates/zoo\_tracker.service.j2**
   A systemd unit template for running the FastAPI backend under `gunicorn + uvicorn` bound to `127.0.0.1:8000` with loopback forwarding enabled.
 
