@@ -8,7 +8,7 @@ User=www-data
 WorkingDirectory=/opt/zoo_tracker
 EnvironmentFile=/opt/zoo_tracker/.env
 ExecStart=/opt/zoo_tracker/venv/bin/gunicorn \
-          -k uvicorn.workers.UvicornWorker \
+          -k uvicorn_worker.UvicornWorker \
           -w 5 \
           --timeout 60 \
           --graceful-timeout 30 \

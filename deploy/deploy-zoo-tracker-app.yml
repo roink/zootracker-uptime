@@ -1,0 +1,100 @@
+---
+- name: Deploy Zoo Tracker application with Python 3.14
+  hosts: zoo_server
+  become: true
+
+  vars:
+    app_root: /opt/zoo_tracker
+    venv_path: /opt/zoo_tracker/venv
+    python_executable: /usr/bin/python3.14
+    local_project_path: "{{ playbook_dir | path_join('..') | realpath }}"
+
+  tasks:
+    - name: Ensure Deadsnakes PPA is configured
+      ansible.builtin.apt_repository:
+        repo: ppa:deadsnakes/ppa
+        state: present
+        filename: deadsnakes
+      register: deadsnakes_repo
+
+    - name: Update apt cache if repository changed
+      ansible.builtin.apt:
+        update_cache: true
+      when: deadsnakes_repo is changed
+
+    - name: Install Python 3.14 packages
+      ansible.builtin.apt:
+        name:
+          - python3.14
+          - python3.14-venv
+          - python3.14-dev
+          - build-essential
+          - libffi-dev
+          - pkg-config
+        state: present
+        update_cache: true
+
+    - name: Ensure application root exists
+      ansible.builtin.file:
+        path: "{{ app_root }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Synchronize application source to server
+      ansible.posix.synchronize:
+        src: "{{ local_project_path }}/"
+        dest: "{{ app_root }}/"
+        delete: true
+        mode: push
+        rsync_path: "sudo rsync"
+        rsync_opts:
+          - --archive
+          - --compress
+          - --chmod=D755,F644
+          - --exclude=.git
+          - --exclude=venv
+          - --exclude=frontend/node_modules
+          - --exclude=.pytest_cache
+          - --exclude=*.pyc
+          - --exclude=*.pyo
+          - --exclude=app.log
+          - --exclude=tests
+      delegate_to: localhost
+      become: false
+      notify: Restart Zoo Tracker service
+
+    - name: Create virtual environment
+      ansible.builtin.command:
+        cmd: "{{ python_executable }} -m venv {{ venv_path }}"
+        creates: "{{ venv_path }}/bin/python"
+      notify: Restart Zoo Tracker service
+
+    - name: Upgrade pip in virtual environment
+      ansible.builtin.pip:
+        name: pip
+        state: latest
+        virtualenv: "{{ venv_path }}"
+        virtualenv_python: "{{ python_executable }}"
+      notify: Restart Zoo Tracker service
+
+    - name: Install application requirements
+      ansible.builtin.pip:
+        requirements: "{{ app_root }}/requirements.txt"
+        virtualenv: "{{ venv_path }}"
+        virtualenv_python: "{{ python_executable }}"
+      notify: Restart Zoo Tracker service
+
+    - name: Ensure Zoo Tracker service is enabled and running
+      ansible.builtin.systemd:
+        name: zoo_tracker.service
+        enabled: true
+        state: started
+
+  handlers:
+    - name: Restart Zoo Tracker service
+      ansible.builtin.systemd:
+        name: zoo_tracker.service
+        state: restarted
+        enabled: true

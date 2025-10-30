@@ -61,7 +61,7 @@ EOF
 echo "➤ Pushing .env to remote…"
 TMP_ENV=\$(mktemp)
 cat > "\${TMP_ENV}" <<ENV
-DATABASE_URL=postgresql://zoo_user:${DB_PASS}@localhost:5432/zoo_db
+DATABASE_URL=postgresql+psycopg://zoo_user:${DB_PASS}@localhost:5432/zoo_db
 SECRET_KEY=${SECRET_KEY}
 ENV
 scp "\${TMP_ENV}" "${SSH_TARGET}:${APP_DIR}/.env"

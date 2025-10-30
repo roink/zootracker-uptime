@@ -17,19 +17,21 @@ Project structure overview:
 
 ## Running tests
 
-Run the backend test suite with SQLite so it works without a PostgreSQL server:
-
-```bash
-pytest -q
-```
-
-Tests that require PostgreSQL are marked with `@pytest.mark.postgres` and are
-skipped unless the `--pg` option is provided. To run them locally start the
-database and execute:
+The backend test suite now runs against PostgreSQL by default so contributors
+exercise the same database driver and extensions used in production. Start the
+database locally and run the suite with:
 
 ```bash
 docker compose up -d db
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres pytest --pg
+pytest -q
+```
+
+Tests that specifically exercise PostgreSQL behaviours are still marked with
+`@pytest.mark.postgres`. When you want to point the suite at a different
+database instance, set `DATABASE_URL` accordingly, for example:
+
+```bash
+DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/postgres pytest -q
 ```
 
 Frontend clustering is covered by dedicated tests. To confirm the structural
