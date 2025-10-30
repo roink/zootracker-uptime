@@ -1,8 +1,8 @@
 """Middleware that injects security headers for every response."""
 
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Mapping
 
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import Response
 from starlette.types import ASGIApp
@@ -22,8 +22,8 @@ class SecureHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(
         self,
         request: Request,
-        call_next: Callable[[Request], Awaitable[Response]],
-    ) -> Response:  # type: ignore[override]
+        call_next: RequestResponseEndpoint,
+    ) -> Response:
         response = await call_next(request)
 
         scheme = request.url.scheme

@@ -6,7 +6,7 @@ import logging
 import re
 import uuid
 from datetime import datetime, timezone
-from typing import Dict, cast
+from typing import Dict
 
 from sqlalchemy import Table, bindparam, select
 from sqlalchemy.orm import Session
@@ -157,19 +157,17 @@ def import_images(
         )
         animal_id = mid_to_animal.get(mid)
         if animal_id:
-            width = row.get("width")
-            url = row.get("thumb_url")
-            if not (isinstance(width, int) and width > 0):
+            width_value = row.get("width")
+            url_value = row.get("thumb_url")
+            if not (isinstance(width_value, int) and width_value > 0):
                 continue
-            if not (isinstance(url, str) and url):
+            if not (isinstance(url_value, str) and url_value):
                 continue
-            width_int = cast(int, width)
-            url_str = cast(str, url)
             current = best_variant.get(animal_id)
             if current is None or (
-                current[0] != 640 and (width_int == 640 or width_int > current[0])
+                current[0] != 640 and (width_value == 640 or width_value > current[0])
             ):
-                best_variant[animal_id] = (width_int, url_str)
+                best_variant[animal_id] = (width_value, url_value)
     if variants:
         dst.bulk_save_objects(variants)
 

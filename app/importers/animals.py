@@ -153,8 +153,12 @@ def import_animals(
                 n_skipped += 1
             id_map[art] = animal_id
             id_map[str(art)] = animal_id
-            if isinstance(raw_art, str) and raw_art.strip():
-                id_map[raw_art.strip()] = animal_id
+            if isinstance(raw_art, str):
+                trimmed = raw_art.strip()
+                if trimmed:
+                    id_map[trimmed] = animal_id
+                    if trimmed != raw_art or trimmed != str(art):
+                        id_map[raw_art] = animal_id
             continue
         normalized_latin_name = row.get("normalized_latin_name")
         if not normalized_latin_name or not row.get("name_de"):
@@ -197,10 +201,12 @@ def import_animals(
         )
         id_map[art] = animal_id
         id_map[str(art)] = animal_id
-        if isinstance(raw_art, str) and raw_art.strip():
-            id_map[raw_art.strip()] = animal_id
-        if isinstance(raw_art, str) and raw_art.strip() and raw_art != art:
-            id_map[raw_art] = animal_id
+        if isinstance(raw_art, str):
+            trimmed = raw_art.strip()
+            if trimmed:
+                id_map[trimmed] = animal_id
+                if trimmed != raw_art or trimmed != str(art):
+                    id_map[raw_art] = animal_id
         n_inserted += 1
     if animals:
         dst.bulk_save_objects(animals)

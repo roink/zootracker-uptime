@@ -8,11 +8,10 @@ import random
 import time
 import traceback
 import uuid
-from typing import Awaitable, Callable
 
 from fastapi import HTTPException, Request
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import Response
 from starlette.types import ASGIApp
 
@@ -39,7 +38,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 
     noise_paths = {"/health", "/healthz", "/ready", "/live"}
 
-    def __init__(self, app: ASGIApp) -> None:  # type: ignore[override]
+    def __init__(self, app: ASGIApp) -> None:
         super().__init__(app)
         self.logger = logging.getLogger("app.access")
         self.sample_rate = max(0.0, min(1.0, _load_float_env("ACCESS_LOG_SAMPLE", 1.0)))
@@ -48,7 +47,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         self.random = random.Random()
 
     async def dispatch(
-        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+        self, request: Request, call_next: RequestResponseEndpoint
     ) -> Response:
         start_ns = time.perf_counter_ns()
         request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
