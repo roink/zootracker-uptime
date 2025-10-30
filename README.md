@@ -45,7 +45,7 @@ Then point the backend at those credentials, either in your shell or in a
 `.env` file loaded by your process manager:
 
 ```bash
-export DATABASE_URL=postgresql+psycopg://zoo_app_user:strong-password@localhost:5432/zoo_app
+export DATABASE_URL=postgresql+psycopg_async://zoo_app_user:strong-password@localhost:5432/zoo_app
 ```
 
 The application refuses to start if `DATABASE_URL` is unset. When `APP_ENV` is

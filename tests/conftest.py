@@ -55,7 +55,7 @@ else:
 # run the test suite without provisioning a dedicated database. Individual
 # environments can still override DATABASE_URL before importing the fixtures.
 DEFAULT_TEST_DATABASE_URL = (
-    "postgresql+psycopg://postgres:postgres@localhost:5432/postgres"
+    "postgresql+psycopg_async://postgres:postgres@localhost:5432/postgres"
 )
 DATABASE_URL = os.getenv("DATABASE_URL", DEFAULT_TEST_DATABASE_URL)
 
@@ -89,11 +89,16 @@ os.environ.setdefault("PASSWORD_RESET_REQUEST_PERIOD", "60")
 os.environ.setdefault("PASSWORD_RESET_TOKEN_IP_LIMIT", "100")
 os.environ.setdefault("PASSWORD_RESET_TOKEN_PERIOD", "60")
 
-from app.database import Base, engine, SessionLocal  # noqa: E402
+from app.database import (  # noqa: E402
+    AsyncSessionLocal,
+    Base,
+    engine,
+    SessionLocal,
+)
 from app import models  # noqa: E402
 from app.triggers import create_triggers  # noqa: E402
 from app.db_extensions import ensure_pg_extensions  # noqa: E402
-from app.main import app, get_db  # noqa: E402
+from app.main import app, get_async_db, get_db  # noqa: E402
 
 
 def override_get_db():
@@ -105,6 +110,14 @@ def override_get_db():
         db.close()
 
 app.dependency_overrides[get_db] = override_get_db
+
+
+async def override_get_async_db():
+    async with AsyncSessionLocal() as session:
+        yield session
+
+
+app.dependency_overrides[get_async_db] = override_get_async_db
 
 ensure_pg_extensions(engine)
 

@@ -2,25 +2,61 @@
 
 import os
 import warnings
-from collections.abc import Generator
+from collections.abc import AsyncGenerator, Generator
 
-from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 # Connection string for the PostgreSQL database.  A value **must** be provided
 # via the ``DATABASE_URL`` environment variable so deployments never rely on
 # an implicit insecure default.
-DATABASE_URL = os.getenv("DATABASE_URL")
+RAW_DATABASE_URL = os.getenv("DATABASE_URL")
 APP_ENV = os.getenv("APP_ENV", "production").lower()
 
-if not DATABASE_URL:
+if not RAW_DATABASE_URL:
     raise RuntimeError(
         "DATABASE_URL environment variable is required to connect to PostgreSQL"
+    )
+
+
+def _normalise_database_url(url: str) -> str:
+    """Upgrade legacy PostgreSQL URLs to the psycopg async scheme."""
+
+    legacy_prefixes = (
+        "postgresql+psycopg://",
+        "postgresql://",
+    )
+    for prefix in legacy_prefixes:
+        if url.startswith(prefix):
+            replacement = "postgresql+psycopg_async://"
+            normalised = replacement + url[len(prefix) :]
+            warnings.warn(
+                "DATABASE_URL uses a synchronous PostgreSQL driver. "
+                "Automatically switching to the psycopg async driver; "
+                "update the environment to use 'postgresql+psycopg_async'.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            return normalised
+    return url
+
+
+DATABASE_URL = _normalise_database_url(RAW_DATABASE_URL)
+
+if not DATABASE_URL.startswith("postgresql+psycopg_async://"):
+    raise RuntimeError(
+        "Zoo Tracker now requires the psycopg async driver. "
+        "Set DATABASE_URL to use the 'postgresql+psycopg_async' scheme.",
     )
 
 PLACEHOLDER_PREFIXES = (
     "postgresql://postgres:postgres@",
     "postgresql+psycopg://postgres:postgres@",
+    "postgresql+psycopg_async://postgres:postgres@",
 )
 
 
@@ -44,15 +80,15 @@ if _uses_placeholder(DATABASE_URL):
 
 # Global engine and session factory used by the application.  Zoo Tracker relies
 # on PostgreSQL/PostGIS; fail fast if another backend is configured.
-engine = create_engine(
+async_engine = create_async_engine(
     DATABASE_URL,
     pool_size=10,
     max_overflow=20,
     pool_timeout=30,
     pool_recycle=1800,
-    pool_pre_ping=True,  # refresh dead/stale conns automatically
-    future=True,
+    pool_pre_ping=True,
 )
+engine = async_engine.sync_engine
 if engine.dialect.name != "postgresql":  # pragma: no cover - defensive guardrail
     raise RuntimeError("Zoo Tracker requires a PostgreSQL/PostGIS database")
 
@@ -60,6 +96,11 @@ SessionLocal = sessionmaker(
     autocommit=False,
     autoflush=False,
     bind=engine,
+    expire_on_commit=False,
+)
+AsyncSessionLocal = async_sessionmaker(
+    bind=async_engine,
+    autoflush=False,
     expire_on_commit=False,
 )
 
@@ -74,3 +115,10 @@ def get_db() -> Generator[Session, None, None]:
         yield db
     finally:
         db.close()
+
+
+async def get_async_db() -> AsyncGenerator[AsyncSession, None]:
+    """Provide an async database session for handlers running in the event loop."""
+
+    async with AsyncSessionLocal() as session:
+        yield session

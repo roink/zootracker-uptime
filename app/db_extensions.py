@@ -1,8 +1,13 @@
+from __future__ import annotations
+
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 
-def ensure_pg_extensions(engine: Engine) -> None:
+def ensure_pg_extensions(engine: Engine | AsyncEngine) -> None:
+    if isinstance(engine, AsyncEngine):
+        engine = engine.sync_engine
     if engine.dialect.name != "postgresql":
         raise RuntimeError("PostgreSQL/PostGIS is required")
     with engine.begin() as conn:
