@@ -6,7 +6,12 @@ import warnings
 
 import pytest
 
-import app.database as database_module
+try:
+    import app.database as database_module
+except ModuleNotFoundError as exc:  # pragma: no cover - dependency guard
+    if exc.name == "psycopg":
+        pytest.skip("psycopg driver not installed", allow_module_level=True)
+    raise
 
 
 def _restore_env(monkeypatch, key, value):
@@ -36,7 +41,7 @@ def test_startup_fails_when_database_url_missing(monkeypatch):
 @pytest.mark.parametrize(
     ("url", "requires_psycopg"),
     [
-        ("postgresql://postgres:postgres@localhost:5432/postgres", False),
+        ("postgresql://postgres:postgres@localhost:5432/postgres", True),
         ("postgresql+psycopg://postgres:postgres@localhost:5432/postgres", True),
         (
             "postgresql+psycopg_async://postgres:postgres@localhost:5432/postgres",
@@ -72,7 +77,7 @@ def test_placeholder_allowed_in_dev(monkeypatch, url, requires_psycopg):
 @pytest.mark.parametrize(
     ("url", "requires_psycopg"),
     [
-        ("postgresql://postgres:postgres@localhost:5432/postgres", False),
+        ("postgresql://postgres:postgres@localhost:5432/postgres", True),
         ("postgresql+psycopg://postgres:postgres@localhost:5432/postgres", True),
         (
             "postgresql+psycopg_async://postgres:postgres@localhost:5432/postgres",
@@ -122,3 +127,19 @@ def test_placeholder_detection_ignores_non_prefix_occurrences(monkeypatch):
         _restore_env(monkeypatch, "DATABASE_URL", original_url)
         _restore_env(monkeypatch, "APP_ENV", original_env)
         importlib.reload(database_module)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "postgresql://zoo:zoo@localhost:5432/zoo",
+        "postgresql+psycopg://zoo:zoo@localhost:5432/zoo",
+        "postgresql+psycopg_async://zoo:zoo@localhost:5432/zoo",
+    ],
+)
+def test_urls_are_normalised_to_expected_drivers(url):
+    async_url = database_module._normalise_async_url(url)
+    sync_url = database_module._normalise_sync_url(url)
+
+    assert async_url.drivername == "postgresql+psycopg_async"
+    assert sync_url.drivername == "postgresql+psycopg"

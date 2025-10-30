@@ -4,6 +4,7 @@ import os
 import warnings
 from collections.abc import AsyncGenerator, Generator
 
+from sqlalchemy.engine import Engine, URL, make_url
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
@@ -22,55 +23,74 @@ if not RAW_DATABASE_URL:
         "DATABASE_URL environment variable is required to connect to PostgreSQL"
     )
 
-
-def _normalise_database_url(url: str) -> str:
-    """Upgrade legacy PostgreSQL URLs to the psycopg async scheme."""
-
-    legacy_prefixes = (
-        "postgresql+psycopg://",
-        "postgresql://",
-    )
-    for prefix in legacy_prefixes:
-        if url.startswith(prefix):
-            replacement = "postgresql+psycopg_async://"
-            normalised = replacement + url[len(prefix) :]
-            warnings.warn(
-                "DATABASE_URL uses a synchronous PostgreSQL driver. "
-                "Automatically switching to the psycopg async driver; "
-                "update the environment to use 'postgresql+psycopg_async'.",
-                RuntimeWarning,
-                stacklevel=2,
-            )
-            return normalised
-    return url
+_ASYNC_DRIVER = "postgresql+psycopg_async"
+_SYNC_DRIVER = "postgresql+psycopg"
+_ACCEPTED_DRIVERS = {"postgresql", _SYNC_DRIVER, _ASYNC_DRIVER}
 
 
-DATABASE_URL = _normalise_database_url(RAW_DATABASE_URL)
-
-if not DATABASE_URL.startswith("postgresql+psycopg_async://"):
-    raise RuntimeError(
-        "Zoo Tracker now requires the psycopg async driver. "
-        "Set DATABASE_URL to use the 'postgresql+psycopg_async' scheme.",
-    )
-
-PLACEHOLDER_PREFIXES = (
-    "postgresql://postgres:postgres@",
-    "postgresql+psycopg://postgres:postgres@",
-    "postgresql+psycopg_async://postgres:postgres@",
-)
+def _parse_postgres_url(url: str) -> URL:
+    candidate = make_url(url)
+    if candidate.drivername not in _ACCEPTED_DRIVERS:
+        raise RuntimeError(
+            "Zoo Tracker requires a PostgreSQL connection string using the "
+            "'postgresql', 'postgresql+psycopg', or 'postgresql+psycopg_async' driver."
+        )
+    return candidate
 
 
-def _uses_placeholder(url: str) -> bool:
+def _normalise_async_url(url: str) -> URL:
+    """Return a URL configured for the psycopg async driver."""
+
+    parsed = _parse_postgres_url(url)
+    if parsed.drivername != _ASYNC_DRIVER:
+        warnings.warn(
+            "DATABASE_URL uses a synchronous PostgreSQL driver. Automatically "
+            "switching to the psycopg async driver; update the environment to "
+            "use 'postgresql+psycopg_async'.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+    return parsed.set(drivername=_ASYNC_DRIVER)
+
+
+def _normalise_sync_url(url: str) -> URL:
+    """Return a URL configured for the psycopg sync driver."""
+
+    parsed = _parse_postgres_url(url)
+    return parsed.set(drivername=_SYNC_DRIVER)
+
+
+ASYNC_DATABASE_URL = _normalise_async_url(RAW_DATABASE_URL)
+SYNC_DATABASE_URL = _normalise_sync_url(RAW_DATABASE_URL)
+DATABASE_URL = str(ASYNC_DATABASE_URL)
+
+
+def make_sync_engine(url: str | URL) -> Engine:
+    """Return a synchronous Engine for a potentially async connection URL."""
+
+    if isinstance(url, URL):
+        url_value = str(url)
+    else:
+        url_value = url
+    async_url = _normalise_async_url(url_value)
+    async_engine = create_async_engine(str(async_url))
+    sync_engine = async_engine.sync_engine
+    # Keep a strong reference so the underlying async engine is not
+    # garbage-collected while the sync engine is in use.
+    setattr(sync_engine, "_async_engine", async_engine)
+    return sync_engine
+
+def _uses_placeholder(url: URL) -> bool:
     """Return True when the connection URL uses the legacy postgres:postgres pair."""
 
-    return any(url.startswith(prefix) for prefix in PLACEHOLDER_PREFIXES)
+    return (url.username == "postgres") and (url.password == "postgres")
 
 
-if APP_ENV == "production" and _uses_placeholder(DATABASE_URL):
+if APP_ENV == "production" and _uses_placeholder(ASYNC_DATABASE_URL):
     raise RuntimeError(
         "Refusing to start in production with the legacy postgres:postgres placeholder in DATABASE_URL."
     )
-if _uses_placeholder(DATABASE_URL):
+if _uses_placeholder(ASYNC_DATABASE_URL):
     warnings.warn(
         "DATABASE_URL appears to use the 'postgres:postgres' placeholder. "
         "This is acceptable for local development and tests but must not be used in production.",

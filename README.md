@@ -48,6 +48,12 @@ Then point the backend at those credentials, either in your shell or in a
 export DATABASE_URL=postgresql+psycopg_async://zoo_app_user:strong-password@localhost:5432/zoo_app
 ```
 
+Zoo Tracker accepts either `postgresql+psycopg://…` or `postgresql+psycopg_async://…`
+connection strings. When the synchronous driver is supplied, the backend
+normalises it to the async variant internally and still exposes a synchronous
+engine for administrative scripts. Use the `_async` suffix when you want to
+explicitly opt into the async driver supported by SQLAlchemy.
+
 The application refuses to start if `DATABASE_URL` is unset. When `APP_ENV` is
 `production` (the default), it will also refuse to start when the URL still uses
 the legacy `postgres:postgres` placeholder so misconfigured deployments fail

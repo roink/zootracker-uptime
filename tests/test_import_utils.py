@@ -2,15 +2,16 @@ import os
 import uuid
 
 import pytest
-from sqlalchemy import create_engine, inspect, text, types as satypes
+from sqlalchemy import inspect, text, types as satypes
 from sqlalchemy.orm import sessionmaker
 
+from app.database import make_sync_engine
 from app.import_utils import _ensure_animal_columns
 
 
 @pytest.mark.postgres
 def test_ensure_animal_columns_widens_default_image_url():
-    tmp_engine = create_engine(os.environ["DATABASE_URL"], future=True)
+    tmp_engine = make_sync_engine(os.environ["DATABASE_URL"])
     if tmp_engine.dialect.name != "postgresql":
         pytest.skip("PostgreSQL database required for this test")
 
@@ -41,3 +42,5 @@ def test_ensure_animal_columns_widens_default_image_url():
 
     with tmp_engine.begin() as conn:
         conn.execute(text(f"DROP SCHEMA {schema} CASCADE"))
+
+    tmp_engine.dispose()
