@@ -5,7 +5,7 @@ from collections import defaultdict, deque
 from collections.abc import Awaitable, Callable
 
 from fastapi import HTTPException, Request, status
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import ORJSONResponse, Response
 
 from .utils.network import get_client_ip
 
@@ -121,7 +121,7 @@ async def rate_limit(
     limiter = auth_limiter if path.endswith("/auth/login") else general_limiter
     allowed, remaining, retry_after = await limiter.is_allowed(ip)
     if not allowed:
-        return JSONResponse(
+        return ORJSONResponse(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             content={"detail": "Too Many Requests"},
             headers={
