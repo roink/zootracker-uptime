@@ -1,5 +1,6 @@
 import { Trans, useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
+
 import Seo from '../components/Seo';
 import { ORG } from '../config/org';
 

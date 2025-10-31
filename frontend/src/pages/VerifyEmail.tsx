@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
-import Seo from '../components/Seo';
 import { API } from '../api';
+import Seo from '../components/Seo';
 import { useVerificationResend } from '../hooks/useVerificationResend';
 
 export default function VerifyEmailPage() {
@@ -184,7 +184,7 @@ export default function VerifyEmailPage() {
               value={email}
               required
               autoComplete="email"
-              onChange={(event) => setEmail(event.target.value)}
+              onChange={(event) => { setEmail(event.target.value); }}
             />
           </div>
           <div className="mb-3">
@@ -201,7 +201,7 @@ export default function VerifyEmailPage() {
               className="form-control"
               value={code}
               required
-              onChange={(event) => setCode(event.target.value)}
+              onChange={(event) => { setCode(event.target.value); }}
             />
           </div>
           <button className="btn btn-primary w-100" type="submit" disabled={status === 'loading'}>

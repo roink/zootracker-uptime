@@ -1,7 +1,7 @@
 // @ts-nocheck
 import PropTypes from 'prop-types';
-import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
 
 // Reusable tile that renders an animal preview with image, favorite star and seen badge.
 export default function AnimalTile({

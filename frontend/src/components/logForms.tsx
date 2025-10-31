@@ -1,13 +1,14 @@
 // @ts-nocheck
 import { useState, useEffect, useCallback, useId, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
-import { API } from '../api';
-import { getZooDisplayName } from '../utils/zooDisplayName';
 
+import { API } from '../api';
+import { useAuth } from '../auth/AuthContext';
 import useAuthFetch from '../hooks/useAuthFetch';
 import useSearchSuggestions from '../hooks/useSearchSuggestions';
-import { useAuth } from '../auth/AuthContext';
-import { useTranslation } from 'react-i18next';
+import { getZooDisplayName } from '../utils/zooDisplayName';
+
 
 // Reusable forms for logging sightings and zoo visits. These components are used
 // within the dashboard to submit data to the FastAPI backend.
@@ -113,7 +114,7 @@ export function LogSighting({
             setZoos([]);
           }
         })
-        .catch(() => setZoos([]));
+        .catch(() => { setZoos([]); });
     }
   }, [propAnimals, propZoos]);
 
@@ -381,8 +382,8 @@ export function LogSighting({
                     event.preventDefault();
                     selectZoo(z);
                   }}
-                  onMouseEnter={() => setZooActiveIndex(index)}
-                  onMouseMove={() => setZooActiveIndex(index)}
+                  onMouseEnter={() => { setZooActiveIndex(index); }}
+                  onMouseMove={() => { setZooActiveIndex(index); }}
                 >
                   {getZooDisplayName(z)}
                 </li>
@@ -453,8 +454,8 @@ export function LogSighting({
                     event.preventDefault();
                     selectAnimal(a);
                   }}
-                  onMouseEnter={() => setAnimalActiveIndex(index)}
-                  onMouseMove={() => setAnimalActiveIndex(index)}
+                  onMouseEnter={() => { setAnimalActiveIndex(index); }}
+                  onMouseMove={() => { setAnimalActiveIndex(index); }}
                 >
                   {getName(a)}
                 </li>
@@ -471,7 +472,7 @@ export function LogSighting({
           className="form-control"
           type="date"
           value={sightingDate}
-          onChange={(e) => setSightingDate(e.target.value)}
+          onChange={(e) => { setSightingDate(e.target.value); }}
           required
           id={dateFieldId}
         />
@@ -485,7 +486,7 @@ export function LogSighting({
           id={notesFieldId}
           placeholder={t('forms.sighting.notesPlaceholder')}
           value={notes}
-          onChange={(e) => setNotes(e.target.value)}
+          onChange={(e) => { setNotes(e.target.value); }}
           maxLength={1000}
           rows={3}
           aria-describedby={notesHelperId}

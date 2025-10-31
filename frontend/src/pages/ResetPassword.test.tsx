@@ -5,9 +5,9 @@ import userEvent from '@testing-library/user-event';
 import { Routes, Route } from 'react-router-dom';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
-import { renderWithRouter } from '../test-utils/router';
 import { loadLocale } from '../i18n';
 import ResetPasswordPage from './ResetPassword';
+import { renderWithRouter } from '../test-utils/router';
 
 vi.mock('../components/Seo', () => ({ default: () => null }));
 

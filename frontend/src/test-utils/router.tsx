@@ -1,12 +1,13 @@
 // Utility to render components under a MemoryRouter for component tests
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { render } from '@testing-library/react';
 import type { PropsWithChildren, ReactElement, ReactNode } from 'react';
 import { useEffect, useRef } from 'react';
 import { MemoryRouter } from 'react-router-dom';
-import { render } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+import { getStoredAuth } from './auth';
 import { AuthProvider, useAuth } from '../auth/AuthContext';
 import type { AuthSuccessPayload } from '../auth/AuthContext';
-import { getStoredAuth } from './auth';
 
 interface AuthSeedProps extends PropsWithChildren {
   auth: AuthSuccessPayload | null;

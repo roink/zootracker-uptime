@@ -1,13 +1,14 @@
 // @ts-nocheck
 import { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import ZooDetail from '../components/ZooDetail';
+import { useParams } from 'react-router-dom';
+
 import { API } from '../api';
 import Seo from '../components/Seo';
-import { getZooDisplayName } from '../utils/zooDisplayName';
-import { normalizeLang } from '../i18n';
+import ZooDetail from '../components/ZooDetail';
 import useAuthFetch from '../hooks/useAuthFetch';
+import { normalizeLang } from '../i18n';
+import { getZooDisplayName } from '../utils/zooDisplayName';
 
 const META_DESCRIPTION_LIMIT = 160;
 
@@ -62,7 +63,7 @@ export default function ZooDetailPage({ refresh, onLogged }: any) {
         }
       }
     })();
-    return () => controller.abort();
+    return () => { controller.abort(); };
   }, [slug, authFetch]);
 
   const displayName = useMemo(
@@ -149,7 +150,7 @@ export default function ZooDetailPage({ refresh, onLogged }: any) {
         refresh={refresh}
         onLogged={onLogged}
         onFavoriteChange={(next) =>
-          setZoo((prev) => (prev ? { ...prev, is_favorite: next } : prev))
+          { setZoo((prev) => (prev ? { ...prev, is_favorite: next } : prev)); }
         }
       />
     </>

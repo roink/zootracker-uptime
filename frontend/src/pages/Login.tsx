@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { Trans, useTranslation } from 'react-i18next';
+import { Link, useNavigate, useLocation, useParams } from 'react-router-dom';
+
 import { API } from '../api';
-import Seo from '../components/Seo';
-import { useAuth } from '../auth/AuthContext';
 import { DATA_PROTECTION_VERSION } from './DataProtection';
+import { useAuth } from '../auth/AuthContext';
+import Seo from '../components/Seo';
 import { useVerificationResend } from '../hooks/useVerificationResend';
 
 // Combined authentication page with log in on top and sign up below.
@@ -299,7 +300,7 @@ export default function LoginPage() {
             required
             autoComplete="email"
             value={inputEmail}
-            onChange={(e) => setInputEmail(e.target.value)}
+            onChange={(e) => { setInputEmail(e.target.value); }}
           />
         </div>
         <div className="mb-3">
@@ -310,7 +311,7 @@ export default function LoginPage() {
             required
             autoComplete="current-password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e) => { setPassword(e.target.value); }}
           />
           <Link
             to={`${prefix}/forgot-password`}
@@ -336,7 +337,7 @@ export default function LoginPage() {
             required
             autoComplete="name"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => { setName(e.target.value); }}
           />
         </div>
         <div className="mb-3">
@@ -347,7 +348,7 @@ export default function LoginPage() {
             required
             autoComplete="email"
             value={regEmail}
-            onChange={(e) => setRegEmail(e.target.value)}
+            onChange={(e) => { setRegEmail(e.target.value); }}
           />
         </div>
         <div className="mb-3">

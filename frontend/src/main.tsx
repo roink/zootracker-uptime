@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
-import { QueryClient } from '@tanstack/react-query';
 import type { Query } from '@tanstack/query-core';
+import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
+import { QueryClient } from '@tanstack/react-query';
 import {
   PersistQueryClientProvider,
   type PersistQueryClientProviderProps
 } from '@tanstack/react-query-persist-client';
-import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
+import { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import { Helmet, HelmetProvider } from 'react-helmet-async';
 import { useTranslation } from 'react-i18next';
@@ -18,32 +18,33 @@ import {
   useParams,
   useNavigate
 } from 'react-router-dom';
-import i18n, { loadLocale, normalizeLang } from './i18n';
+
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import RequireAuth from './auth/RequireAuth';
+import EmailVerificationAlert from './components/EmailVerificationAlert';
+import Footer from './components/Footer';
+import Header from './components/Header';
+import i18n, { loadLocale, normalizeLang } from './i18n';
 
 // Base URL of the FastAPI backend. When the frontend is served on a different
 // port (e.g. via `python -m http.server`), the API won't be on the same origin
 // anymore, so we explicitly point to the backend running on port 8000.
-import Landing from './pages/Landing';
-import LoginPage from './pages/Login';
+import AnimalDetailPage from './pages/AnimalDetail';
+import AnimalsPage from './pages/Animals';
+import ContactPage from './pages/Contact';
+import Dashboard from './pages/Dashboard';
+import DataProtectionPage from './pages/DataProtection';
 import ForgotPasswordPage from './pages/ForgotPassword';
+import ImageAttributionPage from './pages/ImageAttribution';
+import Landing from './pages/Landing';
+import LegalNoticePage from './pages/LegalNotice';
+import LoginPage from './pages/Login';
 import ResetPasswordPage from './pages/ResetPassword';
 import ResetPasswordRedirect from './pages/ResetPasswordRedirect';
-import Dashboard from './pages/Dashboard';
-import ZoosPage from './pages/Zoos';
-import AnimalsPage from './pages/Animals';
-import AnimalDetailPage from './pages/AnimalDetail';
-import ImageAttributionPage from './pages/ImageAttribution';
-import Header from './components/Header';
-import EmailVerificationAlert from './components/EmailVerificationAlert';
 import SearchPage from './pages/Search';
-import ZooDetailPage from './pages/ZooDetail';
 import VerifyEmailPage from './pages/VerifyEmail';
-import LegalNoticePage from './pages/LegalNotice';
-import DataProtectionPage from './pages/DataProtection';
-import ContactPage from './pages/Contact';
-import Footer from './components/Footer';
+import ZooDetailPage from './pages/ZooDetail';
+import ZoosPage from './pages/Zoos';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './styles/app.css';
 import './styles/landing.css';

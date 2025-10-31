@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react';
 import type { Map as MapLibreMap, Marker as MapLibreMarker } from 'maplibre-gl';
+import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { applyBaseMapLanguage } from '../utils/mapLanguage';

@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   useParams,
   useNavigate,
@@ -7,19 +8,19 @@ import {
   Link,
   createSearchParams,
 } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
+
 import { API } from '../api';
-import { getZooDisplayName } from '../utils/zooDisplayName';
-import { normalizeCoordinates } from '../utils/coordinates';
-import useAuthFetch from '../hooks/useAuthFetch';
-import SightingModal from '../components/SightingModal';
-import SightingHistoryList from '../components/SightingHistoryList';
-import Seo from '../components/Seo';
 import { useAuth } from '../auth/AuthContext';
-import ZoosMap from '../components/ZoosMap';
 import FavoriteBadge from '../components/FavoriteBadge';
+import Seo from '../components/Seo';
+import SightingHistoryList from '../components/SightingHistoryList';
+import SightingModal from '../components/SightingModal';
+import ZoosMap from '../components/ZoosMap';
+import useAuthFetch from '../hooks/useAuthFetch';
+import { normalizeCoordinates } from '../utils/coordinates';
 import '../styles/animal-detail.css';
 import { formatSightingDayLabel } from '../utils/sightingHistory';
+import { getZooDisplayName } from '../utils/zooDisplayName';
 
 // Map IUCN codes to labels and bootstrap badge classes
 const IUCN = {
@@ -82,14 +83,14 @@ function useMediaQuery(query) {
       return () => {};
     }
     const mediaQueryList = window.matchMedia(query);
-    const handleChange = (event) => setMatches(event.matches);
+    const handleChange = (event) => { setMatches(event.matches); };
     handleChange(mediaQueryList);
     if (typeof mediaQueryList.addEventListener === 'function') {
       mediaQueryList.addEventListener('change', handleChange);
-      return () => mediaQueryList.removeEventListener('change', handleChange);
+      return () => { mediaQueryList.removeEventListener('change', handleChange); };
     }
     mediaQueryList.addListener(handleChange);
-    return () => mediaQueryList.removeListener(handleChange);
+    return () => { mediaQueryList.removeListener(handleChange); };
   }, [query]);
 
   return matches;
@@ -275,7 +276,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
       }
       })();
 
-    return () => controller.abort();
+    return () => { controller.abort(); };
   }, [slug, userLocation, authFetch]);
 
   const fetchHistory = useCallback(
@@ -339,7 +340,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
   useEffect(() => {
     const controller = new AbortController();
     void loadHistory({ signal: controller.signal });
-    return () => controller.abort();
+    return () => { controller.abort(); };
   }, [loadHistory, refresh]);
 
   useEffect(() => {
@@ -370,8 +371,8 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) =>
-          setUserLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
-        () => setUserLocation(null),
+          { setUserLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude }); },
+        () => { setUserLocation(null); },
         { enableHighAccuracy: false, timeout: 3000, maximumAge: 600000 }
       );
     }
@@ -767,7 +768,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
             {showDescriptionToggle && (
               <button
                 className="btn btn-link p-0"
-                onClick={() => setDescOpen((v) => !v)}
+                onClick={() => { setDescOpen((v) => !v); }}
                 aria-expanded={descOpen}
                 aria-controls="animal-description"
               >
@@ -781,7 +782,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
             <button
               type="button"
               className="taxonomy-toggle btn btn-link p-0 text-start"
-              onClick={() => setTaxonomyOpen((value) => !value)}
+              onClick={() => { setTaxonomyOpen((value) => !value); }}
               aria-expanded={taxonomyOpen}
               aria-controls={taxonomyContentId}
             >
@@ -926,7 +927,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
                 className="form-control"
                 placeholder={t('animal.filterPlaceholder')}
                 value={zooFilter}
-                onChange={(e) => setZooFilter(e.target.value)}
+                onChange={(e) => { setZooFilter(e.target.value); }}
                 aria-label={t('animal.filterAria')}
               />
             </div>
@@ -940,7 +941,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
               id="animal-zoo-view-list"
               autoComplete="off"
               checked={viewMode === 'list'}
-              onChange={() => handleViewModeChange('list')}
+              onChange={() => { handleViewModeChange('list'); }}
             />
             <label className="btn btn-outline-primary" htmlFor="animal-zoo-view-list">
               {t('zoo.viewList')}
@@ -952,7 +953,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
               id="animal-zoo-view-map"
               autoComplete="off"
               checked={viewMode === 'map'}
-              onChange={() => handleViewModeChange('map')}
+              onChange={() => { handleViewModeChange('map'); }}
             />
             <label className="btn btn-outline-primary" htmlFor="animal-zoo-view-map">
               {t('zoo.viewMap')}
@@ -1252,8 +1253,8 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
                 id={`${section.id}-tab`}
                 aria-controls={`${section.id}-panel`}
                 aria-selected={activeSection === section.id}
-                onClick={() => setActiveSection(section.id)}
-                onKeyDown={(event) => handleTabKeyDown(event, index)}
+                onClick={() => { setActiveSection(section.id); }}
+                onKeyDown={(event) => { handleTabKeyDown(event, index); }}
                 ref={(node) => {
                   tabRefs.current[index] = node;
                 }}
@@ -1302,7 +1303,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
                       type="button"
                       aria-expanded={open}
                       aria-controls={`${section.id}-collapse`}
-                      onClick={() => toggleAccordion(section.id)}
+                      onClick={() => { toggleAccordion(section.id); }}
                     >
                       {section.label}
                     </button>
@@ -1331,7 +1332,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
             void loadHistory();
             onLogged && onLogged();
           }}
-          onClose={() => setModalData(null)}
+          onClose={() => { setModalData(null); }}
         />
       )}
     </div>

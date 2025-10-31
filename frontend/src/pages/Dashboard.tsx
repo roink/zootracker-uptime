@@ -1,13 +1,14 @@
 // @ts-nocheck
-import { useState, useMemo, useEffect, Fragment, useCallback } from 'react';
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { API } from '../api';
-import useAuthFetch from '../hooks/useAuthFetch';
-import SightingModal from '../components/SightingModal';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useState, useMemo, useEffect, Fragment, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import Seo from '../components/Seo';
+import { useNavigate, useParams } from 'react-router-dom';
+
+import { API } from '../api';
 import { useAuth } from '../auth/AuthContext';
+import Seo from '../components/Seo';
+import SightingModal from '../components/SightingModal';
+import useAuthFetch from '../hooks/useAuthFetch';
 import { groupSightingsByDay, formatSightingDayLabel } from '../utils/sightingHistory';
 
 // User dashboard showing recent visits, sightings and badges. Includes
@@ -202,14 +203,14 @@ export default function Dashboard({ refresh, onUpdate }: any) {
                 <button
                   className="btn btn-sm btn-outline-secondary"
                   onClick={() =>
-                    setModalData({
+                    { setModalData({
                       sightingId: s.id,
                       zooId: s.zoo_id,
                       zooName: s.zoo_name,
                       animalId: s.animal_id,
                       animalName: displayAnimalName(s),
                       note: s.notes ?? '',
-                    })
+                    }); }
                   }
                 >
                   {t('actions.edit')}
@@ -258,7 +259,7 @@ export default function Dashboard({ refresh, onUpdate }: any) {
           onUpdated={() => {
             onUpdate && onUpdate();
           }}
-          onClose={() => setModalData(null)}
+          onClose={() => { setModalData(null); }}
         />
       )}
     </div>

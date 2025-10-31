@@ -2,10 +2,11 @@
 import { screen, waitFor, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { renderWithRouter } from '../test-utils/router';
+
 import ZooDetail from './ZooDetail';
 import { API } from '../api';
 import { createTestToken } from '../test-utils/auth';
+import { renderWithRouter } from '../test-utils/router';
 import { toLocalYMD } from '../utils/sightingHistory';
 vi.mock('./LazyMap', () => ({ default: () => <div data-testid="map" /> }));
 
@@ -162,7 +163,7 @@ describe('ZooDetail component', () => {
 
     resolveHistory(jsonResponse({ items: sightings, total: sightings.length, limit: 50, offset: 0 }));
     await waitFor(() =>
-      expect(screen.queryByText('Loading your visit history…')).not.toBeInTheDocument()
+      { expect(screen.queryByText('Loading your visit history…')).not.toBeInTheDocument(); }
     );
   });
 
@@ -280,10 +281,10 @@ describe('ZooDetail component', () => {
     );
 
     await waitFor(() =>
-      expect(global.fetch).toHaveBeenCalledWith(
+      { expect(global.fetch).toHaveBeenCalledWith(
         expect.stringMatching(`${API}/zoos/${zoo.slug}/sightings`),
         expect.any(Object)
-      )
+      ); }
     );
 
     unmount();

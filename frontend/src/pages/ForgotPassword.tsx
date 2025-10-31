@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useLocation, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { Link, useLocation, useParams } from 'react-router-dom';
 
-import Seo from '../components/Seo';
 import { API } from '../api';
+import Seo from '../components/Seo';
 import { saveMaskedEmailHint } from '../utils/passwordReset';
 
 // Password reset request page that keeps the flow anonymous while guiding users.
@@ -161,7 +161,7 @@ export default function ForgotPasswordPage() {
               className={`form-control${emailError ? ' is-invalid' : ''}`}
               value={email}
               autoComplete="email"
-              onFocus={() => setEmailFocused(true)}
+              onFocus={() => { setEmailFocused(true); }}
               onBlur={() => {
                 setEmailFocused(false);
                 setEmailTouched(true);

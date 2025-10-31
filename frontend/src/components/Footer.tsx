@@ -1,5 +1,5 @@
-import { Link, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { Link, useParams } from 'react-router-dom';
 
 // Simple footer matching the header color and linking to legal pages.
 export default function Footer() {

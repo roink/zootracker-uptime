@@ -3,9 +3,9 @@ import React from 'react';
 import '@testing-library/jest-dom';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, it, vi, beforeEach } from 'vitest';
 import { Routes, Route } from 'react-router-dom';
-import { renderWithRouter } from '../test-utils/router';
+import { describe, it, vi, beforeEach } from 'vitest';
+
 import { loadLocale } from '../i18n';
 
 vi.mock('../hooks/useAuthFetch', () => ({ default: () => fetch }));
@@ -19,6 +19,7 @@ vi.mock('../components/ZoosMap', () => ({
 }));
 
 import AnimalDetailPage from './AnimalDetail';
+import { renderWithRouter } from '../test-utils/router';
 
 describe('AnimalDetailPage', () => {
   const animal = {

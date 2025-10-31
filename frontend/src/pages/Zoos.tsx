@@ -1,5 +1,6 @@
 import type { ChangeEvent } from 'react';
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useTranslation, Trans } from 'react-i18next';
 import {
   Link,
   useSearchParams,
@@ -7,15 +8,13 @@ import {
   useNavigate,
   useLocation,
 } from 'react-router-dom';
-import { useTranslation, Trans } from 'react-i18next';
+
 import { API } from '../api';
-import useAuthFetch from '../hooks/useAuthFetch';
-import Seo from '../components/Seo';
 import { useAuth } from '../auth/AuthContext';
-import ZoosMap from '../components/ZoosMap';
-import { normalizeCoordinates } from '../utils/coordinates';
-import { getZooDisplayName } from '../utils/zooDisplayName';
 import FavoriteBadge from '../components/FavoriteBadge';
+import Seo from '../components/Seo';
+import ZoosMap from '../components/ZoosMap';
+import useAuthFetch from '../hooks/useAuthFetch';
 import type {
   CameraState,
   CameraViewChange,
@@ -28,6 +27,8 @@ import type {
   RequestConfig,
   ZooListItem,
 } from '../types/zoos';
+import { normalizeCoordinates } from '../utils/coordinates';
+import { getZooDisplayName } from '../utils/zooDisplayName';
 
 interface ZoosPageProps {
   token?: string;
@@ -87,7 +88,7 @@ function toZooListItem(value: unknown): ZooListItem | null {
   }
   const latitude = toOptionalNumber(value.latitude);
   const longitude = toOptionalNumber(value.longitude);
-  const location = isRecord(value.location) ? (value.location as UnknownRecord) : null;
+  const location = isRecord(value.location) ? (value.location) : null;
   return {
     id,
     slug: toOptionalString(value.slug),
@@ -353,7 +354,7 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
           setMapView(null);
         }
         const baseState: UnknownRecord = isRecord(locationState.state)
-          ? { ...(locationState.state as UnknownRecord) }
+          ? { ...(locationState.state) }
           : {};
         baseState.mapView = null;
         void navigate(
@@ -370,7 +371,7 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
       mapViewRef.current = sanitizedView;
       setMapView(sanitizedView);
       const baseState: UnknownRecord = isRecord(locationState.state)
-        ? { ...(locationState.state as UnknownRecord) }
+        ? { ...(locationState.state) }
         : {};
       baseState.mapView = sanitizedView;
         void navigate(
@@ -614,8 +615,8 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
   useEffect(() => {
     void fetch(`${API}/zoos/continents`)
       .then(async (r) => (r.ok ? ((await r.json()) as unknown) : []))
-      .then((data) => setContinents(normalizeRegions(data)))
-      .catch(() => setContinents([]));
+      .then((data) => { setContinents(normalizeRegions(data)); })
+      .catch(() => { setContinents([]); });
   }, []);
 
   useEffect(() => {
@@ -626,14 +627,14 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
     }
     void fetch(`${API}/zoos/countries?continent_id=${continentId}`)
       .then(async (r) => (r.ok ? ((await r.json()) as unknown) : []))
-      .then((data) => setCountries(normalizeRegions(data)))
-      .catch(() => setCountries([]));
+      .then((data) => { setCountries(normalizeRegions(data)); })
+      .catch(() => { setCountries([]); });
   }, [continentId]);
 
 
   useEffect(() => {
-    const id = setTimeout(() => setQuery(search), 500);
-    return () => clearTimeout(id);
+    const id = setTimeout(() => { setQuery(search); }, 500);
+    return () => { clearTimeout(id); };
   }, [search]);
 
   const activeLocation = useMemo<LocationEstimate | null>(
@@ -828,7 +829,7 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
       { root: null, rootMargin: '200px' }
     );
     observer.observe(node);
-    return () => observer.disconnect();
+    return () => { observer.disconnect(); };
   }, [viewMode, loadNextPage]);
 
   useEffect(() => {
@@ -908,8 +909,8 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
         return data.map((value) => String(value));
       })
       .then(setVisitedIds)
-      .catch(() => setVisitedIds([]))
-      .finally(() => setVisitedLoading(false));
+      .catch(() => { setVisitedIds([]); })
+      .finally(() => { setVisitedLoading(false); });
   }, [isAuthenticated, authFetch]);
 
   useEffect(() => {
@@ -985,7 +986,7 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
       mapFiltered.length > 0 &&
       mapZoosWithCoordinates.length === 0
     ) {
-      // eslint-disable-next-line no-console
+       
       console.warn(
         'ZoosPage: no coordinate fields found on items. Example keys:',
         Object.keys(mapFiltered[0] || {})
@@ -1024,7 +1025,7 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
             className="form-control"
             placeholder={t('nav.search')}
             value={search}
-            onChange={(e: ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => { setSearch(e.target.value); }}
           />
         </div>
         <div className="col-md-4 mb-2">
@@ -1050,7 +1051,7 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
             className="form-select"
             aria-label={t('zoo.country')}
             value={countryId}
-            onChange={(e: ChangeEvent<HTMLSelectElement>) => setCountryId(e.target.value)}
+            onChange={(e: ChangeEvent<HTMLSelectElement>) => { setCountryId(e.target.value); }}
             disabled={!continentId}
           >
             <option value="">{t('zoo.allCountries')}</option>
@@ -1083,7 +1084,7 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
                   id="visit-all"
                   autoComplete="off"
                   checked={visitFilter === 'all'}
-                  onChange={() => updateVisitFilter('all')}
+                  onChange={() => { updateVisitFilter('all'); }}
                   disabled={visitedLoading}
                 />
                 <label
@@ -1100,7 +1101,7 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
                   id="visit-visited"
                   autoComplete="off"
                   checked={visitFilter === 'visited'}
-                  onChange={() => updateVisitFilter('visited')}
+                  onChange={() => { updateVisitFilter('visited'); }}
                   disabled={visitedLoading}
                 />
                 <label
@@ -1117,7 +1118,7 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
                   id="visit-not"
                   autoComplete="off"
                   checked={visitFilter === 'not'}
-                  onChange={() => updateVisitFilter('not')}
+                  onChange={() => { updateVisitFilter('not'); }}
                   disabled={visitedLoading}
                 />
                 <label className="btn btn-outline-primary" htmlFor="visit-not">
@@ -1163,7 +1164,7 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
                 id="zoos-favorites-only"
                 checked={favoritesOnly}
                 onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                  handleFavoritesToggle(e.target.checked)
+                  { handleFavoritesToggle(e.target.checked); }
                 }
               />
               <label className="form-check-label" htmlFor="zoos-favorites-only">
@@ -1183,7 +1184,7 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
             id="zoo-view-list"
             autoComplete="off"
             checked={viewMode === 'list'}
-            onChange={() => handleViewChange('list')}
+            onChange={() => { handleViewChange('list'); }}
           />
           <label className="btn btn-outline-primary" htmlFor="zoo-view-list">
             {t('zoo.viewList')}
@@ -1196,7 +1197,7 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
             id="zoo-view-map"
             autoComplete="off"
             checked={viewMode === 'map'}
-            onChange={() => handleViewChange('map')}
+            onChange={() => { handleViewChange('map'); }}
           />
           <label className="btn btn-outline-primary" htmlFor="zoo-view-map">
             {t('zoo.viewMap')}

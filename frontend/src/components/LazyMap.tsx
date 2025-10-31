@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
+import { useEffect, useRef, useState } from 'react';
+
 import MapView from './MapView';
 
 // Wrapper that loads the map only when scrolled into view to save resources.
@@ -19,7 +20,7 @@ export default function LazyMap({ latitude, longitude }: any) {
       { rootMargin: '200px' }
     );
     if (holderRef.current) io.observe(holderRef.current);
-    return () => io.disconnect();
+    return () => { io.disconnect(); };
   }, []);
 
   return (

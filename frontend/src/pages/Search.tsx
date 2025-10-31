@@ -1,12 +1,13 @@
 // @ts-nocheck
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
+
 import { API } from '../api';
-import Seo from '../components/Seo';
-import AnimalTile from '../components/AnimalTile';
-import useAuthFetch from '../hooks/useAuthFetch';
 import { useAuth } from '../auth/AuthContext';
+import AnimalTile from '../components/AnimalTile';
+import Seo from '../components/Seo';
+import useAuthFetch from '../hooks/useAuthFetch';
 import { getZooDisplayName } from '../utils/zooDisplayName';
 
 export default function SearchPage() {
@@ -93,7 +94,7 @@ export default function SearchPage() {
 
       void loadResults();
 
-    return () => controller.abort();
+    return () => { controller.abort(); };
   }, [authFetch, hasQuery, normalizedQuery]);
 
   useEffect(() => {

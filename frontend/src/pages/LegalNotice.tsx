@@ -1,6 +1,7 @@
 import { Fragment } from 'react';
-import { Link, useParams } from 'react-router-dom';
 import { Trans, useTranslation } from 'react-i18next';
+import { Link, useParams } from 'react-router-dom';
+
 import Seo from '../components/Seo';
 import { ORG } from '../config/org';
 import { DEFAULT_LANG, normalizeLang } from '../i18n';

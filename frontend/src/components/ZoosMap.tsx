@@ -1,7 +1,4 @@
-import type { MutableRefObject } from 'react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import PropTypes from 'prop-types';
-import { useTranslation } from 'react-i18next';
+import type { Feature, FeatureCollection, Point } from 'geojson';
 import type {
   GeoJSONSource,
   LngLat,
@@ -10,11 +7,11 @@ import type {
   Map as MaplibreMap,
   MapLayerMouseEvent,
 } from 'maplibre-gl';
-import type { Feature, FeatureCollection, Point } from 'geojson';
+import PropTypes from 'prop-types';
+import type { MutableRefObject } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
-import { applyBaseMapLanguage } from '../utils/mapLanguage';
-import { getZooDisplayName } from '../utils/zooDisplayName';
-import { normalizeCoordinates } from '../utils/coordinates';
 import { MAP_STYLE_URL } from './MapView';
 import type {
   CameraState,
@@ -22,6 +19,9 @@ import type {
   LocationEstimate,
   MapZooFeature,
 } from '../types/zoos';
+import { normalizeCoordinates } from '../utils/coordinates';
+import { applyBaseMapLanguage } from '../utils/mapLanguage';
+import { getZooDisplayName } from '../utils/zooDisplayName';
 
 // Interactive map showing multiple zoos with clickable markers or clusters.
 // NOTE: React plans to remove support for defaultProps on function components.
@@ -196,12 +196,12 @@ export default function ZoosMap({
     if (!Number.isFinite(lon) || !Number.isFinite(lat)) {
       return null;
     }
-    const zoom = Number.isFinite(zoomValue) ? Number((zoomValue as number).toFixed(4)) : undefined;
+    const zoom = Number.isFinite(zoomValue) ? Number((zoomValue).toFixed(4)) : undefined;
     const bearing = Number.isFinite(bearingValue)
-      ? Number((bearingValue as number).toFixed(2))
+      ? Number((bearingValue).toFixed(2))
       : undefined;
     const pitch = Number.isFinite(pitchValue)
-      ? Number((pitchValue as number).toFixed(2))
+      ? Number((pitchValue).toFixed(2))
       : undefined;
     return {
       center: [lon, lat],
@@ -255,7 +255,7 @@ export default function ZoosMap({
 
     void (async () => {
       const module = await import('maplibre-gl');
-      const maplibregl: MaplibreModule = (module.default ?? module) as MaplibreModule;
+      const maplibregl: MaplibreModule = (module.default ?? module);
       if (cancelled) return;
 
       maplibreRef.current = maplibregl;
@@ -266,7 +266,7 @@ export default function ZoosMap({
         zoom: initialState.zoom ?? FOCUS_ZOOM,
         bearing: initialState.bearing ?? 0,
         pitch: initialState.pitch ?? 0,
-      }) as MaplibreMap;
+      });
 
       const handleLoad = (event: MapEventLike) => {
         if (cancelled) return;
@@ -494,7 +494,7 @@ export default function ZoosMap({
         if (!feature) return;
         const clusterId = feature.properties?.cluster_id as number | undefined;
         if (clusterId == null) return;
-        const source = hasGetSource ? (map.getSource(ZOOS_SOURCE_ID) as GeoJSONSource | undefined) : null;
+        const source = hasGetSource ? (map.getSource(ZOOS_SOURCE_ID)) : null;
         if (!source?.getClusterExpansionZoom) return;
         try {
           const zoom = await source.getClusterExpansionZoom(clusterId);

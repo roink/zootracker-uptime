@@ -1,5 +1,5 @@
-import { Helmet } from 'react-helmet-async';
 import PropTypes from 'prop-types';
+import { Helmet } from 'react-helmet-async';
 import { useParams } from 'react-router-dom';
 
 // Reusable component for setting page title and social meta tags.

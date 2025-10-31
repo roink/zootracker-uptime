@@ -1,18 +1,19 @@
 // @ts-nocheck
-import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
-import Seo from '../../components/Seo';
-import { API } from '../../api';
-import Hero from './Hero';
-import Paths from './Paths';
-import Metrics from './Metrics';
+
 import About from './About';
-import Popular from './Popular';
-import HowItWorks from './HowItWorks';
 import FinalCta from './FinalCta';
+import Hero from './Hero';
+import HowItWorks from './HowItWorks';
+import Metrics from './Metrics';
+import Paths from './Paths';
+import Popular from './Popular';
+import { API } from '../../api';
+import Seo from '../../components/Seo';
 
 // Marketing landing page that introduces ZooTracker and funnels visitors into the app.
 export default function Landing() {
@@ -34,7 +35,7 @@ export default function Landing() {
         if (Array.isArray(parsed)) setRecentSearches(parsed);
       }
     } catch (error) {
-      // eslint-disable-next-line no-console
+       
       console.warn('Failed to read recent searches', error);
     }
   }, []);
@@ -47,7 +48,7 @@ export default function Landing() {
         JSON.stringify(recentSearches)
       );
     } catch (error) {
-      // eslint-disable-next-line no-console
+       
       console.warn('Failed to persist recent searches', error);
     }
   }, [recentSearches]);

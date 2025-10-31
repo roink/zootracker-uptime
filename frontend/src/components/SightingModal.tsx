@@ -1,10 +1,11 @@
 // @ts-nocheck
 import { useState, useEffect, useRef, useId, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams } from 'react-router-dom';
+
 import { LogSighting } from './logForms';
 import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
-import { createPortal } from 'react-dom';
 
 // Modal wrapper for creating or editing sightings. When a `sightingId`
 // is provided the existing entry is loaded and the form works in edit mode.
