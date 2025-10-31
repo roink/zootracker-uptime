@@ -4,6 +4,7 @@ import os
 import warnings
 from collections.abc import AsyncGenerator, Generator
 
+from sqlalchemy import create_engine
 from sqlalchemy.engine import URL, Engine, make_url
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
@@ -47,7 +48,7 @@ def _normalise_async_url(url: str) -> URL:
             "DATABASE_URL uses a synchronous PostgreSQL driver. Automatically "
             "switching to the psycopg async driver; update the environment to "
             "use 'postgresql+psycopg_async'.",
-            RuntimeWarning,
+            UserWarning,
             stacklevel=2,
         )
     return parsed.set(drivername=_ASYNC_DRIVER)
@@ -62,20 +63,22 @@ def _normalise_sync_url(url: str) -> URL:
 
 ASYNC_DATABASE_URL = _normalise_async_url(RAW_DATABASE_URL)
 SYNC_DATABASE_URL = _normalise_sync_url(RAW_DATABASE_URL)
-DATABASE_URL = str(ASYNC_DATABASE_URL)
+# SQLAlchemy obscures passwords when coercing ``URL`` objects to strings via
+# ``str(url)``.  Use ``render_as_string`` so downstream consumers (including the
+# engine itself) receive the real credentials instead of ``***`` which would
+# cause authentication to fail.
+DATABASE_URL = ASYNC_DATABASE_URL.render_as_string(hide_password=False)
+
+
+def _render_url(url: str | URL) -> str:
+    return url if isinstance(url, str) else url.render_as_string(hide_password=False)
 
 
 def make_sync_engine(url: str | URL) -> Engine:
     """Return a synchronous Engine for a potentially async connection URL."""
 
-    url_value = str(url) if isinstance(url, URL) else url
-    async_url = _normalise_async_url(url_value)
-    async_engine = create_async_engine(str(async_url))
-    sync_engine = async_engine.sync_engine
-    # Keep a strong reference so the underlying async engine is not
-    # garbage-collected while the sync engine is in use.
-    sync_engine._async_engine = async_engine  # type: ignore[attr-defined]
-    return sync_engine
+    sync_url = _normalise_sync_url(_render_url(url))
+    return create_engine(sync_url)
 
 def _uses_placeholder(url: URL) -> bool:
     """Return True when the connection URL uses the legacy postgres:postgres pair."""
@@ -98,14 +101,14 @@ if _uses_placeholder(ASYNC_DATABASE_URL):
 # Global engine and session factory used by the application.  Zoo Tracker relies
 # on PostgreSQL/PostGIS; fail fast if another backend is configured.
 async_engine = create_async_engine(
-    DATABASE_URL,
+    ASYNC_DATABASE_URL,
     pool_size=10,
     max_overflow=20,
     pool_timeout=30,
     pool_recycle=1800,
     pool_pre_ping=True,
 )
-engine = async_engine.sync_engine
+engine = make_sync_engine(SYNC_DATABASE_URL)
 if engine.dialect.name != "postgresql":  # pragma: no cover - defensive guardrail
     raise RuntimeError("Zoo Tracker requires a PostgreSQL/PostGIS database")
 

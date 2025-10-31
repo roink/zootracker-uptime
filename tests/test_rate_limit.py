@@ -2,9 +2,6 @@ from app import rate_limit
 from app.rate_limit import RateLimiter
 
 
-import asyncio
-
-
 async def test_rate_limit_respects_forwarded_for_header(client, monkeypatch):
     """Rate limiter should honor X-Forwarded-For for client IPs."""
     monkeypatch.setattr(rate_limit, "general_limiter", RateLimiter(1, 60))
@@ -29,5 +26,5 @@ async def test_rate_limiter_hit_and_miss(client):
         allowed, _, _ = await limiter.is_allowed("1.1.1.1")
         assert not allowed
 
-    asyncio.run(run_checks())
+    await run_checks()
 

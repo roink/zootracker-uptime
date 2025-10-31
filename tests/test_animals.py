@@ -592,15 +592,18 @@ async def test_list_animals_tiebreaker_uses_id_when_names_match(client, data):
 
 
 async def test_list_animals_invalid_pagination(client):
-    assert await client.get("/animals", params={"limit": 0}).status_code == 422
+    resp = await client.get("/animals", params={"limit": 0})
+    assert resp.status_code == 422
 
 
 async def test_list_animals_invalid_pagination_upper_bound(client):
-    assert await client.get("/animals", params={"limit": 101}).status_code == 422
+    resp = await client.get("/animals", params={"limit": 101})
+    assert resp.status_code == 422
 
 
 async def test_list_animals_invalid_offset(client):
-    assert await client.get("/animals", params={"offset": -1}).status_code == 422
+    resp = await client.get("/animals", params={"offset": -1})
+    assert resp.status_code == 422
 
 
 async def test_list_animals_category_filter(client):
@@ -623,13 +626,16 @@ async def test_list_animals_empty_page(client):
 
 
 async def test_taxonomy_endpoints_and_filters(client, data):
-    classes = await client.get("/animals/classes").json()
+    classes_resp = await client.get("/animals/classes")
+    classes = classes_resp.json()
     assert classes == [{"id": 1, "name_de": "S\u00e4ugetiere", "name_en": "Mammals"}]
 
-    orders = await client.get("/animals/orders", params={"class_id": 1}).json()
+    orders_resp = await client.get("/animals/orders", params={"class_id": 1})
+    orders = orders_resp.json()
     assert orders == [{"id": 1, "name_de": "Raubtiere", "name_en": "Carnivorans"}]
 
-    families = await client.get("/animals/families", params={"order_id": 1}).json()
+    families_resp = await client.get("/animals/families", params={"order_id": 1})
+    families = families_resp.json()
     assert families == [{"id": 1, "name_de": "Katzen", "name_en": "Cats"}]
 
     resp = await client.get("/animals", params={"class_id": 1})

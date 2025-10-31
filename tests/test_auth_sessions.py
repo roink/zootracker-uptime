@@ -36,7 +36,7 @@ async def _register_user(email: str, password: str, name: str = "Auth") -> model
 async def _login_and_get_response(email: str, password: str):
     client = get_client()
     client.cookies.clear()
-    user = await _register_user(client, email, password)
+    user = await _register_user(email, password)
     await mark_user_verified(user.id)
     response = await client.post(
         "/auth/login",

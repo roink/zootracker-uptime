@@ -2,6 +2,7 @@ import os
 import uuid
 from contextvars import ContextVar
 from datetime import datetime, timezone
+from contextlib import AsyncExitStack
 
 import httpx
 import pytest
@@ -142,19 +143,23 @@ async def _bootstrap_db():
     async with async_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
-        await conn.run_sync(lambda sync_conn: create_triggers(sync_conn.engine))
+        await conn.run_sync(create_triggers)
     yield
 
 
 @pytest_asyncio.fixture
 async def client(_bootstrap_db):
-    transport = ASGITransport(app=app, lifespan="on")
-    async with httpx.AsyncClient(transport=transport, base_url="http://test") as async_client:
-        token = _client_ctx.set(async_client)
-        try:
-            yield async_client
-        finally:
-            _client_ctx.reset(token)
+    async with AsyncExitStack() as stack:
+        await stack.enter_async_context(app.router.lifespan_context(app))
+        transport = ASGITransport(app=app)
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://test"
+        ) as async_client:
+            token = _client_ctx.set(async_client)
+            try:
+                yield async_client
+            finally:
+                _client_ctx.reset(token)
 
 
 @pytest.fixture(scope="session")

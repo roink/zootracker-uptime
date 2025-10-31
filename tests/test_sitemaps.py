@@ -353,7 +353,8 @@ async def test_sitemap_index_etag_304(client, data):
 
 
 async def test_sitemap_index_head_etag_304(client, data):
-    etag = await client.get("/sitemap.xml").headers["ETag"]
+    etag_resp = await client.get("/sitemap.xml")
+    etag = etag_resp.headers["ETag"]
 
     cached = await client.head("/sitemap.xml", headers={"If-None-Match": etag})
     assert cached.status_code == 304

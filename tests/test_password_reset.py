@@ -64,10 +64,16 @@ def _reset_password_reset_limits():
 @pytest.fixture(autouse=True)
 def reset_password_state():
     _reset_password_reset_limits()
-    client.cookies.clear()
+    try:
+        client = get_client()
+    except RuntimeError:
+        client = None
+    else:
+        client.cookies.clear()
     yield
     _reset_password_reset_limits()
-    client.cookies.clear()
+    if client is not None:
+        client.cookies.clear()
 
 
 def _parse_token(body: str) -> str:
