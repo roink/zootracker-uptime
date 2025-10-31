@@ -1,3 +1,4 @@
+// @ts-nocheck
 import '@testing-library/jest-dom/vitest';
 import { beforeEach, afterEach, vi } from 'vitest';
 import { loadLocale } from '../src/i18n.js';
