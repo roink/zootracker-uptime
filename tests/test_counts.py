@@ -2,7 +2,7 @@ from app.database import SessionLocal
 from app import models
 
 
-def test_zoo_animal_counts_update(data):
+async def test_zoo_animal_counts_update(client, data):
     """Zoo and animal counters should update when links change."""
     db = SessionLocal()
     zoo = db.get(models.Zoo, data["zoo"].id)

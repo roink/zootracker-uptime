@@ -1,6 +1,6 @@
 from datetime import UTC, date, datetime
 
-from .conftest import SessionLocal, client, models, register_and_login
+from .conftest import SessionLocal, models, register_and_login
 
 
 def _extract_items(response_json):
@@ -19,8 +19,8 @@ def _extract_items(response_json):
     )
 
 
-def test_get_animals_for_zoo(data):
-    resp = client.get(f"/zoos/{data['zoo'].slug}/animals")
+async def test_get_animals_for_zoo(client, data):
+    resp = await client.get(f"/zoos/{data['zoo'].slug}/animals")
     assert resp.status_code == 200
     animals = resp.json()
     # With enriched seed, the zoo keeps both the parent species and a subspecies
@@ -30,8 +30,8 @@ def test_get_animals_for_zoo(data):
     lion_entry = next(a for a in animals if a["id"] == str(data["animal"].id))
     assert lion_entry["is_favorite"] is False
 
-def test_get_zoo_details(data):
-    resp = client.get(f"/zoos/{data['zoo'].slug}")
+async def test_get_zoo_details(client, data):
+    resp = await client.get(f"/zoos/{data['zoo'].slug}")
     assert resp.status_code == 200
     body = resp.json()
     assert body["id"] == str(data["zoo"].id)
@@ -42,26 +42,26 @@ def test_get_zoo_details(data):
     assert body["city"] == "Metropolis"
     assert body["is_favorite"] is False
 
-def test_get_zoo_invalid_id():
-    resp = client.get("/zoos/missing-zoo")
+async def test_get_zoo_invalid_id(client):
+    resp = await client.get("/zoos/missing-zoo")
     assert resp.status_code == 404
 
 
-def test_zoo_sightings_require_auth(data):
-    resp = client.get(f"/zoos/{data['zoo'].slug}/sightings")
+async def test_zoo_sightings_require_auth(client, data):
+    resp = await client.get(f"/zoos/{data['zoo'].slug}/sightings")
     assert resp.status_code == 401
 
 
-def test_zoo_sightings_return_user_history(data):
-    token, _user_id = register_and_login()
-    other_token, _other_user_id = register_and_login()
+async def test_zoo_sightings_return_user_history(client, data):
+    token, _user_id = await register_and_login()
+    other_token, _other_user_id = await register_and_login()
     headers = {"Authorization": f"Bearer {token}"}
 
     first_time = datetime(2024, 5, 1, 9, 30, tzinfo=UTC)
     second_time = datetime(2024, 6, 2, 15, 5, tzinfo=UTC)
     other_time = datetime(2024, 7, 4, 8, 0, tzinfo=UTC)
 
-    client.post(
+    await client.post(
         "/sightings",
         json={
             "zoo_id": str(data["zoo"].id),
@@ -71,7 +71,7 @@ def test_zoo_sightings_return_user_history(data):
         },
         headers=headers,
     )
-    client.post(
+    await client.post(
         "/sightings",
         json={
             "zoo_id": str(data["zoo"].id),
@@ -81,7 +81,7 @@ def test_zoo_sightings_return_user_history(data):
         },
         headers=headers,
     )
-    client.post(
+    await client.post(
         "/sightings",
         json={
             "zoo_id": str(data["zoo"].id),
@@ -91,7 +91,7 @@ def test_zoo_sightings_return_user_history(data):
         },
         headers={"Authorization": f"Bearer {other_token}"},
     )
-    client.post(
+    await client.post(
         "/sightings",
         json={
             "zoo_id": str(data["far_zoo"].id),
@@ -102,7 +102,7 @@ def test_zoo_sightings_return_user_history(data):
         headers=headers,
     )
 
-    resp = client.get(
+    resp = await client.get(
         f"/zoos/{data['zoo'].slug}/sightings",
         headers=headers,
     )
@@ -126,8 +126,8 @@ def test_zoo_sightings_return_user_history(data):
     assert items[1]["sighting_datetime"].startswith("2024-05-01")
 
 
-def test_zoo_sightings_pagination_and_filtering(data):
-    token, _user_id = register_and_login()
+async def test_zoo_sightings_pagination_and_filtering(client, data):
+    token, _user_id = await register_and_login()
     headers = {"Authorization": f"Bearer {token}"}
 
     times = [
@@ -137,7 +137,7 @@ def test_zoo_sightings_pagination_and_filtering(data):
     ]
 
     for index, moment in enumerate(times):
-        client.post(
+        await client.post(
             "/sightings",
             json={
                 "zoo_id": str(data["zoo"].id),
@@ -150,7 +150,7 @@ def test_zoo_sightings_pagination_and_filtering(data):
             headers=headers,
         )
 
-    client.post(
+    await client.post(
         "/sightings",
         json={
             "zoo_id": str(data["far_zoo"].id),
@@ -161,7 +161,7 @@ def test_zoo_sightings_pagination_and_filtering(data):
         headers=headers,
     )
 
-    resp = client.get(
+    resp = await client.get(
         f"/zoos/{data['zoo'].slug}/sightings",
         headers=headers,
         params={"limit": 1, "offset": 1},
@@ -179,7 +179,7 @@ def test_zoo_sightings_pagination_and_filtering(data):
     assert resp.headers["X-Total-Count"] == "3"
 
 
-def test_search_zoos_is_paginated_and_sorted_by_distance(data):
+async def test_search_zoos_is_paginated_and_sorted_by_distance(client, data):
     """The search endpoint returns paginated results ordered by distance."""
 
     params = {
@@ -188,7 +188,7 @@ def test_search_zoos_is_paginated_and_sorted_by_distance(data):
         "limit": 1,
         "offset": 0,
     }
-    resp = client.get("/zoos", params=params)
+    resp = await client.get("/zoos", params=params)
     assert resp.status_code == 200
     first_items, meta = _extract_items(resp.json())
     assert meta["offset"] == 0
@@ -203,7 +203,7 @@ def test_search_zoos_is_paginated_and_sorted_by_distance(data):
     assert first["is_favorite"] is False
 
     params["offset"] = 1
-    resp = client.get("/zoos", params=params)
+    resp = await client.get("/zoos", params=params)
     assert resp.status_code == 200
     second_items, meta = _extract_items(resp.json())
     assert meta["offset"] == 1
@@ -212,24 +212,24 @@ def test_search_zoos_is_paginated_and_sorted_by_distance(data):
     assert second_items[0]["is_favorite"] is False
 
 
-def test_search_zoos_without_coordinates_returns_by_name(data):
+async def test_search_zoos_without_coordinates_returns_by_name(client, data):
     """Name filters work without providing location information."""
 
-    resp = client.get("/zoos", params={"q": "Central"})
+    resp = await client.get("/zoos", params={"q": "Central"})
     assert resp.status_code == 200
     items, _ = _extract_items(resp.json())
     names = [z["name"] for z in items]
     assert "Central Zoo" in names
 
-def test_search_zoos_by_city(data):
-    resp = client.get("/zoos", params={"q": data["zoo"].city})
+async def test_search_zoos_by_city(client, data):
+    resp = await client.get("/zoos", params={"q": data["zoo"].city})
     assert resp.status_code == 200
     items, _ = _extract_items(resp.json())
     names = [z["name"] for z in items]
     assert "Central Zoo" in names
 
 
-def test_search_zoos_accepts_combined_terms(data):
+async def test_search_zoos_accepts_combined_terms(client, data):
     """Search queries should match across zoo name and city flexibly."""
 
     with SessionLocal() as db:
@@ -263,22 +263,22 @@ def test_search_zoos_accepts_combined_terms(data):
         db.refresh(mulheim)
 
     try:
-        resp = client.get("/zoos", params={"q": "Zoo Duisburg"})
+        resp = await client.get("/zoos", params={"q": "Zoo Duisburg"})
         assert resp.status_code == 200
         items, _ = _extract_items(resp.json())
         assert any(z["slug"] == "tierpark-duisburg" for z in items)
 
-        resp = client.get("/zoos", params={"q": "Duisburger Zoo"})
+        resp = await client.get("/zoos", params={"q": "Duisburger Zoo"})
         assert resp.status_code == 200
         items, _ = _extract_items(resp.json())
         assert any(z["slug"] == "tierpark-duisburg" for z in items)
 
-        resp = client.get("/zoos", params={"q": "Mulheim"})
+        resp = await client.get("/zoos", params={"q": "Mulheim"})
         assert resp.status_code == 200
         items, _ = _extract_items(resp.json())
         assert any(z["slug"] == "zoo-muelheim" for z in items)
 
-        resp = client.get("/zoos", params={"q": "Mulheimer Zoo"})
+        resp = await client.get("/zoos", params={"q": "Mulheimer Zoo"})
         assert resp.status_code == 200
         items, _ = _extract_items(resp.json())
         assert any(z["slug"] == "zoo-muelheim" for z in items)
@@ -291,21 +291,21 @@ def test_search_zoos_accepts_combined_terms(data):
             db.commit()
 
 
-def test_list_continents_and_countries():
-    resp = client.get("/zoos/continents")
+async def test_list_continents_and_countries(client):
+    resp = await client.get("/zoos/continents")
     assert resp.status_code == 200
     continents = resp.json()
     assert any(c["name_en"] == "Europe" for c in continents)
     europe_id = next(c["id"] for c in continents if c["name_en"] == "Europe")
 
-    resp = client.get(f"/zoos/countries?continent_id={europe_id}")
+    resp = await client.get(f"/zoos/countries?continent_id={europe_id}")
     assert resp.status_code == 200
     countries = resp.json()
     assert any(c["name_en"] == "Germany" for c in countries)
 
 
-def test_search_zoos_by_country(data):
-    resp = client.get("/zoos", params={"country_id": 1, "limit": 10})
+async def test_search_zoos_by_country(client, data):
+    resp = await client.get("/zoos", params={"country_id": 1, "limit": 10})
     assert resp.status_code == 200
     items, _ = _extract_items(resp.json())
     names = [z["name"] for z in items]
@@ -313,8 +313,8 @@ def test_search_zoos_by_country(data):
     assert "Far Zoo" not in names
 
 
-def test_map_endpoint_returns_coordinates(data):
-    resp = client.get("/zoos/map")
+async def test_map_endpoint_returns_coordinates(client, data):
+    resp = await client.get("/zoos/map")
     assert resp.status_code == 200
     body = resp.json()
     assert isinstance(body, list)
@@ -324,19 +324,19 @@ def test_map_endpoint_returns_coordinates(data):
     assert any(z.get("latitude") is not None for z in body)
 
 
-def test_user_zoo_endpoints_require_auth(data):
-    token, user_id = register_and_login()
+async def test_user_zoo_endpoints_require_auth(client, data):
+    token, user_id = await register_and_login()
     assert token  # token returned but not used to ensure user exists
 
-    resp = client.get(f"/users/{user_id}/zoos/visited")
+    resp = await client.get(f"/users/{user_id}/zoos/visited")
     assert resp.status_code == 401
 
-    resp = client.get(f"/users/{user_id}/zoos/visited/map")
+    resp = await client.get(f"/users/{user_id}/zoos/visited/map")
     assert resp.status_code == 401
 
 
-def test_user_visited_zoo_endpoints_return_filtered_results(data):
-    token, user_id = register_and_login()
+async def test_user_visited_zoo_endpoints_return_filtered_results(client, data):
+    token, user_id = await register_and_login()
     db = SessionLocal()
     visit = models.ZooVisit(user_id=user_id, zoo_id=data["zoo"].id, visit_date=date.today())
     db.add(visit)
@@ -350,7 +350,7 @@ def test_user_visited_zoo_endpoints_return_filtered_results(data):
         "latitude": data["zoo"].latitude,
         "longitude": data["zoo"].longitude,
     }
-    resp = client.get(f"/users/{user_id}/zoos/visited", params=params, headers=headers)
+    resp = await client.get(f"/users/{user_id}/zoos/visited", params=params, headers=headers)
     assert resp.status_code == 200
     items, meta = _extract_items(resp.json())
     assert meta["total"] == 1
@@ -358,7 +358,7 @@ def test_user_visited_zoo_endpoints_return_filtered_results(data):
     assert resp.headers.get("Cache-Control") == "private, no-store, max-age=0"
     assert "Authorization" in (resp.headers.get("Vary") or "")
 
-    map_resp = client.get(f"/users/{user_id}/zoos/visited/map", headers=headers)
+    map_resp = await client.get(f"/users/{user_id}/zoos/visited/map", headers=headers)
     assert map_resp.status_code == 200
     map_ids = {z["id"] for z in map_resp.json()}
     assert str(data["zoo"].id) in map_ids
@@ -366,8 +366,8 @@ def test_user_visited_zoo_endpoints_return_filtered_results(data):
     assert "Authorization" in (map_resp.headers.get("Vary") or "")
 
 
-def test_user_visited_zoos_include_favorite_flag(data):
-    token, user_id = register_and_login()
+async def test_user_visited_zoos_include_favorite_flag(client, data):
+    token, user_id = await register_and_login()
     db = SessionLocal()
     visit = models.ZooVisit(user_id=user_id, zoo_id=data["zoo"].id, visit_date=date.today())
     db.add(visit)
@@ -375,18 +375,18 @@ def test_user_visited_zoos_include_favorite_flag(data):
     db.close()
 
     headers = {"Authorization": f"Bearer {token}"}
-    fav_resp = client.put(f"/zoos/{data['zoo'].slug}/favorite", headers=headers)
+    fav_resp = await client.put(f"/zoos/{data['zoo'].slug}/favorite", headers=headers)
     assert fav_resp.status_code == 200
 
-    resp = client.get(f"/users/{user_id}/zoos/visited", headers=headers)
+    resp = await client.get(f"/users/{user_id}/zoos/visited", headers=headers)
     assert resp.status_code == 200
     items, _ = _extract_items(resp.json())
     target = next(item for item in items if item["id"] == str(data["zoo"].id))
     assert target["is_favorite"] is True
 
 
-def test_user_not_visited_endpoints_exclude_visited_zoos(data):
-    token, user_id = register_and_login()
+async def test_user_not_visited_endpoints_exclude_visited_zoos(client, data):
+    token, user_id = await register_and_login()
     db = SessionLocal()
     visit = models.ZooVisit(user_id=user_id, zoo_id=data["zoo"].id, visit_date=date.today())
     db.add(visit)
@@ -394,7 +394,7 @@ def test_user_not_visited_endpoints_exclude_visited_zoos(data):
     db.close()
 
     headers = {"Authorization": f"Bearer {token}"}
-    resp = client.get(
+    resp = await client.get(
         f"/users/{user_id}/zoos/not-visited",
         params={"limit": 10, "offset": 0, "q": "Zoo"},
         headers=headers,
@@ -408,7 +408,7 @@ def test_user_not_visited_endpoints_exclude_visited_zoos(data):
     assert resp.headers.get("Cache-Control") == "private, no-store, max-age=0"
     assert "Authorization" in (resp.headers.get("Vary") or "")
 
-    map_resp = client.get(f"/users/{user_id}/zoos/not-visited/map", headers=headers)
+    map_resp = await client.get(f"/users/{user_id}/zoos/not-visited/map", headers=headers)
     assert map_resp.status_code == 200
     map_ids = {z["id"] for z in map_resp.json()}
     assert str(data["far_zoo"].id) in map_ids
@@ -417,15 +417,15 @@ def test_user_not_visited_endpoints_exclude_visited_zoos(data):
     assert "Authorization" in (map_resp.headers.get("Vary") or "")
 
 
-def test_zoo_favorites_flow(data):
-    token, _ = register_and_login()
+async def test_zoo_favorites_flow(client, data):
+    token, _ = await register_and_login()
     headers = {"Authorization": f"Bearer {token}"}
 
-    resp = client.put(f"/zoos/{data['zoo'].slug}/favorite", headers=headers)
+    resp = await client.put(f"/zoos/{data['zoo'].slug}/favorite", headers=headers)
     assert resp.status_code == 200
     assert resp.json() == {"favorite": True}
 
-    fav_resp = client.get("/zoos", params={"favorites_only": "true"}, headers=headers)
+    fav_resp = await client.get("/zoos", params={"favorites_only": "true"}, headers=headers)
     assert fav_resp.status_code == 200
     items, meta = _extract_items(fav_resp.json())
     assert meta["total"] == 1
@@ -433,46 +433,46 @@ def test_zoo_favorites_flow(data):
     assert items[0]["id"] == str(data["zoo"].id)
     assert items[0]["is_favorite"] is True
 
-    general_resp = client.get("/zoos", headers=headers)
+    general_resp = await client.get("/zoos", headers=headers)
     assert general_resp.status_code == 200
     general_items, _ = _extract_items(general_resp.json())
     target = next(item for item in general_items if item["id"] == str(data["zoo"].id))
     assert target["is_favorite"] is True
 
-    detail_resp = client.get(f"/zoos/{data['zoo'].slug}", headers=headers)
+    detail_resp = await client.get(f"/zoos/{data['zoo'].slug}", headers=headers)
     assert detail_resp.status_code == 200
     assert detail_resp.json()["is_favorite"] is True
 
-    resp = client.delete(f"/zoos/{data['zoo'].slug}/favorite", headers=headers)
+    resp = await client.delete(f"/zoos/{data['zoo'].slug}/favorite", headers=headers)
     assert resp.status_code == 200
     assert resp.json() == {"favorite": False}
 
-    cleared = client.get("/zoos", params={"favorites_only": "true"}, headers=headers)
+    cleared = await client.get("/zoos", params={"favorites_only": "true"}, headers=headers)
     assert cleared.status_code == 200
     items, meta = _extract_items(cleared.json())
     assert meta["total"] == 0
     assert items == []
 
-    detail_after = client.get(f"/zoos/{data['zoo'].slug}", headers=headers)
+    detail_after = await client.get(f"/zoos/{data['zoo'].slug}", headers=headers)
     assert detail_after.status_code == 200
     assert detail_after.json()["is_favorite"] is False
 
 
-def test_zoo_favorites_filter_requires_auth():
-    resp = client.get("/zoos", params={"favorites_only": "true"})
+async def test_zoo_favorites_filter_requires_auth(client):
+    resp = await client.get("/zoos", params={"favorites_only": "true"})
     assert resp.status_code == 401
 
 
-def test_zoos_personalized_responses_disable_caching(data):
-    token, _ = register_and_login()
+async def test_zoos_personalized_responses_disable_caching(client, data):
+    token, _ = await register_and_login()
     headers = {"Authorization": f"Bearer {token}"}
 
-    resp = client.get("/zoos", headers=headers)
+    resp = await client.get("/zoos", headers=headers)
     assert resp.status_code == 200
     assert resp.headers["cache-control"] == "private, no-store, max-age=0"
     assert "Authorization" in resp.headers["vary"]
 
-    detail = client.get(f"/zoos/{data['zoo'].slug}", headers=headers)
+    detail = await client.get(f"/zoos/{data['zoo'].slug}", headers=headers)
     assert detail.status_code == 200
     assert detail.headers["cache-control"] == "private, no-store, max-age=0"
     assert "Authorization" in detail.headers["vary"]

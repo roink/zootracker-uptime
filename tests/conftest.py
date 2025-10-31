@@ -1,10 +1,14 @@
 import os
-
-import pytest
-from datetime import datetime, timezone
 import uuid
+from contextvars import ContextVar
+from datetime import datetime, timezone
+from contextlib import AsyncExitStack
 
-from fastapi.testclient import TestClient
+import httpx
+import pytest
+import pytest_asyncio
+from httpx import ASGITransport
+from sqlalchemy import delete, select
 
 
 def pytest_addoption(parser):
@@ -55,7 +59,7 @@ else:
 # run the test suite without provisioning a dedicated database. Individual
 # environments can still override DATABASE_URL before importing the fixtures.
 DEFAULT_TEST_DATABASE_URL = (
-    "postgresql+psycopg://postgres:postgres@localhost:5432/postgres"
+    "postgresql+psycopg_async://postgres:postgres@localhost:5432/postgres"
 )
 DATABASE_URL = os.getenv("DATABASE_URL", DEFAULT_TEST_DATABASE_URL)
 
@@ -89,11 +93,16 @@ os.environ.setdefault("PASSWORD_RESET_REQUEST_PERIOD", "60")
 os.environ.setdefault("PASSWORD_RESET_TOKEN_IP_LIMIT", "100")
 os.environ.setdefault("PASSWORD_RESET_TOKEN_PERIOD", "60")
 
-from app.database import Base, engine, SessionLocal  # noqa: E402
+from app.database import (  # noqa: E402
+    AsyncSessionLocal,
+    Base,
+    SessionLocal,
+    async_engine,
+)
 from app import models  # noqa: E402
 from app.triggers import create_triggers  # noqa: E402
-from app.db_extensions import ensure_pg_extensions  # noqa: E402
-from app.main import app, get_db  # noqa: E402
+from app.db_extensions import ensure_pg_extensions_async  # noqa: E402
+from app.main import app, get_async_db, get_db  # noqa: E402
 
 
 def override_get_db():
@@ -106,14 +115,51 @@ def override_get_db():
 
 app.dependency_overrides[get_db] = override_get_db
 
-ensure_pg_extensions(engine)
 
-# ensure a clean schema for every run to avoid duplicate indexes
-Base.metadata.drop_all(bind=engine)
-Base.metadata.create_all(bind=engine)
-create_triggers(engine)
+async def override_get_async_db():
+    async with AsyncSessionLocal() as session:
+        yield session
 
-client = TestClient(app)
+
+app.dependency_overrides[get_async_db] = override_get_async_db
+
+pytestmark = pytest.mark.asyncio
+
+_client_ctx: ContextVar[httpx.AsyncClient | None] = ContextVar(
+    "_client_ctx", default=None
+)
+
+
+def get_client() -> httpx.AsyncClient:
+    client = _client_ctx.get()
+    if client is None:
+        raise RuntimeError("The async client fixture must be used in this test")
+    return client
+
+
+@pytest_asyncio.fixture(scope="session", autouse=True)
+async def _bootstrap_db():
+    await ensure_pg_extensions_async(async_engine)
+    async with async_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(create_triggers)
+    yield
+
+
+@pytest_asyncio.fixture
+async def client(_bootstrap_db):
+    async with AsyncExitStack() as stack:
+        await stack.enter_async_context(app.router.lifespan_context(app))
+        transport = ASGITransport(app=app)
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://test"
+        ) as async_client:
+            token = _client_ctx.set(async_client)
+            try:
+                yield async_client
+            finally:
+                _client_ctx.reset(token)
 
 
 @pytest.fixture(scope="session")
@@ -122,176 +168,183 @@ def openapi_schema():
     return app.openapi()
 
 
-def seed_data():
+
+async def seed_data():
     """Populate the test database with minimal reference data."""
-    db = SessionLocal()
-    mammal = models.Category(name="Mammal")
-    bird = models.Category(name="Bird")
-    db.add_all([mammal, bird])
-    db.commit()
-    db.refresh(mammal)
-    db.refresh(bird)
 
-    europe = models.ContinentName(id=1, name_de="Europa", name_en="Europe")
-    america = models.ContinentName(id=2, name_de="Nordamerika", name_en="North America")
-    db.add_all([europe, america])
-    db.commit()
+    async with AsyncSessionLocal() as db:
+        mammal = models.Category(name="Mammal")
+        bird = models.Category(name="Bird")
+        db.add_all([mammal, bird])
+        await db.commit()
+        await db.refresh(mammal)
+        await db.refresh(bird)
 
-    germany = models.CountryName(id=1, name_de="Deutschland", name_en="Germany", continent_id=1)
-    usa = models.CountryName(id=2, name_de="USA", name_en="United States", continent_id=2)
-    db.add_all([germany, usa])
-    db.commit()
+        europe = models.ContinentName(id=1, name_de="Europa", name_en="Europe")
+        america = models.ContinentName(
+            id=2, name_de="Nordamerika", name_en="North America"
+        )
+        db.add_all([europe, america])
+        await db.commit()
 
-    zoo = models.Zoo(
-        name="Central Zoo",
-        slug="central-zoo",
-        address="123 Zoo St",
-        latitude=10.0,
-        longitude=20.0,
-        description_en="A fun place",
-        description_de="Ein lustiger Ort",
-        city="Metropolis",
-        continent_id=1,
-        country_id=1,
-    )
-    db.add(zoo)
-    db.commit()
-    db.refresh(zoo)
+        germany = models.CountryName(
+            id=1, name_de="Deutschland", name_en="Germany", continent_id=1
+        )
+        usa = models.CountryName(
+            id=2, name_de="USA", name_en="United States", continent_id=2
+        )
+        db.add_all([germany, usa])
+        await db.commit()
 
-    far_zoo = models.Zoo(
-        name="Far Zoo",
-        slug="far-zoo",
-        address="456 Distant Rd",
-        latitude=50.0,
-        longitude=60.0,
-        description_en="Too far away",
-        description_de="Zu weit entfernt",
-        city="Remoteville",
-        continent_id=2,
-        country_id=2,
-    )
-    db.add(far_zoo)
-    db.commit()
-    db.refresh(far_zoo)
+        zoo = models.Zoo(
+            name="Central Zoo",
+            slug="central-zoo",
+            address="123 Zoo St",
+            latitude=10.0,
+            longitude=20.0,
+            description_en="A fun place",
+            description_de="Ein lustiger Ort",
+            city="Metropolis",
+            continent_id=1,
+            country_id=1,
+        )
+        db.add(zoo)
+        await db.commit()
+        await db.refresh(zoo)
 
-    cls = models.ClassName(klasse=1, name_de="Säugetiere", name_en="Mammals")
-    ordn = models.OrderName(ordnung=1, name_de="Raubtiere", name_en="Carnivorans")
-    fam = models.FamilyName(familie=1, name_de="Katzen", name_en="Cats")
-    db.add_all([cls, ordn, fam])
-    db.commit()
+        far_zoo = models.Zoo(
+            name="Far Zoo",
+            slug="far-zoo",
+            address="456 Distant Rd",
+            latitude=50.0,
+            longitude=60.0,
+            description_en="Too far away",
+            description_de="Zu weit entfernt",
+            city="Remoteville",
+            continent_id=2,
+            country_id=2,
+        )
+        db.add(far_zoo)
+        await db.commit()
+        await db.refresh(far_zoo)
 
-    animal = models.Animal(
-        name_en="Lion",
-        scientific_name="Panthera leo",
-        category_id=mammal.id,
-        default_image_url="http://example.com/lion.jpg",
-        name_de="L\u00f6we",
-        description_en="King of the jungle",
-        description_de="K\u00f6nig der Tiere",
-        klasse=1,
-        ordnung=1,
-        familie=1,
-        slug="lion",
-        art=1001,
-    )
-    tiger = models.Animal(
-        name_en="Tiger",
-        scientific_name="Panthera tigris",
-        category_id=mammal.id,
-        default_image_url="http://example.com/tiger.jpg",
-        name_de="Tiger",
-        slug="tiger",
-        art=1002,
-    )
-    eagle = models.Animal(
-        name_en="Eagle",
-        scientific_name="Aquila chrysaetos",
-        category_id=bird.id,
-        default_image_url="http://example.com/eagle.jpg",
-        name_de="Adler",
-        slug="eagle",
-        art=2001,
-    )
-    asiatic_lion = models.Animal(
-        name_en="Asiatic Lion",
-        scientific_name="Panthera leo persica",
-        category_id=mammal.id,
-        name_de="Asiatischer L\u00f6we",
-        slug="asiatic-lion",
-        art=1003,
-        parent_art=1001,
-    )
-    db.add_all([animal, tiger, eagle, asiatic_lion])
-    db.commit()
-    db.refresh(animal)
-    db.refresh(tiger)
-    db.refresh(eagle)
-    db.refresh(asiatic_lion)
+        cls = models.ClassName(klasse=1, name_de="Säugetiere", name_en="Mammals")
+        ordn = models.OrderName(ordnung=1, name_de="Raubtiere", name_en="Carnivorans")
+        fam = models.FamilyName(familie=1, name_de="Katzen", name_en="Cats")
+        db.add_all([cls, ordn, fam])
+        await db.commit()
 
-    img1 = models.Image(
-        mid="M1",
-        animal_id=animal.id,
-        commons_title="File:Lion.jpg",
-        commons_page_url="http://commons.org/File:Lion.jpg",
-        original_url="http://example.com/lion.jpg",
-        width=640,
-        height=480,
-        size_bytes=1000,
-        sha1="0" * 40,
-        mime="image/jpeg",
-        artist_plain="Jane Smith",
-        license="CC BY-SA 4.0",
-        license_url="http://creativecommons.org/licenses/by-sa/4.0/",
-        source="WIKIDATA_P18",
-        variants=[
-            models.ImageVariant(
-                width=320,
-                height=240,
-                thumb_url="http://example.com/lion-320.jpg",
-            ),
-            models.ImageVariant(
-                width=640, height=480, thumb_url="http://example.com/lion.jpg"
-            ),
-        ],
-        attribution_required=True,
-        credit_line="Photo by Jane",
-    )
-    img2 = models.Image(
-        mid="M2",
-        animal_id=animal.id,
-        commons_title="File:Lion2.jpg",
-        commons_page_url="http://commons.org/File:Lion2.jpg",
-        original_url="http://example.com/lion2.jpg",
-        width=640,
-        height=480,
-        size_bytes=2000,
-        sha1="1" * 40,
-        mime="image/jpeg",
-        artist_plain="John Doe",
-        license="CC BY-SA 4.0",
-        license_url="http://creativecommons.org/licenses/by-sa/4.0/",
-        source="WIKIDATA_P18",
-        variants=[
-            models.ImageVariant(
-                width=640, height=480, thumb_url="http://example.com/lion2.jpg"
-            )
-        ],
-    )
-    db.add_all([img1, img2])
-    db.commit()
+        animal = models.Animal(
+            name_en="Lion",
+            scientific_name="Panthera leo",
+            category_id=mammal.id,
+            default_image_url="http://example.com/lion.jpg",
+            name_de="Löwe",
+            description_en="King of the jungle",
+            description_de="König der Tiere",
+            klasse=1,
+            ordnung=1,
+            familie=1,
+            slug="lion",
+            art=1001,
+        )
+        tiger = models.Animal(
+            name_en="Tiger",
+            scientific_name="Panthera tigris",
+            category_id=mammal.id,
+            default_image_url="http://example.com/tiger.jpg",
+            name_de="Tiger",
+            slug="tiger",
+            art=1002,
+        )
+        eagle = models.Animal(
+            name_en="Eagle",
+            scientific_name="Aquila chrysaetos",
+            category_id=bird.id,
+            default_image_url="http://example.com/eagle.jpg",
+            name_de="Adler",
+            slug="eagle",
+            art=2001,
+        )
+        asiatic_lion = models.Animal(
+            name_en="Asiatic Lion",
+            scientific_name="Panthera leo persica",
+            category_id=mammal.id,
+            name_de="Asiatischer Löwe",
+            slug="asiatic-lion",
+            art=1003,
+            parent_art=1001,
+        )
+        db.add_all([animal, tiger, eagle, asiatic_lion])
+        await db.commit()
+        await db.refresh(animal)
+        await db.refresh(tiger)
+        await db.refresh(eagle)
+        await db.refresh(asiatic_lion)
 
-    link = models.ZooAnimal(zoo_id=zoo.id, animal_id=animal.id)
-    # Enrich seed: link the subspecies to TWO zoos to exercise aggregation + dedupe.
-    subspecies_link_far = models.ZooAnimal(
-        zoo_id=far_zoo.id, animal_id=asiatic_lion.id
-    )
-    subspecies_link_central = models.ZooAnimal(
-        zoo_id=zoo.id, animal_id=asiatic_lion.id
-    )
-    db.add_all([link, subspecies_link_far, subspecies_link_central])
-    db.commit()
+        img1 = models.Image(
+            mid="M1",
+            animal_id=animal.id,
+            commons_title="File:Lion.jpg",
+            commons_page_url="http://commons.org/File:Lion.jpg",
+            original_url="http://example.com/lion.jpg",
+            width=640,
+            height=480,
+            size_bytes=1000,
+            sha1="0" * 40,
+            mime="image/jpeg",
+            artist_plain="Jane Smith",
+            license="CC BY-SA 4.0",
+            license_url="http://creativecommons.org/licenses/by-sa/4.0/",
+            source="WIKIDATA_P18",
+            variants=[
+                models.ImageVariant(
+                    width=320,
+                    height=240,
+                    thumb_url="http://example.com/lion-320.jpg",
+                ),
+                models.ImageVariant(
+                    width=640, height=480, thumb_url="http://example.com/lion.jpg"
+                ),
+            ],
+            attribution_required=True,
+            credit_line="Photo by Jane",
+        )
+        img2 = models.Image(
+            mid="M2",
+            animal_id=animal.id,
+            commons_title="File:Lion2.jpg",
+            commons_page_url="http://commons.org/File:Lion2.jpg",
+            original_url="http://example.com/lion2.jpg",
+            width=640,
+            height=480,
+            size_bytes=2000,
+            sha1="1" * 40,
+            mime="image/jpeg",
+            artist_plain="John Doe",
+            license="CC BY-SA 4.0",
+            license_url="http://creativecommons.org/licenses/by-sa/4.0/",
+            source="WIKIDATA_P18",
+            variants=[
+                models.ImageVariant(
+                    width=640, height=480, thumb_url="http://example.com/lion2.jpg"
+                )
+            ],
+        )
+        db.add_all([img1, img2])
+        await db.commit()
 
-    db.close()
+        link = models.ZooAnimal(zoo_id=zoo.id, animal_id=animal.id)
+        # Enrich seed: link the subspecies to TWO zoos to exercise aggregation + dedupe.
+        subspecies_link_far = models.ZooAnimal(
+            zoo_id=far_zoo.id, animal_id=asiatic_lion.id
+        )
+        subspecies_link_central = models.ZooAnimal(
+            zoo_id=zoo.id, animal_id=asiatic_lion.id
+        )
+        db.add_all([link, subspecies_link_far, subspecies_link_central])
+        await db.commit()
+
     return {
         "zoo": zoo,
         "animal": animal,
@@ -302,10 +355,11 @@ def seed_data():
     }
 
 
-@pytest.fixture(scope="session")
-def data():
+@pytest_asyncio.fixture(scope="session")
+async def data():
     """Provide seeded data to tests that need it."""
-    records = seed_data()
+
+    records = await seed_data()
     yield records
 
 
@@ -363,17 +417,22 @@ class _RegisterResponseWrapper:
         return getattr(self._response, item)
 
 
-def register_and_login(return_register_resp: bool = False):
-    """Create a new user and return an auth token and user id.
 
-    If ``return_register_resp`` is ``True``, also return the response from the
-    registration request so tests can inspect the payload returned by the API.
-    """
+async def register_and_login(
+    return_register_resp: bool = False,
+    client: httpx.AsyncClient | None = None,
+):
+    """Create a new user and return an auth token and user id."""
+
     global _counter
     email = f"alice{_counter}@example.com"
     _counter += 1
-    client.cookies.clear()
-    register_resp = client.post(
+    client_instance = client or _client_ctx.get()
+    if client_instance is None:
+        raise RuntimeError("register_and_login requires the client fixture")
+
+    client_instance.cookies.clear()
+    register_resp = await client_instance.post(
         "/users",
         json={
             "name": "Alice",
@@ -384,16 +443,17 @@ def register_and_login(return_register_resp: bool = False):
         },
     )
     assert register_resp.status_code == 202
-    with SessionLocal() as db:
-        user = (
-            db.query(models.User)
-            .filter(models.User.email == email)
-            .one()
-        )
-        user_id = str(user.id)
-    mark_user_verified(user_id)
 
-    login_resp = client.post(
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(models.User).where(models.User.email == email)
+        )
+        user = result.scalar_one()
+        user_id = str(user.id)
+
+    await mark_user_verified(user_id)
+
+    login_resp = await client_instance.post(
         "/auth/login",
         data={"username": email, "password": TEST_PASSWORD},
         headers={"content-type": "application/x-www-form-urlencoded"},
@@ -407,14 +467,16 @@ def register_and_login(return_register_resp: bool = False):
     return token, user_id
 
 
-def mark_user_verified(user_id: str | uuid.UUID) -> None:
+async def mark_user_verified(user_id: str | uuid.UUID) -> None:
     """Set the verification timestamp for ``user_id`` in the database."""
 
-    with SessionLocal() as db:
-        record = db.get(models.User, uuid.UUID(str(user_id)))
+    async with AsyncSessionLocal() as db:
+        record = await db.get(models.User, uuid.UUID(str(user_id)))
         assert record is not None
         record.email_verified_at = datetime.now(timezone.utc)
-        db.query(models.VerificationToken).filter(
-            models.VerificationToken.user_id == record.id
-        ).delete(synchronize_session=False)
-        db.commit()
+        await db.execute(
+            delete(models.VerificationToken).where(
+                models.VerificationToken.user_id == record.id
+            )
+        )
+        await db.commit()

@@ -24,6 +24,7 @@ from fastapi import (
 )
 from fastapi.responses import ORJSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
 from .. import models, schemas
@@ -47,7 +48,7 @@ from ..config import (
     REFRESH_ABS_TTL,
     REFRESH_COOKIE_NAME,
 )
-from ..database import get_db
+from ..database import get_async_db, get_db
 from ..logging import anonymize_ip
 from ..middleware.logging import set_user_context
 from ..rate_limit import (
@@ -81,6 +82,7 @@ from ..utils.password_reset import (
 router = APIRouter()
 
 _db_dependency = Depends(get_db)
+_async_db_dependency = Depends(get_async_db)
 _oauth_form_dependency = Depends()
 _current_user_dependency = Depends(get_current_user)
 
@@ -577,7 +579,7 @@ def request_verification_resend(
 async def verify_email(
     request: Request,
     payload: schemas.EmailVerificationRequest,
-    db: Session = _db_dependency,
+    db: AsyncSession = _async_db_dependency,
 ) -> schemas.Message | ORJSONResponse:
     """Validate a verification token or code and mark the user as verified."""
 
@@ -609,16 +611,16 @@ async def verify_email(
             uid_value = uuid.UUID(payload.uid)
         except ValueError:
             return generic_response
-        user = db.get(models.User, uid_value)
+        user = await db.get(models.User, uid_value)
     if user is None and payload.email:
-        user = get_user(db, payload.email)
+        user = await db.run_sync(lambda session: get_user(session, payload.email))
     if user is None:
         return generic_response
 
     now = _now()
     if user.email_verified_at:
         return generic_response
-    token_record = get_latest_token(db, user)
+    token_record = await db.run_sync(lambda session: get_latest_token(session, user))
     if token_record is None or token_record.consumed_at is not None:
         auth_logger.warning(
             "Verification attempt missing active token",
@@ -660,22 +662,26 @@ async def verify_email(
         )
         return generic_response
 
-    clear_verification_state(db, user, verified_at=now)
-    db.flush()
-    families = {
-        token.family_id
-        for token in db.query(models.RefreshToken)
-        .filter(models.RefreshToken.user_id == user.id)
-        .filter(models.RefreshToken.revoked_at.is_(None))
-    }
+    await db.run_sync(lambda session: clear_verification_state(session, user, verified_at=now))
+    await db.flush()
+    families = await db.run_sync(
+        lambda session: {
+            token.family_id
+            for token in session.query(models.RefreshToken)
+            .filter(models.RefreshToken.user_id == user.id)
+            .filter(models.RefreshToken.revoked_at.is_(None))
+        }
+    )
     for family_id in families:
-        revoke_refresh_family(
-            db,
-            family_id,
-            reason="email_verified",
-            timestamp=now,
+        await db.run_sync(
+            lambda session, fid=family_id: revoke_refresh_family(
+                session,
+                fid,
+                reason="email_verified",
+                timestamp=now,
+            )
         )
-    db.commit()
+    await db.commit()
     auth_logger.info(
         "Email verified",
         extra={
@@ -695,7 +701,7 @@ async def request_password_reset(
     request: Request,
     payload: schemas.PasswordResetRequest,
     background_tasks: BackgroundTasks,
-    db: Session = _db_dependency,
+    db: AsyncSession = _async_db_dependency,
 ) -> ORJSONResponse:
     """Handle anonymous password reset requests without leaking account status."""
 
@@ -731,7 +737,7 @@ async def request_password_reset(
             )
         raise
 
-    user = get_user(db, payload.email)
+    user = await db.run_sync(lambda session: get_user(session, payload.email))
     if not user or not user.email_verified_at:
         auth_logger.info(
             "Anonymous password reset request",
@@ -744,7 +750,9 @@ async def request_password_reset(
         )
         return generic_response
 
-    allowed, reason = can_issue_password_reset(db, user)
+    allowed, reason = await db.run_sync(
+        lambda session: can_issue_password_reset(session, user)
+    )
     if not allowed:
         auth_logger.info(
             "Password reset request throttled",
@@ -757,8 +765,10 @@ async def request_password_reset(
         )
         return generic_response
 
-    token, expires_at = issue_password_reset_token(db, user)
-    db.flush()
+    token, expires_at = await db.run_sync(
+        lambda session: issue_password_reset_token(session, user)
+    )
+    await db.flush()
     enqueue_password_reset_email(
         background_tasks,
         user,
@@ -766,7 +776,7 @@ async def request_password_reset(
         expires_at=expires_at,
         execute_immediately=True,
     )
-    db.commit()
+    await db.commit()
     auth_logger.info(
         "Password reset email issued",
         extra={
@@ -786,7 +796,7 @@ async def reset_password(
     request: Request,
     payload: schemas.PasswordResetConfirm,
     background_tasks: BackgroundTasks,
-    db: Session = _db_dependency,
+    db: AsyncSession = _async_db_dependency,
 ) -> ORJSONResponse:
     """Validate a reset token and persist a new password, revealing status on error."""
 
@@ -825,7 +835,9 @@ async def reset_password(
             return response
         raise
 
-    token_record = get_reset_token(db, token=payload.token)
+    token_record = await db.run_sync(
+        lambda session: get_reset_token(session, token=payload.token)
+    )
     now = _now()
     failure_reason = _classify_reset_token(token_record, now=now)
     if failure_reason:
@@ -844,29 +856,35 @@ async def reset_password(
 
     user.password_hash = hash_password(payload.password)
     user.last_active_at = now
-    consume_reset_token(db, token_record, timestamp=now)
+    await db.run_sync(
+        lambda session: consume_reset_token(session, token_record, timestamp=now)
+    )
 
-    families = {
-        token.family_id
-        for token in db.query(models.RefreshToken)
-        .filter(models.RefreshToken.user_id == user.id)
-        .filter(models.RefreshToken.revoked_at.is_(None))
-    }
+    families = await db.run_sync(
+        lambda session: {
+            token.family_id
+            for token in session.query(models.RefreshToken)
+            .filter(models.RefreshToken.user_id == user.id)
+            .filter(models.RefreshToken.revoked_at.is_(None))
+        }
+    )
     for family_id in families:
-        revoke_refresh_family(
-            db,
-            family_id,
-            reason="password_reset",
-            timestamp=now,
+        await db.run_sync(
+            lambda session, fid=family_id: revoke_refresh_family(
+                session,
+                fid,
+                reason="password_reset",
+                timestamp=now,
+            )
         )
 
-    db.flush()
+    await db.flush()
     enqueue_password_reset_confirmation(
         background_tasks,
         user,
         execute_immediately=True,
     )
-    db.commit()
+    await db.commit()
     auth_logger.info(
         "Password reset completed",
         extra={
@@ -885,7 +903,7 @@ async def reset_password(
 async def get_password_reset_status(
     request: Request,
     token: str = Query(..., min_length=1, max_length=512),
-    db: Session = _db_dependency,
+    db: AsyncSession = _async_db_dependency,
 ) -> ORJSONResponse:
     """Return the current status of a password reset token."""
 
@@ -919,7 +937,9 @@ async def get_password_reset_status(
             return response
         raise
 
-    token_record = get_reset_token(db, token=trimmed_token)
+    token_record = await db.run_sync(
+        lambda session: get_reset_token(session, token=trimmed_token)
+    )
     now = _now()
     failure_reason = _classify_reset_token(token_record, now=now)
     if failure_reason:

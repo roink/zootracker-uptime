@@ -30,7 +30,7 @@ def _load_config_module():
     return module
 
 
-def test_site_base_url_defaults_to_app_base_url(monkeypatch):
+async def test_site_base_url_defaults_to_app_base_url(client, monkeypatch):
     monkeypatch.setenv("APP_BASE_URL", "https://frontend.example")
     monkeypatch.delenv("SITE_BASE_URL", raising=False)
 
@@ -40,7 +40,7 @@ def test_site_base_url_defaults_to_app_base_url(monkeypatch):
     assert module.SITE_BASE_URL == module.APP_BASE_URL
 
 
-def test_site_languages_default(monkeypatch):
+async def test_site_languages_default(client, monkeypatch):
     monkeypatch.delenv("SITE_LANGUAGES", raising=False)
 
     module = _load_config_module()
@@ -50,7 +50,7 @@ def test_site_languages_default(monkeypatch):
 
 
 @pytest.mark.parametrize("value", ["", "en_US"])
-def test_invalid_site_languages_raise(monkeypatch, value):
+async def test_invalid_site_languages_raise(client, monkeypatch, value):
     monkeypatch.setenv("SITE_BASE_URL", "https://frontend.example")
     monkeypatch.setenv("SITE_LANGUAGES", value)
 
@@ -67,7 +67,7 @@ def test_invalid_site_languages_raise(monkeypatch, value):
         sys.modules.pop(module_name, None)
 
 
-def test_site_base_url_must_be_absolute(monkeypatch):
+async def test_site_base_url_must_be_absolute(client, monkeypatch):
     monkeypatch.setenv("SITE_BASE_URL", "//relative-path")
 
     module_name = f"_test_app_config_bad_url_{next(_MODULE_COUNTER)}"

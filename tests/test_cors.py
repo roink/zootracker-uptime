@@ -1,9 +1,9 @@
-from .conftest import client
 
 
-def test_cors_allows_configured_origin():
+
+async def test_cors_allows_configured_origin(client):
     """Preflight requests from allowed origins should succeed."""
-    resp = client.options(
+    resp = await client.options(
         "/animals",
         headers={
             "Origin": "http://allowed.example",
@@ -16,9 +16,9 @@ def test_cors_allows_configured_origin():
     )
 
 
-def test_cors_rejects_other_origins():
+async def test_cors_rejects_other_origins(client):
     """Origins not on the whitelist fail the CORS check."""
-    resp = client.options(
+    resp = await client.options(
         "/animals",
         headers={
             "Origin": "http://evil.example",

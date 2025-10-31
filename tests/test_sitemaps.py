@@ -10,7 +10,7 @@ from app.config import SITE_BASE_URL, SITE_DEFAULT_LANGUAGE, SITE_LANGUAGES
 from app.database import SessionLocal
 from app.main import app, get_db
 
-from .conftest import client, override_get_db
+from .conftest import override_get_db
 from app.api.site import PUBLIC_STATIC_PAGE_PATHS
 
 NS = {
@@ -103,8 +103,8 @@ class BrokenSession:
         pass
 
 
-def test_sitemap_index_lists_submaps(data):
-    resp = client.get("/sitemap.xml")
+async def test_sitemap_index_lists_submaps(client, data):
+    resp = await client.get("/sitemap.xml")
     assert resp.status_code == 200
     assert resp.headers["content-type"] == "application/xml; charset=utf-8"
     assert "stale-while-revalidate" in resp.headers["cache-control"]
@@ -152,11 +152,11 @@ def test_sitemap_index_lists_submaps(data):
         assert "Last-Modified" not in resp.headers
 
 
-def test_sitemap_index_head_matches_get(data):
-    base = client.get("/sitemap.xml")
+async def test_sitemap_index_head_matches_get(client, data):
+    base = await client.get("/sitemap.xml")
     assert base.status_code == 200
 
-    head = client.head("/sitemap.xml")
+    head = await client.head("/sitemap.xml")
     assert head.status_code == 200
     assert head.content == b""
     assert head.headers["ETag"] == base.headers["ETag"]
@@ -165,8 +165,8 @@ def test_sitemap_index_head_matches_get(data):
     assert head.headers.get("Last-Modified") == base.headers.get("Last-Modified")
 
 
-def test_site_pages_sitemap_includes_pages(data):
-    resp = client.get("/sitemaps/site-pages.xml")
+async def test_site_pages_sitemap_includes_pages(client, data):
+    resp = await client.get("/sitemaps/site-pages.xml")
     assert resp.status_code == 200
     assert resp.headers["content-type"] == "application/xml; charset=utf-8"
     assert "stale-while-revalidate" in resp.headers["cache-control"]
@@ -194,11 +194,11 @@ def test_site_pages_sitemap_includes_pages(data):
     assert "Last-Modified" not in resp.headers
 
 
-def test_site_pages_sitemap_head_matches_get(data):
-    base = client.get("/sitemaps/site-pages.xml")
+async def test_site_pages_sitemap_head_matches_get(client, data):
+    base = await client.get("/sitemaps/site-pages.xml")
     assert base.status_code == 200
 
-    head = client.head("/sitemaps/site-pages.xml")
+    head = await client.head("/sitemaps/site-pages.xml")
     assert head.status_code == 200
     assert head.content == b""
     assert head.headers["ETag"] == base.headers["ETag"]
@@ -207,8 +207,8 @@ def test_site_pages_sitemap_head_matches_get(data):
     assert head.headers.get("Last-Modified") == base.headers.get("Last-Modified")
 
 
-def test_animals_sitemap_includes_animals(data):
-    resp = client.get("/sitemaps/animals.xml")
+async def test_animals_sitemap_includes_animals(client, data):
+    resp = await client.get("/sitemaps/animals.xml")
     assert resp.status_code == 200
     assert resp.headers["content-type"] == "application/xml; charset=utf-8"
     assert "stale-while-revalidate" in resp.headers["cache-control"]
@@ -250,11 +250,11 @@ def test_animals_sitemap_includes_animals(data):
     assert resp.headers["Last-Modified"] == _format_http_date(newest_animal)
 
 
-def test_animals_sitemap_head_matches_get(data):
-    base = client.get("/sitemaps/animals.xml")
+async def test_animals_sitemap_head_matches_get(client, data):
+    base = await client.get("/sitemaps/animals.xml")
     assert base.status_code == 200
 
-    head = client.head("/sitemaps/animals.xml")
+    head = await client.head("/sitemaps/animals.xml")
     assert head.status_code == 200
     assert head.content == b""
     assert head.headers["ETag"] == base.headers["ETag"]
@@ -263,8 +263,8 @@ def test_animals_sitemap_head_matches_get(data):
     assert head.headers.get("Last-Modified") == base.headers.get("Last-Modified")
 
 
-def test_zoos_sitemap_includes_zoos(data):
-    resp = client.get("/sitemaps/zoos.xml")
+async def test_zoos_sitemap_includes_zoos(client, data):
+    resp = await client.get("/sitemaps/zoos.xml")
     assert resp.status_code == 200
     assert resp.headers["content-type"] == "application/xml; charset=utf-8"
     assert "stale-while-revalidate" in resp.headers["cache-control"]
@@ -306,11 +306,11 @@ def test_zoos_sitemap_includes_zoos(data):
     assert resp.headers["Last-Modified"] == _format_http_date(newest_zoo)
 
 
-def test_zoos_sitemap_head_matches_get(data):
-    base = client.get("/sitemaps/zoos.xml")
+async def test_zoos_sitemap_head_matches_get(client, data):
+    base = await client.get("/sitemaps/zoos.xml")
     assert base.status_code == 200
 
-    head = client.head("/sitemaps/zoos.xml")
+    head = await client.head("/sitemaps/zoos.xml")
     assert head.status_code == 200
     assert head.content == b""
     assert head.headers["ETag"] == base.headers["ETag"]
@@ -319,19 +319,19 @@ def test_zoos_sitemap_head_matches_get(data):
     assert head.headers.get("Last-Modified") == base.headers.get("Last-Modified")
 
 
-def test_robots_txt_references_sitemap(data):
-    resp = client.get("/robots.txt")
+async def test_robots_txt_references_sitemap(client, data):
+    resp = await client.get("/robots.txt")
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("text/plain")
     assert resp.headers["vary"] == "Accept-Encoding"
     assert f"Sitemap: {SITE_BASE_URL.rstrip('/')}/sitemap.xml" in resp.text
 
 
-def test_robots_txt_head_matches_get(data):
-    base = client.get("/robots.txt")
+async def test_robots_txt_head_matches_get(client, data):
+    base = await client.get("/robots.txt")
     assert base.status_code == 200
 
-    head = client.head("/robots.txt")
+    head = await client.head("/robots.txt")
     assert head.status_code == 200
     assert head.content == b""
     assert head.headers["ETag"] == base.headers["ETag"]
@@ -339,79 +339,80 @@ def test_robots_txt_head_matches_get(data):
     assert head.headers["vary"] == "Accept-Encoding"
 
 
-def test_sitemap_index_etag_304(data):
-    first = client.get("/sitemap.xml")
+async def test_sitemap_index_etag_304(client, data):
+    first = await client.get("/sitemap.xml")
     assert first.status_code == 200
     etag = first.headers.get("ETag")
     assert etag
 
-    cached = client.get("/sitemap.xml", headers={"If-None-Match": etag})
+    cached = await client.get("/sitemap.xml", headers={"If-None-Match": etag})
     assert cached.status_code == 304
     assert cached.headers.get("ETag") == etag
     assert "Cache-Control" in cached.headers
     assert cached.headers.get("Last-Modified") == first.headers.get("Last-Modified")
 
 
-def test_sitemap_index_head_etag_304(data):
-    etag = client.get("/sitemap.xml").headers["ETag"]
+async def test_sitemap_index_head_etag_304(client, data):
+    etag_resp = await client.get("/sitemap.xml")
+    etag = etag_resp.headers["ETag"]
 
-    cached = client.head("/sitemap.xml", headers={"If-None-Match": etag})
+    cached = await client.head("/sitemap.xml", headers={"If-None-Match": etag})
     assert cached.status_code == 304
     assert cached.content == b""
 
 
-def test_robots_txt_etag_304(data):
-    first = client.get("/robots.txt")
+async def test_robots_txt_etag_304(client, data):
+    first = await client.get("/robots.txt")
     assert first.status_code == 200
     etag = first.headers.get("ETag")
     assert etag
 
-    cached = client.get("/robots.txt", headers={"If-None-Match": etag})
+    cached = await client.get("/robots.txt", headers={"If-None-Match": etag})
     assert cached.status_code == 304
     assert cached.headers.get("ETag") == etag
     assert "Cache-Control" in cached.headers
 
 
-def test_site_pages_sitemap_etag_304(data):
-    first = client.get("/sitemaps/site-pages.xml")
+async def test_site_pages_sitemap_etag_304(client, data):
+    first = await client.get("/sitemaps/site-pages.xml")
     assert first.status_code == 200
     etag = first.headers.get("ETag")
     assert etag
 
-    cached = client.get("/sitemaps/site-pages.xml", headers={"If-None-Match": etag})
+    cached = await client.get("/sitemaps/site-pages.xml", headers={"If-None-Match": etag})
     assert cached.status_code == 304
     assert cached.headers.get("ETag") == etag
     assert cached.headers.get("Vary") == "Accept-Encoding"
     assert cached.headers.get("Last-Modified") == first.headers.get("Last-Modified")
 
 
-def test_animals_sitemap_etag_304(data):
-    first = client.get("/sitemaps/animals.xml")
+async def test_animals_sitemap_etag_304(client, data):
+    first = await client.get("/sitemaps/animals.xml")
     assert first.status_code == 200
     etag = first.headers.get("ETag")
     assert etag
 
-    cached = client.get("/sitemaps/animals.xml", headers={"If-None-Match": etag})
+    cached = await client.get("/sitemaps/animals.xml", headers={"If-None-Match": etag})
     assert cached.status_code == 304
     assert cached.headers.get("ETag") == etag
     assert cached.headers.get("Vary") == "Accept-Encoding"
     assert cached.headers.get("Last-Modified") == first.headers.get("Last-Modified")
 
 
-def test_zoos_sitemap_etag_304(data):
-    first = client.get("/sitemaps/zoos.xml")
+async def test_zoos_sitemap_etag_304(client, data):
+    first = await client.get("/sitemaps/zoos.xml")
     assert first.status_code == 200
     etag = first.headers.get("ETag")
     assert etag
 
-    cached = client.get("/sitemaps/zoos.xml", headers={"If-None-Match": etag})
+    cached = await client.get("/sitemaps/zoos.xml", headers={"If-None-Match": etag})
     assert cached.status_code == 304
     assert cached.headers.get("ETag") == etag
     assert cached.headers.get("Vary") == "Accept-Encoding"
     assert cached.headers.get("Last-Modified") == first.headers.get("Last-Modified")
 
 
-def test_animals_sitemap_database_error():
+async def test_animals_sitemap_database_error(client):
     broken_session = BrokenSession()
 
     def broken_db():
@@ -422,7 +423,7 @@ def test_animals_sitemap_database_error():
 
     app.dependency_overrides[get_db] = broken_db
     try:
-        resp = client.get("/sitemaps/animals.xml")
+        resp = await client.get("/sitemaps/animals.xml")
     finally:
         app.dependency_overrides[get_db] = override_get_db
 
@@ -433,7 +434,7 @@ def test_animals_sitemap_database_error():
     assert broken_session.rolled_back is True
 
 
-def test_sitemap_index_database_error():
+async def test_sitemap_index_database_error(client):
     broken_session = BrokenSession()
 
     def broken_db():
@@ -444,7 +445,7 @@ def test_sitemap_index_database_error():
 
     app.dependency_overrides[get_db] = broken_db
     try:
-        resp = client.get("/sitemap.xml")
+        resp = await client.get("/sitemap.xml")
     finally:
         app.dependency_overrides[get_db] = override_get_db
 

@@ -12,7 +12,10 @@ from fastapi.responses import ORJSONResponse, Response
 from sqlalchemy.exc import SQLAlchemyError
 
 from .config import ALLOWED_ORIGINS, CSRF_HEADER_NAME, SECURITY_HEADERS
-from .database import get_db  # noqa: F401 - re-exported for tests and scripts
+from .database import (  # noqa: F401 - re-exported for tests and scripts
+    get_async_db,
+    get_db,
+)
 from .logging import configure_logging
 from .middleware.logging import LoggingMiddleware
 from .middleware.security import SecureHeadersMiddleware

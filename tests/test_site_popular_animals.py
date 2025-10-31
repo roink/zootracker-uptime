@@ -1,8 +1,8 @@
-from .conftest import client
 
 
-def test_popular_animals_limit_and_shape(data):
-    resp = client.get("/site/popular-animals?limit=5")
+
+async def test_popular_animals_limit_and_shape(client, data):
+    resp = await client.get("/site/popular-animals?limit=5")
     assert resp.status_code == 200
     arr = resp.json()
     assert len(arr) <= 5
@@ -10,6 +10,8 @@ def test_popular_animals_limit_and_shape(data):
         assert {"id", "slug", "name_en"}.issubset(item.keys())
 
 
-def test_popular_animals_limit_validation():
-    assert client.get("/site/popular-animals?limit=0").status_code == 422
-    assert client.get("/site/popular-animals?limit=50").status_code == 422
+async def test_popular_animals_limit_validation(client):
+    resp_low = await client.get("/site/popular-animals?limit=0")
+    assert resp_low.status_code == 422
+    resp_high = await client.get("/site/popular-animals?limit=50")
+    assert resp_high.status_code == 422

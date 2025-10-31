@@ -1,11 +1,10 @@
 import smtplib
-from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
 from app import rate_limit
 from app.rate_limit import RateLimiter
-from .conftest import client
+
 
 
 DEFAULT_USER_AGENT = "pytest-agent/1.0"
@@ -23,8 +22,8 @@ def build_contact_payload(
     }
 
 
-def post_contact(payload, *, user_agent: str = DEFAULT_USER_AGENT):
-    return client.post(
+async def post_contact(client, payload, *, user_agent: str = DEFAULT_USER_AGENT):
+    return await client.post(
         "/contact",
         json=payload,
         headers={"User-Agent": user_agent},
@@ -81,7 +80,7 @@ def _dummy_smtp_factory(sent_messages):
     return DummySMTP
 
 
-def test_contact_sends_email_with_reply_to(monkeypatch):
+async def test_contact_sends_email_with_reply_to(client, monkeypatch):
     sent = []
     monkeypatch.setenv("SMTP_HOST", "smtp.test")
     monkeypatch.setenv("SMTP_PORT", "587")
@@ -97,13 +96,13 @@ def test_contact_sends_email_with_reply_to(monkeypatch):
         email="a@example.com",
         message="Hello world!",
     )
-    resp = post_contact(payload)
+    resp = await post_contact(client, payload)
     assert resp.status_code == 204
     assert sent[0]["Reply-To"] == "a@example.com"
     assert sent[0]["Subject"] == "Contact form – Alice"
 
 
-def test_contact_strips_html(monkeypatch):
+async def test_contact_strips_html(client, monkeypatch):
     sent = []
     monkeypatch.setenv("SMTP_HOST", "smtp.test")
     monkeypatch.setenv("SMTP_PORT", "587")
@@ -119,13 +118,13 @@ def test_contact_strips_html(monkeypatch):
         email="a@example.com",
         message="<script>alert(1)</script>Hi<b>there</b>",
     )
-    resp = post_contact(payload)
+    resp = await post_contact(client, payload)
     assert resp.status_code == 204
     body = sent[0].get_content()
     assert "<script>" not in body and "<b>" not in body
 
 
-def test_contact_uses_ssl_when_configured(monkeypatch):
+async def test_contact_uses_ssl_when_configured(client, monkeypatch):
     sent = []
     monkeypatch.setenv("SMTP_HOST", "smtp.test")
     monkeypatch.setenv("SMTP_PORT", "465")
@@ -147,12 +146,12 @@ def test_contact_uses_ssl_when_configured(monkeypatch):
         email="a@example.com",
         message="Hello friends!",
     )
-    resp = post_contact(payload)
+    resp = await post_contact(client, payload)
     assert resp.status_code == 204
     assert sent[0]["Subject"] == "Contact form – Alice"
 
 
-def test_contact_rate_limited(monkeypatch):
+async def test_contact_rate_limited(client, monkeypatch):
     monkeypatch.setattr(rate_limit, "contact_limiter", RateLimiter(1, 60))
     sent = []
     monkeypatch.setenv("SMTP_HOST", "smtp.test")
@@ -167,13 +166,13 @@ def test_contact_rate_limited(monkeypatch):
         email="b@example.com",
         message="Hello there!",
     )
-    first = post_contact(payload)
+    first = await post_contact(client, payload)
     assert first.status_code == 204
-    second = post_contact(payload)
+    second = await post_contact(client, payload)
     assert second.status_code == 429
 
 
-def test_contact_rate_limit_response_detail(monkeypatch):
+async def test_contact_rate_limit_response_detail(client, monkeypatch):
     monkeypatch.setattr(rate_limit, "contact_limiter", RateLimiter(1, 60))
     sent = []
     monkeypatch.setenv("SMTP_HOST", "smtp.test")
@@ -189,15 +188,15 @@ def test_contact_rate_limit_response_detail(monkeypatch):
         email="b@example.com",
         message="Hello there!",
     )
-    post_contact(payload)
-    resp = post_contact(payload)
+    await post_contact(client, payload)
+    resp = await post_contact(client, payload)
     assert resp.status_code == 429
     assert resp.json()["detail"] == "Too Many Requests"
     assert resp.headers.get("Retry-After") is not None
     assert resp.headers.get("X-RateLimit-Remaining") == "0"
 
 
-def test_contact_rate_limit_headers(monkeypatch):
+async def test_contact_rate_limit_headers(client, monkeypatch):
     monkeypatch.setattr(rate_limit, "contact_limiter", RateLimiter(2, 60))
     sent = []
     monkeypatch.setenv("SMTP_HOST", "smtp.test")
@@ -213,7 +212,7 @@ def test_contact_rate_limit_headers(monkeypatch):
         email="e@example.com",
         message="Hello there!",
     )
-    resp = post_contact(payload)
+    resp = await post_contact(client, payload)
     assert resp.status_code == 204
     assert resp.headers.get("X-RateLimit-Remaining") == "1"
 
@@ -227,13 +226,13 @@ def test_contact_rate_limit_headers(monkeypatch):
         payload_empty_message,
     ],
 )
-def test_contact_invalid_payload(monkeypatch, payload_factory):
+async def test_contact_invalid_payload(client, monkeypatch, payload_factory):
     monkeypatch.setattr(rate_limit, "contact_limiter", RateLimiter(100, 60))
-    resp = post_contact(payload_factory())
+    resp = await post_contact(client, payload_factory())
     assert resp.status_code == 422
 
 
-def test_contact_strips_header_injection(monkeypatch):
+async def test_contact_strips_header_injection(client, monkeypatch):
     sent = []
     monkeypatch.setenv("SMTP_HOST", "smtp.test")
     monkeypatch.setenv("SMTP_PORT", "587")
@@ -248,14 +247,14 @@ def test_contact_strips_header_injection(monkeypatch):
         email="a@example.com",
         message="Hello there!",
     )
-    resp = post_contact(payload)
+    resp = await post_contact(client, payload)
     assert resp.status_code == 204
     msg = sent[0]
     assert msg["Reply-To"] == "a@example.com"
     assert msg["Subject"] == "Contact form – AliceBcc: attacker@example.com"
 
 
-def test_contact_uses_starttls_when_ssl_backend_missing(monkeypatch):
+async def test_contact_uses_starttls_when_ssl_backend_missing(client, monkeypatch):
     sent = []
     monkeypatch.setenv("SMTP_HOST", "127.0.0.1")
     monkeypatch.setenv("SMTP_PORT", "587")
@@ -272,13 +271,13 @@ def test_contact_uses_starttls_when_ssl_backend_missing(monkeypatch):
         message="Hello there!",
     )
 
-    resp = post_contact(payload)
+    resp = await post_contact(client, payload)
     assert resp.status_code == 204
     assert sent, "Expected email to be queued via STARTTLS fallback"
     assert sent[0]["Subject"] == "Contact form – Fallback Test"
 
 
-def test_send_contact_email_sanitizes_reply_to(monkeypatch):
+async def test_send_contact_email_sanitizes_reply_to(client, monkeypatch):
     sent = []
 
     def smtp_factory(*args, **kwargs):
@@ -311,7 +310,7 @@ def test_send_contact_email_sanitizes_reply_to(monkeypatch):
     assert msg["Subject"] == "Contact form – Alice"
 
 
-def test_contact_sets_request_id_header(monkeypatch):
+async def test_contact_sets_request_id_header(client, monkeypatch):
     sent = []
     monkeypatch.setenv("SMTP_HOST", "smtp.test")
     monkeypatch.setenv("SMTP_PORT", "587")
@@ -321,29 +320,30 @@ def test_contact_sets_request_id_header(monkeypatch):
     monkeypatch.setenv("CONTACT_EMAIL", "contact@zootracker.app")
     monkeypatch.setattr(smtplib, "SMTP", _dummy_smtp_factory(sent))
 
-    resp = post_contact(build_contact_payload())
+    resp = await post_contact(client, build_contact_payload())
     assert resp.status_code == 204
     assert "X-Request-ID" in resp.headers
 
 
-def test_contact_accepts_unicode_name(monkeypatch):
+async def test_contact_accepts_unicode_name(client, monkeypatch):
     monkeypatch.setattr(rate_limit, "contact_limiter", RateLimiter(100, 60))
     payload = build_contact_payload(
         name="Ali😀ce",
         message="Hello from the 🐾 team!",
     )
-    resp = post_contact(payload)
+    resp = await post_contact(client, payload)
     assert resp.status_code == 204
 
 
-def test_contact_rejects_short_message(monkeypatch):
+async def test_contact_rejects_short_message(client, monkeypatch):
     monkeypatch.setattr(rate_limit, "contact_limiter", RateLimiter(100, 60))
     payload = build_contact_payload(message="Too short")
-    resp = post_contact(payload)
+    resp = await post_contact(client, payload)
     assert resp.status_code == 422
+import asyncio
 
 
-def test_contact_rate_limit_concurrent(monkeypatch):
+async def test_contact_rate_limit_concurrent(client, monkeypatch):
     monkeypatch.setattr(rate_limit, "contact_limiter", RateLimiter(1, 60))
     sent = []
     monkeypatch.setenv("SMTP_HOST", "smtp.test")
@@ -354,16 +354,15 @@ def test_contact_rate_limit_concurrent(monkeypatch):
     monkeypatch.setenv("CONTACT_EMAIL", "contact@zootracker.app")
     monkeypatch.setattr(smtplib, "SMTP", _dummy_smtp_factory(sent))
 
-    def do_post():
+    async def do_post():
         payload = build_contact_payload(
             name="Bob",
             email="b@example.com",
             message="Hello there!",
         )
-        return post_contact(payload)
+        return await post_contact(client, payload)
 
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        res = list(pool.map(lambda _: do_post(), range(2)))
+    res = await asyncio.gather(*(do_post() for _ in range(2)))
 
     codes = sorted([r.status_code for r in res])
     assert codes == [204, 429]

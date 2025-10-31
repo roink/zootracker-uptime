@@ -31,7 +31,7 @@ Tests that specifically exercise PostgreSQL behaviours are still marked with
 database instance, set `DATABASE_URL` accordingly, for example:
 
 ```bash
-DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/postgres pytest -q
+DATABASE_URL=postgresql+psycopg_async://postgres:postgres@localhost:5432/postgres pytest -q
 ```
 
 Frontend clustering is covered by dedicated tests. To confirm the structural

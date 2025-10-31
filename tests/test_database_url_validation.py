@@ -6,7 +6,12 @@ import warnings
 
 import pytest
 
-import app.database as database_module
+try:
+    import app.database as database_module
+except ModuleNotFoundError as exc:  # pragma: no cover - dependency guard
+    if exc.name == "psycopg":
+        pytest.skip("psycopg driver not installed", allow_module_level=True)
+    raise
 
 
 def _restore_env(monkeypatch, key, value):
@@ -33,18 +38,29 @@ def test_startup_fails_when_database_url_missing(monkeypatch):
         importlib.reload(database_module)
 
 
-def test_psycopg_placeholder_allowed_in_dev(monkeypatch):
-    """Explicit placeholder URL is tolerated for development/test environments."""
-    pytest.importorskip("psycopg")
+@pytest.mark.parametrize(
+    ("url", "requires_psycopg"),
+    [
+        ("postgresql://postgres:postgres@localhost:5432/postgres", True),
+        ("postgresql+psycopg://postgres:postgres@localhost:5432/postgres", True),
+        (
+            "postgresql+psycopg_async://postgres:postgres@localhost:5432/postgres",
+            True,
+        ),
+    ],
+)
+def test_placeholder_allowed_in_dev(monkeypatch, url, requires_psycopg):
+    """Explicit placeholder URLs are tolerated for development/test environments."""
+
+    if requires_psycopg:
+        pytest.importorskip("psycopg")
+
     original_url = os.environ.get("DATABASE_URL")
     original_env = os.environ.get("APP_ENV")
 
     try:
         monkeypatch.setenv("APP_ENV", "development")
-        monkeypatch.setenv(
-            "DATABASE_URL",
-            "postgresql+psycopg://postgres:postgres@localhost:5432/postgres",
-        )
+        monkeypatch.setenv("DATABASE_URL", url)
 
         # Should not raise during reload in development.
         with warnings.catch_warnings(record=True) as caught:
@@ -58,60 +74,29 @@ def test_psycopg_placeholder_allowed_in_dev(monkeypatch):
         importlib.reload(database_module)
 
 
-def test_plain_placeholder_allowed_in_dev(monkeypatch):
-    """Plain driver placeholder should behave like the psycopg variant."""
-    original_url = os.environ.get("DATABASE_URL")
-    original_env = os.environ.get("APP_ENV")
+@pytest.mark.parametrize(
+    ("url", "requires_psycopg"),
+    [
+        ("postgresql://postgres:postgres@localhost:5432/postgres", True),
+        ("postgresql+psycopg://postgres:postgres@localhost:5432/postgres", True),
+        (
+            "postgresql+psycopg_async://postgres:postgres@localhost:5432/postgres",
+            True,
+        ),
+    ],
+)
+def test_placeholder_blocked_in_production(monkeypatch, url, requires_psycopg):
+    """Production environments should refuse the historical placeholder credentials."""
 
-    try:
-        monkeypatch.setenv("APP_ENV", "development")
-        monkeypatch.setenv(
-            "DATABASE_URL",
-            "postgresql://postgres:postgres@localhost:5432/postgres",
-        )
+    if requires_psycopg:
+        pytest.importorskip("psycopg")
 
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-            importlib.reload(database_module)
-
-        assert any(w.category is RuntimeWarning for w in caught)
-    finally:
-        _restore_env(monkeypatch, "DATABASE_URL", original_url)
-        _restore_env(monkeypatch, "APP_ENV", original_env)
-        importlib.reload(database_module)
-
-
-def test_psycopg_placeholder_blocked_in_production(monkeypatch):
-    """Production environments should refuse the historical placeholder."""
     original_url = os.environ.get("DATABASE_URL")
     original_env = os.environ.get("APP_ENV")
 
     try:
         monkeypatch.setenv("APP_ENV", "production")
-        monkeypatch.setenv(
-            "DATABASE_URL",
-            "postgresql+psycopg://postgres:postgres@localhost:5432/postgres",
-        )
-
-        with pytest.raises(RuntimeError, match="Refusing to start in production"):
-            importlib.reload(database_module)
-    finally:
-        _restore_env(monkeypatch, "DATABASE_URL", original_url)
-        _restore_env(monkeypatch, "APP_ENV", original_env)
-        importlib.reload(database_module)
-
-
-def test_plain_placeholder_blocked_in_production(monkeypatch):
-    """The plain postgres scheme should be blocked alongside psycopg in prod."""
-    original_url = os.environ.get("DATABASE_URL")
-    original_env = os.environ.get("APP_ENV")
-
-    try:
-        monkeypatch.setenv("APP_ENV", "production")
-        monkeypatch.setenv(
-            "DATABASE_URL",
-            "postgresql://postgres:postgres@localhost:5432/postgres",
-        )
+        monkeypatch.setenv("DATABASE_URL", url)
 
         with pytest.raises(RuntimeError, match="Refusing to start in production"):
             importlib.reload(database_module)
@@ -142,3 +127,19 @@ def test_placeholder_detection_ignores_non_prefix_occurrences(monkeypatch):
         _restore_env(monkeypatch, "DATABASE_URL", original_url)
         _restore_env(monkeypatch, "APP_ENV", original_env)
         importlib.reload(database_module)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "postgresql://zoo:zoo@localhost:5432/zoo",
+        "postgresql+psycopg://zoo:zoo@localhost:5432/zoo",
+        "postgresql+psycopg_async://zoo:zoo@localhost:5432/zoo",
+    ],
+)
+def test_urls_are_normalised_to_expected_drivers(url):
+    async_url = database_module._normalise_async_url(url)
+    sync_url = database_module._normalise_sync_url(url)
+
+    assert async_url.drivername == "postgresql+psycopg_async"
+    assert sync_url.drivername == "postgresql+psycopg"

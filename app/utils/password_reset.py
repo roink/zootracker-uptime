@@ -10,7 +10,7 @@ from email.message import EmailMessage
 from typing import cast
 
 from fastapi import BackgroundTasks
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from .. import models
 from ..config import (
@@ -129,6 +129,7 @@ def get_reset_token(
     hashed = _hash_secret(token)
     result = (
         db.query(models.VerificationToken)
+        .options(joinedload(models.VerificationToken.user))
         .filter(models.VerificationToken.kind == _KIND)
         .filter(models.VerificationToken.token_hash == hashed)
         .order_by(models.VerificationToken.created_at.desc())
