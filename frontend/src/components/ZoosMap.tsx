@@ -36,6 +36,10 @@ const SET_DATA_TIMEOUT_MS = 32;
 
 type MaplibreModule = typeof import('maplibre-gl');
 
+type ClusterGeoJSONSource = GeoJSONSource & {
+  getClusterExpansionZoom?: (clusterId: number) => Promise<number>;
+};
+
 interface ZoosMapProps {
   zoos?: MapZooFeature[];
   center?: LocationEstimate | null;
@@ -494,10 +498,11 @@ export default function ZoosMap({
         if (!feature) return;
         const clusterId = feature.properties?.cluster_id as number | undefined;
         if (clusterId == null) return;
-        const source = hasGetSource ? (map.getSource(ZOOS_SOURCE_ID)) : null;
-        if (!source?.getClusterExpansionZoom) return;
+        const rawSource = hasGetSource ? map.getSource(ZOOS_SOURCE_ID) : null;
+        const clusterSource = (rawSource as ClusterGeoJSONSource | null);
+        if (!clusterSource?.getClusterExpansionZoom) return;
         try {
-          const zoom = await source.getClusterExpansionZoom(clusterId);
+          const zoom = await clusterSource.getClusterExpansionZoom(clusterId);
           const coordinates = feature.geometry?.type === 'Point' ? feature.geometry.coordinates : null;
           if (coordinates && Array.isArray(coordinates)) {
             const nextZoom = Number.isFinite(zoom) ? zoom : map.getZoom?.() ?? FOCUS_ZOOM;
@@ -552,7 +557,7 @@ export default function ZoosMap({
         map.off('mouseleave', UNCLUSTERED_LAYER_ID, handlePointerLeave);
       }
     };
-  }, [emitViewChange, mapReady]);
+  }, [disableClusterCount, emitViewChange, mapReady]);
 
   useEffect(() => {
     if (!mapReady || !mapRef.current) {

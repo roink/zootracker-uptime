@@ -31,10 +31,13 @@ export default function VerifyEmailPage() {
     request: triggerResend,
   } = useVerificationResend();
 
-  const replaceUrl = (nextQuery = '') => {
-    const search = nextQuery ? `?${nextQuery}` : '';
-    window.history.replaceState({}, '', `${prefix}/verify${search}`);
-  };
+  const replaceUrl = useCallback(
+    (nextQuery = '') => {
+      const search = nextQuery ? `?${nextQuery}` : '';
+      window.history.replaceState({}, '', `${prefix}/verify${search}`);
+    },
+    [prefix]
+  );
 
   const setLoginBannerCookie = useCallback((value) => {
     const encoded = value ? encodeURIComponent(value) : '';
@@ -101,7 +104,17 @@ export default function VerifyEmailPage() {
     if (!isMagicLink) {
       lastAttemptKey.current = '';
     }
-  }, [isMagicLink, initialUid, initialToken, initialEmail, prefix, t, navigate]);
+  }, [
+    initialEmail,
+    initialToken,
+    initialUid,
+    isMagicLink,
+    navigate,
+    prefix,
+    replaceUrl,
+    setLoginBannerCookie,
+    t,
+  ]);
 
   // Allow manual code entry as a fallback to the magic link.
   const handleSubmit = async (event) => {

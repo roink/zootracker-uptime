@@ -64,7 +64,7 @@ export default function ImageAttributionPage() {
         alt={altText}
         className="img-fluid mb-3"
         loading="eager"
-        fetchpriority="high"
+        fetchPriority="high"
         decoding="async"
       />
       {/* Metadata list */}

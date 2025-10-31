@@ -36,6 +36,12 @@ const IUCN = {
 };
 
 // Normalize map camera view snapshots stored in navigation state
+type AnimalLocationState = {
+  animalViewMode?: 'map' | 'list';
+  animalMapView?: unknown;
+  redirectTo?: string;
+};
+
 function sanitizeCameraView(view) {
   if (!view) return null;
   const center = Array.isArray(view.center) ? view.center : null;
@@ -102,14 +108,14 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
   const { slug, lang } = useParams();
   const navigate = useNavigate();
   const routerLocation = useLocation();
+  const routerState = routerLocation.state as AnimalLocationState | undefined;
   const prefix = `/${lang}`;
   const { t } = useTranslation();
   const authFetch = useAuthFetch();
   const { isAuthenticated } = useAuth();
   const locale = lang === 'de' ? 'de-DE' : 'en-US';
-  const initialViewMode =
-    routerLocation.state?.animalViewMode === 'map' ? 'map' : 'list';
-  const initialMapView = sanitizeCameraView(routerLocation.state?.animalMapView);
+  const initialViewMode = routerState?.animalViewMode === 'map' ? 'map' : 'list';
+  const initialMapView = sanitizeCameraView(routerState?.animalMapView);
   const [animal, setAnimal] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -355,7 +361,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
   }, [slug]);
 
   useEffect(() => {
-    const navState = routerLocation.state || {};
+    const navState = routerState ?? {};
     const nextMode = navState.animalViewMode === 'map' ? 'map' : 'list';
     const nextView = sanitizeCameraView(navState.animalMapView);
     setViewMode(nextMode);
@@ -365,7 +371,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
       viewMode: nextMode,
       mapView: nextView,
     };
-  }, [slug]);
+  }, [routerState, slug]);
 
   useEffect(() => {
     if (navigator.geolocation) {
@@ -420,7 +426,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
         viewMode: desiredMode,
         mapView: sanitizedView,
       };
-      const state = routerLocation.state || {};
+      const state = routerState ?? {};
         void navigate(`${routerLocation.pathname}${routerLocation.search}`, {
         replace: true,
         state: {
@@ -434,7 +440,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
       navigate,
       routerLocation.pathname,
       routerLocation.search,
-      routerLocation.state,
+      routerState,
       viewMode,
     ]
   );
@@ -559,25 +565,31 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
 
   const closestZoo = filteredZoos[0] ?? zoos[0];
 
-  const historyMessages = {
-    login: t('animal.sightingHistoryLogin'),
-    loginCta: t('nav.login'),
-    loading: t('animal.sightingHistoryLoading'),
-    error: t('animal.sightingHistoryError'),
-    empty: t('animal.sightingHistoryEmpty'),
-  };
+  const historyMessages = useMemo(
+    () => ({
+      login: t('animal.sightingHistoryLogin'),
+      loginCta: t('nav.login'),
+      loading: t('animal.sightingHistoryLoading'),
+      error: t('animal.sightingHistoryError'),
+      empty: t('animal.sightingHistoryEmpty'),
+    }),
+    [t]
+  );
 
-  const unauthenticatedHistory = (
-    <div className="alert alert-info mt-2" role="status" aria-live="polite">
-      <p className="mb-2">{historyMessages.login}</p>
-      <button
-        type="button"
-        className="btn btn-primary btn-sm"
-        onClick={handleLoginRedirect}
-      >
-        {historyMessages.loginCta}
-      </button>
-    </div>
+  const unauthenticatedHistory = useMemo(
+    () => (
+      <div className="alert alert-info mt-2" role="status" aria-live="polite">
+        <p className="mb-2">{historyMessages.login}</p>
+        <button
+          type="button"
+          className="btn btn-primary btn-sm"
+          onClick={handleLoginRedirect}
+        >
+          {historyMessages.loginCta}
+        </button>
+      </div>
+    ),
+    [handleLoginRedirect, historyMessages]
   );
 
   const mediaSection = hasGallery
@@ -661,7 +673,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
                           className="animal-media-ambient__bg"
                           decoding="async"
                           loading={loadingAttr}
-                          fetchpriority={bgFetchPri}
+                          fetchPriority={bgFetchPri}
                           draggable="false"
                           src={fallbackSrc}
                           srcSet={srcSet}
@@ -673,7 +685,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
                           sizes={sizes}
                           decoding="async"
                           loading={loadingAttr}
-                          fetchpriority={fetchPri}
+                          fetchPriority={fetchPri}
                           alt={animalName}
                           draggable="false"
                           className="animal-media-ambient__img"
@@ -724,7 +736,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
               className="animal-media-ambient__bg"
               decoding="async"
               loading="eager"
-              fetchpriority="high"
+              fetchPriority="high"
               draggable="false"
               src={animal.default_image_url}
             />
@@ -753,9 +765,10 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
   const showDescriptionToggle = !isDesktop && Boolean(animalDesc);
   const descriptionCollapsed = !isDesktop && !descOpen;
 
-  const renderOverviewPanel = () => (
-    <div className="animal-section-panel card">
-      <div className="card-body">
+  const renderOverviewPanel = useCallback(
+    () => (
+      <div className="animal-section-panel card">
+        <div className="card-body">
         {animalDesc && (
           <div>
             <h3 className="h5">{t('animal.aboutHeading')}</h3>
@@ -911,13 +924,32 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
             </div>
           </div>
         )}
+        </div>
       </div>
-    </div>
+    ),
+    [
+      animalDesc,
+      classificationLinks,
+      className,
+      descOpen,
+      descriptionCollapsed,
+      familyName,
+      orderName,
+      parentDetails,
+      prefix,
+      showDescriptionToggle,
+      subspeciesLinks,
+      t,
+      taxonomyContentId,
+      taxonomyHasDetails,
+      taxonomyOpen,
+    ]
   );
 
-  const renderWherePanel = () => (
-    <div className="animal-section-panel card">
-      <div className="card-body pb-2">
+  const renderWherePanel = useCallback(
+    () => (
+      <div className="animal-section-panel card">
+        <div className="card-body pb-2">
         <div className="where-toolbar d-flex flex-column flex-lg-row gap-3 align-items-stretch align-items-lg-center">
           <div className="flex-grow-1">
             <div className="input-group input-group-sm">
@@ -970,8 +1002,8 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
           </div>
         )}
       </div>
-      {viewMode === 'list' ? (
-        <div className="table-responsive">
+        {viewMode === 'list' ? (
+          <div className="table-responsive">
           <table className="table table-hover align-middle mb-0">
             <thead className="table-light">
               <tr>
@@ -1018,38 +1050,57 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
             </tbody>
           </table>
         </div>
-      ) : (
-        <div className="card-body pt-0">
-          {zoosWithCoordinates.length > 0 ? (
-            <ZoosMap
-              zoos={zoosWithCoordinates}
-              center={
-                userLocation
-                  ? {
-                      lat: userLocation.lat,
-                      lon: userLocation.lon,
-                    }
-                  : null
-              }
-              onSelect={handleMapSelect}
-              initialView={mapView}
-              onViewChange={handleMapViewChange}
-              resizeToken={mapResizeToken}
-              ariaLabel={t('animal.mapAriaLabel', { animal: animalName })}
-            />
-          ) : (
-            <div className="alert alert-info mb-0" role="status">
-              {t('zoo.noMapResults')}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+        ) : (
+          <div className="card-body pt-0">
+            {zoosWithCoordinates.length > 0 ? (
+              <ZoosMap
+                zoos={zoosWithCoordinates}
+                center={
+                  userLocation
+                    ? {
+                        lat: userLocation.lat,
+                        lon: userLocation.lon,
+                      }
+                    : null
+                }
+                onSelect={handleMapSelect}
+                initialView={mapView}
+                onViewChange={handleMapViewChange}
+                resizeToken={mapResizeToken}
+                ariaLabel={t('animal.mapAriaLabel', { animal: animalName })}
+              />
+            ) : (
+              <div className="alert alert-info mb-0" role="status">
+                {t('zoo.noMapResults')}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    ),
+    [
+      animalName,
+      filteredZoos,
+      handleMapSelect,
+      handleMapViewChange,
+      handleViewModeChange,
+      mapResizeToken,
+      mapView,
+      navigate,
+      prefix,
+      t,
+      userLocation,
+      viewMode,
+      zoos,
+      zoosWithCoordinates,
+      zooFilter,
+    ]
   );
 
-  const renderSightingsPanel = () => (
-    <div className="animal-section-panel card">
-      <div className="card-body">
+  const renderSightingsPanel = useCallback(
+    () => (
+      <div className="animal-section-panel card">
+        <div className="card-body">
         {gallery.length > 0 && (
           <div className="sightings-gallery mb-4">
             <h3 className="h6 text-uppercase text-muted mb-2">
@@ -1079,19 +1130,38 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
           renderSighting={renderHistoryItem}
           unauthenticatedContent={unauthenticatedHistory}
         />
+        </div>
       </div>
-    </div>
+    ),
+    [
+      animalName,
+      formatHistoryDay,
+      gallery,
+      handleLoginRedirect,
+      history,
+      historyError,
+      historyLoading,
+      historyMessages,
+      isAuthenticated,
+      locale,
+      renderHistoryItem,
+      t,
+      unauthenticatedHistory,
+    ]
   );
 
-  const sections = [
-    { id: 'overview', label: t('animal.overviewTab'), render: renderOverviewPanel },
-    { id: 'where', label: t('animal.whereToSee'), render: renderWherePanel },
-    {
-      id: 'sightings',
-      label: t('animal.sightingHistoryHeading'),
-      render: renderSightingsPanel,
-    },
-  ];
+  const sections = useMemo(
+    () => [
+      { id: 'overview', label: t('animal.overviewTab'), render: renderOverviewPanel },
+      { id: 'where', label: t('animal.whereToSee'), render: renderWherePanel },
+      {
+        id: 'sightings',
+        label: t('animal.sightingHistoryHeading'),
+        render: renderSightingsPanel,
+      },
+    ],
+    [renderOverviewPanel, renderSightingsPanel, renderWherePanel, t]
+  );
 
   useEffect(() => {
     if (!sections.length) {

@@ -448,7 +448,18 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
     if (effectiveVisit !== visitFilter) setVisitFilter(effectiveVisit);
     if (spView !== viewMode) setViewMode(spView);
     if (spFavorites !== favoritesOnly) handleFavoritesToggle(spFavorites);
-  }, [searchParams, isAuthenticated]);
+  }, [
+    continentId,
+    countryId,
+    favoritesOnly,
+    handleFavoritesToggle,
+    isAuthenticated,
+    query,
+    search,
+    searchParams,
+    viewMode,
+    visitFilter,
+  ]);
 
   useEffect(() => {
     // State ➜ URL, but only if different (avoid loops & history spam)

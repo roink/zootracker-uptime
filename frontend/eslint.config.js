@@ -21,16 +21,20 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
   {
     files: ['**/*.{ts,tsx}'],
+    extends: [
+      react.configs.flat.recommended,
+      react.configs.flat['jsx-runtime'],
+      jsxA11y.flatConfigs.recommended,
+      importPlugin.flatConfigs.recommended,
+      importPlugin.flatConfigs.typescript
+    ],
     languageOptions: {
       globals: {
         ...globals.browser
       }
     },
     plugins: {
-      react,
-      'react-hooks': reactHooks,
-      'jsx-a11y': jsxA11y,
-      import: importPlugin
+      'react-hooks': reactHooks
     },
     settings: {
       react: { version: 'detect' },
@@ -43,8 +47,9 @@ export default tseslint.config(
     rules: {
       'react/jsx-uses-react': 'off',
       'react/react-in-jsx-scope': 'off',
+      'react/prop-types': 'off',
       'react-hooks/rules-of-hooks': 'error',
-      'react-hooks/exhaustive-deps': 'warn',
+      'react-hooks/exhaustive-deps': 'error',
       '@typescript-eslint/ban-ts-comment': 'off',
       '@typescript-eslint/consistent-type-imports': 'warn',
       '@typescript-eslint/no-explicit-any': 'off',
@@ -89,7 +94,8 @@ export default tseslint.config(
     languageOptions: {
       parserOptions: {
         project: [project],
-        tsconfigRootDir: __dirname
+        tsconfigRootDir: __dirname,
+        projectService: true
       }
     },
     rules: {

@@ -54,13 +54,14 @@ export function applyBaseMapLanguage(map: MaplibreMap | null | undefined, langua
   const normalized = normalizeLanguage(language);
 
   const apply = (): void => {
-    const style: StyleSpecification | null | undefined = map.getStyle?.();
-    if (!style?.layers || !Array.isArray(style.layers)) return;
+    const style: StyleSpecification | null =
+      typeof map.getStyle === 'function' ? map.getStyle() : null;
+    if (!style || !Array.isArray(style.layers)) return;
     const textField = buildTextFieldExpression(normalized);
 
     style.layers.forEach((layer) => {
       if (!isSymbolLayer(layer)) return;
-      const layerLayout = layer.layout ?? {};
+      const layerLayout = (layer.layout ?? {}) as Record<string, unknown>;
       const textValue = layerLayout['text-field'];
       if (!textValue || !expressionUsesNameField(textValue)) return;
       if (typeof map.setLayoutProperty !== 'function') return;
