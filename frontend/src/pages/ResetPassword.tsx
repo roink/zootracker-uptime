@@ -149,8 +149,9 @@ export default function ResetPasswordPage() {
         }
       } catch (error) {
         if (!cancelled) {
+          const networkError = error instanceof Error ? error : new Error(String(error));
           setTokenStatus('error');
-          setTokenError(t('auth.common.networkError', { message: error.message }));
+          setTokenError(t('auth.common.networkError', { message: networkError.message }));
         }
       }
     };
@@ -304,8 +305,9 @@ export default function ResetPasswordPage() {
         }
       }
     } catch (error) {
+      const networkError = error instanceof Error ? error : new Error(String(error));
       setStatus('error');
-      setStatusMessage(t('auth.common.networkError', { message: error.message }));
+      setStatusMessage(t('auth.common.networkError', { message: networkError.message }));
     } finally {
       setSubmitting(false);
     }

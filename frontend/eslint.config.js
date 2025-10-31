@@ -7,9 +7,11 @@ import react from 'eslint-plugin-react';
 import reactHooks from 'eslint-plugin-react-hooks';
 import jsxA11y from 'eslint-plugin-jsx-a11y';
 import importPlugin from 'eslint-plugin-import';
+import prettier from 'eslint-config-prettier';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const project = path.join(__dirname, 'tsconfig.json');
 
 export default tseslint.config(
   {
@@ -31,7 +33,12 @@ export default tseslint.config(
       import: importPlugin
     },
     settings: {
-      react: { version: 'detect' }
+      react: { version: 'detect' },
+      'import/resolver': {
+        typescript: {
+          project
+        }
+      }
     },
     rules: {
       'react/jsx-uses-react': 'off',
@@ -39,13 +46,36 @@ export default tseslint.config(
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn',
       '@typescript-eslint/ban-ts-comment': 'off',
+      '@typescript-eslint/consistent-type-imports': 'warn',
       '@typescript-eslint/no-explicit-any': 'off',
-      '@typescript-eslint/no-unused-vars': 'off',
-      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-expressions': 'off',
+      'no-unused-expressions': 'off'
+    }
+  },
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    extends: [...tseslint.configs.recommendedTypeChecked],
+    languageOptions: {
+      parserOptions: {
+        project: [project],
+        tsconfigRootDir: __dirname
+      }
+    },
+    rules: {
+      '@typescript-eslint/ban-ts-comment': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
       '@typescript-eslint/no-unsafe-call': 'off',
       '@typescript-eslint/no-unsafe-return': 'off',
-      '@typescript-eslint/no-unused-expressions': 'off'
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/no-misused-promises': 'off',
+      '@typescript-eslint/no-floating-promises': 'off',
+      '@typescript-eslint/require-await': 'off',
+      '@typescript-eslint/no-unused-expressions': 'off',
+      '@typescript-eslint/prefer-promise-reject-errors': 'off',
+      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }]
     }
   },
   {
@@ -65,5 +95,6 @@ export default tseslint.config(
         ...globals.node
       }
     }
-  }
+  },
+  prettier
 );

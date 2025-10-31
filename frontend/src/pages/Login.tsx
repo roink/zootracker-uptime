@@ -150,7 +150,8 @@ export default function LoginPage() {
         setLoginError(t('auth.login.error'));
       }
     } catch (err) {
-      setLoginError(t('auth.common.networkError', { message: err.message }));
+      const networkError = err instanceof Error ? err : new Error(String(err));
+      setLoginError(t('auth.common.networkError', { message: networkError.message }));
     } finally {
       setLoggingIn(false);
     }
@@ -204,7 +205,8 @@ export default function LoginPage() {
         alert(t('auth.signup.error'));
       }
     } catch (err) {
-      alert(t('auth.common.networkError', { message: err.message }));
+      const networkError = err instanceof Error ? err : new Error(String(err));
+      alert(t('auth.common.networkError', { message: networkError.message }));
     } finally {
       setSigningUp(false);
     }

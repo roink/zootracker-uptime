@@ -1,9 +1,12 @@
-// @ts-nocheck
-import { useState, useEffect } from "react";
-import { QueryClient } from "@tanstack/react-query";
-import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
-import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
-import ReactDOM from "react-dom/client";
+import { useEffect, useState } from 'react';
+import { QueryClient } from '@tanstack/react-query';
+import type { Query } from '@tanstack/query-core';
+import {
+  PersistQueryClientProvider,
+  type PersistQueryClientProviderProps
+} from '@tanstack/react-query-persist-client';
+import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
+import ReactDOM from 'react-dom/client';
 import { Helmet, HelmetProvider } from 'react-helmet-async';
 import { useTranslation } from 'react-i18next';
 import {
@@ -13,8 +16,8 @@ import {
   Navigate,
   useLocation,
   useParams,
-  useNavigate,
-} from "react-router-dom";
+  useNavigate
+} from 'react-router-dom';
 import i18n, { loadLocale, normalizeLang } from './i18n';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import RequireAuth from './auth/RequireAuth';
@@ -22,56 +25,64 @@ import RequireAuth from './auth/RequireAuth';
 // Base URL of the FastAPI backend. When the frontend is served on a different
 // port (e.g. via `python -m http.server`), the API won't be on the same origin
 // anymore, so we explicitly point to the backend running on port 8000.
-import Landing from "./pages/Landing";
-import LoginPage from "./pages/Login";
-import ForgotPasswordPage from "./pages/ForgotPassword";
-import ResetPasswordPage from "./pages/ResetPassword";
-import ResetPasswordRedirect from "./pages/ResetPasswordRedirect";
-import Dashboard from "./pages/Dashboard";
-import ZoosPage from "./pages/Zoos";
-import AnimalsPage from "./pages/Animals";
-import AnimalDetailPage from "./pages/AnimalDetail";
-import ImageAttributionPage from "./pages/ImageAttribution";
-import Header from "./components/Header";
-import EmailVerificationAlert from "./components/EmailVerificationAlert";
-import SearchPage from "./pages/Search";
-import ZooDetailPage from "./pages/ZooDetail";
-import VerifyEmailPage from "./pages/VerifyEmail";
-import LegalNoticePage from "./pages/LegalNotice";
-import DataProtectionPage from "./pages/DataProtection";
-import ContactPage from "./pages/Contact";
-import Footer from "./components/Footer";
-import "bootstrap/dist/css/bootstrap.min.css";
-import "./styles/app.css";
-import "./styles/landing.css";
-// MapLibre default styles for the OpenFreeMap tiles
-import "maplibre-gl/dist/maplibre-gl.css";
-// Bundle Bootstrap locally instead of relying on the CDN.
-import "bootstrap/dist/js/bootstrap.bundle.min.js";
+import Landing from './pages/Landing';
+import LoginPage from './pages/Login';
+import ForgotPasswordPage from './pages/ForgotPassword';
+import ResetPasswordPage from './pages/ResetPassword';
+import ResetPasswordRedirect from './pages/ResetPasswordRedirect';
+import Dashboard from './pages/Dashboard';
+import ZoosPage from './pages/Zoos';
+import AnimalsPage from './pages/Animals';
+import AnimalDetailPage from './pages/AnimalDetail';
+import ImageAttributionPage from './pages/ImageAttribution';
+import Header from './components/Header';
+import EmailVerificationAlert from './components/EmailVerificationAlert';
+import SearchPage from './pages/Search';
+import ZooDetailPage from './pages/ZooDetail';
+import VerifyEmailPage from './pages/VerifyEmail';
+import LegalNoticePage from './pages/LegalNotice';
+import DataProtectionPage from './pages/DataProtection';
+import ContactPage from './pages/Contact';
+import Footer from './components/Footer';
+import 'bootstrap/dist/css/bootstrap.min.css';
+import './styles/app.css';
+import './styles/landing.css';
+import 'maplibre-gl/dist/maplibre-gl.css';
+import 'bootstrap/dist/js/bootstrap.bundle.min.js';
 
-// Cache API data and persist between reloads
+type DashboardPageProps = {
+  refresh: number;
+  onUpdate: () => void;
+};
+
+type LangAppProps = {
+  refreshCounter: number;
+  refreshSeen: () => void;
+};
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 5 * 60 * 1000,
       gcTime: 24 * 60 * 60 * 1000,
-      refetchOnWindowFocus: false,
-    },
-  },
+      refetchOnWindowFocus: false
+    }
+  }
 });
 
 const persister = createSyncStoragePersister({ storage: window.localStorage });
-const persistOptions = {
+
+const persistOptions: PersistQueryClientProviderProps['persistOptions'] = {
   persister,
   dehydrateOptions: {
-    shouldDehydrateQuery: (q) =>
-      !Array.isArray(q.queryKey) || q.queryKey[0] !== 'user',
+    shouldDehydrateQuery: (query: Query) =>
+      !Array.isArray(query.queryKey) || query.queryKey[0] !== 'user'
   },
   maxAge: 24 * 60 * 60 * 1000,
-  buster: 'app@1.0.0',
+  buster: 'app@1.0.0'
 };
 
-function DashboardPage({ refresh, onUpdate }) {
+function DashboardPage({ refresh, onUpdate }: DashboardPageProps) {
   return <Dashboard refresh={refresh} onUpdate={onUpdate} />;
 }
 
@@ -84,12 +95,12 @@ function ProfilePage() {
   return (
     <div>
       <h2>Profile</h2>
-      <p>{user?.email || '—'}</p>
+      <p>{user?.email ?? '—'}</p>
     </div>
   );
 }
 
-function AppRoutes({ refreshCounter, refreshSeen }) {
+function AppRoutes({ refreshCounter, refreshSeen }: LangAppProps) {
   const location = useLocation();
   const { isAuthenticated } = useAuth();
   return (
@@ -112,9 +123,7 @@ function AppRoutes({ refreshCounter, refreshSeen }) {
           <Route element={<RequireAuth />}>
             <Route
               path="home"
-              element={
-                <DashboardPage refresh={refreshCounter} onUpdate={refreshSeen} />
-              }
+              element={<DashboardPage refresh={refreshCounter} onUpdate={refreshSeen} />}
             />
             <Route path="badges" element={<BadgesPage />} />
             <Route path="profile" element={<ProfilePage />} />
@@ -126,22 +135,12 @@ function AppRoutes({ refreshCounter, refreshSeen }) {
           <Route path="zoos" element={<ZoosPage />} />
           <Route
             path="zoos/:slug"
-            element={
-              <ZooDetailPage
-                refresh={refreshCounter}
-                onLogged={refreshSeen}
-              />
-            }
+            element={<ZooDetailPage refresh={refreshCounter} onLogged={refreshSeen} />}
           />
           <Route path="animals" element={<AnimalsPage />} />
           <Route
             path="animals/:slug"
-            element={
-              <AnimalDetailPage
-                refresh={refreshCounter}
-                onLogged={refreshSeen}
-              />
-            }
+            element={<AnimalDetailPage refresh={refreshCounter} onLogged={refreshSeen} />}
           />
           <Route path="images/:mid" element={<ImageAttributionPage />} />
           <Route path="search" element={<SearchPage />} />
@@ -156,7 +155,7 @@ function AppRoutes({ refreshCounter, refreshSeen }) {
   );
 }
 
-function LangApp({ refreshCounter, refreshSeen }) {
+function LangApp({ refreshCounter, refreshSeen }: LangAppProps) {
   const params = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -169,8 +168,6 @@ function LangApp({ refreshCounter, refreshSeen }) {
 
     const applyLocale = async () => {
       try {
-        // Load the locale and redirect to a supported language if the URL
-        // contains an unknown lang segment (e.g. direct visits to /animals).
         const activeLang = await loadLocale(lang);
         if (!isActive) return;
 
@@ -183,7 +180,6 @@ function LangApp({ refreshCounter, refreshSeen }) {
           navigate(`/${activeLang}${suffix}${search}${hash}`, { replace: true });
         }
       } catch (error) {
-        // eslint-disable-next-line no-console
         console.error('Failed to load locale', error);
       }
     };
@@ -199,9 +195,7 @@ function LangApp({ refreshCounter, refreshSeen }) {
     return null;
   }
 
-  return (
-    <AppRoutes refreshCounter={refreshCounter} refreshSeen={refreshSeen} />
-  );
+  return <AppRoutes refreshCounter={refreshCounter} refreshSeen={refreshSeen} />;
 }
 
 function RootRedirect() {
@@ -245,21 +239,21 @@ function App() {
         <Route path="/reset-password" element={<ResetPasswordRedirect />} />
         <Route
           path="/:lang/*"
-          element={
-            <LangApp
-              refreshCounter={refreshCounter}
-              refreshSeen={refreshSeen}
-            />
-          }
+          element={<LangApp refreshCounter={refreshCounter} refreshSeen={refreshSeen} />}
         />
       </Routes>
     </BrowserRouter>
   );
 }
 
-const helmetContext = {};
+const helmetContext: Record<string, unknown> = {};
 
-ReactDOM.createRoot(document.getElementById("root")).render(
+const rootElement = document.getElementById('root');
+if (!rootElement) {
+  throw new Error('Unable to find root element');
+}
+
+ReactDOM.createRoot(rootElement).render(
   <HelmetProvider context={helmetContext}>
     <Helmet titleTemplate="%s - ZooTracker" defaultTitle="ZooTracker" />
     <PersistQueryClientProvider client={queryClient} persistOptions={persistOptions}>

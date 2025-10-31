@@ -1,19 +1,20 @@
-// @ts-nocheck
 import { API } from '../api';
+import type { VerificationRequestResult } from '../types/domain';
 
-// Send a request to resend the verification email for the provided address.
-export async function requestVerificationEmailResend(email) {
+export async function requestVerificationEmailResend(email: string): Promise<VerificationRequestResult> {
   const response = await fetch(`${API}/auth/verification/request-resend`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email }),
+    body: JSON.stringify({ email })
   });
-  let data = {};
   try {
-    data = await response.json();
+    const data: unknown = await response.json();
+    const rawDetail = (data as { detail?: unknown }).detail;
+    if (typeof rawDetail === 'string' && rawDetail.length > 0) {
+      return { response, detail: rawDetail };
+    }
+    return { response };
   } catch {
-    data = {};
+    return { response };
   }
-  const detail = typeof data.detail === 'string' ? data.detail : undefined;
-  return { response, detail };
 }

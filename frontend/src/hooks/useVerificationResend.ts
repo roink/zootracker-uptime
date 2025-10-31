@@ -1,12 +1,28 @@
-// @ts-nocheck
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { requestVerificationEmailResend } from '../utils/verification';
 
-export function useVerificationResend({ cooldownSeconds = 0 }: any = {}) {
+export type VerificationStatus = 'idle' | 'loading' | 'success' | 'error';
+
+export type VerificationResendRequestOptions = {
+  successMessage?: string;
+  errorMessage?: string;
+  rateLimitedMessage?: string;
+  cooldownSeconds?: number;
+  onSuccess?: () => void;
+  networkMessageBuilder?: (error: Error) => string;
+};
+
+export type VerificationResendHookOptions = {
+  cooldownSeconds?: number;
+};
+
+export function useVerificationResend(
+  { cooldownSeconds = 0 }: VerificationResendHookOptions = {}
+) {
   const { t } = useTranslation();
-  const [status, setStatus] = useState('idle');
+  const [status, setStatus] = useState<VerificationStatus>('idle');
   const [message, setMessage] = useState('');
   const [cooldown, setCooldown] = useState(0);
 
@@ -27,7 +43,7 @@ export function useVerificationResend({ cooldownSeconds = 0 }: any = {}) {
   }, []);
 
   const request = useCallback(
-    async (email, options = {}) => {
+    async (email: string, options: VerificationResendRequestOptions = {}) => {
       const trimmed = (email ?? '').trim();
       if (!trimmed) return;
       setStatus('loading');
@@ -38,7 +54,7 @@ export function useVerificationResend({ cooldownSeconds = 0 }: any = {}) {
         rateLimitedMessage,
         networkMessageBuilder,
         onSuccess,
-        cooldownSeconds: overrideCooldown,
+        cooldownSeconds: overrideCooldown
       } = options;
       try {
         const { response, detail } = await requestVerificationEmailResend(trimmed);
@@ -63,12 +79,14 @@ export function useVerificationResend({ cooldownSeconds = 0 }: any = {}) {
         }
       } catch (error) {
         const buildNetworkMessage =
-          networkMessageBuilder ?? ((err) => t('auth.common.networkError', { message: err.message }));
+          networkMessageBuilder ??
+          ((err: Error) => t('auth.common.networkError', { message: err.message }));
+        const resolvedError = error instanceof Error ? error : new Error(String(error));
         setStatus('error');
-        setMessage(buildNetworkMessage(error));
+        setMessage(buildNetworkMessage(resolvedError));
       }
     },
-    [cooldownSeconds, t],
+    [cooldownSeconds, t]
   );
 
   return {
@@ -76,6 +94,6 @@ export function useVerificationResend({ cooldownSeconds = 0 }: any = {}) {
     message,
     cooldown,
     request,
-    reset,
+    reset
   };
 }
