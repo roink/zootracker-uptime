@@ -23,7 +23,7 @@ export default function VerifyEmailPage() {
   const [message, setMessage] = useState('');
   const isMagicLink = initialUid && initialToken;
   const [showForm, setShowForm] = useState(!isMagicLink);
-  const redirectTimer = useRef<any>(null);
+  const redirectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastAttemptKey = useRef('');
   const {
     status: resendStatus,

@@ -50,7 +50,37 @@ export default tseslint.config(
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
       '@typescript-eslint/no-unused-expressions': 'off',
-      'no-unused-expressions': 'off'
+      'no-unused-expressions': 'off',
+      'import/order': [
+        'warn',
+        {
+          groups: [['builtin', 'external'], 'internal', ['parent', 'sibling', 'index']],
+          pathGroups: [
+            {
+              pattern: '@/**',
+              group: 'internal'
+            }
+          ],
+          pathGroupsExcludedImportTypes: ['builtin'],
+          'newlines-between': 'always',
+          alphabetize: { order: 'asc', caseInsensitive: true }
+        }
+      ],
+      'import/no-extraneous-dependencies': [
+        'warn',
+        {
+          devDependencies: [
+            '**/*.test.{ts,tsx}',
+            '**/*.spec.{ts,tsx}',
+            'src/test-utils/**/*',
+            'tests/**/*.{ts,tsx}',
+            'vite.config.ts',
+            'vitest.config.ts',
+            'playwright.config.ts'
+          ]
+        }
+      ],
+      'import/no-cycle': 'warn'
     }
   },
   {

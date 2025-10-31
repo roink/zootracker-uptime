@@ -92,7 +92,7 @@ export default function ZooDetail({
   const handleFavoriteToggle = useCallback(async () => {
     if (!zoo) return;
     if (!isAuthenticated) {
-      await Promise.resolve(navigate(`${prefix}/login`));
+      void navigate(`${prefix}/login`);
       return;
     }
     setFavoritePending(true);
@@ -340,7 +340,7 @@ export default function ZooDetail({
             error: t('zoo.visitHistoryError'),
             empty: t('zoo.visitHistoryEmpty'),
           }}
-          onLogin={() => void Promise.resolve(navigate(`${prefix}/login`))}
+          onLogin={() => void navigate(`${prefix}/login`)}
           formatDay={formatHistoryDay}
           renderSighting={renderHistoryItem}
         />
@@ -360,12 +360,12 @@ export default function ZooDetail({
             <tr
               key={a.id}
               className="pointer-row"
-              onClick={() => void Promise.resolve(navigate(`${prefix}/animals/${a.slug || a.id}`))}
-              tabIndex="0"
+              onClick={() => void navigate(`${prefix}/animals/${a.slug || a.id}`)}
+              tabIndex={0}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
-                  void Promise.resolve(navigate(`${prefix}/animals/${a.slug || a.id}`));
+                  void navigate(`${prefix}/animals/${a.slug || a.id}`);
                 }
               }}
             >
@@ -393,7 +393,7 @@ export default function ZooDetail({
                   onClick={(e) => {
                     e.stopPropagation();
                     if (!isAuthenticated) {
-                      void Promise.resolve(navigate(`${prefix}/login`));
+                      void navigate(`${prefix}/login`);
                       return;
                     }
                     setModalData({

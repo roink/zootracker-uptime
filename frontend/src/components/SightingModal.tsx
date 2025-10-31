@@ -217,7 +217,7 @@ export default function SightingModal({
         aria-modal="true"
         aria-labelledby={titleId}
         ref={modalRef}
-        tabIndex="-1"
+        tabIndex={-1}
       >
         <LogSighting
           zoos={zoos}
