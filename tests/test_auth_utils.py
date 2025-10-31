@@ -19,22 +19,22 @@ from app.database import SessionLocal
 from .conftest import register_and_login
 
 
-def test_password_round_trip_short():
+async def test_password_round_trip_short(client):
     password = "abcdefghij"
     hashed = hash_password(password)
     assert verify_password(password, hashed)
     assert not verify_password("wrong", hashed)
 
 
-def test_password_round_trip_long_80_bytes():
+async def test_password_round_trip_long_80_bytes(client):
     password = "x" * 80
     hashed = hash_password(password)
     assert verify_password(password, hashed)
     assert not verify_password("y" * 80, hashed)
 
 
-def test_create_token_and_get_current_user():
-    _, user_id = register_and_login()
+async def test_create_token_and_get_current_user(client):
+    _, user_id = await register_and_login()
     token, _ = create_access_token(user_id)
     db = SessionLocal()
     try:
@@ -44,8 +44,8 @@ def test_create_token_and_get_current_user():
         db.close()
 
 
-def test_get_current_user_expired_token():
-    _, user_id = register_and_login()
+async def test_get_current_user_expired_token(client):
+    _, user_id = await register_and_login()
     token, _ = create_access_token(
         user_id,
         expires_delta=timedelta(seconds=-(ACCESS_TOKEN_LEEWAY + 5)),
@@ -58,7 +58,7 @@ def test_get_current_user_expired_token():
         db.close()
 
 
-def test_create_access_token_includes_scope_and_kid(monkeypatch):
+async def test_create_access_token_includes_scope_and_kid(client, monkeypatch):
     monkeypatch.setattr(auth, "JWT_KID", "test-key", raising=False)
 
     captured = {}
@@ -80,7 +80,7 @@ def test_create_access_token_includes_scope_and_kid(monkeypatch):
     assert captured["payload"]["sub"] == "user-123"
 
 
-def test_decode_access_token_respects_leeway(monkeypatch):
+async def test_decode_access_token_respects_leeway(client, monkeypatch):
     monkeypatch.setattr(app_config, "ACCESS_TOKEN_LEEWAY", 30, raising=False)
     monkeypatch.setattr(auth, "ACCESS_TOKEN_LEEWAY", 30, raising=False)
     monkeypatch.setattr(auth, "_DECODE_SUPPORTS_LEEWAY", True, raising=False)
@@ -100,7 +100,7 @@ def test_decode_access_token_respects_leeway(monkeypatch):
     assert captured_kwargs["options"] == {"verify_aud": False}
 
 
-def test_decode_access_token_omits_leeway_when_not_supported(monkeypatch):
+async def test_decode_access_token_omits_leeway_when_not_supported(client, monkeypatch):
     monkeypatch.setattr(app_config, "ACCESS_TOKEN_LEEWAY", 15, raising=False)
     monkeypatch.setattr(auth, "ACCESS_TOKEN_LEEWAY", 15, raising=False)
     monkeypatch.setattr(auth, "_DECODE_SUPPORTS_LEEWAY", False, raising=False)
@@ -120,7 +120,7 @@ def test_decode_access_token_omits_leeway_when_not_supported(monkeypatch):
     assert captured_kwargs["options"] == {"verify_aud": False, "leeway": 15}
 
 
-def test_get_user_returns_none_for_whitespace_email():
+async def test_get_user_returns_none_for_whitespace_email(client):
     db = SessionLocal()
     try:
         assert get_user(db, "   \t\n  ") is None
@@ -128,7 +128,7 @@ def test_get_user_returns_none_for_whitespace_email():
         db.close()
 
 
-def test_get_current_user_missing_sub_raises(monkeypatch):
+async def test_get_current_user_missing_sub_raises(client, monkeypatch):
     monkeypatch.setattr(auth, "decode_access_token", lambda token: {}, raising=False)
     db = SessionLocal()
     try:
@@ -139,7 +139,7 @@ def test_get_current_user_missing_sub_raises(monkeypatch):
         db.close()
 
 
-def test_get_current_user_invalid_uuid_raises(monkeypatch):
+async def test_get_current_user_invalid_uuid_raises(client, monkeypatch):
     monkeypatch.setattr(
         auth, "decode_access_token", lambda token: {"sub": "not-a-uuid"}, raising=False
     )
@@ -152,7 +152,7 @@ def test_get_current_user_invalid_uuid_raises(monkeypatch):
         db.close()
 
 
-def test_get_optional_user_missing_sub_raises(monkeypatch):
+async def test_get_optional_user_missing_sub_raises(client, monkeypatch):
     monkeypatch.setattr(auth, "decode_access_token", lambda token: {}, raising=False)
     db = SessionLocal()
     try:
@@ -163,7 +163,7 @@ def test_get_optional_user_missing_sub_raises(monkeypatch):
         db.close()
 
 
-def test_get_optional_user_invalid_uuid_raises(monkeypatch):
+async def test_get_optional_user_invalid_uuid_raises(client, monkeypatch):
     monkeypatch.setattr(
         auth, "decode_access_token", lambda token: {"sub": "bad-uuid"}, raising=False
     )

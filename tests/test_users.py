@@ -4,7 +4,6 @@ from app.database import SessionLocal
 
 from .conftest import (
     CONSENT_VERSION,
-    client,
     register_and_login,
     TEST_PASSWORD,
     mark_user_verified,
@@ -12,14 +11,14 @@ from .conftest import (
 
 _counter = 0  # used to generate unique email addresses
 
-def test_create_user_and_authenticate():
+async def test_create_user_and_authenticate(client):
     """Ensure that a new user can register and obtain a token."""
-    token, _ = register_and_login()
+    token, _ = await register_and_login()
     assert token
 
-def test_create_user_empty_fields():
+async def test_create_user_empty_fields(client):
     """Empty strings for required user fields should fail."""
-    resp = client.post(
+    resp = await client.post(
         "/users",
         json={
             "name": "",
@@ -31,9 +30,9 @@ def test_create_user_empty_fields():
     )
     assert resp.status_code == 422
 
-def test_create_user_extra_field_rejected():
+async def test_create_user_extra_field_rejected(client):
     """Unknown fields should result in a 422 error."""
-    resp = client.post(
+    resp = await client.post(
         "/users",
         json={
             "name": "Bob",
@@ -46,9 +45,9 @@ def test_create_user_extra_field_rejected():
     )
     assert resp.status_code == 422
 
-def test_create_user_name_too_long():
+async def test_create_user_name_too_long(client):
     long_name = "a" * 256
-    resp = client.post(
+    resp = await client.post(
         "/users",
         json={
             "name": long_name,
@@ -60,11 +59,11 @@ def test_create_user_name_too_long():
     )
     assert resp.status_code == 422
 
-def test_create_user_email_too_long():
+async def test_create_user_email_too_long(client):
     # construct an email longer than 255 characters
     local_part = "a" * 244
     long_email = f"{local_part}@example.com"
-    resp = client.post(
+    resp = await client.post(
         "/users",
         json={
             "name": "Alice",
@@ -76,9 +75,9 @@ def test_create_user_email_too_long():
     )
     assert resp.status_code == 422
 
-def test_create_user_password_too_long():
+async def test_create_user_password_too_long(client):
     long_pw = "p" * 256
-    resp = client.post(
+    resp = await client.post(
         "/users",
         json={
             "name": "Alice",
@@ -90,9 +89,9 @@ def test_create_user_password_too_long():
     )
     assert resp.status_code == 422
 
-def test_create_user_password_too_short():
+async def test_create_user_password_too_short(client):
     """Passwords shorter than 8 characters should be rejected."""
-    resp = client.post(
+    resp = await client.post(
         "/users",
         json={
             "name": "Alice",
@@ -105,9 +104,9 @@ def test_create_user_password_too_short():
     assert resp.status_code == 422
 
 
-def test_create_user_requires_data_protection_consent():
+async def test_create_user_requires_data_protection_consent(client):
     """Registrations must include consent to the data protection statement."""
-    resp = client.post(
+    resp = await client.post(
         "/users",
         json={
             "name": "Alice",
@@ -120,9 +119,9 @@ def test_create_user_requires_data_protection_consent():
     assert resp.status_code == 422
 
 
-def test_consent_validation_error_points_to_field():
+async def test_consent_validation_error_points_to_field(client):
     """Consent validation errors should reference the consent field path."""
-    resp = client.post(
+    resp = await client.post(
         "/users",
         json={
             "name": "Alice",
@@ -138,11 +137,11 @@ def test_consent_validation_error_points_to_field():
         error.get("loc") == ["body", "accepted_data_protection"] for error in detail
     )
 
-def test_create_user_requires_json():
+async def test_create_user_requires_json(client):
     global _counter
     email = f"json{_counter}@example.com"
     _counter += 1
-    resp = client.post(
+    resp = await client.post(
         "/users",
         json={
             "name": "Alice",
@@ -155,12 +154,12 @@ def test_create_user_requires_json():
     )
     assert resp.status_code == 415
 
-def test_create_user_accepts_charset():
+async def test_create_user_accepts_charset(client):
     """Content type with charset parameter should be accepted."""
     global _counter
     email = f"jsoncharset{_counter}@example.com"
     _counter += 1
-    resp = client.post(
+    resp = await client.post(
         "/users",
         json={
             "name": "Alice",
@@ -175,12 +174,12 @@ def test_create_user_accepts_charset():
     body = resp.json()
     assert body == {"detail": GENERIC_SIGNUP_MESSAGE}
 
-def test_create_user_response_fields():
+async def test_create_user_response_fields(client):
     """Registration response should not expose account details."""
     global _counter
     email = f"fields{_counter}@example.com"
     _counter += 1
-    resp = client.post(
+    resp = await client.post(
         "/users",
         json={
             "name": "Alice",
@@ -194,20 +193,20 @@ def test_create_user_response_fields():
     body = resp.json()
     assert body == {"detail": GENERIC_SIGNUP_MESSAGE}
 
-def test_login_empty_username_password():
+async def test_login_empty_username_password(client):
     """Login with empty credentials should return 400."""
-    resp = client.post(
+    resp = await client.post(
         "/auth/login",
         data={"username": "", "password": ""},
         headers={"content-type": "application/x-www-form-urlencoded"},
     )
     assert resp.status_code == 400
 
-def test_login_endpoint():
+async def test_login_endpoint(client):
     global _counter
     email = f"alias{_counter}@example.com"
     _counter += 1
-    resp = client.post(
+    resp = await client.post(
         "/users",
         json={
             "name": "Alias",
@@ -220,8 +219,8 @@ def test_login_endpoint():
     assert resp.status_code == 202
     with SessionLocal() as db:
         user = db.query(models.User).filter(models.User.email == email).one()
-        mark_user_verified(user.id)
-    resp = client.post(
+        await mark_user_verified(user.id)
+    resp = await client.post(
         "/auth/login",
         data={"username": email, "password": TEST_PASSWORD},
         headers={"content-type": "application/x-www-form-urlencoded"},
@@ -235,12 +234,12 @@ def test_login_endpoint():
     assert "password_hash" not in data
     assert "password_salt" not in data
 
-def test_login_response_excludes_password_fields():
+async def test_login_response_excludes_password_fields(client):
     """Login endpoint should not leak password details."""
     global _counter
     email = f"token{_counter}@example.com"
     _counter += 1
-    resp = client.post(
+    resp = await client.post(
         "/users",
         json={
             "name": "Token",
@@ -253,8 +252,8 @@ def test_login_response_excludes_password_fields():
     assert resp.status_code == 202
     with SessionLocal() as db:
         user = db.query(models.User).filter(models.User.email == email).one()
-        mark_user_verified(user.id)
-    resp = client.post(
+        await mark_user_verified(user.id)
+    resp = await client.post(
         "/auth/login",
         data={"username": email, "password": TEST_PASSWORD},
         headers={"content-type": "application/x-www-form-urlencoded"},
@@ -267,27 +266,27 @@ def test_login_response_excludes_password_fields():
     assert "password_salt" not in data
 
 
-def test_no_user_listing_endpoint():
+async def test_no_user_listing_endpoint(client):
     """Ensure there is no GET /users endpoint."""
-    resp = client.get("/users")
+    resp = await client.get("/users")
     assert resp.status_code in {404, 405}
 
 
-def test_register_response_sanitized():
+async def test_register_response_sanitized(client):
     """Ensure registration responses remain generic."""
-    _token, _user_id, resp = register_and_login(return_register_resp=True)
+    _token, _user_id, resp = await register_and_login(return_register_resp=True)
 
     data = resp.json()
 
     assert data == {"detail": GENERIC_SIGNUP_MESSAGE}
 
 
-def test_registration_persists_privacy_consent_metadata():
+async def test_registration_persists_privacy_consent_metadata(client):
     """Registration should persist consent metadata for compliance audits."""
     global _counter
     email = f"consentmeta{_counter}@example.com"
     _counter += 1
-    resp = client.post(
+    resp = await client.post(
         "/users",
         json={
             "name": "Consent",
@@ -311,12 +310,12 @@ def test_registration_persists_privacy_consent_metadata():
         db.close()
 
 
-def test_register_rejects_email_with_different_case():
+async def test_register_rejects_email_with_different_case(client):
     """Email uniqueness should be case-insensitive."""
     global _counter
     email = f"case{_counter}@example.com"
     _counter += 1
-    first = client.post(
+    first = await client.post(
         "/users",
         json={
             "name": "Case",
@@ -328,7 +327,7 @@ def test_register_rejects_email_with_different_case():
     )
     assert first.status_code == 202
     assert first.json() == {"detail": GENERIC_SIGNUP_MESSAGE}
-    duplicate = client.post(
+    duplicate = await client.post(
         "/users",
         json={
             "name": "Case",

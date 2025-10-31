@@ -4,13 +4,13 @@ import os
 import warnings
 from collections.abc import AsyncGenerator, Generator
 
-from sqlalchemy.engine import Engine, URL, make_url
-from sqlalchemy.orm import Session, declarative_base, sessionmaker
+from sqlalchemy.engine import URL, Engine, make_url
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
+from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 # Connection string for the PostgreSQL database.  A value **must** be provided
 # via the ``DATABASE_URL`` environment variable so deployments never rely on
@@ -68,22 +68,19 @@ DATABASE_URL = str(ASYNC_DATABASE_URL)
 def make_sync_engine(url: str | URL) -> Engine:
     """Return a synchronous Engine for a potentially async connection URL."""
 
-    if isinstance(url, URL):
-        url_value = str(url)
-    else:
-        url_value = url
+    url_value = str(url) if isinstance(url, URL) else url
     async_url = _normalise_async_url(url_value)
     async_engine = create_async_engine(str(async_url))
     sync_engine = async_engine.sync_engine
     # Keep a strong reference so the underlying async engine is not
     # garbage-collected while the sync engine is in use.
-    setattr(sync_engine, "_async_engine", async_engine)
+    sync_engine._async_engine = async_engine  # type: ignore[attr-defined]
     return sync_engine
 
 def _uses_placeholder(url: URL) -> bool:
     """Return True when the connection URL uses the legacy postgres:postgres pair."""
 
-    return (url.username == "postgres") and (url.password == "postgres")
+    return bool(url.username == "postgres" and url.password == "postgres")  # noqa: S105
 
 
 if APP_ENV == "production" and _uses_placeholder(ASYNC_DATABASE_URL):

@@ -6,11 +6,11 @@ from app.config import SECURITY_HEADERS
 from app.main import app
 
 
-def test_security_headers_are_set():
+async def test_security_headers_are_set(client):
     """The middleware should add the expected security headers to responses."""
 
     client = TestClient(app)
-    response = client.get("/")
+    response = await client.get("/")
 
     assert response.status_code == 200
     for header, value in SECURITY_HEADERS.items():
@@ -20,11 +20,11 @@ def test_security_headers_are_set():
             assert response.headers.get(header) == value
 
 
-def test_hsts_header_is_only_sent_for_https():
+async def test_hsts_header_is_only_sent_for_https(client):
     """HSTS should be emitted only when the effective scheme is HTTPS."""
 
     client = TestClient(app)
-    response = client.get("/", headers={"X-Forwarded-Proto": "https"})
+    response = await client.get("/", headers={"X-Forwarded-Proto": "https"})
 
     assert response.status_code == 200
     assert (

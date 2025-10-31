@@ -2,7 +2,7 @@
 
 import pytest
 
-from .conftest import client
+
 
 
 @pytest.mark.parametrize(
@@ -46,8 +46,8 @@ from .conftest import client
         ),
     ],
 )
-def test_location_estimate_handles_cloudflare_headers(headers, expected):
-    response = client.get("/location/estimate", headers=headers)
+async def test_location_estimate_handles_cloudflare_headers(client, headers, expected):
+    response = await client.get("/location/estimate", headers=headers)
     assert response.status_code == 200
     assert response.headers["Cache-Control"] == "private, no-store"
     assert response.json() == expected

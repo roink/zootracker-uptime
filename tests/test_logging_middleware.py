@@ -45,12 +45,12 @@ def create_app() -> FastAPI:
     return app
 
 
-def test_logging_middleware_records_duration_and_request_id(caplog):
+async def test_logging_middleware_records_duration_and_request_id(client, caplog):
     app = create_app()
     client = TestClient(app)
     caplog.set_level(logging.INFO)
 
-    response = client.get("/ok", headers={"X-Request-ID": "req-123"})
+    response = await client.get("/ok", headers={"X-Request-ID": "req-123"})
     assert response.status_code == 200
     assert response.headers["X-Request-ID"] == "req-123"
 
@@ -63,47 +63,47 @@ def test_logging_middleware_records_duration_and_request_id(caplog):
     assert not hasattr(record, "client_ip_anonymized")
 
 
-def test_logging_middleware_emits_warning_for_client_errors(caplog):
+async def test_logging_middleware_emits_warning_for_client_errors(client, caplog):
     app = create_app()
     client = TestClient(app)
     caplog.set_level(logging.INFO)
     caplog.clear()
 
-    response = client.get("/warn")
+    response = await client.get("/warn")
     assert response.status_code == 400
 
     record = next(r for r in caplog.records if r.message.startswith("GET /warn"))
     assert record.levelno == logging.WARNING
 
 
-def test_logging_middleware_emits_error_for_server_errors(caplog):
+async def test_logging_middleware_emits_error_for_server_errors(client, caplog):
     app = create_app()
     client = TestClient(app)
     caplog.set_level(logging.INFO)
     caplog.clear()
 
     with pytest.raises(RuntimeError):
-        client.get("/boom")
+        await client.get("/boom")
 
     record = next(r for r in caplog.records if r.message.startswith("GET /boom"))
     assert record.levelno == logging.ERROR
     assert "error_stack" in record.__dict__
 
 
-def test_authorization_header_redacted(caplog):
+async def test_authorization_header_redacted(client, caplog):
     app = create_app()
     client = TestClient(app)
     caplog.set_level(logging.INFO)
     caplog.clear()
 
-    client.get("/auth", headers={"Authorization": "Bearer top-secret-token"})
+    await client.get("/auth", headers={"Authorization": "Bearer top-secret-token"})
 
     header_record = next(r for r in caplog.records if r.name == "app.test")
     assert getattr(header_record, "authorization") != "Bearer top-secret-token"
     assert "top-secret-token" not in caplog.text
 
 
-def test_sensitive_header_dictionary_entries_redacted(caplog):
+async def test_sensitive_header_dictionary_entries_redacted(client, caplog):
     caplog.set_level(logging.INFO)
     caplog.clear()
     logger = logging.getLogger("app.headers")
@@ -130,7 +130,7 @@ def test_sensitive_header_dictionary_entries_redacted(caplog):
     assert "secret" not in caplog.text
 
 
-def test_geolocation_values_are_coarsened(caplog):
+async def test_geolocation_values_are_coarsened(client, caplog):
     caplog.set_level(logging.INFO)
     caplog.clear()
     logger = logging.getLogger("app.geo")
@@ -152,7 +152,7 @@ def test_geolocation_values_are_coarsened(caplog):
     assert getattr(record, "user_location") == "48.9,2.4"
 
 
-def test_url_query_coordinates_are_coarsened(caplog):
+async def test_url_query_coordinates_are_coarsened(client, caplog):
     caplog.set_level(logging.INFO)
     caplog.clear()
     logger = logging.getLogger("app.geo")
@@ -173,7 +173,7 @@ def test_url_query_coordinates_are_coarsened(caplog):
     assert parsed["limit"] == "20"
 
 
-def test_ip_override_filter_modes():
+async def test_ip_override_filter_modes(client):
     raw_ip = "198.51.100.23"
     tokens = app_logging.bind_request_context(
         request_id="req-ctx",
@@ -207,7 +207,7 @@ def test_ip_override_filter_modes():
         app_logging.reset_request_context(tokens)
 
 
-def test_ecs_formatter_deduplicates_fields_and_sanitizes_query():
+async def test_ecs_formatter_deduplicates_fields_and_sanitizes_query(client):
     formatter = app_logging.ECSJsonFormatter()
     record = logging.LogRecord(
         name="app.test",

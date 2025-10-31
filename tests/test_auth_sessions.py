@@ -11,13 +11,14 @@ from app.database import SessionLocal
 
 from httpx import Cookies
 
-from .conftest import CONSENT_VERSION, client, register_and_login, mark_user_verified
+from .conftest import CONSENT_VERSION, register_and_login, mark_user_verified, get_client
 
 
-def _register_user(email: str, password: str, name: str = "Auth") -> models.User:
+async def _register_user(email: str, password: str, name: str = "Auth") -> models.User:
+    client = get_client()
     """Register ``email`` and return the persisted user record."""
 
-    resp = client.post(
+    resp = await client.post(
         "/users",
         json={
             "name": name,
@@ -32,11 +33,12 @@ def _register_user(email: str, password: str, name: str = "Auth") -> models.User
         return db.query(models.User).filter(models.User.email == email).one()
 
 
-def _login_and_get_response(email: str, password: str):
+async def _login_and_get_response(email: str, password: str):
+    client = get_client()
     client.cookies.clear()
-    user = _register_user(email, password)
-    mark_user_verified(user.id)
-    response = client.post(
+    user = await _register_user(client, email, password)
+    await mark_user_verified(user.id)
+    response = await client.post(
         "/auth/login",
         data={"username": email, "password": password},
         headers={"content-type": "application/x-www-form-urlencoded"},
@@ -45,14 +47,14 @@ def _login_and_get_response(email: str, password: str):
     return response
 
 
-def test_login_accepts_email_case_variations():
+async def test_login_accepts_email_case_variations(client):
     email = "caseflex@example.com"
     password = "supersecret"
     client.cookies.clear()
-    user = _register_user(email, password, name="Case")
-    mark_user_verified(user.id)
+    user = await _register_user(email, password, name="Case")
+    await mark_user_verified(user.id)
 
-    response = client.post(
+    response = await client.post(
         "/auth/login",
         data={"username": email.upper(), "password": password},
         headers={"content-type": "application/x-www-form-urlencoded"},
@@ -60,9 +62,9 @@ def test_login_accepts_email_case_variations():
     assert response.status_code == 200
 
 
-def test_login_sets_secure_cookies_and_headers():
+async def test_login_sets_secure_cookies_and_headers(client):
     email = "cookie@example.com"
-    response = _login_and_get_response(email, "supersecret")
+    response = await _login_and_get_response(email, "supersecret")
     cookies = response.headers.get_list("set-cookie")
     assert any(REFRESH_COOKIE_NAME in cookie for cookie in cookies)
     refresh_cookie = next(cookie for cookie in cookies if REFRESH_COOKIE_NAME in cookie)
@@ -75,12 +77,12 @@ def test_login_sets_secure_cookies_and_headers():
     assert response.headers["Pragma"] == "no-cache"
 
 
-def test_login_updates_activity_timestamps():
+async def test_login_updates_activity_timestamps(client):
     email = "activity@example.com"
     password = "supersecret"
     client.cookies.clear()
-    user = _register_user(email, password, name="Active")
-    mark_user_verified(user.id)
+    user = await _register_user(email, password, name="Active")
+    await mark_user_verified(user.id)
 
     db = SessionLocal()
     try:
@@ -90,7 +92,7 @@ def test_login_updates_activity_timestamps():
     finally:
         db.close()
 
-    response = client.post(
+    response = await client.post(
         "/auth/login",
         data={"username": email, "password": password},
         headers={"content-type": "application/x-www-form-urlencoded"},
@@ -108,7 +110,8 @@ def test_login_updates_activity_timestamps():
         db.close()
 
 
-def _perform_refresh(csrf_token: str | None = None, refresh_token: str | None = None):
+async def _perform_refresh(csrf_token: str | None = None, refresh_token: str | None = None):
+    client = get_client()
     headers = {}
     if csrf_token is not None:
         headers[CSRF_HEADER_NAME] = csrf_token
@@ -119,16 +122,16 @@ def _perform_refresh(csrf_token: str | None = None, refresh_token: str | None = 
             cookies.set(REFRESH_COOKIE_NAME, refresh_token, path="/auth")
         if csrf_token is not None:
             cookies.set(CSRF_COOKIE_NAME, csrf_token, path="/")
-    return client.post("/auth/refresh", headers=headers, cookies=cookies)
+    return await client.post("/auth/refresh", headers=headers, cookies=cookies)
 
 
-def test_refresh_rotates_tokens_and_sets_cache_headers():
-    token, _ = register_and_login()
+async def test_refresh_rotates_tokens_and_sets_cache_headers(client):
+    token, _ = await register_and_login()
     assert token
     original_refresh = client.cookies.get(REFRESH_COOKIE_NAME)
     original_csrf = client.cookies.get(CSRF_COOKIE_NAME)
 
-    resp = client.post(
+    resp = await client.post(
         "/auth/refresh",
         headers={CSRF_HEADER_NAME: original_csrf},
     )
@@ -140,46 +143,46 @@ def test_refresh_rotates_tokens_and_sets_cache_headers():
     assert rotated_refresh != original_refresh
     assert rotated_csrf != original_csrf
     # Attempt reuse of the old token should revoke the family
-    reuse = _perform_refresh(original_csrf, original_refresh)
+    reuse = await _perform_refresh(original_csrf, original_refresh)
     assert reuse.status_code == 401
     assert reuse.headers["Cache-Control"] == "no-store"
     assert reuse.headers.get("Pragma") == "no-cache"
-    failure = client.post("/auth/refresh", headers={CSRF_HEADER_NAME: rotated_csrf})
+    failure = await client.post("/auth/refresh", headers={CSRF_HEADER_NAME: rotated_csrf})
     assert failure.status_code == 401
     assert failure.headers["Cache-Control"] == "no-store"
     assert failure.headers.get("Pragma") == "no-cache"
 
 
-def test_refresh_requires_csrf_header():
-    register_and_login()
-    response = client.post("/auth/refresh")
+async def test_refresh_requires_csrf_header(client):
+    await register_and_login()
+    response = await client.post("/auth/refresh")
     assert response.status_code == 403
     assert response.headers["Cache-Control"] == "no-store"
     assert response.headers.get("Pragma") == "no-cache"
 
 
-def test_refresh_requires_refresh_cookie_even_with_valid_csrf_pair():
-    register_and_login()
+async def test_refresh_requires_refresh_cookie_even_with_valid_csrf_pair(client):
+    await register_and_login()
     csrf_value = client.cookies.get(CSRF_COOKIE_NAME)
     assert csrf_value is not None
 
     if REFRESH_COOKIE_NAME in client.cookies:
         del client.cookies[REFRESH_COOKIE_NAME]
-    response = _perform_refresh(csrf_token=csrf_value)
+    response = await _perform_refresh(csrf_token=csrf_value)
     assert response.status_code == 401
     assert response.json()["detail"] == "Missing refresh token"
     assert response.headers["Cache-Control"] == "no-store"
     assert response.headers.get("Pragma") == "no-cache"
 
 
-def test_refresh_rejects_invalid_refresh_cookie():
-    register_and_login()
+async def test_refresh_rejects_invalid_refresh_cookie(client):
+    await register_and_login()
     csrf_value = client.cookies.get(CSRF_COOKIE_NAME)
     assert csrf_value is not None
 
     if REFRESH_COOKIE_NAME in client.cookies:
         del client.cookies[REFRESH_COOKIE_NAME]
-    response = _perform_refresh(
+    response = await _perform_refresh(
         csrf_token=csrf_value, refresh_token="tampered-token"
     )
     assert response.status_code == 401
@@ -188,8 +191,8 @@ def test_refresh_rejects_invalid_refresh_cookie():
     assert response.headers.get("Pragma") == "no-cache"
 
 
-def test_authenticated_request_refreshes_last_active_when_stale():
-    token, user_id = register_and_login()
+async def test_authenticated_request_refreshes_last_active_when_stale(client):
+    token, user_id = await register_and_login()
     db = SessionLocal()
     try:
         user = db.get(models.User, user_id)
@@ -201,7 +204,7 @@ def test_authenticated_request_refreshes_last_active_when_stale():
     finally:
         db.close()
 
-    response = client.get(
+    response = await client.get(
         "/visits",
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -218,8 +221,8 @@ def test_authenticated_request_refreshes_last_active_when_stale():
         db.close()
 
 
-def test_authenticated_request_does_not_touch_last_active_when_recent():
-    token, user_id = register_and_login()
+async def test_authenticated_request_does_not_touch_last_active_when_recent(client):
+    token, user_id = await register_and_login()
 
     db = SessionLocal()
     try:
@@ -238,7 +241,7 @@ def test_authenticated_request_does_not_touch_last_active_when_recent():
     finally:
         db.close()
 
-    response = client.get(
+    response = await client.get(
         "/visits",
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -253,8 +256,8 @@ def test_authenticated_request_does_not_touch_last_active_when_recent():
         db.close()
 
 
-def test_refresh_enforces_idle_timeout():
-    register_and_login()
+async def test_refresh_enforces_idle_timeout(client):
+    await register_and_login()
     csrf_value = client.cookies.get(CSRF_COOKIE_NAME)
     db = SessionLocal()
     try:
@@ -263,7 +266,7 @@ def test_refresh_enforces_idle_timeout():
         db.commit()
     finally:
         db.close()
-    response = client.post(
+    response = await client.post(
         "/auth/refresh",
         headers={CSRF_HEADER_NAME: csrf_value},
     )
@@ -272,8 +275,8 @@ def test_refresh_enforces_idle_timeout():
     assert response.headers.get("Pragma") == "no-cache"
 
 
-def test_refresh_enforces_absolute_timeout():
-    register_and_login()
+async def test_refresh_enforces_absolute_timeout(client):
+    await register_and_login()
     csrf_value = client.cookies.get(CSRF_COOKIE_NAME)
     db = SessionLocal()
     try:
@@ -282,7 +285,7 @@ def test_refresh_enforces_absolute_timeout():
         db.commit()
     finally:
         db.close()
-    response = client.post(
+    response = await client.post(
         "/auth/refresh",
         headers={CSRF_HEADER_NAME: csrf_value},
     )
@@ -291,24 +294,24 @@ def test_refresh_enforces_absolute_timeout():
     assert response.headers.get("Pragma") == "no-cache"
 
 
-def test_logout_revokes_tokens_and_clears_cookies():
-    register_and_login()
+async def test_logout_revokes_tokens_and_clears_cookies(client):
+    await register_and_login()
     refresh_value = client.cookies.get(REFRESH_COOKIE_NAME)
     csrf_value = client.cookies.get(CSRF_COOKIE_NAME)
     assert refresh_value and csrf_value
-    resp = client.post("/auth/logout")
+    resp = await client.post("/auth/logout")
     assert resp.status_code == 204
     assert client.cookies.get(REFRESH_COOKIE_NAME) is None
     assert client.cookies.get(CSRF_COOKIE_NAME) is None
-    failure = _perform_refresh(csrf_value, refresh_value)
+    failure = await _perform_refresh(csrf_value, refresh_value)
     client.cookies.clear()
     assert failure.status_code == 401
     assert failure.headers["Cache-Control"] == "no-store"
     assert failure.headers.get("Pragma") == "no-cache"
 
 
-def test_cors_preflight_allows_credentials():
-    response = client.options(
+async def test_cors_preflight_allows_credentials(client):
+    response = await client.options(
         "/auth/login",
         headers={
             "origin": "http://allowed.example",

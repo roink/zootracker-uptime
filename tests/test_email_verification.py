@@ -16,13 +16,13 @@ from app.config import (
 from app.database import SessionLocal
 from app.utils.email_verification import code_matches, token_matches
 
-from .conftest import CONSENT_VERSION, TEST_PASSWORD, client, mark_user_verified
+from .conftest import CONSENT_VERSION, TEST_PASSWORD, mark_user_verified, get_client
 
 TOKEN_RE = re.compile(r"token=([^\s]+)")
 CODE_RE = re.compile(r"code: (\d{6,8})", re.IGNORECASE)
 
 
-def _register_user(monkeypatch, *, email: str | None = None):
+async def _register_user(monkeypatch, *, email: str | None = None):
     """Create a user and capture the verification email."""
 
     sent_messages = []
@@ -40,7 +40,8 @@ def _register_user(monkeypatch, *, email: str | None = None):
     )
 
     addr = email or f"verify-{uuid.uuid4()}@example.com"
-    resp = client.post(
+    client = get_client()
+    resp = await client.post(
         "/users",
         json={
             "name": "Verifier",
@@ -118,9 +119,9 @@ def _reset_limiters():
     _reset_verify_rate_limits()
 
 
-def test_signup_triggers_verification_email(monkeypatch):
+async def test_signup_triggers_verification_email(client, monkeypatch):
     client.cookies.clear()
-    user_info, messages = _register_user(monkeypatch)
+    user_info, messages = await _register_user(monkeypatch)
     body = messages[0].get_content()
     token = _parse_token(body)
     code = _parse_code(body)
@@ -135,9 +136,9 @@ def test_signup_triggers_verification_email(monkeypatch):
     assert code_matches(record, code)
 
 
-def test_signup_initial_verification_state(monkeypatch):
+async def test_signup_initial_verification_state(client, monkeypatch):
     client.cookies.clear()
-    user_info, messages = _register_user(monkeypatch)
+    user_info, messages = await _register_user(monkeypatch)
     body = messages[0].get_content()
     token = _parse_token(body)
     code = _parse_code(body)
@@ -157,9 +158,9 @@ def test_signup_initial_verification_state(monkeypatch):
     assert code_matches(record, code)
 
 
-def test_resend_respects_cooldown(monkeypatch):
+async def test_resend_respects_cooldown(client, monkeypatch):
     client.cookies.clear()
-    user_info, _messages = _register_user(monkeypatch)
+    user_info, _messages = await _register_user(monkeypatch)
 
     access_token, _ = create_access_token(user_info["id"])
 
@@ -174,14 +175,14 @@ def test_resend_respects_cooldown(monkeypatch):
         record.created_at = record.created_at - timedelta(minutes=2)
         db.commit()
 
-    resp = client.post(
+    resp = await client.post(
         "/auth/verification/resend",
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert resp.status_code == 202
     assert resp.json()["detail"] == "We sent you a new verification email."
 
-    resp = client.post(
+    resp = await client.post(
         "/auth/verification/resend",
         headers={"Authorization": f"Bearer {access_token}"},
     )
@@ -192,9 +193,9 @@ def test_resend_respects_cooldown(monkeypatch):
     )
 
 
-def test_resend_updates_verification_state(monkeypatch):
+async def test_resend_updates_verification_state(client, monkeypatch):
     client.cookies.clear()
-    user_info, messages = _register_user(monkeypatch)
+    user_info, messages = await _register_user(monkeypatch)
     access_token, _ = create_access_token(user_info["id"])
 
     with SessionLocal() as db:
@@ -214,7 +215,7 @@ def test_resend_updates_verification_state(monkeypatch):
         db.commit()
 
     messages.clear()
-    resp = client.post(
+    resp = await client.post(
         "/auth/verification/resend",
         headers={"Authorization": f"Bearer {access_token}"},
     )
@@ -242,9 +243,9 @@ def test_resend_updates_verification_state(monkeypatch):
         assert previous.consumed_at is not None
 
 
-def test_resend_enforces_daily_limit(monkeypatch):
+async def test_resend_enforces_daily_limit(client, monkeypatch):
     client.cookies.clear()
-    user_info, messages = _register_user(monkeypatch)
+    user_info, messages = await _register_user(monkeypatch)
     access_token, _ = create_access_token(user_info["id"])
 
     messages.clear()
@@ -262,7 +263,7 @@ def test_resend_enforces_daily_limit(monkeypatch):
             )
             db.commit()
 
-        resp = client.post(
+        resp = await client.post(
             "/auth/verification/resend",
             headers={"Authorization": f"Bearer {access_token}"},
         )
@@ -281,9 +282,9 @@ def test_resend_enforces_daily_limit(monkeypatch):
 
 
 @pytest.mark.parametrize("method", ["token", "code"], ids=["token", "code"])
-def test_verify_email_succeeds(monkeypatch, method):
+async def test_verify_email_succeeds(client, monkeypatch, method):
     client.cookies.clear()
-    user_info, messages = _register_user(monkeypatch)
+    user_info, messages = await _register_user(monkeypatch)
     body = messages[0].get_content()
     token = _parse_token(body)
     code = _parse_code(body)
@@ -294,7 +295,7 @@ def test_verify_email_succeeds(monkeypatch, method):
     else:
         payload = {"email": user_info["email"], "code": code}
 
-    resp = client.post("/auth/verify", json=payload)
+    resp = await client.post("/auth/verify", json=payload)
     assert resp.status_code == 200
     assert resp.json()["detail"] == "Email verified."
 
@@ -312,21 +313,21 @@ def test_verify_email_succeeds(monkeypatch, method):
     assert not rate_limit.verify_failed_identifier_limiter.history
 
 
-def test_verify_email_generic_failure(monkeypatch):
+async def test_verify_email_generic_failure(client, monkeypatch):
     client.cookies.clear()
 
-    resp_unknown = client.post(
+    resp_unknown = await client.post(
         "/auth/verify",
         json={"email": "ghost@example.com", "code": "123456"},
     )
     assert resp_unknown.status_code == 202
     detail = resp_unknown.json()["detail"]
 
-    user_info, messages = _register_user(monkeypatch)
+    user_info, messages = await _register_user(monkeypatch)
     token = _parse_token(messages[0].get_content())
     code = _parse_code(messages[0].get_content())
 
-    resp_wrong = client.post(
+    resp_wrong = await client.post(
         "/auth/verify",
         json={"uid": user_info["id"], "token": f"{token}extra"},
     )
@@ -337,7 +338,7 @@ def test_verify_email_generic_failure(monkeypatch):
     if wrong_code == code:
         wrong_code = "1" + "0" * (len(code) - 1)
 
-    resp_wrong_code = client.post(
+    resp_wrong_code = await client.post(
         "/auth/verify",
         json={"email": user_info["email"], "code": wrong_code},
     )
@@ -346,9 +347,9 @@ def test_verify_email_generic_failure(monkeypatch):
 
 
 @pytest.mark.parametrize("method", ["token", "code"], ids=["token", "code"])
-def test_verification_rejects_expired_secret(monkeypatch, method):
+async def test_verification_rejects_expired_secret(client, monkeypatch, method):
     client.cookies.clear()
-    user_info, messages = _register_user(monkeypatch)
+    user_info, messages = await _register_user(monkeypatch)
     body = messages[0].get_content()
     token = _parse_token(body)
     code = _parse_code(body)
@@ -369,7 +370,7 @@ def test_verification_rejects_expired_secret(monkeypatch, method):
     else:
         payload = {"email": user_info["email"], "code": code}
 
-    resp = client.post("/auth/verify", json=payload)
+    resp = await client.post("/auth/verify", json=payload)
     assert resp.status_code == 202
     assert resp.json()["detail"] == _generic_detail()
 
@@ -379,38 +380,38 @@ def test_verification_rejects_expired_secret(monkeypatch, method):
 
 
 @pytest.mark.parametrize("method", ["token", "code"], ids=["token", "code"])
-def test_cross_user_verification_secret_is_rejected(monkeypatch, method):
+async def test_cross_user_verification_secret_is_rejected(client, monkeypatch, method):
     client.cookies.clear()
 
-    user_a, messages_a = _register_user(monkeypatch)
+    user_a, messages_a = await _register_user(monkeypatch)
     body_a = messages_a[0].get_content()
     token_a = _parse_token(body_a)
     code_a = _parse_code(body_a)
 
-    user_b, _messages_b = _register_user(monkeypatch)
+    user_b, _messages_b = await _register_user(monkeypatch)
 
     if method == "token":
         payload = {"uid": user_b["id"], "token": token_a}
     else:
         payload = {"email": user_b["email"], "code": code_a}
 
-    resp = client.post("/auth/verify", json=payload)
+    resp = await client.post("/auth/verify", json=payload)
     assert resp.status_code == 202
     assert resp.json()["detail"] == _generic_detail()
 
 
-def test_verification_token_cannot_be_reused(monkeypatch):
+async def test_verification_token_cannot_be_reused(client, monkeypatch):
     client.cookies.clear()
-    user_info, messages = _register_user(monkeypatch)
+    user_info, messages = await _register_user(monkeypatch)
     token = _parse_token(messages[0].get_content())
 
-    first = client.post(
+    first = await client.post(
         "/auth/verify",
         json={"uid": user_info["id"], "token": token},
     )
     assert first.status_code == 200
 
-    second = client.post(
+    second = await client.post(
         "/auth/verify",
         json={"uid": user_info["id"], "token": token},
     )
@@ -418,12 +419,12 @@ def test_verification_token_cannot_be_reused(monkeypatch):
     assert second.json()["detail"] == _generic_detail()
 
 
-def test_verify_nonexistent_uid_generic_response(monkeypatch):
+async def test_verify_nonexistent_uid_generic_response(client, monkeypatch):
     client.cookies.clear()
-    user_info, messages = _register_user(monkeypatch)
+    user_info, messages = await _register_user(monkeypatch)
     token = _parse_token(messages[0].get_content())
 
-    resp = client.post(
+    resp = await client.post(
         "/auth/verify",
         json={"uid": str(uuid.uuid4()), "token": token},
     )
@@ -431,11 +432,11 @@ def test_verify_nonexistent_uid_generic_response(monkeypatch):
     assert resp.json()["detail"] == _generic_detail()
 
 
-def test_verify_email_with_malformed_uid(monkeypatch):
+async def test_verify_email_with_malformed_uid(client, monkeypatch):
     client.cookies.clear()
-    _register_user(monkeypatch)
+    await _register_user(monkeypatch)
 
-    resp = client.post(
+    resp = await client.post(
         "/auth/verify",
         json={"uid": "not-a-uuid", "token": "any-token"},
     )
@@ -443,18 +444,18 @@ def test_verify_email_with_malformed_uid(monkeypatch):
     assert resp.json()["detail"] == _generic_detail()
 
 
-def test_post_verification_login_and_refresh(monkeypatch):
+async def test_post_verification_login_and_refresh(client, monkeypatch):
     client.cookies.clear()
-    user_info, messages = _register_user(monkeypatch)
+    user_info, messages = await _register_user(monkeypatch)
     token = _parse_token(messages[0].get_content())
 
-    verify_resp = client.post(
+    verify_resp = await client.post(
         "/auth/verify",
         json={"uid": user_info["id"], "token": token},
     )
     assert verify_resp.status_code == 200
 
-    login_resp = client.post(
+    login_resp = await client.post(
         "/auth/login",
         data={"username": user_info["email"], "password": TEST_PASSWORD},
         headers={"content-type": "application/x-www-form-urlencoded"},
@@ -464,7 +465,7 @@ def test_post_verification_login_and_refresh(monkeypatch):
     assert login_body["email_verified"] is True
 
     csrf_cookie = client.cookies.get(CSRF_COOKIE_NAME)
-    refresh_resp = client.post(
+    refresh_resp = await client.post(
         "/auth/refresh",
         headers={CSRF_HEADER_NAME: csrf_cookie},
     )
@@ -473,9 +474,9 @@ def test_post_verification_login_and_refresh(monkeypatch):
     assert refresh_body["email_verified"] is True
 
 
-def test_verify_email_rate_limit_per_identifier(monkeypatch):
+async def test_verify_email_rate_limit_per_identifier(client, monkeypatch):
     client.cookies.clear()
-    user_info, _messages = _register_user(monkeypatch)
+    user_info, _messages = await _register_user(monkeypatch)
 
     ip_counter = 0
 
@@ -488,27 +489,27 @@ def test_verify_email_rate_limit_per_identifier(monkeypatch):
 
     payload = {"email": user_info["email"], "code": "000000"}
     for _ in range(rate_limit.VERIFY_ATTEMPT_LIMIT):
-        resp = client.post("/auth/verify", json=payload)
+        resp = await client.post("/auth/verify", json=payload)
         assert resp.status_code == 202
 
-    resp_blocked = client.post("/auth/verify", json=payload)
+    resp_blocked = await client.post("/auth/verify", json=payload)
     assert resp_blocked.status_code == 429
     assert resp_blocked.json()["detail"] == "Too Many Requests"
 
 
-def test_verify_email_rate_limit_per_ip(monkeypatch):
+async def test_verify_email_rate_limit_per_ip(client, monkeypatch):
     client.cookies.clear()
-    _register_user(monkeypatch)
+    await _register_user(monkeypatch)
 
     identifier = "ip-limit@example.com"
     for _ in range(rate_limit.VERIFY_ATTEMPT_LIMIT):
-        resp = client.post(
+        resp = await client.post(
             "/auth/verify",
             json={"email": identifier, "code": "000000"},
         )
         assert resp.status_code == 202
 
-    resp_blocked = client.post(
+    resp_blocked = await client.post(
         "/auth/verify",
         json={"email": identifier, "code": "000000"},
     )
@@ -516,9 +517,9 @@ def test_verify_email_rate_limit_per_ip(monkeypatch):
     assert resp_blocked.json()["detail"] == "Too Many Requests"
 
 
-def test_verification_revokes_existing_sessions(monkeypatch):
+async def test_verification_revokes_existing_sessions(client, monkeypatch):
     client.cookies.clear()
-    user_info, messages = _register_user(monkeypatch)
+    user_info, messages = await _register_user(monkeypatch)
     token = _parse_token(messages[0].get_content())
 
     csrf_nonce = "csrf-session"
@@ -531,13 +532,13 @@ def test_verification_revokes_existing_sessions(monkeypatch):
     client.cookies.set(REFRESH_COOKIE_NAME, raw_refresh, path="/auth")
     client.cookies.set(CSRF_COOKIE_NAME, csrf_nonce, path="/")
 
-    verify_resp = client.post(
+    verify_resp = await client.post(
         "/auth/verify",
         json={"uid": user_info["id"], "token": token},
     )
     assert verify_resp.status_code == 200
 
-    refresh_resp = client.post(
+    refresh_resp = await client.post(
         "/auth/refresh",
         headers={CSRF_HEADER_NAME: csrf_nonce},
     )
@@ -551,9 +552,9 @@ def test_verification_revokes_existing_sessions(monkeypatch):
     assert not rate_limit.verify_failed_identifier_limiter.history
 
 
-def test_resend_invalidates_previous_token(monkeypatch):
+async def test_resend_invalidates_previous_token(client, monkeypatch):
     client.cookies.clear()
-    user_info, messages = _register_user(monkeypatch)
+    user_info, messages = await _register_user(monkeypatch)
     first_token = _parse_token(messages[0].get_content())
     messages.clear()
 
@@ -568,7 +569,7 @@ def test_resend_invalidates_previous_token(monkeypatch):
         record.created_at = record.created_at - timedelta(minutes=2)
         db.commit()
 
-    resp = client.post(
+    resp = await client.post(
         "/auth/verification/request-resend",
         json={"email": user_info["email"]},
     )
@@ -578,26 +579,26 @@ def test_resend_invalidates_previous_token(monkeypatch):
     assert second_token != first_token
 
     _reset_verify_rate_limits()
-    resp_old = client.post(
+    resp_old = await client.post(
         "/auth/verify",
         json={"uid": user_info["id"], "token": first_token},
     )
     assert resp_old.status_code == 202
 
-    resp_new = client.post(
+    resp_new = await client.post(
         "/auth/verify",
         json={"uid": user_info["id"], "token": second_token},
     )
     assert resp_new.status_code == 200
 
 
-def test_resend_denied_when_already_verified(monkeypatch):
+async def test_resend_denied_when_already_verified(client, monkeypatch):
     client.cookies.clear()
-    user_info, _messages = _register_user(monkeypatch)
-    mark_user_verified(user_info["id"])
+    user_info, _messages = await _register_user(monkeypatch)
+    await mark_user_verified(user_info["id"])
     access_token, _ = create_access_token(user_info["id"])
 
-    resp = client.post(
+    resp = await client.post(
         "/auth/verification/resend",
         headers={"Authorization": f"Bearer {access_token}"},
     )
@@ -605,17 +606,17 @@ def test_resend_denied_when_already_verified(monkeypatch):
     assert resp.json()["detail"] == "Your email address is already verified."
 
 
-def test_verifying_already_verified_user_is_noop(monkeypatch):
+async def test_verifying_already_verified_user_is_noop(client, monkeypatch):
     client.cookies.clear()
-    user_info, messages = _register_user(monkeypatch)
+    user_info, messages = await _register_user(monkeypatch)
     token = _parse_token(messages[0].get_content())
-    mark_user_verified(user_info["id"])
+    await mark_user_verified(user_info["id"])
 
     user = _get_user(user_info["id"])
     assert user is not None
     baseline = user.email_verified_at
 
-    resp = client.post(
+    resp = await client.post(
         "/auth/verify",
         json={"uid": user_info["id"], "token": token},
     )
@@ -627,11 +628,11 @@ def test_verifying_already_verified_user_is_noop(monkeypatch):
     assert user.email_verified_at == baseline
 
 
-def test_login_requires_verified_email(monkeypatch):
+async def test_login_requires_verified_email(client, monkeypatch):
     client.cookies.clear()
-    user_info, _messages = _register_user(monkeypatch)
+    user_info, _messages = await _register_user(monkeypatch)
 
-    resp = client.post(
+    resp = await client.post(
         "/auth/login",
         data={"username": user_info["email"], "password": TEST_PASSWORD},
         headers={"content-type": "application/x-www-form-urlencoded"},
@@ -640,26 +641,26 @@ def test_login_requires_verified_email(monkeypatch):
     assert "verified" in resp.json()["detail"].lower()
 
 
-def test_email_case_insensitive_for_verification_and_login(monkeypatch):
+async def test_email_case_insensitive_for_verification_and_login(client, monkeypatch):
     client.cookies.clear()
     mixed_email = "UserCase@example.com"
-    user_info, messages = _register_user(monkeypatch, email=mixed_email)
+    user_info, messages = await _register_user(monkeypatch, email=mixed_email)
     code = _parse_code(messages[0].get_content())
 
-    pre_login = client.post(
+    pre_login = await client.post(
         "/auth/login",
         data={"username": mixed_email.lower(), "password": TEST_PASSWORD},
         headers={"content-type": "application/x-www-form-urlencoded"},
     )
     assert pre_login.status_code == 403
 
-    verify_resp = client.post(
+    verify_resp = await client.post(
         "/auth/verify",
         json={"email": mixed_email.upper(), "code": code},
     )
     assert verify_resp.status_code == 200
 
-    post_login = client.post(
+    post_login = await client.post(
         "/auth/login",
         data={"username": mixed_email.swapcase(), "password": TEST_PASSWORD},
         headers={"content-type": "application/x-www-form-urlencoded"},
@@ -667,7 +668,7 @@ def test_email_case_insensitive_for_verification_and_login(monkeypatch):
     assert post_login.status_code == 200
 
 
-def test_anonymous_resend_generic_response(monkeypatch):
+async def test_anonymous_resend_generic_response(client, monkeypatch):
     client.cookies.clear()
     sent_messages = []
 
@@ -677,7 +678,7 @@ def test_anonymous_resend_generic_response(monkeypatch):
     monkeypatch.setattr("app.utils.email_verification.send_email_via_smtp", _capture)
     monkeypatch.setattr("app.utils.email_sender.send_email_via_smtp", _capture)
 
-    resp = client.post(
+    resp = await client.post(
         "/auth/verification/request-resend",
         json={"email": "ghost@example.com"},
     )
@@ -686,7 +687,7 @@ def test_anonymous_resend_generic_response(monkeypatch):
     assert sent_messages == []
 
 
-def test_anonymous_resend_sends_email_for_unverified_user(monkeypatch):
+async def test_anonymous_resend_sends_email_for_unverified_user(client, monkeypatch):
     client.cookies.clear()
     sent_messages = []
 
@@ -696,7 +697,7 @@ def test_anonymous_resend_sends_email_for_unverified_user(monkeypatch):
     monkeypatch.setattr("app.utils.email_verification.send_email_via_smtp", _capture)
     monkeypatch.setattr("app.utils.email_sender.send_email_via_smtp", _capture)
 
-    user_info, _messages = _register_user(monkeypatch)
+    user_info, _messages = await _register_user(monkeypatch)
     sent_messages.clear()
     monkeypatch.setattr("app.utils.email_verification.send_email_via_smtp", _capture)
     monkeypatch.setattr("app.utils.email_sender.send_email_via_smtp", _capture)
@@ -712,7 +713,7 @@ def test_anonymous_resend_sends_email_for_unverified_user(monkeypatch):
         record.created_at = record.created_at - timedelta(minutes=2)
         db.commit()
 
-    resp = client.post(
+    resp = await client.post(
         "/auth/verification/request-resend",
         json={"email": user_info["email"]},
     )
@@ -721,18 +722,18 @@ def test_anonymous_resend_sends_email_for_unverified_user(monkeypatch):
     assert sent_messages, "Expected resend email to be queued"
 
 
-def test_anonymous_resend_rate_limited(monkeypatch):
+async def test_anonymous_resend_rate_limited(client, monkeypatch):
     client.cookies.clear()
 
     email = "throttle@example.com"
     for _ in range(rate_limit.VERIFY_RESEND_IP_LIMIT):
-        resp = client.post(
+        resp = await client.post(
             "/auth/verification/request-resend",
             json={"email": email},
         )
         assert resp.status_code == 202
 
-    blocked = client.post(
+    blocked = await client.post(
         "/auth/verification/request-resend",
         json={"email": email},
     )
@@ -740,9 +741,9 @@ def test_anonymous_resend_rate_limited(monkeypatch):
     assert blocked.json()["detail"].startswith("If the account exists")
 
 
-def test_anonymous_resend_ignored_for_verified_user(monkeypatch):
+async def test_anonymous_resend_ignored_for_verified_user(client, monkeypatch):
     client.cookies.clear()
-    user_info, messages = _register_user(monkeypatch)
+    user_info, messages = await _register_user(monkeypatch)
     original_ids = []
 
     with SessionLocal() as db:
@@ -762,7 +763,7 @@ def test_anonymous_resend_ignored_for_verified_user(monkeypatch):
         db.commit()
 
     messages.clear()
-    resp = client.post(
+    resp = await client.post(
         "/auth/verification/request-resend",
         json={"email": user_info["email"]},
     )
@@ -778,9 +779,9 @@ def test_anonymous_resend_ignored_for_verified_user(monkeypatch):
         assert {token.id for token in tokens} == set(original_ids)
 
 
-def test_user_deletion_cascades_tokens(monkeypatch):
+async def test_user_deletion_cascades_tokens(client, monkeypatch):
     client.cookies.clear()
-    user_info, _messages = _register_user(monkeypatch)
+    user_info, _messages = await _register_user(monkeypatch)
 
     with SessionLocal() as db:
         count_before = (

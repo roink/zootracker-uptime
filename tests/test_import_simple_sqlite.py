@@ -251,7 +251,7 @@ def _build_source_db(path: Path, mid: str = "M1") -> Path:
     return path
 
 
-def test_import_simple_sqlite(tmp_path, session_factory):
+async def test_import_simple_sqlite(client, tmp_path, session_factory):
     src_path = _build_source_db(tmp_path / "src.db")
 
     # dry run should not write anything
@@ -333,7 +333,7 @@ def test_import_simple_sqlite(tmp_path, session_factory):
         assert db.query(models.ZooAnimal).count() == 3
 
 
-def test_import_simple_sqlite_uses_fallback_coordinates(tmp_path, session_factory):
+async def test_import_simple_sqlite_uses_fallback_coordinates(client, tmp_path, session_factory):
     src_path = _build_source_db(tmp_path / "fallback.db")
     override_engine = create_engine(f"sqlite:///{src_path}", future=True)
     with override_engine.begin() as conn:
@@ -351,7 +351,7 @@ def test_import_simple_sqlite_uses_fallback_coordinates(tmp_path, session_factor
         assert float(zoo.longitude) == pytest.approx(11.6)
 
 
-def test_skip_banned_mid(tmp_path, session_factory):
+async def test_skip_banned_mid(client, tmp_path, session_factory):
     src_path = _build_source_db(tmp_path / "src.db", mid="M1723980")
     import_simple_sqlite_data.main(str(src_path))
     with session_factory() as db:
@@ -359,7 +359,7 @@ def test_skip_banned_mid(tmp_path, session_factory):
         assert db.query(models.ImageVariant).count() == 0
 
 
-def test_import_simple_updates_existing_animals(tmp_path, session_factory):
+async def test_import_simple_updates_existing_animals(client, tmp_path, session_factory):
     src_path = _build_source_db(tmp_path / "src.db")
     import_simple_sqlite_data.main(str(src_path))
 
@@ -391,7 +391,7 @@ def test_import_simple_updates_existing_animals(tmp_path, session_factory):
         assert unknown.parent_art == 1001
 
 
-def test_import_simple_overwrites_when_requested(tmp_path, session_factory):
+async def test_import_simple_overwrites_when_requested(client, tmp_path, session_factory):
     src_path = _build_source_db(tmp_path / "src.db")
     import_simple_sqlite_data.main(str(src_path))
 
@@ -418,7 +418,7 @@ def test_import_simple_overwrites_when_requested(tmp_path, session_factory):
         assert unknown.parent_art is None
 
 
-def test_import_simple_clear_fields_with_overwrite(tmp_path, session_factory):
+async def test_import_simple_clear_fields_with_overwrite(client, tmp_path, session_factory):
     """Overwriting with missing values should clear existing text."""
     src_path = _build_source_db(tmp_path / "src.db")
     import_simple_sqlite_data.main(str(src_path))
@@ -440,7 +440,7 @@ def test_import_simple_clear_fields_with_overwrite(tmp_path, session_factory):
         assert lion.description_de is None
 
 
-def test_import_simple_updates_existing_zoo(tmp_path, session_factory):
+async def test_import_simple_updates_existing_zoo(client, tmp_path, session_factory):
     src_path = _build_source_db(tmp_path / "src.db")
     import_simple_sqlite_data.main(str(src_path))
 
@@ -479,7 +479,7 @@ def test_import_simple_updates_existing_zoo(tmp_path, session_factory):
         assert zoo.description_de == "Neue DE"
 
 
-def test_import_skips_animals_without_zoo(tmp_path, session_factory):
+async def test_import_skips_animals_without_zoo(client, tmp_path, session_factory):
     src_path = _build_source_db(tmp_path / "src.db")
     engine = create_engine(f"sqlite:///{src_path}", future=True)
     with engine.begin() as conn:

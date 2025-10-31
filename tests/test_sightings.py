@@ -1,11 +1,11 @@
 import uuid
 from datetime import datetime, UTC
 from sqlalchemy import text
-from .conftest import client, register_and_login, SessionLocal
+from .conftest import register_and_login, SessionLocal
 from app import models
 
-def test_post_sighting(data):
-    token, _ = register_and_login()
+async def test_post_sighting(client, data):
+    token, _ = await register_and_login()
     zoo_id = data["zoo"].id
     animal_id = data["animal"].id
     sighting = {
@@ -13,14 +13,14 @@ def test_post_sighting(data):
         "animal_id": str(animal_id),
         "sighting_datetime": datetime.now(UTC).isoformat(),
     }
-    resp = client.post("/sightings", json=sighting, headers={"Authorization": f"Bearer {token}"})
+    resp = await client.post("/sightings", json=sighting, headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code == 200
     body = resp.json()
     assert body["animal_id"] == str(animal_id)
 
 
-def test_sighting_notes_round_trip(data):
-    token, _ = register_and_login()
+async def test_sighting_notes_round_trip(client, data):
+    token, _ = await register_and_login()
     zoo_id = data["zoo"].id
     animal_id = data["animal"].id
     sighting = {
@@ -29,7 +29,7 @@ def test_sighting_notes_round_trip(data):
         "sighting_datetime": datetime.now(UTC).isoformat(),
         "notes": "Feeding time observation",
     }
-    resp = client.post(
+    resp = await client.post(
         "/sightings",
         json=sighting,
         headers={"Authorization": f"Bearer {token}"},
@@ -39,7 +39,7 @@ def test_sighting_notes_round_trip(data):
     assert created["notes"] == "Feeding time observation"
 
     sighting_id = created["id"]
-    resp = client.patch(
+    resp = await client.patch(
         f"/sightings/{sighting_id}",
         json={"notes": "Feeding time moved to afternoon"},
         headers={"Authorization": f"Bearer {token}"},
@@ -48,7 +48,7 @@ def test_sighting_notes_round_trip(data):
     updated = resp.json()
     assert updated["notes"] == "Feeding time moved to afternoon"
 
-    resp = client.get(
+    resp = await client.get(
         f"/sightings/{sighting_id}",
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -57,8 +57,8 @@ def test_sighting_notes_round_trip(data):
     assert fetched["notes"] == "Feeding time moved to afternoon"
 
 
-def test_sighting_notes_can_be_cleared(data):
-    token, _ = register_and_login()
+async def test_sighting_notes_can_be_cleared(client, data):
+    token, _ = await register_and_login()
     zoo_id = data["zoo"].id
     animal_id = data["animal"].id
     sighting = {
@@ -67,7 +67,7 @@ def test_sighting_notes_can_be_cleared(data):
         "sighting_datetime": datetime.now(UTC).isoformat(),
         "notes": "  Observed enrichment session  ",
     }
-    resp = client.post(
+    resp = await client.post(
         "/sightings",
         json=sighting,
         headers={"Authorization": f"Bearer {token}"},
@@ -77,7 +77,7 @@ def test_sighting_notes_can_be_cleared(data):
     assert created["notes"] == "Observed enrichment session"
 
     sighting_id = created["id"]
-    resp = client.patch(
+    resp = await client.patch(
         f"/sightings/{sighting_id}",
         json={"notes": None},
         headers={"Authorization": f"Bearer {token}"},
@@ -86,7 +86,7 @@ def test_sighting_notes_can_be_cleared(data):
     updated = resp.json()
     assert updated["notes"] is None
 
-    resp = client.get(
+    resp = await client.get(
         f"/sightings/{sighting_id}",
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -94,7 +94,7 @@ def test_sighting_notes_can_be_cleared(data):
     fetched = resp.json()
     assert fetched["notes"] is None
 
-def test_sighting_requires_auth(data):
+async def test_sighting_requires_auth(client, data):
     zoo_id = data["zoo"].id
     animal_id = data["animal"].id
     sighting = {
@@ -102,11 +102,11 @@ def test_sighting_requires_auth(data):
         "animal_id": str(animal_id),
         "sighting_datetime": datetime.now(UTC).isoformat(),
     }
-    resp = client.post("/sightings", json=sighting)
+    resp = await client.post("/sightings", json=sighting)
     assert resp.status_code == 401
 
-def test_sighting_requires_json(data):
-    token, _ = register_and_login()
+async def test_sighting_requires_json(client, data):
+    token, _ = await register_and_login()
     zoo_id = data["zoo"].id
     animal_id = data["animal"].id
     sighting = {
@@ -114,15 +114,15 @@ def test_sighting_requires_json(data):
         "animal_id": str(animal_id),
         "sighting_datetime": datetime.now(UTC).isoformat(),
     }
-    resp = client.post(
+    resp = await client.post(
         "/sightings",
         json=sighting,
         headers={"Authorization": f"Bearer {token}", "content-type": "text/plain"},
     )
     assert resp.status_code == 415
 
-def test_sighting_accepts_charset(data):
-    token, _ = register_and_login()
+async def test_sighting_accepts_charset(client, data):
+    token, _ = await register_and_login()
     zoo_id = data["zoo"].id
     animal_id = data["animal"].id
     sighting = {
@@ -130,16 +130,16 @@ def test_sighting_accepts_charset(data):
         "animal_id": str(animal_id),
         "sighting_datetime": datetime.now(UTC).isoformat(),
     }
-    resp = client.post(
+    resp = await client.post(
         "/sightings",
         json=sighting,
         headers={"Authorization": f"Bearer {token}", "content-type": "application/json; charset=utf-8"},
     )
     assert resp.status_code == 200
 
-def test_sighting_user_id_field_rejected(data):
-    token, _ = register_and_login()
-    _, other_user_id = register_and_login()
+async def test_sighting_user_id_field_rejected(client, data):
+    token, _ = await register_and_login()
+    _, other_user_id = await register_and_login()
     zoo_id = data["zoo"].id
     animal_id = data["animal"].id
     sighting = {
@@ -148,11 +148,11 @@ def test_sighting_user_id_field_rejected(data):
         "sighting_datetime": datetime.now(UTC).isoformat(),
         "user_id": str(other_user_id),
     }
-    resp = client.post("/sightings", json=sighting, headers={"Authorization": f"Bearer {token}"})
+    resp = await client.post("/sightings", json=sighting, headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code == 422
 
-def test_sighting_invalid_zoo(data):
-    token, _ = register_and_login()
+async def test_sighting_invalid_zoo(client, data):
+    token, _ = await register_and_login()
     animal_id = data["animal"].id
     invalid_zoo = uuid.uuid4()
     sighting = {
@@ -160,11 +160,11 @@ def test_sighting_invalid_zoo(data):
         "animal_id": str(animal_id),
         "sighting_datetime": datetime.now(UTC).isoformat(),
     }
-    resp = client.post("/sightings", json=sighting, headers={"Authorization": f"Bearer {token}"})
+    resp = await client.post("/sightings", json=sighting, headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code == 404
 
-def test_sighting_invalid_animal(data):
-    token, _ = register_and_login()
+async def test_sighting_invalid_animal(client, data):
+    token, _ = await register_and_login()
     zoo_id = data["zoo"].id
     invalid_animal = uuid.uuid4()
     sighting = {
@@ -172,11 +172,11 @@ def test_sighting_invalid_animal(data):
         "animal_id": str(invalid_animal),
         "sighting_datetime": datetime.now(UTC).isoformat(),
     }
-    resp = client.post("/sightings", json=sighting, headers={"Authorization": f"Bearer {token}"})
+    resp = await client.post("/sightings", json=sighting, headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code == 404
 
-def test_sighting_extra_field_rejected(data):
-    token, _ = register_and_login()
+async def test_sighting_extra_field_rejected(client, data):
+    token, _ = await register_and_login()
     zoo_id = data["zoo"].id
     animal_id = data["animal"].id
     sighting = {
@@ -185,15 +185,15 @@ def test_sighting_extra_field_rejected(data):
         "sighting_datetime": datetime.now(UTC).isoformat(),
         "unexpected": "boom",
     }
-    resp = client.post(
+    resp = await client.post(
         "/sightings",
         json=sighting,
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 422
 
-def test_sighting_notes_too_long(data):
-    token, _ = register_and_login()
+async def test_sighting_notes_too_long(client, data):
+    token, _ = await register_and_login()
     zoo_id = data["zoo"].id
     animal_id = data["animal"].id
     sighting = {
@@ -202,15 +202,15 @@ def test_sighting_notes_too_long(data):
         "sighting_datetime": datetime.now(UTC).isoformat(),
         "notes": "n" * 1001,
     }
-    resp = client.post(
+    resp = await client.post(
         "/sightings",
         json=sighting,
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 422
 
-def test_delete_sighting_success(data):
-    token, _ = register_and_login()
+async def test_delete_sighting_success(client, data):
+    token, _ = await register_and_login()
     zoo_id = data["zoo"].id
     animal_id = data["animal"].id
     sighting = {
@@ -218,7 +218,7 @@ def test_delete_sighting_success(data):
         "animal_id": str(animal_id),
         "sighting_datetime": datetime.now(UTC).isoformat(),
     }
-    resp = client.post(
+    resp = await client.post(
         "/sightings",
         json=sighting,
         headers={"Authorization": f"Bearer {token}"},
@@ -226,7 +226,7 @@ def test_delete_sighting_success(data):
     assert resp.status_code == 200
     sighting_id = resp.json()["id"]
 
-    resp = client.delete(
+    resp = await client.delete(
         f"/sightings/{sighting_id}", headers={"Authorization": f"Bearer {token}"}
     )
     assert resp.status_code == 204
@@ -235,9 +235,9 @@ def test_delete_sighting_success(data):
     db.close()
     assert deleted is None
 
-def test_delete_sighting_unauthorized(data):
-    token1, _ = register_and_login()
-    token2, _ = register_and_login()
+async def test_delete_sighting_unauthorized(client, data):
+    token1, _ = await register_and_login()
+    token2, _ = await register_and_login()
     zoo_id = data["zoo"].id
     animal_id = data["animal"].id
     sighting = {
@@ -245,7 +245,7 @@ def test_delete_sighting_unauthorized(data):
         "animal_id": str(animal_id),
         "sighting_datetime": datetime.now(UTC).isoformat(),
     }
-    resp = client.post(
+    resp = await client.post(
         "/sightings",
         json=sighting,
         headers={"Authorization": f"Bearer {token1}"},
@@ -253,13 +253,13 @@ def test_delete_sighting_unauthorized(data):
     assert resp.status_code == 200
     sighting_id = resp.json()["id"]
 
-    resp = client.delete(
+    resp = await client.delete(
         f"/sightings/{sighting_id}", headers={"Authorization": f"Bearer {token2}"}
     )
     assert resp.status_code == 403
 
-def test_patch_sighting_success(data):
-    token, _ = register_and_login()
+async def test_patch_sighting_success(client, data):
+    token, _ = await register_and_login()
     zoo_id = data["zoo"].id
     animal_id = data["animal"].id
     sighting = {
@@ -267,7 +267,7 @@ def test_patch_sighting_success(data):
         "animal_id": str(animal_id),
         "sighting_datetime": datetime.now(UTC).isoformat(),
     }
-    resp = client.post(
+    resp = await client.post(
         "/sightings",
         json=sighting,
         headers={"Authorization": f"Bearer {token}"},
@@ -278,7 +278,7 @@ def test_patch_sighting_success(data):
     # update to the secondary zoo and add a photo
     new_zoo = data["far_zoo"].id
     photo = "http://example.com/photo.jpg"
-    resp = client.patch(
+    resp = await client.patch(
         f"/sightings/{sighting_id}",
         json={"zoo_id": str(new_zoo), "photo_url": photo},
         headers={"Authorization": f"Bearer {token}"},
@@ -288,9 +288,9 @@ def test_patch_sighting_success(data):
     assert body["photo_url"] == photo
     assert body["zoo_id"] == str(new_zoo)
 
-def test_patch_sighting_forbidden(data):
-    token1, _ = register_and_login()
-    token2, _ = register_and_login()
+async def test_patch_sighting_forbidden(client, data):
+    token1, _ = await register_and_login()
+    token2, _ = await register_and_login()
     zoo_id = data["zoo"].id
     animal_id = data["animal"].id
     sighting = {
@@ -299,7 +299,7 @@ def test_patch_sighting_forbidden(data):
         "sighting_datetime": datetime.now(UTC).isoformat(),
         "notes": "Original keeper note",
     }
-    resp = client.post(
+    resp = await client.post(
         "/sightings",
         json=sighting,
         headers={"Authorization": f"Bearer {token1}"},
@@ -307,14 +307,14 @@ def test_patch_sighting_forbidden(data):
     assert resp.status_code == 200
     sighting_id = resp.json()["id"]
 
-    resp = client.patch(
+    resp = await client.patch(
         f"/sightings/{sighting_id}",
         json={"notes": "oops"},
         headers={"Authorization": f"Bearer {token2}"},
     )
     assert resp.status_code == 403
 
-    resp = client.get(
+    resp = await client.get(
         f"/sightings/{sighting_id}",
         headers={"Authorization": f"Bearer {token1}"},
     )
@@ -322,9 +322,9 @@ def test_patch_sighting_forbidden(data):
     assert resp.json()["notes"] == "Original keeper note"
 
 
-def test_get_sighting_owner_only(data):
-    token1, _ = register_and_login()
-    token2, _ = register_and_login()
+async def test_get_sighting_owner_only(client, data):
+    token1, _ = await register_and_login()
+    token2, _ = await register_and_login()
     zoo_id = data["zoo"].id
     animal_id = data["animal"].id
     sighting = {
@@ -332,7 +332,7 @@ def test_get_sighting_owner_only(data):
         "animal_id": str(animal_id),
         "sighting_datetime": datetime.now(UTC).isoformat(),
     }
-    resp = client.post(
+    resp = await client.post(
         "/sightings",
         json=sighting,
         headers={"Authorization": f"Bearer {token1}"},
@@ -341,21 +341,21 @@ def test_get_sighting_owner_only(data):
     sighting_id = resp.json()["id"]
 
     # owner can fetch
-    resp = client.get(
+    resp = await client.get(
         f"/sightings/{sighting_id}", headers={"Authorization": f"Bearer {token1}"}
     )
     assert resp.status_code == 200
 
     # other user forbidden
-    resp = client.get(
+    resp = await client.get(
         f"/sightings/{sighting_id}", headers={"Authorization": f"Bearer {token2}"}
     )
     assert resp.status_code == 403
 
 
-def test_sightings_are_user_specific(data):
-    token1, _ = register_and_login()
-    token2, _ = register_and_login()
+async def test_sightings_are_user_specific(client, data):
+    token1, _ = await register_and_login()
+    token2, _ = await register_and_login()
     zoo_id = data["zoo"].id
     animal_id = data["animal"].id
     sighting = {
@@ -363,25 +363,25 @@ def test_sightings_are_user_specific(data):
         "animal_id": str(animal_id),
         "sighting_datetime": datetime.now(UTC).isoformat(),
     }
-    resp = client.post(
+    resp = await client.post(
         "/sightings",
         json=sighting,
         headers={"Authorization": f"Bearer {token1}"},
     )
     assert resp.status_code == 200
 
-    resp = client.get("/sightings", headers={"Authorization": f"Bearer {token2}"})
+    resp = await client.get("/sightings", headers={"Authorization": f"Bearer {token2}"})
     assert resp.status_code == 200
     assert resp.json() == []
 
 
-def test_get_sightings_requires_auth():
-    resp = client.get("/sightings")
+async def test_get_sightings_requires_auth(client):
+    resp = await client.get("/sightings")
     assert resp.status_code == 401
 
 
-def test_sighting_list_sorted_and_named(data):
-    token, _ = register_and_login()
+async def test_sighting_list_sorted_and_named(client, data):
+    token, _ = await register_and_login()
     zoo_id = data["zoo"].id
     animal_id = data["animal"].id
 
@@ -391,7 +391,7 @@ def test_sighting_list_sorted_and_named(data):
         "animal_id": str(animal_id),
         "sighting_datetime": datetime(2024, 1, 1, tzinfo=UTC).isoformat(),
     }
-    r1 = client.post(
+    r1 = await client.post(
         "/sightings", json=sight1, headers={"Authorization": f"Bearer {token}"}
     )
     assert r1.status_code == 200
@@ -403,7 +403,7 @@ def test_sighting_list_sorted_and_named(data):
         "animal_id": str(animal_id),
         "sighting_datetime": datetime(2023, 1, 1, tzinfo=UTC).isoformat(),
     }
-    r2 = client.post(
+    r2 = await client.post(
         "/sightings", json=sight2, headers={"Authorization": f"Bearer {token}"}
     )
     assert r2.status_code == 200
@@ -414,7 +414,7 @@ def test_sighting_list_sorted_and_named(data):
         "animal_id": str(animal_id),
         "sighting_datetime": datetime(2024, 1, 1, tzinfo=UTC).isoformat(),
     }
-    r3 = client.post(
+    r3 = await client.post(
         "/sightings", json=sight3, headers={"Authorization": f"Bearer {token}"}
     )
     assert r3.status_code == 200
@@ -428,7 +428,7 @@ def test_sighting_list_sorted_and_named(data):
         )
         session.commit()
 
-    resp = client.get("/sightings", headers={"Authorization": f"Bearer {token}"})
+    resp = await client.get("/sightings", headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code == 200
     body = resp.json()
     dates = [s["sighting_datetime"][:10] for s in body]

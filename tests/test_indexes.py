@@ -2,14 +2,14 @@ from sqlalchemy import inspect
 from app.database import engine
 
 
-def test_zooanimal_indexes_present():
+async def test_zooanimal_indexes_present(client):
     insp = inspect(engine)
     idx = {i['name'] for i in insp.get_indexes('zoo_animals')}
     assert 'idx_zooanimal_animal_id' in idx
     assert 'idx_zooanimal_zoo_id' in idx
 
 
-def test_zoo_indexes_present():
+async def test_zoo_indexes_present(client):
     insp = inspect(engine)
     idx = {i['name'] for i in insp.get_indexes('zoos')}
     expected = {
@@ -21,7 +21,7 @@ def test_zoo_indexes_present():
     assert expected.issubset(idx)
 
 
-def test_animal_taxonomy_indexes_present():
+async def test_animal_taxonomy_indexes_present(client):
     insp = inspect(engine)
     idx = {i['name'] for i in insp.get_indexes('animals')}
     expected = {

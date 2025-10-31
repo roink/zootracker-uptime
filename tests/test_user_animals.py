@@ -1,8 +1,8 @@
 from datetime import datetime, UTC
-from .conftest import client, register_and_login
+from .conftest import register_and_login
 
-def test_get_seen_animals_success(data):
-    token, user_id = register_and_login()
+async def test_get_seen_animals_success(client, data):
+    token, user_id = await register_and_login()
     zoo_id = data["zoo"].id
     animal_id = data["animal"].id
     sighting = {
@@ -10,14 +10,14 @@ def test_get_seen_animals_success(data):
         "animal_id": str(animal_id),
         "sighting_datetime": datetime.now(UTC).isoformat(),
     }
-    resp = client.post(
+    resp = await client.post(
         "/sightings",
         json=sighting,
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 200
 
-    resp = client.get(
+    resp = await client.get(
         f"/users/{user_id}/animals",
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -26,15 +26,15 @@ def test_get_seen_animals_success(data):
     assert len(animals) == 1
     assert animals[0]["id"] == str(animal_id)
 
-def test_get_seen_animals_requires_auth(data):
-    token, user_id = register_and_login()
-    resp = client.get(f"/users/{user_id}/animals")
+async def test_get_seen_animals_requires_auth(client, data):
+    token, user_id = await register_and_login()
+    resp = await client.get(f"/users/{user_id}/animals")
     assert resp.status_code == 401
 
-def test_get_seen_animals_wrong_user(data):
-    token1, user1 = register_and_login()
-    token2, _ = register_and_login()
-    resp = client.get(
+async def test_get_seen_animals_wrong_user(client, data):
+    token1, user1 = await register_and_login()
+    token2, _ = await register_and_login()
+    resp = await client.get(
         f"/users/{user1}/animals",
         headers={"Authorization": f"Bearer {token2}"},
     )
@@ -43,9 +43,9 @@ def test_get_seen_animals_wrong_user(data):
         "detail": "Cannot access this resource for another user"
     }
 
-def test_get_seen_animals_empty(data):
-    token, user_id = register_and_login()
-    resp = client.get(
+async def test_get_seen_animals_empty(client, data):
+    token, user_id = await register_and_login()
+    resp = await client.get(
         f"/users/{user_id}/animals",
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -53,8 +53,8 @@ def test_get_seen_animals_empty(data):
     assert resp.json() == []
 
 
-def test_get_seen_animal_ids_success(data):
-    token, user_id = register_and_login()
+async def test_get_seen_animal_ids_success(client, data):
+    token, user_id = await register_and_login()
     zoo_id = data["zoo"].id
     animal_id = data["animal"].id
     payload = {
@@ -62,12 +62,12 @@ def test_get_seen_animal_ids_success(data):
         "animal_id": str(animal_id),
         "sighting_datetime": datetime.now(UTC).isoformat(),
     }
-    client.post(
+    await client.post(
         "/sightings",
         json=payload,
         headers={"Authorization": f"Bearer {token}"},
     )
-    resp = client.get(
+    resp = await client.get(
         f"/users/{user_id}/animals/ids",
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -75,16 +75,16 @@ def test_get_seen_animal_ids_success(data):
     assert resp.json() == [str(animal_id)]
 
 
-def test_get_seen_animal_ids_requires_auth(data):
-    token, user_id = register_and_login()
-    resp = client.get(f"/users/{user_id}/animals/ids")
+async def test_get_seen_animal_ids_requires_auth(client, data):
+    token, user_id = await register_and_login()
+    resp = await client.get(f"/users/{user_id}/animals/ids")
     assert resp.status_code == 401
 
 
-def test_get_seen_animal_ids_wrong_user(data):
-    token1, user1 = register_and_login()
-    token2, _ = register_and_login()
-    resp = client.get(
+async def test_get_seen_animal_ids_wrong_user(client, data):
+    token1, user1 = await register_and_login()
+    token2, _ = await register_and_login()
+    resp = await client.get(
         f"/users/{user1}/animals/ids",
         headers={"Authorization": f"Bearer {token2}"},
     )
@@ -94,9 +94,9 @@ def test_get_seen_animal_ids_wrong_user(data):
     }
 
 
-def test_get_seen_animal_ids_empty(data):
-    token, user_id = register_and_login()
-    resp = client.get(
+async def test_get_seen_animal_ids_empty(client, data):
+    token, user_id = await register_and_login()
+    resp = await client.get(
         f"/users/{user_id}/animals/ids",
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -104,8 +104,8 @@ def test_get_seen_animal_ids_empty(data):
     assert resp.json() == []
 
 
-def test_get_seen_animal_ids_deduplicates_same_animal(data):
-    token, user_id = register_and_login()
+async def test_get_seen_animal_ids_deduplicates_same_animal(client, data):
+    token, user_id = await register_and_login()
     zoo_id = data["zoo"].id
     animal_id = data["animal"].id
     payload = {
@@ -114,17 +114,17 @@ def test_get_seen_animal_ids_deduplicates_same_animal(data):
         "sighting_datetime": datetime.now(UTC).isoformat(),
     }
     # create duplicate sightings of same animal
-    client.post(
+    await client.post(
         "/sightings",
         json=payload,
         headers={"Authorization": f"Bearer {token}"},
     )
-    client.post(
+    await client.post(
         "/sightings",
         json=payload,
         headers={"Authorization": f"Bearer {token}"},
     )
-    resp = client.get(
+    resp = await client.get(
         f"/users/{user_id}/animals/ids",
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -132,8 +132,8 @@ def test_get_seen_animal_ids_deduplicates_same_animal(data):
     assert resp.json() == [str(animal_id)]
 
 
-def test_get_seen_animal_count_success(data):
-    token, user_id = register_and_login()
+async def test_get_seen_animal_count_success(client, data):
+    token, user_id = await register_and_login()
     zoo_id = data["zoo"].id
     animal_id = data["animal"].id
     sighting = {
@@ -141,14 +141,14 @@ def test_get_seen_animal_count_success(data):
         "animal_id": str(animal_id),
         "sighting_datetime": datetime.now(UTC).isoformat(),
     }
-    resp = client.post(
+    resp = await client.post(
         "/sightings",
         json=sighting,
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 200
 
-    resp = client.get(
+    resp = await client.get(
         f"/users/{user_id}/animals/count",
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -156,16 +156,16 @@ def test_get_seen_animal_count_success(data):
     assert resp.json() == {"count": 1}
 
 
-def test_get_seen_animal_count_requires_auth(data):
-    token, user_id = register_and_login()
-    resp = client.get(f"/users/{user_id}/animals/count")
+async def test_get_seen_animal_count_requires_auth(client, data):
+    token, user_id = await register_and_login()
+    resp = await client.get(f"/users/{user_id}/animals/count")
     assert resp.status_code == 401
 
 
-def test_get_seen_animal_count_wrong_user(data):
-    token1, user1 = register_and_login()
-    token2, _ = register_and_login()
-    resp = client.get(
+async def test_get_seen_animal_count_wrong_user(client, data):
+    token1, user1 = await register_and_login()
+    token2, _ = await register_and_login()
+    resp = await client.get(
         f"/users/{user1}/animals/count",
         headers={"Authorization": f"Bearer {token2}"},
     )
@@ -175,9 +175,9 @@ def test_get_seen_animal_count_wrong_user(data):
     }
 
 
-def test_get_seen_animal_count_empty(data):
-    token, user_id = register_and_login()
-    resp = client.get(
+async def test_get_seen_animal_count_empty(client, data):
+    token, user_id = await register_and_login()
+    resp = await client.get(
         f"/users/{user_id}/animals/count",
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -185,8 +185,8 @@ def test_get_seen_animal_count_empty(data):
     assert resp.json() == {"count": 0}
 
 
-def test_seen_animal_count_deduplicates_same_animal(data):
-    token, user_id = register_and_login()
+async def test_seen_animal_count_deduplicates_same_animal(client, data):
+    token, user_id = await register_and_login()
     zoo_id = data["zoo"].id
     animal_id = data["animal"].id
     payload = {
@@ -194,17 +194,17 @@ def test_seen_animal_count_deduplicates_same_animal(data):
         "animal_id": str(animal_id),
         "sighting_datetime": datetime.now(UTC).isoformat(),
     }
-    client.post(
+    await client.post(
         "/sightings",
         json=payload,
         headers={"Authorization": f"Bearer {token}"},
     )
-    client.post(
+    await client.post(
         "/sightings",
         json=payload,
         headers={"Authorization": f"Bearer {token}"},
     )
-    resp = client.get(
+    resp = await client.get(
         f"/users/{user_id}/animals/count",
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -212,8 +212,8 @@ def test_seen_animal_count_deduplicates_same_animal(data):
     assert resp.json() == {"count": 1}
 
 
-def test_seen_animal_count_two_animals(data):
-    token, user_id = register_and_login()
+async def test_seen_animal_count_two_animals(client, data):
+    token, user_id = await register_and_login()
     zoo_id = data["zoo"].id
     lion_id = data["animal"].id
     tiger_id = data["tiger"].id
@@ -223,12 +223,12 @@ def test_seen_animal_count_two_animals(data):
             "animal_id": str(animal_id),
             "sighting_datetime": datetime.now(UTC).isoformat(),
         }
-        client.post(
+        await client.post(
             "/sightings",
             json=payload,
             headers={"Authorization": f"Bearer {token}"},
         )
-    resp = client.get(
+    resp = await client.get(
         f"/users/{user_id}/animals/count",
         headers={"Authorization": f"Bearer {token}"},
     )

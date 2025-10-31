@@ -6,7 +6,7 @@ import pytest
 from app import models
 from app.database import SessionLocal
 
-from .conftest import client, register_and_login
+from .conftest import register_and_login
 
 
 # Helper to get a specific zoo entry without depending on overall order
@@ -14,8 +14,8 @@ def _get_zoo(zoos: list[dict], slug: str) -> dict:
     return next(z for z in zoos if z["slug"] == slug)
 
 
-def test_get_animal_detail_success(data):
-    resp = client.get(f"/animals/{data['animal'].slug}")
+async def test_get_animal_detail_success(client, data):
+    resp = await client.get(f"/animals/{data['animal'].slug}")
     assert resp.status_code == 200
     body = resp.json()
     assert body["id"] == str(data["animal"].id)
@@ -34,22 +34,22 @@ def test_get_animal_detail_success(data):
     }
 
 
-def test_get_animal_detail_includes_name_de(data):
-    resp = client.get(f"/animals/{data['animal'].slug}")
+async def test_get_animal_detail_includes_name_de(client, data):
+    resp = await client.get(f"/animals/{data['animal'].slug}")
     assert resp.status_code == 200
     body = resp.json()
     assert "name_de" in body
 
 
-def test_get_animal_detail_includes_description_en(data):
-    resp = client.get(f"/animals/{data['animal'].slug}")
+async def test_get_animal_detail_includes_description_en(client, data):
+    resp = await client.get(f"/animals/{data['animal'].slug}")
     assert resp.status_code == 200
     body = resp.json()
     assert body["description_en"] == "King of the jungle"
 
 
-def test_get_animal_detail_zoos_include_coordinates(data):
-    resp = client.get(f"/animals/{data['animal'].slug}")
+async def test_get_animal_detail_zoos_include_coordinates(client, data):
+    resp = await client.get(f"/animals/{data['animal'].slug}")
     assert resp.status_code == 200
     zoos = resp.json()["zoos"]
     assert zoos, "expected at least one zoo in the animal detail response"
@@ -60,8 +60,8 @@ def test_get_animal_detail_zoos_include_coordinates(data):
         assert zoo["longitude"] is not None
 
 
-def test_get_animal_detail_includes_taxon_names(data):
-    resp = client.get(f"/animals/{data['animal'].slug}")
+async def test_get_animal_detail_includes_taxon_names(client, data):
+    resp = await client.get(f"/animals/{data['animal'].slug}")
     assert resp.status_code == 200
     body = resp.json()
     assert body["class_name_en"] == "Mammals"
@@ -69,8 +69,8 @@ def test_get_animal_detail_includes_taxon_names(data):
     assert body["family_name_en"] == "Cats"
 
 
-def test_get_animal_detail_includes_images(data):
-    resp = client.get(f"/animals/{data['animal'].slug}")
+async def test_get_animal_detail_includes_images(client, data):
+    resp = await client.get(f"/animals/{data['animal'].slug}")
     assert resp.status_code == 200
     body = resp.json()
     assert len(body["images"]) == 2
@@ -81,8 +81,8 @@ def test_get_animal_detail_includes_images(data):
     assert "commons_title" not in body["images"][0]
 
 
-def test_get_animal_detail_variants_sorted(data):
-    resp = client.get(f"/animals/{data['animal'].slug}")
+async def test_get_animal_detail_variants_sorted(client, data):
+    resp = await client.get(f"/animals/{data['animal'].slug}")
     assert resp.status_code == 200
     variants = resp.json()["images"][0]["variants"]
     widths = [v["width"] for v in variants]
@@ -91,9 +91,9 @@ def test_get_animal_detail_variants_sorted(data):
     assert 320 in widths and 640 in widths
 
 
-def test_get_animal_detail_includes_parent_metadata(data):
+async def test_get_animal_detail_includes_parent_metadata(client, data):
     subspecies = data["lion_subspecies"]
-    resp = client.get(f"/animals/{subspecies.slug}")
+    resp = await client.get(f"/animals/{subspecies.slug}")
     assert resp.status_code == 200
     body = resp.json()
     assert body["parent"] is not None
@@ -102,8 +102,8 @@ def test_get_animal_detail_includes_parent_metadata(data):
     assert body["subspecies"] == []
 
 
-def test_parent_species_lists_subspecies(data):
-    resp = client.get(f"/animals/{data['animal'].slug}")
+async def test_parent_species_lists_subspecies(client, data):
+    resp = await client.get(f"/animals/{data['animal'].slug}")
     assert resp.status_code == 200
     subspecies = resp.json()["subspecies"]
     assert any(child["slug"] == data["lion_subspecies"].slug for child in subspecies)
@@ -113,7 +113,7 @@ def test_parent_species_lists_subspecies(data):
     assert child_entry["scientific_name"] == data["lion_subspecies"].scientific_name
 
 
-def test_parent_species_includes_subspecies_zoos_deduped(data):
+async def test_parent_species_includes_subspecies_zoos_deduped(client, data):
     """
     If a zoo keeps both the parent species and a subspecies, it should appear only once
     in the parent's aggregated zoos list.
@@ -143,7 +143,7 @@ def test_parent_species_includes_subspecies_zoos_deduped(data):
         )
         session.commit()
 
-        resp = client.get(f"/animals/{data['animal'].slug}")
+        resp = await client.get(f"/animals/{data['animal'].slug}")
         assert resp.status_code == 200
         slugs = [z["slug"] for z in resp.json()["zoos"]]
         assert slugs.count("combo-zoo") == 1
@@ -157,8 +157,8 @@ def test_parent_species_includes_subspecies_zoos_deduped(data):
         session.close()
 
 
-def test_subspecies_only_lists_own_zoos(data):
-    resp = client.get(f"/animals/{data['lion_subspecies'].slug}")
+async def test_subspecies_only_lists_own_zoos(client, data):
+    resp = await client.get(f"/animals/{data['lion_subspecies'].slug}")
     assert resp.status_code == 200
     zoos = resp.json()["zoos"]
     assert {z["id"] for z in zoos} == {
@@ -167,7 +167,7 @@ def test_subspecies_only_lists_own_zoos(data):
     }
 
 
-def test_subspecies_ignores_parent_only_zoos(data):
+async def test_subspecies_ignores_parent_only_zoos(client, data):
     """
     A zoo that keeps only the parent species should NOT appear on a subspecies page.
     """
@@ -193,12 +193,12 @@ def test_subspecies_ignores_parent_only_zoos(data):
         )
         session.commit()
 
-        parent_resp = client.get(f"/animals/{data['animal'].slug}")
+        parent_resp = await client.get(f"/animals/{data['animal'].slug}")
         assert parent_resp.status_code == 200
         parent_slugs = {z["slug"] for z in parent_resp.json()["zoos"]}
         assert parent_only_zoo.slug in parent_slugs
 
-        subspecies_resp = client.get(f"/animals/{data['lion_subspecies'].slug}")
+        subspecies_resp = await client.get(f"/animals/{data['lion_subspecies'].slug}")
         assert subspecies_resp.status_code == 200
         subspecies_slugs = {z["slug"] for z in subspecies_resp.json()["zoos"]}
         assert parent_only_zoo.slug not in subspecies_slugs
@@ -213,7 +213,7 @@ def test_subspecies_ignores_parent_only_zoos(data):
         session.close()
 
 
-def test_parent_species_without_direct_zoos_uses_subspecies(data):
+async def test_parent_species_without_direct_zoos_uses_subspecies(client, data):
     """
     If a parent species has no direct zoo links, the parent's page should still
     surface zoos via its subspecies.
@@ -242,7 +242,7 @@ def test_parent_species_without_direct_zoos_uses_subspecies(data):
         session.add(models.ZooAnimal(zoo_id=data["far_zoo"].id, animal_id=child.id))
         session.commit()
 
-        resp = client.get(f"/animals/{parent.slug}")
+        resp = await client.get(f"/animals/{parent.slug}")
         assert resp.status_code == 200
         slugs = {z["slug"] for z in resp.json()["zoos"]}
         assert data["far_zoo"].slug in slugs
@@ -255,17 +255,17 @@ def test_parent_species_without_direct_zoos_uses_subspecies(data):
         ).delete(synchronize_session=False)
         session.commit()
         session.close()
-def test_list_animals_includes_name_de(data):
-    resp = client.get("/animals", params={"limit": 1})
+async def test_list_animals_includes_name_de(client, data):
+    resp = await client.get("/animals", params={"limit": 1})
     assert resp.status_code == 200
     body = resp.json()
     assert "name_de" in body[0]
     assert "slug" in body[0]
 
 
-def test_get_animal_detail_with_distance(data):
+async def test_get_animal_detail_with_distance(client, data):
     params = {"latitude": data["zoo"].latitude, "longitude": data["zoo"].longitude}
-    resp = client.get(f"/animals/{data['animal'].slug}", params=params)
+    resp = await client.get(f"/animals/{data['animal'].slug}", params=params)
     assert resp.status_code == 200
     body = resp.json()
     assert len(body["zoos"]) >= 2, "expect aggregated zoos for parent species"
@@ -279,7 +279,7 @@ def test_get_animal_detail_with_distance(data):
     assert str(data["far_zoo"].id) in ids
 
 
-def test_parent_species_distance_sorting_with_subspecies(data):
+async def test_parent_species_distance_sorting_with_subspecies(client, data):
     """
     When distance sorting is active, verify nearest zoo is first and the farther
     child-only zoo has distance > 0 in the aggregated view.
@@ -303,7 +303,7 @@ def test_parent_species_distance_sorting_with_subspecies(data):
             "latitude": data["zoo"].latitude,
             "longitude": data["zoo"].longitude,
         }
-        resp = client.get(f"/animals/{data['animal'].slug}", params=params)
+        resp = await client.get(f"/animals/{data['animal'].slug}", params=params)
         assert resp.status_code == 200
         zoos = resp.json()["zoos"]
         assert _get_zoo(zoos, data["zoo"].slug)["distance_km"] == 0
@@ -312,93 +312,93 @@ def test_parent_species_distance_sorting_with_subspecies(data):
         session.close()
 
 
-def test_get_animal_detail_invalid_params(data):
-    bad = client.get(
+async def test_get_animal_detail_invalid_params(client, data):
+    bad = await client.get(
         f"/animals/{data['animal'].slug}", params={"latitude": 200, "longitude": 0}
     )
     assert bad.status_code == 400
 
 
-def test_get_animal_detail_lon_invalid(data):
-    resp = client.get(
+async def test_get_animal_detail_lon_invalid(client, data):
+    resp = await client.get(
         f"/animals/{data['animal'].slug}", params={"latitude": 0, "longitude": 200}
     )
     assert resp.status_code == 400
 
 
-def test_get_animal_detail_coords_must_be_pair(data):
-    resp = client.get(f"/animals/{data['animal'].slug}", params={"latitude": 0})
+async def test_get_animal_detail_coords_must_be_pair(client, data):
+    resp = await client.get(f"/animals/{data['animal'].slug}", params={"latitude": 0})
     assert resp.status_code == 400
-    resp = client.get(f"/animals/{data['animal'].slug}", params={"longitude": 0})
+    resp = await client.get(f"/animals/{data['animal'].slug}", params={"longitude": 0})
     assert resp.status_code == 400
 
 
-def test_get_animal_detail_not_found():
-    resp = client.get("/animals/not-found")
+async def test_get_animal_detail_not_found(client):
+    resp = await client.get("/animals/not-found")
     assert resp.status_code == 404
 
 
-def test_cf_headers_used(data):
+async def test_cf_headers_used(client, data):
     headers = {
         "cf-iplatitude": str(data["zoo"].latitude),
         "cf-iplongitude": str(data["zoo"].longitude),
     }
-    resp = client.get(f"/animals/{data['animal'].slug}", headers=headers)
+    resp = await client.get(f"/animals/{data['animal'].slug}", headers=headers)
     assert resp.status_code == 200
     body = resp.json()
     assert body["zoos"][0]["slug"] == data["zoo"].slug
     assert body["zoos"][0]["distance_km"] == 0
 
 
-def test_invalid_cf_headers_ignored(data):
+async def test_invalid_cf_headers_ignored(client, data):
     headers = {"cf-iplatitude": "not-a-number", "cf-iplongitude": "20"}
-    resp = client.get(f"/animals/{data['animal'].slug}", headers=headers)
+    resp = await client.get(f"/animals/{data['animal'].slug}", headers=headers)
     assert resp.status_code == 200
     body = resp.json()
     assert body["zoos"][0]["slug"] == data["zoo"].slug
     assert body["zoos"][0]["distance_km"] is None
 
 
-def test_explicit_coords_override_cf_headers(data):
+async def test_explicit_coords_override_cf_headers(client, data):
     headers = {"cf-iplatitude": "0", "cf-iplongitude": "0"}
     params = {
         "latitude": data["zoo"].latitude,
         "longitude": data["zoo"].longitude,
     }
-    resp = client.get(f"/animals/{data['animal'].slug}", headers=headers, params=params)
+    resp = await client.get(f"/animals/{data['animal'].slug}", headers=headers, params=params)
     assert resp.status_code == 200
     assert resp.json()["zoos"][0]["distance_km"] == 0
 
 
-def test_only_one_cf_header_is_ignored(data):
+async def test_only_one_cf_header_is_ignored(client, data):
     headers = {"cf-iplatitude": str(data["zoo"].latitude)}
-    resp = client.get(f"/animals/{data['animal'].slug}", headers=headers)
+    resp = await client.get(f"/animals/{data['animal'].slug}", headers=headers)
     assert resp.status_code == 200
     assert resp.json()["zoos"][0]["distance_km"] is None
 
 
-def test_out_of_range_cf_headers_ignored(data):
+async def test_out_of_range_cf_headers_ignored(client, data):
     headers = {"cf-iplatitude": "91", "cf-iplongitude": "0"}
-    resp = client.get(f"/animals/{data['animal'].slug}", headers=headers)
+    resp = await client.get(f"/animals/{data['animal'].slug}", headers=headers)
     assert resp.status_code == 200
     assert resp.json()["zoos"][0]["distance_km"] is None
 
 
-def test_animal_sightings_require_auth(data):
-    resp = client.get(f"/animals/{data['animal'].slug}/sightings")
+async def test_animal_sightings_require_auth(client, data):
+    resp = await client.get(f"/animals/{data['animal'].slug}/sightings")
     assert resp.status_code == 401
 
 
-def test_animal_sightings_return_user_history(data):
-    token, _user_id = register_and_login()
-    other_token, _other_user = register_and_login()
+async def test_animal_sightings_return_user_history(client, data):
+    token, _user_id = await register_and_login()
+    other_token, _other_user = await register_and_login()
     headers = {"Authorization": f"Bearer {token}"}
 
     first_time = datetime(2024, 4, 12, 9, 45, tzinfo=UTC)
     second_time = datetime(2024, 6, 3, 18, 20, tzinfo=UTC)
     other_time = datetime(2024, 5, 1, 10, 0, tzinfo=UTC)
 
-    client.post(
+    await client.post(
         "/sightings",
         json={
             "zoo_id": str(data["zoo"].id),
@@ -408,7 +408,7 @@ def test_animal_sightings_return_user_history(data):
         },
         headers=headers,
     )
-    client.post(
+    await client.post(
         "/sightings",
         json={
             "zoo_id": str(data["far_zoo"].id),
@@ -418,7 +418,7 @@ def test_animal_sightings_return_user_history(data):
         },
         headers=headers,
     )
-    client.post(
+    await client.post(
         "/sightings",
         json={
             "zoo_id": str(data["zoo"].id),
@@ -428,7 +428,7 @@ def test_animal_sightings_return_user_history(data):
         },
         headers={"Authorization": f"Bearer {other_token}"},
     )
-    client.post(
+    await client.post(
         "/sightings",
         json={
             "zoo_id": str(data["zoo"].id),
@@ -439,7 +439,7 @@ def test_animal_sightings_return_user_history(data):
         headers=headers,
     )
 
-    resp = client.get(
+    resp = await client.get(
         f"/animals/{data['animal'].slug}/sightings",
         headers=headers,
     )
@@ -462,8 +462,8 @@ def test_animal_sightings_return_user_history(data):
     assert items[1]["sighting_datetime"].startswith("2024-04-12")
 
 
-def test_animal_sightings_pagination(data):
-    token, _user_id = register_and_login()
+async def test_animal_sightings_pagination(client, data):
+    token, _user_id = await register_and_login()
     headers = {"Authorization": f"Bearer {token}"}
 
     times = [
@@ -473,7 +473,7 @@ def test_animal_sightings_pagination(data):
     ]
 
     for index, moment in enumerate(times):
-        client.post(
+        await client.post(
             "/sightings",
             json={
                 "zoo_id": str(data["zoo"].id if index % 2 == 0 else data["far_zoo"].id),
@@ -484,7 +484,7 @@ def test_animal_sightings_pagination(data):
             headers=headers,
         )
 
-    resp = client.get(
+    resp = await client.get(
         f"/animals/{data['animal'].slug}/sightings",
         params={"limit": 2, "offset": 0},
         headers=headers,
@@ -497,7 +497,7 @@ def test_animal_sightings_pagination(data):
     assert first["sighting_datetime"].startswith("2024-07-10")
     assert second["sighting_datetime"].startswith("2024-07-09")
 
-    resp_next = client.get(
+    resp_next = await client.get(
         f"/animals/{data['animal'].slug}/sightings",
         params={"limit": 2, "offset": 2},
         headers=headers,
@@ -509,8 +509,8 @@ def test_animal_sightings_pagination(data):
     assert next_page["items"][0]["sighting_datetime"].startswith("2024-07-08")
 
 
-def test_list_animals_returns_details_and_pagination(data):
-    resp = client.get("/animals", params={"limit": 2, "offset": 0})
+async def test_list_animals_returns_details_and_pagination(client, data):
+    resp = await client.get("/animals", params={"limit": 2, "offset": 0})
     assert resp.status_code == 200
     body = resp.json()
     assert [a["slug"] for a in body] == [
@@ -530,7 +530,7 @@ def test_list_animals_returns_details_and_pagination(data):
     assert subspecies["slug"]
     assert subspecies["is_favorite"] is False
 
-    resp2 = client.get("/animals", params={"limit": 2, "offset": 2})
+    resp2 = await client.get("/animals", params={"limit": 2, "offset": 2})
     assert resp2.status_code == 200
     body2 = resp2.json()
     assert len(body2) == 2
@@ -549,7 +549,7 @@ def test_list_animals_returns_details_and_pagination(data):
     assert tiger["is_favorite"] is False
 
 
-def test_list_animals_tiebreaker_uses_id_when_names_match(data):
+async def test_list_animals_tiebreaker_uses_id_when_names_match(client, data):
     session = SessionLocal()
     try:
         base_category = data["animal"].category_id
@@ -574,7 +574,7 @@ def test_list_animals_tiebreaker_uses_id_when_names_match(data):
         session.add_all([first, second])
         session.commit()
 
-        resp = client.get("/animals", params={"limit": 5, "offset": 0})
+        resp = await client.get("/animals", params={"limit": 5, "offset": 0})
         assert resp.status_code == 200
         body = resp.json()
         slugs = [a["slug"] for a in body]
@@ -591,82 +591,82 @@ def test_list_animals_tiebreaker_uses_id_when_names_match(data):
         session.close()
 
 
-def test_list_animals_invalid_pagination():
-    assert client.get("/animals", params={"limit": 0}).status_code == 422
+async def test_list_animals_invalid_pagination(client):
+    assert await client.get("/animals", params={"limit": 0}).status_code == 422
 
 
-def test_list_animals_invalid_pagination_upper_bound():
-    assert client.get("/animals", params={"limit": 101}).status_code == 422
+async def test_list_animals_invalid_pagination_upper_bound(client):
+    assert await client.get("/animals", params={"limit": 101}).status_code == 422
 
 
-def test_list_animals_invalid_offset():
-    assert client.get("/animals", params={"offset": -1}).status_code == 422
+async def test_list_animals_invalid_offset(client):
+    assert await client.get("/animals", params={"offset": -1}).status_code == 422
 
 
-def test_list_animals_category_filter():
-    resp = client.get("/animals", params={"category": "Mammal"})
+async def test_list_animals_category_filter(client):
+    resp = await client.get("/animals", params={"category": "Mammal"})
     assert resp.status_code == 200
     names = [a["name_en"] for a in resp.json()]
     assert names == ["Asiatic Lion", "Lion", "Tiger"]
 
-    resp = client.get("/animals", params={"category": "Bird"})
+    resp = await client.get("/animals", params={"category": "Bird"})
     assert resp.status_code == 200
     body = resp.json()
     assert len(body) == 1
     assert body[0]["name_en"] == "Eagle"
 
 
-def test_list_animals_empty_page():
-    resp = client.get("/animals", params={"limit": 5, "offset": 10})
+async def test_list_animals_empty_page(client):
+    resp = await client.get("/animals", params={"limit": 5, "offset": 10})
     assert resp.status_code == 200
     assert resp.json() == []
 
 
-def test_taxonomy_endpoints_and_filters(data):
-    classes = client.get("/animals/classes").json()
+async def test_taxonomy_endpoints_and_filters(client, data):
+    classes = await client.get("/animals/classes").json()
     assert classes == [{"id": 1, "name_de": "S\u00e4ugetiere", "name_en": "Mammals"}]
 
-    orders = client.get("/animals/orders", params={"class_id": 1}).json()
+    orders = await client.get("/animals/orders", params={"class_id": 1}).json()
     assert orders == [{"id": 1, "name_de": "Raubtiere", "name_en": "Carnivorans"}]
 
-    families = client.get("/animals/families", params={"order_id": 1}).json()
+    families = await client.get("/animals/families", params={"order_id": 1}).json()
     assert families == [{"id": 1, "name_de": "Katzen", "name_en": "Cats"}]
 
-    resp = client.get("/animals", params={"class_id": 1})
+    resp = await client.get("/animals", params={"class_id": 1})
     names = [a["name_en"] for a in resp.json()]
     assert names == ["Lion"]
 
-    resp = client.get("/animals", params={"order_id": 1})
+    resp = await client.get("/animals", params={"order_id": 1})
     names = [a["name_en"] for a in resp.json()]
     assert names == ["Lion"]
 
-    resp = client.get("/animals", params={"family_id": 1})
+    resp = await client.get("/animals", params={"family_id": 1})
     names = [a["name_en"] for a in resp.json()]
     assert names == ["Lion"]
 
 
-def test_list_animals_invalid_order_for_class(data):
-    resp = client.get("/animals", params={"class_id": 1, "order_id": 999})
+async def test_list_animals_invalid_order_for_class(client, data):
+    resp = await client.get("/animals", params={"class_id": 1, "order_id": 999})
     assert resp.status_code == 400
 
 
-def test_list_animals_invalid_family_for_order(data):
-    resp = client.get("/animals", params={"order_id": 1, "family_id": 999})
+async def test_list_animals_invalid_family_for_order(client, data):
+    resp = await client.get("/animals", params={"order_id": 1, "family_id": 999})
     assert resp.status_code == 400
 
 
-def test_animal_favorites_flow(data):
-    token, _ = register_and_login()
+async def test_animal_favorites_flow(client, data):
+    token, _ = await register_and_login()
     headers = {"Authorization": f"Bearer {token}"}
 
-    resp = client.put(
+    resp = await client.put(
         f"/animals/{data['animal'].slug}/favorite",
         headers=headers,
     )
     assert resp.status_code == 200
     assert resp.json() == {"favorite": True}
 
-    fav_resp = client.get(
+    fav_resp = await client.get(
         "/animals", params={"favorites_only": "true"}, headers=headers
     )
     assert fav_resp.status_code == 200
@@ -675,34 +675,34 @@ def test_animal_favorites_flow(data):
     assert favorites[0]["id"] == str(data["animal"].id)
     assert favorites[0]["is_favorite"] is True
 
-    detail_resp = client.get(f"/animals/{data['animal'].slug}", headers=headers)
+    detail_resp = await client.get(f"/animals/{data['animal'].slug}", headers=headers)
     assert detail_resp.status_code == 200
     assert detail_resp.json()["is_favorite"] is True
 
-    resp = client.delete(
+    resp = await client.delete(
         f"/animals/{data['animal'].slug}/favorite",
         headers=headers,
     )
     assert resp.status_code == 200
     assert resp.json() == {"favorite": False}
 
-    cleared = client.get("/animals", params={"favorites_only": "true"}, headers=headers)
+    cleared = await client.get("/animals", params={"favorites_only": "true"}, headers=headers)
     assert cleared.status_code == 200
     assert cleared.json() == []
 
-    detail_after = client.get(f"/animals/{data['animal'].slug}", headers=headers)
+    detail_after = await client.get(f"/animals/{data['animal'].slug}", headers=headers)
     assert detail_after.status_code == 200
     assert detail_after.json()["is_favorite"] is False
 
 
-def test_animal_detail_marks_favorite_zoos(data):
-    token, _ = register_and_login()
+async def test_animal_detail_marks_favorite_zoos(client, data):
+    token, _ = await register_and_login()
     headers = {"Authorization": f"Bearer {token}"}
 
-    fav_resp = client.put(f"/zoos/{data['zoo'].slug}/favorite", headers=headers)
+    fav_resp = await client.put(f"/zoos/{data['zoo'].slug}/favorite", headers=headers)
     assert fav_resp.status_code == 200
 
-    detail_resp = client.get(f"/animals/{data['animal'].slug}", headers=headers)
+    detail_resp = await client.get(f"/animals/{data['animal'].slug}", headers=headers)
     assert detail_resp.status_code == 200
     zoos = detail_resp.json()["zoos"]
     assert zoos, "expected at least one zoo for the animal detail response"
@@ -710,30 +710,30 @@ def test_animal_detail_marks_favorite_zoos(data):
     assert target["is_favorite"] is True
 
 
-def test_animal_favorites_filter_requires_auth():
-    resp = client.get("/animals", params={"favorites_only": "true"})
+async def test_animal_favorites_filter_requires_auth(client):
+    resp = await client.get("/animals", params={"favorites_only": "true"})
     assert resp.status_code == 401
 
 
-def test_animals_personalized_responses_disable_caching(data):
-    token, _ = register_and_login()
+async def test_animals_personalized_responses_disable_caching(client, data):
+    token, _ = await register_and_login()
     headers = {"Authorization": f"Bearer {token}"}
 
-    resp = client.get("/animals", headers=headers)
+    resp = await client.get("/animals", headers=headers)
     assert resp.status_code == 200
     assert resp.headers["cache-control"] == "private, no-store, max-age=0"
     assert "Authorization" in resp.headers["vary"]
 
-    detail = client.get(f"/animals/{data['animal'].slug}", headers=headers)
+    detail = await client.get(f"/animals/{data['animal'].slug}", headers=headers)
     assert detail.status_code == 200
     assert detail.headers["cache-control"] == "private, no-store, max-age=0"
     assert "Authorization" in detail.headers["vary"]
 
 
 @pytest.mark.postgres
-def test_get_animal_detail_with_distance_postgres(data):
+async def test_get_animal_detail_with_distance_postgres(client, data):
     params = {"latitude": data["zoo"].latitude, "longitude": data["zoo"].longitude}
-    resp = client.get(f"/animals/{data['animal'].slug}", params=params)
+    resp = await client.get(f"/animals/{data['animal'].slug}", params=params)
     assert resp.status_code == 200
     body = resp.json()
     assert body["zoos"][0]["distance_km"] == 0

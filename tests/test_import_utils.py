@@ -10,7 +10,7 @@ from app.import_utils import _ensure_animal_columns
 
 
 @pytest.mark.postgres
-def test_ensure_animal_columns_widens_default_image_url():
+async def test_ensure_animal_columns_widens_default_image_url(client):
     tmp_engine = make_sync_engine(os.environ["DATABASE_URL"])
     if tmp_engine.dialect.name != "postgresql":
         pytest.skip("PostgreSQL database required for this test")

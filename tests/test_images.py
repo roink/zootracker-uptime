@@ -1,8 +1,8 @@
-from .conftest import client
 
 
-def test_get_image_metadata(data):
-    resp = client.get("/images", params={"mid": "M1"})
+
+async def test_get_image_metadata(client, data):
+    resp = await client.get("/images", params={"mid": "M1"})
     assert resp.status_code == 200
     assert resp.headers["cache-control"].startswith("public, max-age=")
     body = resp.json()
