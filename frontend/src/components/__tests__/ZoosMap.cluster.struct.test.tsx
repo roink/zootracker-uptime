@@ -1,9 +1,10 @@
+// @ts-nocheck
 import { render, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('maplibre-gl', () => import('../../test-utils/maplibreMock.js'));
+vi.mock('maplibre-gl', () => import('../../test-utils/maplibreMock'));
 
-import ZoosMap from '../ZoosMap.jsx';
+import ZoosMap from '../ZoosMap';
 
 describe('ZoosMap clustering configuration', () => {
   it('configures a clustered GeoJSON source and supporting layers', async () => {
