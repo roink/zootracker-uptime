@@ -88,7 +88,7 @@ export default function Header() {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (query.trim()) {
-      navigate(`${prefix}/search?q=${encodeURIComponent(query.trim())}`);
+      void navigate(`${prefix}/search?q=${encodeURIComponent(query.trim())}`);
     }
   };
 
@@ -97,18 +97,18 @@ export default function Header() {
     setFocused(false);
     setActiveIndex(-1);
     if (option.type === 'zoo') {
-      navigate(`${prefix}/zoos/${option.value}`);
+      void navigate(`${prefix}/zoos/${option.value}`);
     } else {
-      navigate(`${prefix}/animals/${option.value}`);
+      void navigate(`${prefix}/animals/${option.value}`);
     }
   }, [navigate, prefix]);
 
   // Clear auth info and return to the home page when logging out
   const handleLogout = () => {
-    logout({ reason: 'manual' })
+    void logout({ reason: 'manual' })
       .catch(() => {})
       .finally(() => {
-        navigate(prefix, { replace: true });
+        void navigate(prefix, { replace: true });
       });
   };
 
@@ -273,7 +273,7 @@ export default function Header() {
   );
 
   const prefetchLandingData = useCallback(() => {
-    queryClient.prefetchQuery({
+    void queryClient.prefetchQuery({
       queryKey: ['site', 'summary'],
       queryFn: async () => {
         const response = await fetch(`${API}/site/summary`);
@@ -284,7 +284,7 @@ export default function Header() {
       },
       staleTime: 5 * 60 * 1000,
     });
-    queryClient.prefetchQuery({
+    void queryClient.prefetchQuery({
       queryKey: ['site', 'popular-animals', 8],
       queryFn: async () => {
         const response = await fetch(`${API}/site/popular-animals?limit=8`);

@@ -46,7 +46,7 @@ export default function ZooDetailPage({ refresh, onLogged }: any) {
   useEffect(() => {
     const controller = new AbortController();
     setZoo(null);
-    (async () => {
+    void (async () => {
       try {
         const response = await authFetch(`${API}/zoos/${slug}`, {
           signal: controller.signal,

@@ -63,7 +63,7 @@ export default function SightingModal({
         setZoos([]);
       }
     };
-    loadZoos();
+    void loadZoos();
   }, [propZoos]);
 
   // Load animal list when none were provided
@@ -80,7 +80,7 @@ export default function SightingModal({
         setAnimals([]);
       }
     };
-    loadAnimals();
+    void loadAnimals();
   }, [propAnimals]);
 
   // Fetch existing sighting when editing
@@ -94,7 +94,7 @@ export default function SightingModal({
         setSighting(null);
       }
     };
-    loadSighting();
+    void loadSighting();
   }, [sightingId, authFetch]);
 
   // Notify parent and close the modal after saving or deleting

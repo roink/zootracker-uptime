@@ -1,12 +1,27 @@
-// @ts-nocheck
+import type { MutableRefObject } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import { useTranslation } from 'react-i18next';
+import type {
+  GeoJSONSource,
+  LngLat,
+  LngLatLike,
+  LngLatBoundsLike,
+  Map as MaplibreMap,
+  MapLayerMouseEvent,
+} from 'maplibre-gl';
+import type { Feature, FeatureCollection, Point } from 'geojson';
 
 import { applyBaseMapLanguage } from '../utils/mapLanguage';
 import { getZooDisplayName } from '../utils/zooDisplayName';
 import { normalizeCoordinates } from '../utils/coordinates';
 import { MAP_STYLE_URL } from './MapView';
+import type {
+  CameraState,
+  CameraViewChange,
+  LocationEstimate,
+  MapZooFeature,
+} from '../types/zoos';
 
 // Interactive map showing multiple zoos with clickable markers or clusters.
 // NOTE: React plans to remove support for defaultProps on function components.
@@ -18,6 +33,32 @@ const CLUSTERS_LAYER_ID = 'zoos-clusters';
 const CLUSTER_COUNT_LAYER_ID = 'zoos-cluster-count';
 const UNCLUSTERED_LAYER_ID = 'zoos-unclustered';
 const SET_DATA_TIMEOUT_MS = 32;
+
+type MaplibreModule = typeof import('maplibre-gl');
+
+interface ZoosMapProps {
+  zoos?: MapZooFeature[];
+  center?: LocationEstimate | null;
+  onSelect?: (zoo: MapZooFeature, view: CameraViewChange | null) => void;
+  resizeToken?: number;
+  initialView?: CameraState | null;
+  suppressAutoFit?: boolean;
+  onViewChange?: (view: CameraViewChange | null) => void;
+  ariaLabel?: string;
+  onMapReady?: (map: MaplibreMap) => void;
+  disableClusterCount?: boolean;
+}
+
+interface ScheduledFrame {
+  type: 'raf' | 'timeout';
+  id: number;
+  cancel: () => void;
+}
+
+interface ZooFeatureProperties {
+  zoo_id: string;
+  name: string;
+}
 
 /**
  * @typedef {Object} CameraState
@@ -31,44 +72,44 @@ const SET_DATA_TIMEOUT_MS = 32;
 export default function ZoosMap({
   zoos = [],
   center = null,
-  onSelect = () => {},
+  onSelect,
   resizeToken = 0,
   initialView = null,
   suppressAutoFit = false,
-  onViewChange = () => {},
+  onViewChange,
   ariaLabel,
-  onMapReady = null,
+  onMapReady,
   disableClusterCount = false,
-}: any = {}) {
-  const containerRef = useRef<any>(null);
-  const mapRef = useRef<any>(null);
-  const maplibreRef = useRef<any>(null);
-  const resizeObserverRef = useRef<any>(null);
-  const setDataFrameRef = useRef<any>(null);
-  const onSelectRef = useRef(onSelect);
-  const onViewChangeRef = useRef(onViewChange);
-  const onMapReadyRef = useRef(onMapReady);
-  const zooLookupRef = useRef<any>(new Map());
-  const previousFeatureIdsRef = useRef<any[]>([]);
-  const hasFitToZoosRef = useRef(false);
-  const skipNextCenterRef = useRef(false);
+}: ZoosMapProps): JSX.Element {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<MaplibreMap | null>(null);
+  const maplibreRef: MutableRefObject<MaplibreModule | null> = useRef(null);
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
+  const setDataFrameRef = useRef<ScheduledFrame | null>(null);
+  const onSelectRef = useRef<ZoosMapProps['onSelect']>(onSelect);
+  const onViewChangeRef = useRef<ZoosMapProps['onViewChange']>(onViewChange);
+  const onMapReadyRef = useRef<ZoosMapProps['onMapReady']>(onMapReady);
+  const zooLookupRef = useRef<Map<string, MapZooFeature>>(new Map());
+  const previousFeatureIdsRef = useRef<string[]>([]);
+  const hasFitToZoosRef = useRef<boolean>(false);
+  const skipNextCenterRef = useRef<boolean>(false);
   const { t, i18n } = useTranslation();
-  const [mapReady, setMapReady] = useState(false);
+  const [mapReady, setMapReady] = useState<boolean>(false);
 
-  const centerLat = center?.lat;
-  const centerLon = center?.lon;
+  const centerLat = center?.lat ?? null;
+  const centerLon = center?.lon ?? null;
 
-  const normalizedZoos = useMemo(
+  const normalizedZoos = useMemo<MapZooFeature[]>(
     () =>
-      (zoos || [])
+      (zoos ?? [])
         .map((zoo) => {
           const coords = normalizeCoordinates(zoo);
           if (!coords) {
             return null;
           }
-          return { ...zoo, ...coords };
+          return { ...zoo, latitude: coords.latitude, longitude: coords.longitude };
         })
-        .filter(Boolean),
+        .filter((value): value is MapZooFeature => value !== null),
     [zoos]
   );
 
@@ -85,37 +126,39 @@ export default function ZoosMap({
   }, [onMapReady]);
 
   useEffect(() => {
-    const lookup = new Map();
+    const lookup = new Map<string, MapZooFeature>();
     normalizedZoos.forEach((zoo) => {
       lookup.set(String(zoo.id), zoo);
     });
     zooLookupRef.current = lookup;
   }, [normalizedZoos]);
 
-  const fallbackZoo = useMemo(
-    () => (normalizedZoos.length > 0 ? normalizedZoos[0] : null),
+  const fallbackZoo = useMemo<MapZooFeature | null>(
+    () => (normalizedZoos.length > 0 ? normalizedZoos[0]! : null),
     [normalizedZoos]
   );
 
-  const persistentInitialView = useMemo(() => {
+  const persistentInitialView = useMemo<CameraState | null>(() => {
     if (!initialView?.center) return null;
     const [lon, lat] = initialView.center;
-    if (!Number.isFinite(lon) || !Number.isFinite(lat)) {
+    const lonNumber = typeof lon === 'number' ? lon : Number(lon);
+    const latNumber = typeof lat === 'number' ? lat : Number(lat);
+    if (!Number.isFinite(lonNumber) || !Number.isFinite(latNumber)) {
       return null;
     }
     return {
-      center: [lon, lat],
-      zoom: Number.isFinite(initialView.zoom) ? initialView.zoom : FOCUS_ZOOM,
-      bearing: Number.isFinite(initialView.bearing) ? initialView.bearing : 0,
-      pitch: Number.isFinite(initialView.pitch) ? initialView.pitch : 0,
+      center: [lonNumber, latNumber],
+      zoom: Number.isFinite(initialView.zoom) ? (initialView.zoom as number) : FOCUS_ZOOM,
+      bearing: Number.isFinite(initialView.bearing) ? (initialView.bearing as number) : 0,
+      pitch: Number.isFinite(initialView.pitch) ? (initialView.pitch as number) : 0,
     };
   }, [initialView]);
 
-  const initialState = useMemo(() => {
+  const initialState = useMemo<CameraState | null>(() => {
     if (persistentInitialView) {
       return persistentInitialView;
     }
-    if (Number.isFinite(centerLat) && Number.isFinite(centerLon)) {
+    if (centerLat !== null && centerLon !== null) {
       return {
         center: [centerLon, centerLat],
         zoom: FOCUS_ZOOM,
@@ -123,11 +166,7 @@ export default function ZoosMap({
         pitch: 0,
       };
     }
-    if (
-      fallbackZoo &&
-      Number.isFinite(fallbackZoo.latitude) &&
-      Number.isFinite(fallbackZoo.longitude)
-    ) {
+    if (fallbackZoo) {
       return {
         center: [fallbackZoo.longitude, fallbackZoo.latitude],
         zoom: DEFAULT_ZOOM,
@@ -144,30 +183,38 @@ export default function ZoosMap({
     }
   }, [persistentInitialView]);
 
-  const captureView = useCallback(() => {
-    if (!mapRef.current) return null;
-    const center = mapRef.current.getCenter?.();
+  const captureView = useCallback((): CameraState | null => {
+    const map = mapRef.current;
+    if (!map) return null;
+    const center = map.getCenter?.() as LngLat | undefined;
     if (!center) return null;
-    const zoomValue = mapRef.current.getZoom?.();
-    const bearingValue = mapRef.current.getBearing?.();
-    const pitchValue = mapRef.current.getPitch?.();
+    const zoomValue = map.getZoom?.();
+    const bearingValue = map.getBearing?.();
+    const pitchValue = map.getPitch?.();
+    const lon = Number(center.lng.toFixed(6));
+    const lat = Number(center.lat.toFixed(6));
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) {
+      return null;
+    }
+    const zoom = Number.isFinite(zoomValue) ? Number((zoomValue as number).toFixed(4)) : undefined;
+    const bearing = Number.isFinite(bearingValue)
+      ? Number((bearingValue as number).toFixed(2))
+      : undefined;
+    const pitch = Number.isFinite(pitchValue)
+      ? Number((pitchValue as number).toFixed(2))
+      : undefined;
     return {
-      center: [
-        Number.isFinite(center.lng) ? Number(center.lng.toFixed(6)) : center.lng,
-        Number.isFinite(center.lat) ? Number(center.lat.toFixed(6)) : center.lat,
-      ],
-      zoom: Number.isFinite(zoomValue) ? Number(zoomValue.toFixed(4)) : zoomValue,
-      bearing: Number.isFinite(bearingValue)
-        ? Number(bearingValue.toFixed(2))
-        : bearingValue,
-      pitch: Number.isFinite(pitchValue)
-        ? Number(pitchValue.toFixed(2))
-        : pitchValue,
+      center: [lon, lat],
+      ...(zoom !== undefined ? { zoom } : {}),
+      ...(bearing !== undefined ? { bearing } : {}),
+      ...(pitch !== undefined ? { pitch } : {}),
     };
   }, []);
 
+  type MapEventLike = { originalEvent?: unknown } | MapLayerMouseEvent | null | undefined;
+
   const emitViewChange = useCallback(
-    (event) => {
+    (event?: MapEventLike): CameraState | null => {
       const view = captureView();
       if (view && onViewChangeRef.current) {
         onViewChangeRef.current({
@@ -206,29 +253,29 @@ export default function ZoosMap({
 
     let cancelled = false;
 
-    (async () => {
-      const { default: maplibregl } = await import('maplibre-gl');
+    void (async () => {
+      const module = await import('maplibre-gl');
+      const maplibregl: MaplibreModule = (module.default ?? module) as MaplibreModule;
       if (cancelled) return;
 
       maplibreRef.current = maplibregl;
       mapRef.current = new maplibregl.Map({
-        container: containerRef.current,
+        container: containerRef.current!,
         style: MAP_STYLE_URL,
         center: initialState.center,
-        zoom: initialState.zoom,
-        bearing: initialState.bearing,
-        pitch: initialState.pitch,
-        attributionControl: true,
-      });
+        zoom: initialState.zoom ?? FOCUS_ZOOM,
+        bearing: initialState.bearing ?? 0,
+        pitch: initialState.pitch ?? 0,
+      }) as MaplibreMap;
 
-      const handleLoad = (event) => {
+      const handleLoad = (event: MapEventLike) => {
         if (cancelled) return;
         if (persistentInitialView && mapRef.current) {
           mapRef.current.jumpTo?.({
             center: persistentInitialView.center,
-            zoom: persistentInitialView.zoom,
-            bearing: persistentInitialView.bearing,
-            pitch: persistentInitialView.pitch,
+            zoom: persistentInitialView.zoom ?? FOCUS_ZOOM,
+            bearing: persistentInitialView.bearing ?? 0,
+            pitch: persistentInitialView.pitch ?? 0,
           });
         }
         setMapReady(true);
@@ -240,7 +287,7 @@ export default function ZoosMap({
       };
 
       if (mapRef.current?.once) {
-        mapRef.current.once('load', handleLoad);
+        void mapRef.current.once('load', handleLoad);
       } else {
         mapRef.current?.on('load', handleLoad);
       }
@@ -258,14 +305,14 @@ export default function ZoosMap({
 
   const cancelPendingSetData = useCallback(() => {
     const pending = setDataFrameRef.current;
-    if (pending?.cancel) {
+    if (pending) {
       pending.cancel();
+      setDataFrameRef.current = null;
     }
-    setDataFrameRef.current = null;
   }, []);
 
   const scheduleDataUpdate = useCallback(
-    (callback) => {
+    (callback: () => void): (() => void) | void => {
       cancelPendingSetData();
 
       if (typeof window === 'undefined') {
@@ -333,7 +380,7 @@ export default function ZoosMap({
       maplibreRef.current = null;
       setMapReady(false);
       hasFitToZoosRef.current = false;
-      previousFeatureIdsRef.current = [] as any[];
+      previousFeatureIdsRef.current = [];
     },
     [cancelPendingSetData]
   );
@@ -341,7 +388,7 @@ export default function ZoosMap({
   // Keep the map centered on the user/estimated location when it becomes available.
   useEffect(() => {
     if (!mapRef.current || !mapReady) return;
-    if (!Number.isFinite(centerLat) || !Number.isFinite(centerLon)) return;
+    if (centerLat === null || centerLon === null) return;
     if (skipNextCenterRef.current) {
       skipNextCenterRef.current = false;
       return;
@@ -441,22 +488,28 @@ export default function ZoosMap({
       });
     }
 
-    const handleClusterClick = async (event) => {
-      const feature = event.features?.[0];
-      if (!feature) return;
-      const clusterId = feature.properties?.cluster_id;
-      if (clusterId == null) return;
-      const source = hasGetSource ? map.getSource(ZOOS_SOURCE_ID) : null;
-      if (!source?.getClusterExpansionZoom) return;
-      try {
-        const zoom = await source.getClusterExpansionZoom(clusterId);
-        map.easeTo?.({ center: feature.geometry.coordinates, zoom });
-      } catch (error) {
-        // Ignore zoom errors to avoid breaking user interaction.
-      }
+    const handleClusterClick = (event: MapLayerMouseEvent) => {
+      void (async () => {
+        const feature = event.features?.[0];
+        if (!feature) return;
+        const clusterId = feature.properties?.cluster_id as number | undefined;
+        if (clusterId == null) return;
+        const source = hasGetSource ? (map.getSource(ZOOS_SOURCE_ID) as GeoJSONSource | undefined) : null;
+        if (!source?.getClusterExpansionZoom) return;
+        try {
+          const zoom = await source.getClusterExpansionZoom(clusterId);
+          const coordinates = feature.geometry?.type === 'Point' ? feature.geometry.coordinates : null;
+          if (coordinates && Array.isArray(coordinates)) {
+            const nextZoom = Number.isFinite(zoom) ? zoom : map.getZoom?.() ?? FOCUS_ZOOM;
+            map.easeTo?.({ center: coordinates as LngLatLike, zoom: nextZoom });
+          }
+        } catch (error) {
+          // Ignore zoom errors to avoid breaking user interaction.
+        }
+      })();
     };
 
-    const handlePointClick = (event) => {
+    const handlePointClick = (event: MapLayerMouseEvent) => {
       const feature = event.features?.[0];
       if (!feature) return;
       const id = feature.properties?.zoo_id;
@@ -507,21 +560,22 @@ export default function ZoosMap({
       return undefined;
     }
 
-    const getSource = mapRef.current.getSource;
-    const source =
-      typeof getSource === 'function' ? getSource.call(mapRef.current, ZOOS_SOURCE_ID) : null;
-    if (!source || typeof source.setData !== 'function') return undefined;
+    const rawSource = mapRef.current.getSource?.(ZOOS_SOURCE_ID);
+    const source = rawSource && typeof (rawSource as GeoJSONSource).setData === 'function'
+      ? (rawSource as GeoJSONSource)
+      : null;
+    if (!source) return undefined;
 
     const updateFeatures = () => {
-      const nextIds = [] as any[];
-      const features = normalizedZoos.map((zoo) => {
+      const nextIds: string[] = [];
+      const features: Feature<Point, ZooFeatureProperties>[] = normalizedZoos.map((zoo) => {
         const zooId = String(zoo.id);
         nextIds.push(zooId);
         return {
           type: 'Feature',
           geometry: {
             type: 'Point',
-            coordinates: [zoo.longitude, zoo.latitude],
+            coordinates: [zoo.longitude, zoo.latitude] as [number, number],
           },
           properties: {
             zoo_id: zooId,
@@ -548,10 +602,12 @@ export default function ZoosMap({
 
       previousFeatureIdsRef.current = nextIds;
 
-      source.setData({
+      const collection: FeatureCollection<Point, ZooFeatureProperties> = {
         type: 'FeatureCollection',
         features,
-      });
+      };
+
+      source.setData(collection);
     };
 
     const cancelScheduledUpdate = scheduleDataUpdate(updateFeatures);
@@ -578,28 +634,32 @@ export default function ZoosMap({
       return;
     }
 
-    const hasCenter = Number.isFinite(centerLat) && Number.isFinite(centerLon);
+    const hasCenter = centerLat !== null && centerLon !== null;
     if (hasCenter) {
       hasFitToZoosRef.current = false;
       return;
     }
 
-    if (normalizedZoos.length === 0) {
+    const firstZoo = normalizedZoos[0];
+    if (!firstZoo) {
       hasFitToZoosRef.current = false;
       return;
     }
 
     if (hasFitToZoosRef.current) return;
 
-    const [firstZoo] = normalizedZoos;
-    const bounds = new maplibreRef.current.LngLatBounds(
+    const maplibre = maplibreRef.current;
+    if (!maplibre) {
+      return;
+    }
+    const bounds = new maplibre.LngLatBounds(
       [firstZoo.longitude, firstZoo.latitude],
       [firstZoo.longitude, firstZoo.latitude]
     );
     normalizedZoos.forEach((zoo) => {
       bounds.extend([zoo.longitude, zoo.latitude]);
     });
-    mapRef.current.fitBounds?.(bounds, {
+    mapRef.current.fitBounds?.(bounds as LngLatBoundsLike, {
       padding: 40,
       maxZoom: FOCUS_ZOOM,
       duration: 500,

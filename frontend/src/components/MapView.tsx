@@ -22,7 +22,7 @@ export default function MapView({ latitude, longitude, zoom = 14 }: any) {
 
     let cancelled = false;
 
-    (async () => {
+    void (async () => {
       // Dynamically load MapLibre so the heavy library only loads when needed
       const { default: maplibregl } = await import('maplibre-gl');
       if (cancelled) return;

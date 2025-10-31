@@ -378,7 +378,7 @@ export default function AnimalsPage() {
 
       const url = `${API}/animals?${params.toString()}`;
 
-      (async () => {
+        void (async () => {
         try {
           const response = await authFetch(url, { signal: controller.signal });
           if (!response.ok) {
@@ -421,7 +421,7 @@ export default function AnimalsPage() {
             }
           }
         }
-      })();
+        })();
 
       return controller;
     },

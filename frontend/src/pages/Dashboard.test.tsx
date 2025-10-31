@@ -85,10 +85,10 @@ describe('Dashboard', () => {
     );
     expect(achievementCalls).toHaveLength(0);
 
-    await act(async () => {
-      await loadLocale('de');
-      router.navigate('/de');
-    });
+      await act(async () => {
+        await loadLocale('de');
+        await router.navigate('/de');
+      });
 
     const german = await screen.findByText(
       'Löwe im Berlin Zoo am 2024-05-01 gesehen'

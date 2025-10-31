@@ -60,7 +60,7 @@ export default function VerifyEmailPage() {
         setMessage(t('auth.verification.processing'));
         setShowForm(false);
         try {
-          const resp = await fetch(`${API}/auth/verify`, {
+            const resp = await fetch(`${API}/auth/verify`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ uid: initialUid, token: initialToken }),
@@ -70,9 +70,9 @@ export default function VerifyEmailPage() {
             setMessage(t('auth.verification.successRedirect'));
             setLoginBannerCookie(initialEmail);
             replaceUrl(initialEmail ? `email=${encodeURIComponent(initialEmail)}` : '');
-            redirectTimer.current = setTimeout(() => {
-              navigate(`${prefix}/login`, { replace: true });
-            }, 2500);
+              redirectTimer.current = setTimeout(() => {
+                void navigate(`${prefix}/login`, { replace: true });
+              }, 2500);
             return;
           }
           if (resp.status === 202) {
@@ -96,7 +96,7 @@ export default function VerifyEmailPage() {
           setShowForm(true);
         }
       };
-      verify();
+        void verify();
     }
     if (!isMagicLink) {
       lastAttemptKey.current = '';

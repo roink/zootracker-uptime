@@ -26,7 +26,7 @@ export function normalizeLang(lang: unknown): SupportedLang {
   return (partialMatch ?? DEFAULT_LANG);
 }
 
-i18n
+void i18n
   .use(LanguageDetector)
   .use(initReactI18next)
   .init({

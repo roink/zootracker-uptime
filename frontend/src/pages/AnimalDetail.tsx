@@ -252,12 +252,12 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
     setError(false);
     setFavoriteError('');
     // fetch animal details and associated zoos (with distance when available)
-    (async () => {
-      try {
-        const response = await authFetch(
-          `${API}/animals/${slug}${params.length ? `?${params.join('&')}` : ''}`,
-          { signal: controller.signal }
-        );
+      void (async () => {
+        try {
+          const response = await authFetch(
+            `${API}/animals/${slug}${params.length ? `?${params.join('&')}` : ''}`,
+            { signal: controller.signal }
+          );
         if (!response.ok) {
           throw new Error('Failed to load');
         }
@@ -273,7 +273,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
           setZoos([]);
         }
       }
-    })();
+      })();
 
     return () => controller.abort();
   }, [slug, userLocation, authFetch]);
@@ -338,7 +338,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
 
   useEffect(() => {
     const controller = new AbortController();
-    loadHistory({ signal: controller.signal });
+    void loadHistory({ signal: controller.signal });
     return () => controller.abort();
   }, [loadHistory, refresh]);
 
@@ -420,7 +420,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
         mapView: sanitizedView,
       };
       const state = routerLocation.state || {};
-      navigate(`${routerLocation.pathname}${routerLocation.search}`, {
+        void navigate(`${routerLocation.pathname}${routerLocation.search}`, {
         replace: true,
         state: {
           ...state,
@@ -443,7 +443,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
       const sanitizedView = sanitizeCameraView(view) ?? mapView;
       setMapView(sanitizedView);
       persistViewState('map', sanitizedView);
-      navigate(`${prefix}/zoos/${zoo.slug || zoo.id}`, {
+        void navigate(`${prefix}/zoos/${zoo.slug || zoo.id}`, {
         state: {
           animalViewMode: 'map',
           animalMapView: sanitizedView,
@@ -476,7 +476,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
   const handleFavoriteToggle = useCallback(async () => {
     if (!animal) return;
     if (!isAuthenticated) {
-      navigate(`${prefix}/login`, {
+        void navigate(`${prefix}/login`, {
         state: { redirectTo: routerLocation.pathname },
       });
       return;
@@ -503,7 +503,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
   }, [animal, authFetch, favorite, isAuthenticated, navigate, prefix, routerLocation.pathname, t]);
 
   const handleLoginRedirect = useCallback(() => {
-    navigate(`${prefix}/login`, {
+    void navigate(`${prefix}/login`, {
       state: { redirectTo: routerLocation.pathname },
     });
   }, [navigate, prefix, routerLocation.pathname]);
@@ -991,12 +991,12 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
                     className="pointer-row"
                     role="link"
                     aria-label={t('animal.openZoo', { zoo: displayName })}
-                    onClick={() => navigate(`${prefix}/zoos/${z.slug || z.id}`)}
+                    onClick={() => void navigate(`${prefix}/zoos/${z.slug || z.id}`)}
                     tabIndex={0}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault();
-                        navigate(`${prefix}/zoos/${z.slug || z.id}`);
+                        void navigate(`${prefix}/zoos/${z.slug || z.id}`);
                       }
                     }}
                   >
@@ -1328,7 +1328,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
           defaultZooName={modalData.zooName}
           defaultAnimalName={modalData.animalName}
           onLogged={() => {
-            loadHistory();
+            void loadHistory();
             onLogged && onLogged();
           }}
           onClose={() => setModalData(null)}

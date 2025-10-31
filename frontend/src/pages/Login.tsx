@@ -56,9 +56,9 @@ export default function LoginPage() {
 
   // Extract a one-time message from navigation state then clear it
   useEffect(() => {
-    if (location.state?.message) {
-      setSuccessMessage(location.state.message);
-      navigate(location.pathname, { replace: true, state: {} });
+      if (location.state?.message) {
+        setSuccessMessage(location.state.message);
+        void navigate(location.pathname, { replace: true, state: {} });
     }
   }, [location, navigate]);
 
@@ -139,7 +139,7 @@ export default function LoginPage() {
         setPendingEmail('');
         setLoginError('');
         resetLoginResend();
-        navigate(prefix, { replace: true });
+          void navigate(prefix, { replace: true });
       } else if (resp.status === 403) {
         const payload = await resp.json().catch(() => ({}));
         const detail = typeof payload.detail === 'string' ? payload.detail : t('auth.login.unverified');
@@ -260,7 +260,7 @@ export default function LoginPage() {
               <button
                 type="button"
                 className="btn btn-light"
-                onClick={() => navigate(verifyHref)}
+                onClick={() => void navigate(verifyHref)}
               >
                 {t('auth.verification.openForm')}
               </button>

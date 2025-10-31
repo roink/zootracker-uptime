@@ -99,10 +99,10 @@ export function LogSighting({
 
   useEffect(() => {
     if (!propAnimals) {
-      fetch(`${API}/animals`).then(r => r.json()).then(setAnimals);
+      void fetch(`${API}/animals`).then((r) => r.json()).then(setAnimals);
     }
     if (!propZoos) {
-      fetch(`${API}/zoos?limit=6000`)
+      void fetch(`${API}/zoos?limit=6000`)
         .then((r) => (r.ok ? r.json() : []))
         .then((data) => {
           if (Array.isArray(data?.items)) {

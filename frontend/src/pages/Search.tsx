@@ -91,7 +91,7 @@ export default function SearchPage() {
       }
     };
 
-    loadResults();
+      void loadResults();
 
     return () => controller.abort();
   }, [authFetch, hasQuery, normalizedQuery]);
@@ -104,8 +104,8 @@ export default function SearchPage() {
 
     let cancelled = false;
 
-    authFetch(`${API}/users/${uid}/animals`)
-      .then((r) => (r.ok ? r.json() : []))
+      void authFetch(`${API}/users/${uid}/animals`)
+        .then((r) => (r.ok ? r.json() : []))
       .then((data) => {
         if (!cancelled) {
           setSeenAnimals(data);

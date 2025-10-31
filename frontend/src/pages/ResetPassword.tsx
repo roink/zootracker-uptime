@@ -69,7 +69,7 @@ export default function ResetPasswordPage() {
       params.delete('token');
       params.delete('email');
       const nextSearch = params.toString();
-      navigate(`${location.pathname}${nextSearch ? `?${nextSearch}` : ''}`, { replace: true });
+        void navigate(`${location.pathname}${nextSearch ? `?${nextSearch}` : ''}`, { replace: true });
     }
   }, [location.pathname, location.search, navigate, emailFromLink, token]);
 
@@ -156,7 +156,7 @@ export default function ResetPasswordPage() {
       }
     };
 
-    verifyToken();
+      void verifyToken();
 
     return () => {
       cancelled = true;

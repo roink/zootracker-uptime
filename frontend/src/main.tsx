@@ -177,7 +177,7 @@ function LangApp({ refreshCounter, refreshSeen }: LangAppProps) {
           const suffix = rest ? `/${rest}` : '';
           const search = location.search || '';
           const hash = location.hash || '';
-          navigate(`/${activeLang}${suffix}${search}${hash}`, { replace: true });
+          void navigate(`/${activeLang}${suffix}${search}${hash}`, { replace: true });
         }
       } catch (error) {
         console.error('Failed to load locale', error);
@@ -204,7 +204,7 @@ function RootRedirect() {
     const detected = i18n.services?.languageDetector?.detect?.();
     const candidate = Array.isArray(detected) ? detected[0] : detected;
     const targetLang = normalizeLang(candidate);
-    navigate(`/${targetLang}`, { replace: true });
+    void navigate(`/${targetLang}`, { replace: true });
   }, [navigate]);
   return null;
 }
@@ -219,7 +219,7 @@ function VerifyEmailRedirect() {
     const targetLang = normalizeLang(candidate);
     const search = location.search || '';
     const hash = location.hash || '';
-    navigate(`/${targetLang}/verify${search}${hash}`, { replace: true });
+    void navigate(`/${targetLang}/verify${search}${hash}`, { replace: true });
   }, [navigate, location.search, location.hash]);
   return null;
 }

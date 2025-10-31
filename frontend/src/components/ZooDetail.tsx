@@ -92,7 +92,7 @@ export default function ZooDetail({
   const handleFavoriteToggle = useCallback(async () => {
     if (!zoo) return;
     if (!isAuthenticated) {
-      navigate(`${prefix}/login`);
+      await Promise.resolve(navigate(`${prefix}/login`));
       return;
     }
     setFavoritePending(true);
@@ -209,16 +209,16 @@ export default function ZooDetail({
   );
 
   const reloadLocalData = useCallback(() => {
-    loadAnimals();
-    loadVisited();
-    loadSeenIds();
-    loadHistory();
+    void loadAnimals();
+    void loadVisited();
+    void loadSeenIds();
+    void loadHistory();
   }, [loadAnimals, loadVisited, loadSeenIds, loadHistory]);
 
   // Load animals in this zoo (server already returns popularity order;
   // keep client-side sort as a fallback for robustness)
   useEffect(() => {
-    loadAnimals();
+    void loadAnimals();
   }, [loadAnimals, refresh]);
 
   useEffect(() => {
@@ -228,17 +228,17 @@ export default function ZooDetail({
 
   // Load whether user has visited this zoo
   useEffect(() => {
-    loadVisited();
+    void loadVisited();
   }, [loadVisited, refresh]);
 
   // Load IDs of animals the user has seen
   useEffect(() => {
-    loadSeenIds();
+    void loadSeenIds();
   }, [loadSeenIds, refresh]);
 
   useEffect(() => {
     const controller = new AbortController();
-    loadHistory({ signal: controller.signal });
+    void loadHistory({ signal: controller.signal });
     return () => controller.abort();
   }, [loadHistory, refresh]);
 
@@ -340,7 +340,7 @@ export default function ZooDetail({
             error: t('zoo.visitHistoryError'),
             empty: t('zoo.visitHistoryEmpty'),
           }}
-          onLogin={() => navigate(`${prefix}/login`)}
+          onLogin={() => void Promise.resolve(navigate(`${prefix}/login`))}
           formatDay={formatHistoryDay}
           renderSighting={renderHistoryItem}
         />
@@ -360,12 +360,12 @@ export default function ZooDetail({
             <tr
               key={a.id}
               className="pointer-row"
-              onClick={() => navigate(`${prefix}/animals/${a.slug || a.id}`)}
+              onClick={() => void Promise.resolve(navigate(`${prefix}/animals/${a.slug || a.id}`))}
               tabIndex="0"
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
-                  navigate(`${prefix}/animals/${a.slug || a.id}`);
+                  void Promise.resolve(navigate(`${prefix}/animals/${a.slug || a.id}`));
                 }
               }}
             >
@@ -393,7 +393,7 @@ export default function ZooDetail({
                   onClick={(e) => {
                     e.stopPropagation();
                     if (!isAuthenticated) {
-                      navigate(`${prefix}/login`);
+                      void Promise.resolve(navigate(`${prefix}/login`));
                       return;
                     }
                     setModalData({
@@ -412,19 +412,19 @@ export default function ZooDetail({
         </tbody>
       </table>
       {modalData && (
-          <SightingModal
-            animals={animals}
-            defaultZooId={modalData.zooId}
-            defaultAnimalId={modalData.animalId}
-            defaultZooName={modalData.zooName}
-            defaultAnimalName={modalData.animalName}
-            onLogged={() => {
-              onLogged && onLogged();
-              reloadLocalData();
-            }}
-            onClose={() => setModalData(null)}
-          />
-        )}
+        <SightingModal
+          animals={animals}
+          defaultZooId={modalData.zooId}
+          defaultAnimalId={modalData.animalId}
+          defaultZooName={modalData.zooName}
+          defaultAnimalName={modalData.animalName}
+          onLogged={() => {
+            onLogged && onLogged();
+            reloadLocalData();
+          }}
+          onClose={() => setModalData(null)}
+        />
+      )}
       </div>
     );
   }

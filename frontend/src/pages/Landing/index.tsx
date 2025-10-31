@@ -74,12 +74,12 @@ export default function Landing() {
     });
   }, []);
 
-  const handleNavigate = useCallback(
-    (url) => {
-      navigate(url);
-    },
-    [navigate]
-  );
+    const handleNavigate = useCallback(
+      (url) => {
+        void navigate(url);
+      },
+      [navigate]
+    );
 
   const numberFormatter = useMemo(() => {
     const locale = i18n.language || (urlLang === 'de' ? 'de-DE' : 'en-US');

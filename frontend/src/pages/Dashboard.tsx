@@ -26,9 +26,9 @@ export default function Dashboard({ refresh, onUpdate }: any) {
   // Refetch dashboard data when refresh counter changes
   useEffect(() => {
     if (!isAuthenticated || !uid) return;
-    queryClient.invalidateQueries({ queryKey: ['user', uid, 'visits'] });
-    queryClient.invalidateQueries({ queryKey: ['user', uid, 'animalsSeen'] });
-    queryClient.invalidateQueries({ queryKey: ['user', uid, 'sightings'] });
+      void queryClient.invalidateQueries({ queryKey: ['user', uid, 'visits'] });
+      void queryClient.invalidateQueries({ queryKey: ['user', uid, 'animalsSeen'] });
+      void queryClient.invalidateQueries({ queryKey: ['user', uid, 'sightings'] });
   }, [refresh, uid, isAuthenticated, queryClient]);
 
   const { data: zooMap = {}, isFetching: zoosFetching } = useQuery({
@@ -232,10 +232,10 @@ export default function Dashboard({ refresh, onUpdate }: any) {
         <button
           className="btn btn-secondary me-2"
           onClick={() => {
-            if (!isAuthenticated) {
-              navigate(`${prefix}/login`);
-              return;
-            }
+              if (!isAuthenticated) {
+                void navigate(`${prefix}/login`);
+                return;
+              }
             setModalData({});
           }}
         >
