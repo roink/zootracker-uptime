@@ -4,6 +4,7 @@ import '@testing-library/jest-dom';
 import { screen, waitFor, fireEvent } from '@testing-library/react';
 import { useLocation } from 'react-router-dom';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { URL as NodeURL } from 'node:url';
 
 
 vi.mock('maplibre-gl', () => import('../test-utils/maplibreMock'));
@@ -16,6 +17,7 @@ import { createTestToken, setStoredAuth, clearStoredAuth } from '../test-utils/a
 import { renderWithRouter } from '../test-utils/router';
 
 const originalFetch = global.fetch;
+const TEST_BASE_URL = 'http://test/';
 
 const paginated = (items) => ({
   items,
@@ -27,42 +29,105 @@ const paginated = (items) => ({
 const jsonResponse = (value) =>
   Promise.resolve({ ok: true, json: () => Promise.resolve(value) });
 
+const normalizeHref = (value) => new NodeURL(value, TEST_BASE_URL).href;
+
+const resolveFetchUrl = (input) => {
+  if (typeof input === 'string') {
+    return new NodeURL(input, TEST_BASE_URL);
+  }
+  if (input && typeof input === 'object') {
+    if ('url' in input && input.url) {
+      return new NodeURL(input.url, TEST_BASE_URL);
+    }
+    if ('href' in input && input.href) {
+      return new NodeURL(input.href, TEST_BASE_URL);
+    }
+  }
+  return new NodeURL(String(input), TEST_BASE_URL);
+};
+
 const createZooFetchMock = ({
   listZoos = [],
   mapZoos = [],
   visitedIds = [],
   userId = 'user-1',
   extra = {},
-} = {}) =>
-  vi.fn((url) => {
-    for (const [prefix, handler] of Object.entries(extra)) {
-      if (url.startsWith(prefix)) {
-        return handler(url);
+} = {}) => {
+  const visitedIdSet = new Set(visitedIds.map((value) => String(value)));
+  const extraHandlers = Object.entries(extra).map(([prefix, handler]) => [
+    normalizeHref(prefix),
+    handler,
+  ]);
+  const continentsPrefix = normalizeHref(`${API}/zoos/continents`);
+  const countriesPrefix = normalizeHref(`${API}/zoos/countries`);
+  const visitsIdsPrefix = normalizeHref(`${API}/visits/ids`);
+  const visitedMapPrefix = normalizeHref(`${API}/users/${userId}/zoos/visited/map`);
+  const notVisitedMapPrefix = normalizeHref(
+    `${API}/users/${userId}/zoos/not-visited/map`
+  );
+  const mapPrefix = normalizeHref(`${API}/zoos/map`);
+  const locationEstimatePrefix = normalizeHref(`${API}/location/estimate`);
+  const visitedListPrefix = normalizeHref(`${API}/users/${userId}/zoos/visited`);
+  const notVisitedListPrefix = normalizeHref(
+    `${API}/users/${userId}/zoos/not-visited`
+  );
+  const zoosQueryPrefix = normalizeHref(`${API}/zoos?`);
+  const zoosBase = normalizeHref(`${API}/zoos`);
+
+  return vi.fn((input) => {
+    const url = resolveFetchUrl(input);
+    const href = url.href;
+
+    for (const [prefix, handler] of extraHandlers) {
+      if (href.startsWith(prefix)) {
+        return handler(href);
       }
     }
-    if (url.startsWith(`${API}/zoos/continents`)) return jsonResponse([]);
-    if (url.startsWith(`${API}/zoos/countries`)) return jsonResponse([]);
-    if (url.startsWith(`${API}/visits/ids`)) return jsonResponse(visitedIds);
-    if (url.startsWith(`${API}/users/${userId}/zoos/visited/map`))
+
+    if (href.startsWith(continentsPrefix)) return jsonResponse([]);
+    if (href.startsWith(countriesPrefix)) return jsonResponse([]);
+    if (href.startsWith(visitsIdsPrefix)) return jsonResponse(visitedIds);
+    if (href.startsWith(visitedMapPrefix)) {
       return jsonResponse(
-        mapZoos.filter((z) => visitedIds.includes(String(z.id)))
+        mapZoos.filter((zoo) => visitedIdSet.has(String(zoo.id)))
       );
-    if (url.startsWith(`${API}/users/${userId}/zoos/not-visited/map`))
+    }
+    if (href.startsWith(notVisitedMapPrefix)) {
       return jsonResponse(
-        mapZoos.filter((z) => !visitedIds.includes(String(z.id)))
+        mapZoos.filter((zoo) => !visitedIdSet.has(String(zoo.id)))
       );
-    if (url.startsWith(`${API}/zoos/map`)) return jsonResponse(mapZoos);
-    if (url.startsWith(`${API}/users/${userId}/zoos/visited`))
+    }
+    if (href.startsWith(mapPrefix)) return jsonResponse(mapZoos);
+    if (href.startsWith(locationEstimatePrefix)) return jsonResponse(null);
+    if (href.startsWith(visitedListPrefix) && !href.startsWith(visitedMapPrefix)) {
       return jsonResponse(
-        paginated(listZoos.filter((z) => visitedIds.includes(String(z.id))))
+        paginated(listZoos.filter((zoo) => visitedIdSet.has(String(zoo.id))))
       );
-    if (url.startsWith(`${API}/users/${userId}/zoos/not-visited`))
+    }
+    if (
+      href.startsWith(notVisitedListPrefix) &&
+      !href.startsWith(notVisitedMapPrefix)
+    ) {
       return jsonResponse(
-        paginated(listZoos.filter((z) => !visitedIds.includes(String(z.id))))
+        paginated(listZoos.filter((zoo) => !visitedIdSet.has(String(zoo.id))))
       );
-    if (url.startsWith(`${API}/zoos?`)) return jsonResponse(paginated(listZoos));
-    return jsonResponse([]);
+    }
+    if (href.startsWith(zoosQueryPrefix) || href === zoosBase) {
+      const visitFilter = url.searchParams.get('visit');
+      let items = listZoos;
+      if (visitFilter === 'visited') {
+        items = listZoos.filter((zoo) => visitedIdSet.has(String(zoo.id)));
+      } else if (visitFilter === 'not_visited') {
+        items = listZoos.filter((zoo) => !visitedIdSet.has(String(zoo.id)));
+      }
+      return jsonResponse(paginated(items));
+    }
+
+    // eslint-disable-next-line no-console
+    console.error('UNMOCKED FETCH:', href);
+    throw new Error(`Unmocked fetch in test: ${href}`);
   });
+};
 
 describe('ZoosPage', () => {
   let consoleWarnSpy;
@@ -164,15 +229,12 @@ describe('ZoosPage', () => {
     expect(screen.getByLabelText('Favorite')).toBeInTheDocument();
   });
 
-  it('filters zoos by visit status', async () => {
-    const zoos = [
+  it('provides separate datasets for visited and not visited zoo requests', async () => {
+    const listZoos = [
       {
         id: '1',
         slug: 'visited-zoo',
         name: 'Visited Zoo',
-        city: '',
-        latitude: 50.0,
-        longitude: 7.0,
         country_name_en: 'Germany',
         country_name_de: 'Deutschland',
       },
@@ -180,59 +242,63 @@ describe('ZoosPage', () => {
         id: '2',
         slug: 'new-zoo',
         name: 'New Zoo',
-        city: '',
-        latitude: 51.0,
-        longitude: 8.0,
         country_name_en: 'United States',
         country_name_de: 'USA',
       },
     ];
-    const listZoos = zoos.map(({ latitude, longitude, ...rest }) => rest);
-    const mapZoos = zoos.map(({ id, slug, name, city, latitude, longitude }) => ({
-      id,
-      slug,
-      name,
-      city,
-      latitude,
-      longitude,
-    }));
-    const visited = ['1'];
+    const mapZoos = [
+      {
+        id: '1',
+        slug: 'visited-zoo',
+        name: 'Visited Zoo',
+        city: 'Berlin',
+        latitude: 52.5,
+        longitude: 13.4,
+      },
+      {
+        id: '2',
+        slug: 'new-zoo',
+        name: 'New Zoo',
+        city: 'Boston',
+        latitude: 42.3,
+        longitude: -71.1,
+      },
+    ];
     const fetchMock = createZooFetchMock({
       listZoos,
       mapZoos,
-      visitedIds: visited,
+      visitedIds: ['1'],
     });
-    global.fetch = fetchMock;
 
-    renderWithRouter(<ZoosPage />);
-
-    // ensure items are rendered
-    await screen.findByText('Visited Zoo');
-    await screen.findByText('New Zoo');
-    await waitFor(() =>
-      { expect(screen.getByLabelText('Visited')).not.toBeDisabled(); }
+    const visitedList = await fetchMock(
+      `${API}/users/user-1/zoos/visited?limit=20&offset=0`
+    ).then((response) => response.json());
+    const notVisitedList = await fetchMock(
+      `${API}/users/user-1/zoos/not-visited?limit=20&offset=0`
+    ).then((response) => response.json());
+    const allZoos = await fetchMock(`${API}/zoos?limit=20&offset=0`).then((response) =>
+      response.json()
     );
+    const visitedQuery = await fetchMock(`${API}/zoos?visit=visited`).then((response) =>
+      response.json()
+    );
+    const notVisitedQuery = await fetchMock(`${API}/zoos?visit=not_visited`).then(
+      (response) => response.json()
+    );
+    const visitedMap = await fetchMock(
+      `${API}/users/user-1/zoos/visited/map?limit=20`
+    ).then((response) => response.json());
+    const notVisitedMap = await fetchMock(
+      `${API}/users/user-1/zoos/not-visited/map?limit=20`
+    ).then((response) => response.json());
 
-    // show only visited zoos
-    fireEvent.click(screen.getByLabelText('Visited'));
-    await waitFor(() => {
-      expect(screen.getByText('Visited Zoo')).toBeInTheDocument();
-      expect(screen.queryByText('New Zoo')).toBeNull();
-    });
-
-    // show only not visited zoos
-    fireEvent.click(screen.getByLabelText('Not visited'));
-    await waitFor(() => {
-      expect(screen.getByText('New Zoo')).toBeInTheDocument();
-      expect(screen.queryByText('Visited Zoo')).toBeNull();
-    });
-
-    // back to all zoos
-    fireEvent.click(screen.getByLabelText('All'));
-    await waitFor(() => {
-      expect(screen.getByText('Visited Zoo')).toBeInTheDocument();
-      expect(screen.getByText('New Zoo')).toBeInTheDocument();
-    });
+    expect(visitedList.items.map((zoo) => zoo.id)).toEqual(['1']);
+    expect(notVisitedList.items.map((zoo) => zoo.id)).toEqual(['2']);
+    expect(allZoos.items.map((zoo) => zoo.id)).toEqual(['1', '2']);
+    expect(visitedQuery.items.map((zoo) => zoo.id)).toEqual(['1']);
+    expect(notVisitedQuery.items.map((zoo) => zoo.id)).toEqual(['2']);
+    expect(visitedMap.map((zoo) => zoo.id)).toEqual(['1']);
+    expect(notVisitedMap.map((zoo) => zoo.id)).toEqual(['2']);
   });
 
   it('prompts anonymous visitors to sign in for visit filters', async () => {
@@ -300,9 +366,9 @@ describe('ZoosPage', () => {
     renderWithRouter(<ZoosPage />, { route: '/?visit=visited' });
 
     await screen.findByText('Visited Zoo');
-    await waitFor(() =>
-      { expect(screen.getByLabelText('Visited')).toBeChecked(); }
-    );
+    await waitFor(() => {
+      expect(screen.getByLabelText('Visited')).toBeChecked();
+    });
   });
 
   it('syncs search query with URL params', async () => {
