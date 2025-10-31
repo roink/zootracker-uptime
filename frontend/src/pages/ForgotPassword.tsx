@@ -94,8 +94,9 @@ export default function ForgotPasswordPage() {
         setStatusMessage(detail || t('auth.passwordReset.request.error'));
       }
     } catch (error) {
+      const networkError = error instanceof Error ? error : new Error(String(error));
       setStatus('error');
-      setStatusMessage(t('auth.common.networkError', { message: error.message }));
+      setStatusMessage(t('auth.common.networkError', { message: networkError.message }));
     } finally {
       setSubmitting(false);
     }

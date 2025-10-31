@@ -16,7 +16,7 @@ export default function ImageAttributionPage() {
     const controller = new AbortController();
     setError(false);
     fetch(`${API}/images?mid=${mid}`, { signal: controller.signal })
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then(setImage)
       .catch((err) => {
         if (!controller.signal.aborted) setError(true);

@@ -1,22 +1,22 @@
-// @ts-nocheck
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { API } from '../api';
 import searchCache from '../searchCache';
+import type { SearchResults, ZooSummary, AnimalSummary } from '../types/domain';
 
-// Hook that returns zoo/animal search suggestions for a query.
-// Uses a 500ms debounce and shared cache so components don't
-// repeatedly fetch the same results.
-export default function useSearchSuggestions(query, enabled = true) {
-  const [results, setResults] = useState({ zoos: [], animals: [] });
-  const fetchRef = useRef<any>(null);
+const createEmptyResults = (): SearchResults => ({ zoos: [], animals: [] });
+
+export default function useSearchSuggestions(query: string, enabled = true): SearchResults {
+  const [results, setResults] = useState<SearchResults>(createEmptyResults);
+  const fetchRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    if (!enabled || !query.trim()) {
-      setResults({ zoos: [], animals: [] });
+    const rawQuery = query?.trim() ?? '';
+    if (!enabled || !rawQuery) {
+      setResults(createEmptyResults());
       if (fetchRef.current) fetchRef.current.abort();
       return;
     }
-    const q = query.trim().toLowerCase();
+    const q = rawQuery.toLowerCase();
     const cached = searchCache[q];
     if (cached) {
       setResults(cached);
@@ -28,7 +28,7 @@ export default function useSearchSuggestions(query, enabled = true) {
       const params = new URLSearchParams({ limit: '5', q });
       Promise.all([
         fetch(`${API}/zoos?${params.toString()}`, { signal: controller.signal }),
-        fetch(`${API}/animals?${params.toString()}`, { signal: controller.signal }),
+        fetch(`${API}/animals?${params.toString()}`, { signal: controller.signal })
       ])
         .then(async ([zoosRes, animalsRes]) => {
           if (!zoosRes.ok || !animalsRes.ok) {
@@ -36,18 +36,22 @@ export default function useSearchSuggestions(query, enabled = true) {
           }
           const [zoosBody, animalsBody] = await Promise.all([
             zoosRes.json(),
-            animalsRes.json(),
+            animalsRes.json()
           ]);
-          const combined = {
-            zoos: Array.isArray(zoosBody?.items) ? zoosBody.items : [],
-            animals: Array.isArray(animalsBody) ? animalsBody : [],
+          const combined: SearchResults = {
+            zoos: Array.isArray((zoosBody as { items?: unknown }).items)
+              ? ((zoosBody as { items: ZooSummary[] }).items ?? [])
+              : [],
+            animals: Array.isArray(animalsBody)
+              ? (animalsBody as AnimalSummary[])
+              : []
           };
           searchCache[q] = combined;
           if (!controller.signal.aborted) setResults(combined);
         })
         .catch(() => {
           if (!controller.signal.aborted) {
-            setResults({ zoos: [], animals: [] });
+            setResults(createEmptyResults());
           }
         });
     }, 500);

@@ -1,19 +1,18 @@
-// @ts-nocheck
 import { useCallback } from 'react';
 import { useAuth } from '../auth/AuthContext';
 
 const REFRESH_THRESHOLD_MS = 60_000;
 
-// Hook returning a memoized fetch wrapper that automatically refreshes access
-// tokens, replays requests on 401 responses, and clears auth state if refresh
-// attempts fail.
+type FetchInput = Parameters<typeof fetch>[0];
+type FetchInit = Parameters<typeof fetch>[1];
+
 export default function useAuthFetch() {
   const { token, tokenExpiresAt, refreshAccessToken, logout } = useAuth();
 
   return useCallback(
-    async (input, options = {}) => {
-      const headers = new Headers(options.headers || {});
-      let authToken = token;
+    async (input: FetchInput, options: FetchInit = {}): Promise<Response> => {
+      const headers = new Headers(options?.headers ?? {});
+      let authToken = token ?? null;
       const now = Date.now();
 
       if (authToken && tokenExpiresAt && tokenExpiresAt - now < REFRESH_THRESHOLD_MS) {

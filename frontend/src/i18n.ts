@@ -1,30 +1,31 @@
-// @ts-nocheck
-/* eslint-disable import/no-named-as-default-member */
 import i18n from 'i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 import { initReactI18next } from 'react-i18next';
 
 export const DEFAULT_LANG = 'en';
-export const SUPPORTED_LANGS = ['en', 'de'];
-export const LOCALE_MODULES = import.meta.glob('./locales/*/common.json');
+export const SUPPORTED_LANGS = ['en', 'de'] as const;
+type SupportedLang = (typeof SUPPORTED_LANGS)[number];
 
-const inFlightLoads = new Map();
+type LocaleModule = { default: Record<string, unknown> };
 
-export function normalizeLang(lang) {
+export const LOCALE_MODULES = import.meta.glob<LocaleModule>('./locales/*/common.json');
+
+const inFlightLoads = new Map<SupportedLang, Promise<SupportedLang>>();
+
+export function normalizeLang(lang: unknown): SupportedLang {
   if (typeof lang !== 'string') {
     return DEFAULT_LANG;
   }
   const lower = lang.toLowerCase();
-  if (SUPPORTED_LANGS.includes(lower)) {
-    return lower;
+  if ((SUPPORTED_LANGS as readonly string[]).includes(lower)) {
+    return lower as SupportedLang;
   }
-  const partialMatch = SUPPORTED_LANGS.find((lng) =>
-    lower === lng || lower.startsWith(`${lng}-`) || lower.startsWith(`${lng}_`)
+  const partialMatch = SUPPORTED_LANGS.find(
+    (lng) => lower === lng || lower.startsWith(`${lng}-`) || lower.startsWith(`${lng}_`)
   );
-  return partialMatch ?? DEFAULT_LANG;
+  return (partialMatch ?? DEFAULT_LANG);
 }
 
-// Initialize i18next without bundled resources; languages are loaded lazily.
 i18n
   .use(LanguageDetector)
   .use(initReactI18next)
@@ -37,17 +38,13 @@ i18n
     detection: {
       order: ['localStorage', 'navigator'],
       caches: ['localStorage'],
-      lookupLocalStorage: 'lang',
-      checkForSimilarInWhitelist: true,
-    },
+      lookupLocalStorage: 'lang'
+    }
   });
 
-export async function loadLocale(requestedLang) {
+export async function loadLocale(requestedLang: unknown): Promise<SupportedLang> {
   const activeLang = normalizeLang(requestedLang);
-  if (
-    i18n.language === activeLang &&
-    i18n.hasResourceBundle(activeLang, 'translation')
-  ) {
+  if (i18n.language === activeLang && i18n.hasResourceBundle(activeLang, 'translation')) {
     document.documentElement.lang = activeLang;
     return activeLang;
   }
@@ -70,13 +67,7 @@ export async function loadLocale(requestedLang) {
     }
 
     const module = await loader();
-    i18n.addResourceBundle(
-      activeLang,
-      'translation',
-      module.default,
-      true,
-      true,
-    );
+    i18n.addResourceBundle(activeLang, 'translation', module.default, true, true);
     await i18n.changeLanguage(activeLang);
     document.documentElement.lang = activeLang;
     return activeLang;

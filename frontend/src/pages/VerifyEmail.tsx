@@ -89,8 +89,9 @@ export default function VerifyEmailPage() {
           replaceUrl(initialEmail ? `email=${encodeURIComponent(initialEmail)}` : '');
           setShowForm(true);
         } catch (err) {
+          const networkError = err instanceof Error ? err : new Error(String(err));
           setStatus('error');
-          setMessage(t('auth.common.networkError', { message: err.message }));
+          setMessage(t('auth.common.networkError', { message: networkError.message }));
           replaceUrl(initialEmail ? `email=${encodeURIComponent(initialEmail)}` : '');
           setShowForm(true);
         }
@@ -135,8 +136,9 @@ export default function VerifyEmailPage() {
         setMessage(detail);
       }
     } catch (err) {
+      const networkError = err instanceof Error ? err : new Error(String(err));
       setStatus('error');
-      setMessage(t('auth.common.networkError', { message: err.message }));
+      setMessage(t('auth.common.networkError', { message: networkError.message }));
     }
   };
 

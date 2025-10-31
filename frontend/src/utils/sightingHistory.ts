@@ -1,10 +1,9 @@
-// @ts-nocheck
-// Utilities for grouping and formatting sighting history timelines.
+import type { Sighting } from '../types/domain';
 
-// Convert a timestamp to YYYY-MM-DD in the current timezone.
-export function toLocalYMD(value) {
-  if (!value) return '';
-  const date = typeof value === 'string' ? new Date(value) : value;
+export function toLocalYMD(value: string | number | Date | null | undefined): string {
+  if (value === null || value === undefined) return '';
+  const date =
+    typeof value === 'string' || typeof value === 'number' ? new Date(value) : value;
   if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
     return '';
   }
@@ -14,8 +13,19 @@ export function toLocalYMD(value) {
   return `${year}-${month}-${day}`;
 }
 
-// Group sightings by local day, ordered from newest to oldest.
-export function groupSightingsByDay(sightings) {
+type SightingLike = Partial<Sighting> & {
+  sighting_datetime?: string | number | Date | null;
+  created_at?: string | number | Date | null;
+};
+
+export interface SightingDayGroup<T extends SightingLike = SightingLike> {
+  day: string;
+  items: T[];
+}
+
+export function groupSightingsByDay<T extends SightingLike>(
+  sightings: T[] | null | undefined
+): SightingDayGroup<T>[] {
   if (!Array.isArray(sightings) || sightings.length === 0) {
     return [];
   }
@@ -29,9 +39,9 @@ export function groupSightingsByDay(sightings) {
     const createdB = new Date(b?.created_at ?? 0).getTime();
     return createdB - createdA;
   });
-  const groups = [] as any[];
+  const groups: SightingDayGroup<T>[] = [];
   sorted.forEach((item) => {
-    const day = toLocalYMD(item?.sighting_datetime);
+    const day = toLocalYMD(item?.sighting_datetime ?? null);
     const last = groups[groups.length - 1];
     if (!last || last.day !== day) {
       groups.push({ day, items: [item] });
@@ -42,8 +52,11 @@ export function groupSightingsByDay(sightings) {
   return groups;
 }
 
-// Format a YYYY-MM-DD label using friendly tokens for today/yesterday.
-export function formatSightingDayLabel(day, locale, labels = {}) {
+export function formatSightingDayLabel(
+  day: string | null | undefined,
+  locale: string,
+  labels: { today?: string; yesterday?: string } = {}
+): string {
   if (!day) return '';
   const today = toLocalYMD(new Date());
   const yesterdayDate = new Date();
@@ -62,10 +75,12 @@ export function formatSightingDayLabel(day, locale, labels = {}) {
   return day;
 }
 
-// Format the time portion of a timestamp for display in a history list.
-export function formatSightingTime(value, locale) {
-  if (!value) return null;
-  const date = new Date(value);
+export function formatSightingTime(
+  value: string | number | Date | null | undefined,
+  locale: string
+): string | null {
+  if (value === null || value === undefined) return null;
+  const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) {
     return null;
   }

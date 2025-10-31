@@ -5,12 +5,14 @@ import { useTranslation } from 'react-i18next';
 import { API } from '../api';
 import { useAuth } from '../auth/AuthContext';
 
+type ResendStatus = 'idle' | 'loading' | 'success' | 'limit' | 'cooldown' | 'error';
+
 export default function EmailVerificationAlert() {
   const { t } = useTranslation();
   const { lang } = useParams();
   const prefix = lang ? `/${lang}` : '';
   const { user, token } = useAuth();
-  const [status, setStatus] = useState('idle');
+  const [status, setStatus] = useState<ResendStatus>('idle');
   const [message, setMessage] = useState('');
 
   if (!user || user.emailVerified) {
@@ -46,8 +48,9 @@ export default function EmailVerificationAlert() {
       setStatus('error');
       setMessage(t('auth.common.networkError', { message: resp.status }));
     } catch (err) {
+      const resolvedError = err instanceof Error ? err : new Error(String(err));
       setStatus('error');
-      setMessage(t('auth.common.networkError', { message: err.message }));
+      setMessage(t('auth.common.networkError', { message: resolvedError.message }));
     }
   };
 
