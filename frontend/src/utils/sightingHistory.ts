@@ -30,18 +30,18 @@ export function groupSightingsByDay<T extends SightingLike>(
     return [];
   }
   const sorted = [...sightings].sort((a, b) => {
-    const timeA = new Date(a?.sighting_datetime ?? 0).getTime();
-    const timeB = new Date(b?.sighting_datetime ?? 0).getTime();
+    const timeA = new Date(a.sighting_datetime ?? 0).getTime();
+    const timeB = new Date(b.sighting_datetime ?? 0).getTime();
     if (timeA !== timeB) {
       return timeB - timeA;
     }
-    const createdA = new Date(a?.created_at ?? 0).getTime();
-    const createdB = new Date(b?.created_at ?? 0).getTime();
+    const createdA = new Date(a.created_at ?? 0).getTime();
+    const createdB = new Date(b.created_at ?? 0).getTime();
     return createdB - createdA;
   });
   const groups: SightingDayGroup<T>[] = [];
   sorted.forEach((item) => {
-    const day = toLocalYMD(item?.sighting_datetime ?? null);
+    const day = toLocalYMD(item.sighting_datetime ?? null);
     const last = groups[groups.length - 1];
     if (!last || last.day !== day) {
       groups.push({ day, items: [item] });

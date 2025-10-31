@@ -4,7 +4,7 @@ import '@testing-library/jest-dom';
 import { screen, waitFor, fireEvent } from '@testing-library/react';
 import { useLocation } from 'react-router-dom';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderWithRouter } from '../test-utils/router';
+
 
 vi.mock('maplibre-gl', () => import('../test-utils/maplibreMock'));
 vi.mock('../hooks/useAuthFetch', () => ({ default: () => fetch }));
@@ -13,6 +13,7 @@ vi.mock('../components/Seo', () => ({ default: () => null }));
 import ZoosPage from './Zoos';
 import { API } from '../api';
 import { createTestToken, setStoredAuth, clearStoredAuth } from '../test-utils/auth';
+import { renderWithRouter } from '../test-utils/router';
 
 const originalFetch = global.fetch;
 
@@ -125,7 +126,7 @@ describe('ZoosPage', () => {
 
     renderWithRouter(<ZoosPage />);
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    await waitFor(() => { expect(fetchMock).toHaveBeenCalled(); });
     const badges = await screen.findAllByText('Visited', { selector: 'span' });
     expect(badges[0]).toBeInTheDocument();
     expect(await screen.findByText(/^Germany$/)).toBeInTheDocument();
@@ -209,7 +210,7 @@ describe('ZoosPage', () => {
     await screen.findByText('Visited Zoo');
     await screen.findByText('New Zoo');
     await waitFor(() =>
-      expect(screen.getByLabelText('Visited')).not.toBeDisabled()
+      { expect(screen.getByLabelText('Visited')).not.toBeDisabled(); }
     );
 
     // show only visited zoos
@@ -300,7 +301,7 @@ describe('ZoosPage', () => {
 
     await screen.findByText('Visited Zoo');
     await waitFor(() =>
-      expect(screen.getByLabelText('Visited')).toBeChecked()
+      { expect(screen.getByLabelText('Visited')).toBeChecked(); }
     );
   });
 
@@ -463,15 +464,15 @@ describe('ZoosPage', () => {
       }
     );
 
-    await waitFor(() => expect(screen.getByLabelText('Map')).toBeChecked());
+    await waitFor(() => { expect(screen.getByLabelText('Map')).toBeChecked(); });
     expect(loc.state?.mapView).toEqual(initialCamera);
 
     fireEvent.click(screen.getByLabelText('List'));
-    await waitFor(() => expect(screen.getByLabelText('List')).toBeChecked());
-    await waitFor(() => expect(loc.state?.mapView).toEqual(initialCamera));
+    await waitFor(() => { expect(screen.getByLabelText('List')).toBeChecked(); });
+    await waitFor(() => { expect(loc.state?.mapView).toEqual(initialCamera); });
 
     fireEvent.click(screen.getByLabelText('Map'));
-    await waitFor(() => expect(screen.getByLabelText('Map')).toBeChecked());
-    await waitFor(() => expect(loc.state?.mapView).toEqual(initialCamera));
+    await waitFor(() => { expect(screen.getByLabelText('Map')).toBeChecked(); });
+    await waitFor(() => { expect(loc.state?.mapView).toEqual(initialCamera); });
   });
 });

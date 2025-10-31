@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { useEffect, useState } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
+
 import { API } from '../api';
 import Seo from '../components/Seo';
 
@@ -21,7 +22,7 @@ export default function ImageAttributionPage() {
       .catch((err) => {
         if (!controller.signal.aborted) setError(true);
       });
-    return () => controller.abort();
+    return () => { controller.abort(); };
   }, [mid]);
 
   if (error)
@@ -63,7 +64,7 @@ export default function ImageAttributionPage() {
         alt={altText}
         className="img-fluid mb-3"
         loading="eager"
-        fetchpriority="high"
+        fetchPriority="high"
         decoding="async"
       />
       {/* Metadata list */}

@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
-import Seo from '../components/Seo';
 import { API } from '../api';
+import Seo from '../components/Seo';
 import { useVerificationResend } from '../hooks/useVerificationResend';
 
 export default function VerifyEmailPage() {
@@ -23,7 +23,7 @@ export default function VerifyEmailPage() {
   const [message, setMessage] = useState('');
   const isMagicLink = initialUid && initialToken;
   const [showForm, setShowForm] = useState(!isMagicLink);
-  const redirectTimer = useRef<any>(null);
+  const redirectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastAttemptKey = useRef('');
   const {
     status: resendStatus,
@@ -31,10 +31,13 @@ export default function VerifyEmailPage() {
     request: triggerResend,
   } = useVerificationResend();
 
-  const replaceUrl = (nextQuery = '') => {
-    const search = nextQuery ? `?${nextQuery}` : '';
-    window.history.replaceState({}, '', `${prefix}/verify${search}`);
-  };
+  const replaceUrl = useCallback(
+    (nextQuery = '') => {
+      const search = nextQuery ? `?${nextQuery}` : '';
+      window.history.replaceState({}, '', `${prefix}/verify${search}`);
+    },
+    [prefix]
+  );
 
   const setLoginBannerCookie = useCallback((value) => {
     const encoded = value ? encodeURIComponent(value) : '';
@@ -60,7 +63,7 @@ export default function VerifyEmailPage() {
         setMessage(t('auth.verification.processing'));
         setShowForm(false);
         try {
-          const resp = await fetch(`${API}/auth/verify`, {
+            const resp = await fetch(`${API}/auth/verify`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ uid: initialUid, token: initialToken }),
@@ -70,9 +73,9 @@ export default function VerifyEmailPage() {
             setMessage(t('auth.verification.successRedirect'));
             setLoginBannerCookie(initialEmail);
             replaceUrl(initialEmail ? `email=${encodeURIComponent(initialEmail)}` : '');
-            redirectTimer.current = setTimeout(() => {
-              navigate(`${prefix}/login`, { replace: true });
-            }, 2500);
+              redirectTimer.current = setTimeout(() => {
+                void navigate(`${prefix}/login`, { replace: true });
+              }, 2500);
             return;
           }
           if (resp.status === 202) {
@@ -96,12 +99,22 @@ export default function VerifyEmailPage() {
           setShowForm(true);
         }
       };
-      verify();
+        void verify();
     }
     if (!isMagicLink) {
       lastAttemptKey.current = '';
     }
-  }, [isMagicLink, initialUid, initialToken, initialEmail, prefix, t, navigate]);
+  }, [
+    initialEmail,
+    initialToken,
+    initialUid,
+    isMagicLink,
+    navigate,
+    prefix,
+    replaceUrl,
+    setLoginBannerCookie,
+    t,
+  ]);
 
   // Allow manual code entry as a fallback to the magic link.
   const handleSubmit = async (event) => {
@@ -184,7 +197,7 @@ export default function VerifyEmailPage() {
               value={email}
               required
               autoComplete="email"
-              onChange={(event) => setEmail(event.target.value)}
+              onChange={(event) => { setEmail(event.target.value); }}
             />
           </div>
           <div className="mb-3">
@@ -201,7 +214,7 @@ export default function VerifyEmailPage() {
               className="form-control"
               value={code}
               required
-              onChange={(event) => setCode(event.target.value)}
+              onChange={(event) => { setCode(event.target.value); }}
             />
           </div>
           <button className="btn btn-primary w-100" type="submit" disabled={status === 'loading'}>

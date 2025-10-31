@@ -2,14 +2,14 @@
 import { useEffect } from 'react';
 import { fireEvent, waitFor, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from 'vitest';
-import { setupServer } from 'msw/node';
 import { http, HttpResponse } from 'msw';
+import { setupServer } from 'msw/node';
+import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from 'vitest';
 
-import { renderWithRouter } from '../test-utils/router';
-import useAuthFetch from '../hooks/useAuthFetch';
 import { useAuth } from './AuthContext';
+import useAuthFetch from '../hooks/useAuthFetch';
 import { createTestToken } from '../test-utils/auth';
+import { renderWithRouter } from '../test-utils/router';
 
 const server = setupServer(
   http.post('*/auth/refresh', () =>
@@ -18,9 +18,9 @@ const server = setupServer(
   http.post('*/auth/logout', () => HttpResponse.json({}, { status: 204 }))
 );
 
-beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
-afterEach(() => server.resetHandlers());
-afterAll(() => server.close());
+beforeAll(() => { server.listen({ onUnhandledRequest: 'error' }); });
+afterEach(() => { server.resetHandlers(); });
+afterAll(() => { server.close(); });
 
 function FetchHarness({ token, endpoint = '/protected', onFetched }: any) {
   const authFetch = useAuthFetch();
@@ -66,12 +66,12 @@ describe('useAuthFetch integration', () => {
     renderWithRouter(<FetchHarness token={token} onFetched={onFetched} />);
 
     await waitFor(() =>
-      expect(screen.getByTestId('auth-status').textContent).toBe('authed')
+      { expect(screen.getByTestId('auth-status').textContent).toBe('authed'); }
     );
     const trigger = await screen.findByRole('button', { name: 'fetch' });
     fireEvent.click(trigger);
 
-    await waitFor(() => expect(onFetched).toHaveBeenCalledTimes(1));
+    await waitFor(() => { expect(onFetched).toHaveBeenCalledTimes(1); });
     expect(headers).toEqual([`Bearer ${token}`]);
     expect(screen.getByTestId('auth-status').textContent).toBe('authed');
   });
@@ -95,15 +95,15 @@ describe('useAuthFetch integration', () => {
     renderWithRouter(<FetchHarness token={token} onFetched={onFetched} />);
 
     await waitFor(() =>
-      expect(screen.getByTestId('auth-status').textContent).toBe('authed')
+      { expect(screen.getByTestId('auth-status').textContent).toBe('authed'); }
     );
     const trigger = await screen.findByRole('button', { name: 'fetch' });
     fireEvent.click(trigger);
-    await waitFor(() => expect(onFetched).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(screen.getByTestId('auth-status').textContent).toBe('guest'));
+    await waitFor(() => { expect(onFetched).toHaveBeenCalledTimes(1); });
+    await waitFor(() => { expect(screen.getByTestId('auth-status').textContent).toBe('guest'); });
 
     fireEvent.click(trigger);
-    await waitFor(() => expect(onFetched).toHaveBeenCalledTimes(2));
+    await waitFor(() => { expect(onFetched).toHaveBeenCalledTimes(2); });
     expect(headers[0]).toBe(`Bearer ${token}`);
     expect(headers[1]).toBeNull();
   });
@@ -122,11 +122,11 @@ describe('useAuthFetch integration', () => {
     renderWithRouter(<FetchHarness token={token} onFetched={onFetched} />);
 
     await waitFor(() =>
-      expect(screen.getByTestId('auth-status').textContent).toBe('authed')
+      { expect(screen.getByTestId('auth-status').textContent).toBe('authed'); }
     );
     const trigger = await screen.findByRole('button', { name: 'fetch' });
     fireEvent.click(trigger);
-    await waitFor(() => expect(onFetched).toHaveBeenCalledTimes(1));
+    await waitFor(() => { expect(onFetched).toHaveBeenCalledTimes(1); });
 
     expect(headers).toEqual([`Bearer ${token}`]);
     expect(screen.getByTestId('auth-status').textContent).toBe('authed');
@@ -135,6 +135,6 @@ describe('useAuthFetch integration', () => {
   it('remains logged out when refresh fails during boot', async () => {
     renderWithRouter(<AuthStatus />);
 
-    await waitFor(() => expect(screen.getByTestId('auth-status').textContent).toBe('guest'));
+    await waitFor(() => { expect(screen.getByTestId('auth-status').textContent).toBe('guest'); });
   });
 });

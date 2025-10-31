@@ -1,7 +1,8 @@
 // @ts-nocheck
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { Trans, useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
+
 import { API } from '../api';
 import Seo from '../components/Seo';
 import useLang from '../hooks/useLang';
@@ -157,7 +158,7 @@ export default function ContactPage() {
             type="text"
             className="form-control"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => { setName(e.target.value); }}
             maxLength="100"
             autoComplete="name"
             required
@@ -172,7 +173,7 @@ export default function ContactPage() {
             type="email"
             className="form-control"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => { setEmail(e.target.value); }}
             autoComplete="email"
             inputMode="email"
             required
@@ -188,9 +189,9 @@ export default function ContactPage() {
             rows="4"
             maxLength={maxMessageLength}
             value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            onBlur={() => setMessageTouched(true)}
-            onInvalid={() => setMessageTouched(true)}
+            onChange={(e) => { setMessage(e.target.value); }}
+            onBlur={() => { setMessageTouched(true); }}
+            onInvalid={() => { setMessageTouched(true); }}
             minLength={minMessageLength}
             aria-describedby={messageDescribedBy}
             aria-errormessage={messageTooShort ? shortHintId : undefined}
@@ -215,7 +216,7 @@ export default function ContactPage() {
             autoComplete="off"
             aria-hidden="true"
             value={honeypot}
-            onChange={(e) => setHoneypot(e.target.value)}
+            onChange={(e) => { setHoneypot(e.target.value); }}
           />
         </div>
         <button type="submit" className="btn btn-success" disabled={sending}>

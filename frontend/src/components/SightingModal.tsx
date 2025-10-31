@@ -1,10 +1,11 @@
 // @ts-nocheck
 import { useState, useEffect, useRef, useId, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams } from 'react-router-dom';
+
 import { LogSighting } from './logForms';
 import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
-import { createPortal } from 'react-dom';
 
 // Modal wrapper for creating or editing sightings. When a `sightingId`
 // is provided the existing entry is loaded and the form works in edit mode.
@@ -63,7 +64,7 @@ export default function SightingModal({
         setZoos([]);
       }
     };
-    loadZoos();
+    void loadZoos();
   }, [propZoos]);
 
   // Load animal list when none were provided
@@ -80,7 +81,7 @@ export default function SightingModal({
         setAnimals([]);
       }
     };
-    loadAnimals();
+    void loadAnimals();
   }, [propAnimals]);
 
   // Fetch existing sighting when editing
@@ -94,7 +95,7 @@ export default function SightingModal({
         setSighting(null);
       }
     };
-    loadSighting();
+    void loadSighting();
   }, [sightingId, authFetch]);
 
   // Notify parent and close the modal after saving or deleting
@@ -217,7 +218,7 @@ export default function SightingModal({
         aria-modal="true"
         aria-labelledby={titleId}
         ref={modalRef}
-        tabIndex="-1"
+        tabIndex={-1}
       >
         <LogSighting
           zoos={zoos}

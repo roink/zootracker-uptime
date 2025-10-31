@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query';
 import type { PropsWithChildren } from 'react';
 import {
   createContext,
@@ -8,7 +9,6 @@ import {
   useRef,
   useState
 } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 
 import { API } from '../api';
 import type { AuthUser } from '../types/domain';
@@ -226,7 +226,7 @@ export function AuthProvider({ children }: PropsWithChildren): JSX.Element {
     const timeout = setTimeout(() => {
       void logout({ reason: 'expired' });
     }, authState.expiresAt - now);
-    return () => clearTimeout(timeout);
+    return () => { clearTimeout(timeout); };
   }, [authState.token, authState.expiresAt, logout]);
 
   const value = useMemo<AuthContextValue>(

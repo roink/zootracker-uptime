@@ -1,10 +1,11 @@
 // @ts-nocheck
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+
+import LandingSuggestionList from './SuggestionList';
 import LazyMap from '../../components/LazyMap';
 import useSearchSuggestions from '../../hooks/useSearchSuggestions';
 import { getZooDisplayName } from '../../utils/zooDisplayName';
-import LandingSuggestionList from './SuggestionList';
 
 // Hero section with search, CTAs and a live map preview.
 export default function Hero({
@@ -41,7 +42,7 @@ export default function Hero({
       { rootMargin: '200px' }
     );
     observer.observe(node);
-    return () => observer.disconnect();
+    return () => { observer.disconnect(); };
   }, []);
 
   useEffect(
@@ -236,7 +237,7 @@ export default function Hero({
                   className="form-control"
                   value={query}
                   placeholder={t('landing.hero.searchPlaceholder')}
-                  onChange={(event) => setQuery(event.target.value)}
+                  onChange={(event) => { setQuery(event.target.value); }}
                   onKeyDown={handleKeyDown}
                   onFocus={handleFocus}
                   onBlur={handleBlur}
@@ -263,7 +264,7 @@ export default function Hero({
                   options={options}
                   activeIndex={activeIndex}
                   onSelect={handleOptionSelect}
-                  onActivate={(index) => setActiveIndex(index)}
+                  onActivate={(index) => { setActiveIndex(index); }}
                 />
               ) : null}
             </form>
@@ -283,7 +284,7 @@ export default function Hero({
                       key={term}
                       type="button"
                       className="btn btn-outline-secondary btn-sm"
-                      onClick={() => handleRecentClick(term)}
+                      onClick={() => { handleRecentClick(term); }}
                     >
                       {term}
                     </button>

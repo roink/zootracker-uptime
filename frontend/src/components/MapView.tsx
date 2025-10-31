@@ -1,5 +1,5 @@
+import type { Map as MapLibreMap, Marker as MapLibreMarker } from 'maplibre-gl';
 import { useEffect, useRef } from 'react';
-import PropTypes from 'prop-types';
 import { useTranslation } from 'react-i18next';
 
 import { applyBaseMapLanguage } from '../utils/mapLanguage';
@@ -9,26 +9,33 @@ export const MAP_STYLE_URL =
   import.meta.env.VITE_MAP_STYLE_URL ||
   'https://tiles.openfreemap.org/styles/liberty';
 
-export default function MapView({ latitude, longitude, zoom = 14 }: any) {
-  const containerRef = useRef<any>(null);
-  const mapRef = useRef<any>(null);
-  const markerRef = useRef<any>(null);
+interface MapViewProps {
+  latitude: number;
+  longitude: number;
+  zoom?: number;
+}
+
+export default function MapView({ latitude, longitude, zoom = 14 }: MapViewProps) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<MapLibreMap | null>(null);
+  const markerRef = useRef<MapLibreMarker | null>(null);
   const { i18n } = useTranslation();
 
   // Initialize map once on mount
   useEffect(() => {
-    if (!containerRef.current) return;
+    const containerElement = containerRef.current;
+    if (!containerElement) return;
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
 
     let cancelled = false;
 
-    (async () => {
+    void (async () => {
       // Dynamically load MapLibre so the heavy library only loads when needed
       const { default: maplibregl } = await import('maplibre-gl');
       if (cancelled) return;
 
       mapRef.current = new maplibregl.Map({
-        container: containerRef.current,
+        container: containerElement,
         style: MAP_STYLE_URL,
         center: [longitude, latitude],
         zoom,
@@ -73,10 +80,3 @@ export default function MapView({ latitude, longitude, zoom = 14 }: any) {
     />
   );
 }
-
-MapView.propTypes = {
-  latitude: PropTypes.number,
-  longitude: PropTypes.number,
-  zoom: PropTypes.number,
-};
-

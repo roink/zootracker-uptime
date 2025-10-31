@@ -40,7 +40,13 @@ export default function SearchSuggestions({
           onMouseEnter={() => onActivate?.(index)}
           onMouseMove={() => onActivate?.(index)}
           onClick={() => onSelect(option)}
-        >
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              onSelect(option);
+            }
+          }}
+          >
           <div className="search-suggestion-primary">{option.label}</div>
           {option.secondary ? (
             <div className="search-suggestion-secondary text-muted small">

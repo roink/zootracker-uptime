@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 
-import Seo from '../components/Seo';
 import { API } from '../api';
+import Seo from '../components/Seo';
 import { consumeMaskedEmailHint, maskEmail } from '../utils/passwordReset';
 
 // Password reset confirmation page that validates the token and records a new password.
@@ -69,7 +69,7 @@ export default function ResetPasswordPage() {
       params.delete('token');
       params.delete('email');
       const nextSearch = params.toString();
-      navigate(`${location.pathname}${nextSearch ? `?${nextSearch}` : ''}`, { replace: true });
+        void navigate(`${location.pathname}${nextSearch ? `?${nextSearch}` : ''}`, { replace: true });
     }
   }, [location.pathname, location.search, navigate, emailFromLink, token]);
 
@@ -156,7 +156,7 @@ export default function ResetPasswordPage() {
       }
     };
 
-    verifyToken();
+      void verifyToken();
 
     return () => {
       cancelled = true;
@@ -364,8 +364,8 @@ export default function ResetPasswordPage() {
                 type={showPassword ? 'text' : 'password'}
                 className={`form-control${passwordTooShort ? ' is-invalid' : ''}`}
                 value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                onFocus={() => setPasswordFocused(true)}
+                onChange={(event) => { setPassword(event.target.value); }}
+                onFocus={() => { setPasswordFocused(true); }}
                 onBlur={() => {
                   setPasswordFocused(false);
                   setPasswordTouched(true);
@@ -377,7 +377,7 @@ export default function ResetPasswordPage() {
               <button
                 type="button"
                 className="btn btn-outline-secondary"
-                onClick={() => setShowPassword((prev) => !prev)}
+                onClick={() => { setShowPassword((prev) => !prev); }}
                 aria-label={
                   showPassword
                     ? t('auth.passwordReset.reset.hidePassword')
@@ -409,8 +409,8 @@ export default function ResetPasswordPage() {
                 type={showConfirm ? 'text' : 'password'}
                 className={`form-control${confirmMismatch ? ' is-invalid' : ''}`}
                 value={confirmPassword}
-                onChange={(event) => setConfirmPassword(event.target.value)}
-                onFocus={() => setConfirmFocused(true)}
+                onChange={(event) => { setConfirmPassword(event.target.value); }}
+                onFocus={() => { setConfirmFocused(true); }}
                 onBlur={() => {
                   setConfirmFocused(false);
                   setConfirmTouched(true);
@@ -422,7 +422,7 @@ export default function ResetPasswordPage() {
               <button
                 type="button"
                 className="btn btn-outline-secondary"
-                onClick={() => setShowConfirm((prev) => !prev)}
+                onClick={() => { setShowConfirm((prev) => !prev); }}
                 aria-label={
                   showConfirm
                     ? t('auth.passwordReset.reset.hidePassword')

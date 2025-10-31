@@ -1,21 +1,25 @@
+import type { Map as MaplibreMap, StyleSpecification } from 'maplibre-gl';
+
 const SUPPORTED_LANGUAGES = new Set(['en', 'de']);
 
-function normalizeLanguage(language) {
+type TextExpression = ['coalesce', ...unknown[]];
+
+function normalizeLanguage(language: unknown): 'en' | 'de' {
   if (typeof language !== 'string') {
     return 'en';
   }
   const base = language.split('-')[0]?.toLowerCase() ?? '';
-  return SUPPORTED_LANGUAGES.has(base) ? base : 'en';
+  return SUPPORTED_LANGUAGES.has(base) ? (base as 'en' | 'de') : 'en';
 }
 
-function buildTextFieldExpression(language) {
+function buildTextFieldExpression(language: 'en' | 'de'): TextExpression {
   const candidateFields = [`name:${language}`, 'name:en', 'name:latin', 'name'];
   const uniqueFields = Array.from(new Set(candidateFields.filter(Boolean)));
   const fallbacks = uniqueFields.map((field) => ['get', field]);
   return ['coalesce', ...fallbacks];
 }
 
-function expressionUsesNameField(value) {
+function expressionUsesNameField(value: unknown): boolean {
   if (typeof value === 'string') {
     return value.includes('{name');
   }
@@ -26,26 +30,40 @@ function expressionUsesNameField(value) {
     return value.some(expressionUsesNameField);
   }
   if (value && typeof value === 'object') {
-    return Object.values(value).some(expressionUsesNameField);
+    return Object.values(value as Record<string, unknown>).some(expressionUsesNameField);
   }
   return false;
 }
 
-export function applyBaseMapLanguage(map, language) {
+interface SymbolLayerLike {
+  id: string;
+  type?: string;
+  layout?: Record<string, unknown>;
+}
+
+function isSymbolLayer(layer: unknown): layer is SymbolLayerLike {
+  return Boolean(
+    layer &&
+    typeof (layer as SymbolLayerLike).id === 'string' &&
+    (layer as SymbolLayerLike).type === 'symbol'
+  );
+}
+
+export function applyBaseMapLanguage(map: MaplibreMap | null | undefined, language: unknown): void {
   if (!map) return;
   const normalized = normalizeLanguage(language);
 
-  const apply = () => {
-    if (!map.getStyle || typeof map.getStyle !== 'function') return;
-    const style = map.getStyle();
-    if (!style?.layers || !Array.isArray(style.layers)) return;
+  const apply = (): void => {
+    const style: StyleSpecification | null =
+      typeof map.getStyle === 'function' ? map.getStyle() : null;
+    if (!style || !Array.isArray(style.layers)) return;
     const textField = buildTextFieldExpression(normalized);
 
     style.layers.forEach((layer) => {
-      if (!layer || layer.type !== 'symbol') return;
-      const layerLayout = layer.layout ?? {};
-      if (!layerLayout['text-field']) return;
-      if (!expressionUsesNameField(layerLayout['text-field'])) return;
+      if (!isSymbolLayer(layer)) return;
+      const layerLayout = (layer.layout ?? {}) as Record<string, unknown>;
+      const textValue = layerLayout['text-field'];
+      if (!textValue || !expressionUsesNameField(textValue)) return;
       if (typeof map.setLayoutProperty !== 'function') return;
       try {
         map.setLayoutProperty(layer.id, 'text-field', textField);
@@ -57,7 +75,7 @@ export function applyBaseMapLanguage(map, language) {
 
   if (typeof map.isStyleLoaded === 'function' && !map.isStyleLoaded()) {
     if (typeof map.once === 'function') {
-      map.once('styledata', apply);
+      void map.once('styledata', apply);
       return;
     }
   }

@@ -21,16 +21,20 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
   {
     files: ['**/*.{ts,tsx}'],
+    extends: [
+      react.configs.flat.recommended,
+      react.configs.flat['jsx-runtime'],
+      jsxA11y.flatConfigs.recommended,
+      importPlugin.flatConfigs.recommended,
+      importPlugin.flatConfigs.typescript
+    ],
     languageOptions: {
       globals: {
         ...globals.browser
       }
     },
     plugins: {
-      react,
-      'react-hooks': reactHooks,
-      'jsx-a11y': jsxA11y,
-      import: importPlugin
+      'react-hooks': reactHooks
     },
     settings: {
       react: { version: 'detect' },
@@ -43,38 +47,89 @@ export default tseslint.config(
     rules: {
       'react/jsx-uses-react': 'off',
       'react/react-in-jsx-scope': 'off',
+      'react/prop-types': 'off',
       'react-hooks/rules-of-hooks': 'error',
-      'react-hooks/exhaustive-deps': 'warn',
+      'react-hooks/exhaustive-deps': 'error',
       '@typescript-eslint/ban-ts-comment': 'off',
       '@typescript-eslint/consistent-type-imports': 'warn',
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
       '@typescript-eslint/no-unused-expressions': 'off',
-      'no-unused-expressions': 'off'
+      'no-unused-expressions': 'off',
+      'import/order': [
+        'warn',
+        {
+          groups: [['builtin', 'external'], 'internal', ['parent', 'sibling', 'index']],
+          pathGroups: [
+            {
+              pattern: '@/**',
+              group: 'internal'
+            }
+          ],
+          pathGroupsExcludedImportTypes: ['builtin'],
+          'newlines-between': 'always',
+          alphabetize: { order: 'asc', caseInsensitive: true }
+        }
+      ],
+      'import/no-extraneous-dependencies': [
+        'warn',
+        {
+          devDependencies: [
+            '**/*.test.{ts,tsx}',
+            '**/*.spec.{ts,tsx}',
+            'src/test-utils/**/*',
+            'tests/**/*.{ts,tsx}',
+            'vite.config.ts',
+            'vitest.config.ts',
+            'playwright.config.ts'
+          ]
+        }
+      ],
+      'import/no-cycle': 'warn'
     }
   },
   {
     files: ['src/**/*.{ts,tsx}'],
-    extends: [...tseslint.configs.recommendedTypeChecked],
+    extends: [...tseslint.configs.strictTypeChecked],
     languageOptions: {
       parserOptions: {
         project: [project],
-        tsconfigRootDir: __dirname
+        tsconfigRootDir: __dirname,
+        projectService: true
       }
     },
     rules: {
-      '@typescript-eslint/ban-ts-comment': 'off',
+      '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/no-misused-promises': [
+        'error',
+        { checksVoidReturn: { attributes: false } }
+      ],
+      '@typescript-eslint/await-thenable': 'error',
+      '@typescript-eslint/restrict-template-expressions': [
+        'warn',
+        { allowBoolean: true, allowNumber: true }
+      ],
+      '@typescript-eslint/no-confusing-void-expression': 'warn',
+      '@typescript-eslint/no-unnecessary-condition': 'warn',
+      '@typescript-eslint/no-unnecessary-type-assertion': 'warn',
+      '@typescript-eslint/no-unnecessary-type-conversion': 'warn',
+      '@typescript-eslint/no-unused-expressions': 'warn',
       '@typescript-eslint/no-explicit-any': 'off',
-      '@typescript-eslint/no-unsafe-assignment': 'off',
-      '@typescript-eslint/no-unsafe-member-access': 'off',
-      '@typescript-eslint/no-unsafe-call': 'off',
-      '@typescript-eslint/no-unsafe-return': 'off',
-      '@typescript-eslint/no-unsafe-argument': 'off',
-      '@typescript-eslint/no-misused-promises': 'off',
-      '@typescript-eslint/no-floating-promises': 'off',
-      '@typescript-eslint/require-await': 'off',
-      '@typescript-eslint/no-unused-expressions': 'off',
-      '@typescript-eslint/prefer-promise-reject-errors': 'off',
+      '@typescript-eslint/no-deprecated': 'warn',
+      '@typescript-eslint/no-dynamic-delete': 'warn',
+      '@typescript-eslint/no-extraneous-class': 'warn',
+      '@typescript-eslint/no-invalid-void-type': 'warn',
+      '@typescript-eslint/no-non-null-assertion': 'warn',
+      '@typescript-eslint/restrict-plus-operands': 'warn',
+      '@typescript-eslint/require-await': 'warn',
+      '@typescript-eslint/use-unknown-in-catch-callback-variable': 'warn',
+      '@typescript-eslint/no-unsafe-assignment': 'warn',
+      '@typescript-eslint/no-unsafe-call': 'warn',
+      '@typescript-eslint/no-unsafe-member-access': 'warn',
+      '@typescript-eslint/no-unsafe-return': 'warn',
+      '@typescript-eslint/no-unsafe-argument': 'warn',
+      '@typescript-eslint/ban-ts-comment': 'off',
+      '@typescript-eslint/consistent-type-imports': 'warn',
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }]
     }
   },

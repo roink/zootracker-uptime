@@ -1,5 +1,6 @@
-import { useMemo, useCallback, Fragment } from 'react';
 import PropTypes from 'prop-types';
+import { useMemo, useCallback, Fragment } from 'react';
+
 import { groupSightingsByDay, formatSightingTime } from '../utils/sightingHistory';
 
 // Generic list component to render sighting history grouped by day.

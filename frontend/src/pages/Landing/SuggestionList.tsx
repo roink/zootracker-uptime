@@ -38,6 +38,12 @@ export default function LandingSuggestionList({
         onMouseEnter={() => onActivate?.(index)}
         onMouseMove={() => onActivate?.(index)}
         onClick={() => onSelect(option)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            onSelect(option);
+          }
+        }}
       >
         <div className="landing-suggestion-text">
           <div className="landing-suggestion-name">{option.displayName}</div>

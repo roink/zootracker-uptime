@@ -1,5 +1,6 @@
 import { Trans, useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
+
 import Seo from '../components/Seo';
 import { ORG } from '../config/org';
 
@@ -44,14 +45,18 @@ export default function DataProtectionPage() {
                   href={`mailto:${ORG.email}`}
                   className="underline"
                   rel="noopener noreferrer"
-                />
+                >
+                  {ORG.email}
+                </a>
               ),
               legalNotice: (
                 <a
                   href={legalNoticeHref}
                   className="underline"
                   rel="noopener noreferrer"
-                />
+                >
+                  {t('nav.legalNotice')}
+                </a>
               ),
             }}
           />
@@ -78,7 +83,9 @@ export default function DataProtectionPage() {
                   className="underline"
                   target="_blank"
                   rel="noopener noreferrer"
-                />
+                >
+                  Privacy Policy
+                </a>
               ),
               gdpr: (
                 <a
@@ -86,7 +93,9 @@ export default function DataProtectionPage() {
                   className="underline"
                   target="_blank"
                   rel="noopener noreferrer"
-                />
+                >
+                  GDPR &amp; DPA
+                </a>
               ),
               subprocessors: (
                 <a
@@ -94,7 +103,9 @@ export default function DataProtectionPage() {
                   className="underline"
                   target="_blank"
                   rel="noopener noreferrer"
-                />
+                >
+                  Sub-processors
+                </a>
               ),
             }}
           />
@@ -155,7 +166,9 @@ export default function DataProtectionPage() {
                     className="underline"
                     target="_blank"
                     rel="noopener noreferrer"
-                  />
+                  >
+                    Privacy Policy
+                  </a>
                 ),
                 gdpr: (
                   <a
@@ -163,7 +176,9 @@ export default function DataProtectionPage() {
                     className="underline"
                     target="_blank"
                     rel="noopener noreferrer"
-                  />
+                  >
+                    GDPR &amp; DPA
+                  </a>
                 ),
                 subprocessors: (
                   <a
@@ -171,7 +186,9 @@ export default function DataProtectionPage() {
                     className="underline"
                     target="_blank"
                     rel="noopener noreferrer"
-                  />
+                  >
+                    Sub-processors
+                  </a>
                 ),
               }}
             />
@@ -267,7 +284,9 @@ export default function DataProtectionPage() {
                   className="underline"
                   target="_blank"
                   rel="noopener noreferrer"
-                />
+                >
+                  Landesbeauftragte für Datenschutz NRW
+                </a>
               ),
             }}
           />

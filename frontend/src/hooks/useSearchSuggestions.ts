@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+
 import { API } from '../api';
 import searchCache from '../searchCache';
 import type { SearchResults, ZooSummary, AnimalSummary } from '../types/domain';

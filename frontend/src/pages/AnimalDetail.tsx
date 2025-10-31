@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   useParams,
   useNavigate,
@@ -7,19 +8,19 @@ import {
   Link,
   createSearchParams,
 } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
+
 import { API } from '../api';
-import { getZooDisplayName } from '../utils/zooDisplayName';
-import { normalizeCoordinates } from '../utils/coordinates';
-import useAuthFetch from '../hooks/useAuthFetch';
-import SightingModal from '../components/SightingModal';
-import SightingHistoryList from '../components/SightingHistoryList';
-import Seo from '../components/Seo';
 import { useAuth } from '../auth/AuthContext';
-import ZoosMap from '../components/ZoosMap';
 import FavoriteBadge from '../components/FavoriteBadge';
+import Seo from '../components/Seo';
+import SightingHistoryList from '../components/SightingHistoryList';
+import SightingModal from '../components/SightingModal';
+import ZoosMap from '../components/ZoosMap';
+import useAuthFetch from '../hooks/useAuthFetch';
+import { normalizeCoordinates } from '../utils/coordinates';
 import '../styles/animal-detail.css';
 import { formatSightingDayLabel } from '../utils/sightingHistory';
+import { getZooDisplayName } from '../utils/zooDisplayName';
 
 // Map IUCN codes to labels and bootstrap badge classes
 const IUCN = {
@@ -35,6 +36,12 @@ const IUCN = {
 };
 
 // Normalize map camera view snapshots stored in navigation state
+type AnimalLocationState = {
+  animalViewMode?: 'map' | 'list';
+  animalMapView?: unknown;
+  redirectTo?: string;
+};
+
 function sanitizeCameraView(view) {
   if (!view) return null;
   const center = Array.isArray(view.center) ? view.center : null;
@@ -82,14 +89,14 @@ function useMediaQuery(query) {
       return () => {};
     }
     const mediaQueryList = window.matchMedia(query);
-    const handleChange = (event) => setMatches(event.matches);
+    const handleChange = (event) => { setMatches(event.matches); };
     handleChange(mediaQueryList);
     if (typeof mediaQueryList.addEventListener === 'function') {
       mediaQueryList.addEventListener('change', handleChange);
-      return () => mediaQueryList.removeEventListener('change', handleChange);
+      return () => { mediaQueryList.removeEventListener('change', handleChange); };
     }
     mediaQueryList.addListener(handleChange);
-    return () => mediaQueryList.removeListener(handleChange);
+    return () => { mediaQueryList.removeListener(handleChange); };
   }, [query]);
 
   return matches;
@@ -101,14 +108,14 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
   const { slug, lang } = useParams();
   const navigate = useNavigate();
   const routerLocation = useLocation();
+  const routerState = routerLocation.state as AnimalLocationState | undefined;
   const prefix = `/${lang}`;
   const { t } = useTranslation();
   const authFetch = useAuthFetch();
   const { isAuthenticated } = useAuth();
   const locale = lang === 'de' ? 'de-DE' : 'en-US';
-  const initialViewMode =
-    routerLocation.state?.animalViewMode === 'map' ? 'map' : 'list';
-  const initialMapView = sanitizeCameraView(routerLocation.state?.animalMapView);
+  const initialViewMode = routerState?.animalViewMode === 'map' ? 'map' : 'list';
+  const initialMapView = sanitizeCameraView(routerState?.animalMapView);
   const [animal, setAnimal] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -252,12 +259,12 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
     setError(false);
     setFavoriteError('');
     // fetch animal details and associated zoos (with distance when available)
-    (async () => {
-      try {
-        const response = await authFetch(
-          `${API}/animals/${slug}${params.length ? `?${params.join('&')}` : ''}`,
-          { signal: controller.signal }
-        );
+      void (async () => {
+        try {
+          const response = await authFetch(
+            `${API}/animals/${slug}${params.length ? `?${params.join('&')}` : ''}`,
+            { signal: controller.signal }
+          );
         if (!response.ok) {
           throw new Error('Failed to load');
         }
@@ -273,9 +280,9 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
           setZoos([]);
         }
       }
-    })();
+      })();
 
-    return () => controller.abort();
+    return () => { controller.abort(); };
   }, [slug, userLocation, authFetch]);
 
   const fetchHistory = useCallback(
@@ -338,8 +345,8 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
 
   useEffect(() => {
     const controller = new AbortController();
-    loadHistory({ signal: controller.signal });
-    return () => controller.abort();
+    void loadHistory({ signal: controller.signal });
+    return () => { controller.abort(); };
   }, [loadHistory, refresh]);
 
   useEffect(() => {
@@ -354,7 +361,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
   }, [slug]);
 
   useEffect(() => {
-    const navState = routerLocation.state || {};
+    const navState = routerState ?? {};
     const nextMode = navState.animalViewMode === 'map' ? 'map' : 'list';
     const nextView = sanitizeCameraView(navState.animalMapView);
     setViewMode(nextMode);
@@ -364,14 +371,14 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
       viewMode: nextMode,
       mapView: nextView,
     };
-  }, [slug]);
+  }, [routerState, slug]);
 
   useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) =>
-          setUserLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
-        () => setUserLocation(null),
+          { setUserLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude }); },
+        () => { setUserLocation(null); },
         { enableHighAccuracy: false, timeout: 3000, maximumAge: 600000 }
       );
     }
@@ -419,8 +426,8 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
         viewMode: desiredMode,
         mapView: sanitizedView,
       };
-      const state = routerLocation.state || {};
-      navigate(`${routerLocation.pathname}${routerLocation.search}`, {
+      const state = routerState ?? {};
+        void navigate(`${routerLocation.pathname}${routerLocation.search}`, {
         replace: true,
         state: {
           ...state,
@@ -433,7 +440,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
       navigate,
       routerLocation.pathname,
       routerLocation.search,
-      routerLocation.state,
+      routerState,
       viewMode,
     ]
   );
@@ -443,7 +450,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
       const sanitizedView = sanitizeCameraView(view) ?? mapView;
       setMapView(sanitizedView);
       persistViewState('map', sanitizedView);
-      navigate(`${prefix}/zoos/${zoo.slug || zoo.id}`, {
+        void navigate(`${prefix}/zoos/${zoo.slug || zoo.id}`, {
         state: {
           animalViewMode: 'map',
           animalMapView: sanitizedView,
@@ -476,7 +483,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
   const handleFavoriteToggle = useCallback(async () => {
     if (!animal) return;
     if (!isAuthenticated) {
-      navigate(`${prefix}/login`, {
+        void navigate(`${prefix}/login`, {
         state: { redirectTo: routerLocation.pathname },
       });
       return;
@@ -503,7 +510,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
   }, [animal, authFetch, favorite, isAuthenticated, navigate, prefix, routerLocation.pathname, t]);
 
   const handleLoginRedirect = useCallback(() => {
-    navigate(`${prefix}/login`, {
+    void navigate(`${prefix}/login`, {
       state: { redirectTo: routerLocation.pathname },
     });
   }, [navigate, prefix, routerLocation.pathname]);
@@ -558,25 +565,31 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
 
   const closestZoo = filteredZoos[0] ?? zoos[0];
 
-  const historyMessages = {
-    login: t('animal.sightingHistoryLogin'),
-    loginCta: t('nav.login'),
-    loading: t('animal.sightingHistoryLoading'),
-    error: t('animal.sightingHistoryError'),
-    empty: t('animal.sightingHistoryEmpty'),
-  };
+  const historyMessages = useMemo(
+    () => ({
+      login: t('animal.sightingHistoryLogin'),
+      loginCta: t('nav.login'),
+      loading: t('animal.sightingHistoryLoading'),
+      error: t('animal.sightingHistoryError'),
+      empty: t('animal.sightingHistoryEmpty'),
+    }),
+    [t]
+  );
 
-  const unauthenticatedHistory = (
-    <div className="alert alert-info mt-2" role="status" aria-live="polite">
-      <p className="mb-2">{historyMessages.login}</p>
-      <button
-        type="button"
-        className="btn btn-primary btn-sm"
-        onClick={handleLoginRedirect}
-      >
-        {historyMessages.loginCta}
-      </button>
-    </div>
+  const unauthenticatedHistory = useMemo(
+    () => (
+      <div className="alert alert-info mt-2" role="status" aria-live="polite">
+        <p className="mb-2">{historyMessages.login}</p>
+        <button
+          type="button"
+          className="btn btn-primary btn-sm"
+          onClick={handleLoginRedirect}
+        >
+          {historyMessages.loginCta}
+        </button>
+      </div>
+    ),
+    [handleLoginRedirect, historyMessages]
   );
 
   const mediaSection = hasGallery
@@ -660,7 +673,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
                           className="animal-media-ambient__bg"
                           decoding="async"
                           loading={loadingAttr}
-                          fetchpriority={bgFetchPri}
+                          fetchPriority={bgFetchPri}
                           draggable="false"
                           src={fallbackSrc}
                           srcSet={srcSet}
@@ -672,7 +685,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
                           sizes={sizes}
                           decoding="async"
                           loading={loadingAttr}
-                          fetchpriority={fetchPri}
+                          fetchPriority={fetchPri}
                           alt={animalName}
                           draggable="false"
                           className="animal-media-ambient__img"
@@ -723,7 +736,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
               className="animal-media-ambient__bg"
               decoding="async"
               loading="eager"
-              fetchpriority="high"
+              fetchPriority="high"
               draggable="false"
               src={animal.default_image_url}
             />
@@ -752,9 +765,10 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
   const showDescriptionToggle = !isDesktop && Boolean(animalDesc);
   const descriptionCollapsed = !isDesktop && !descOpen;
 
-  const renderOverviewPanel = () => (
-    <div className="animal-section-panel card">
-      <div className="card-body">
+  const renderOverviewPanel = useCallback(
+    () => (
+      <div className="animal-section-panel card">
+        <div className="card-body">
         {animalDesc && (
           <div>
             <h3 className="h5">{t('animal.aboutHeading')}</h3>
@@ -767,7 +781,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
             {showDescriptionToggle && (
               <button
                 className="btn btn-link p-0"
-                onClick={() => setDescOpen((v) => !v)}
+                onClick={() => { setDescOpen((v) => !v); }}
                 aria-expanded={descOpen}
                 aria-controls="animal-description"
               >
@@ -781,7 +795,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
             <button
               type="button"
               className="taxonomy-toggle btn btn-link p-0 text-start"
-              onClick={() => setTaxonomyOpen((value) => !value)}
+              onClick={() => { setTaxonomyOpen((value) => !value); }}
               aria-expanded={taxonomyOpen}
               aria-controls={taxonomyContentId}
             >
@@ -910,13 +924,32 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
             </div>
           </div>
         )}
+        </div>
       </div>
-    </div>
+    ),
+    [
+      animalDesc,
+      classificationLinks,
+      className,
+      descOpen,
+      descriptionCollapsed,
+      familyName,
+      orderName,
+      parentDetails,
+      prefix,
+      showDescriptionToggle,
+      subspeciesLinks,
+      t,
+      taxonomyContentId,
+      taxonomyHasDetails,
+      taxonomyOpen,
+    ]
   );
 
-  const renderWherePanel = () => (
-    <div className="animal-section-panel card">
-      <div className="card-body pb-2">
+  const renderWherePanel = useCallback(
+    () => (
+      <div className="animal-section-panel card">
+        <div className="card-body pb-2">
         <div className="where-toolbar d-flex flex-column flex-lg-row gap-3 align-items-stretch align-items-lg-center">
           <div className="flex-grow-1">
             <div className="input-group input-group-sm">
@@ -926,7 +959,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
                 className="form-control"
                 placeholder={t('animal.filterPlaceholder')}
                 value={zooFilter}
-                onChange={(e) => setZooFilter(e.target.value)}
+                onChange={(e) => { setZooFilter(e.target.value); }}
                 aria-label={t('animal.filterAria')}
               />
             </div>
@@ -940,7 +973,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
               id="animal-zoo-view-list"
               autoComplete="off"
               checked={viewMode === 'list'}
-              onChange={() => handleViewModeChange('list')}
+              onChange={() => { handleViewModeChange('list'); }}
             />
             <label className="btn btn-outline-primary" htmlFor="animal-zoo-view-list">
               {t('zoo.viewList')}
@@ -952,7 +985,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
               id="animal-zoo-view-map"
               autoComplete="off"
               checked={viewMode === 'map'}
-              onChange={() => handleViewModeChange('map')}
+              onChange={() => { handleViewModeChange('map'); }}
             />
             <label className="btn btn-outline-primary" htmlFor="animal-zoo-view-map">
               {t('zoo.viewMap')}
@@ -969,8 +1002,8 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
           </div>
         )}
       </div>
-      {viewMode === 'list' ? (
-        <div className="table-responsive">
+        {viewMode === 'list' ? (
+          <div className="table-responsive">
           <table className="table table-hover align-middle mb-0">
             <thead className="table-light">
               <tr>
@@ -991,12 +1024,12 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
                     className="pointer-row"
                     role="link"
                     aria-label={t('animal.openZoo', { zoo: displayName })}
-                    onClick={() => navigate(`${prefix}/zoos/${z.slug || z.id}`)}
+                    onClick={() => void navigate(`${prefix}/zoos/${z.slug || z.id}`)}
                     tabIndex={0}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault();
-                        navigate(`${prefix}/zoos/${z.slug || z.id}`);
+                        void navigate(`${prefix}/zoos/${z.slug || z.id}`);
                       }
                     }}
                   >
@@ -1017,38 +1050,57 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
             </tbody>
           </table>
         </div>
-      ) : (
-        <div className="card-body pt-0">
-          {zoosWithCoordinates.length > 0 ? (
-            <ZoosMap
-              zoos={zoosWithCoordinates}
-              center={
-                userLocation
-                  ? {
-                      lat: userLocation.lat,
-                      lon: userLocation.lon,
-                    }
-                  : null
-              }
-              onSelect={handleMapSelect}
-              initialView={mapView}
-              onViewChange={handleMapViewChange}
-              resizeToken={mapResizeToken}
-              ariaLabel={t('animal.mapAriaLabel', { animal: animalName })}
-            />
-          ) : (
-            <div className="alert alert-info mb-0" role="status">
-              {t('zoo.noMapResults')}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+        ) : (
+          <div className="card-body pt-0">
+            {zoosWithCoordinates.length > 0 ? (
+              <ZoosMap
+                zoos={zoosWithCoordinates}
+                center={
+                  userLocation
+                    ? {
+                        lat: userLocation.lat,
+                        lon: userLocation.lon,
+                      }
+                    : null
+                }
+                onSelect={handleMapSelect}
+                initialView={mapView}
+                onViewChange={handleMapViewChange}
+                resizeToken={mapResizeToken}
+                ariaLabel={t('animal.mapAriaLabel', { animal: animalName })}
+              />
+            ) : (
+              <div className="alert alert-info mb-0" role="status">
+                {t('zoo.noMapResults')}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    ),
+    [
+      animalName,
+      filteredZoos,
+      handleMapSelect,
+      handleMapViewChange,
+      handleViewModeChange,
+      mapResizeToken,
+      mapView,
+      navigate,
+      prefix,
+      t,
+      userLocation,
+      viewMode,
+      zoos,
+      zoosWithCoordinates,
+      zooFilter,
+    ]
   );
 
-  const renderSightingsPanel = () => (
-    <div className="animal-section-panel card">
-      <div className="card-body">
+  const renderSightingsPanel = useCallback(
+    () => (
+      <div className="animal-section-panel card">
+        <div className="card-body">
         {gallery.length > 0 && (
           <div className="sightings-gallery mb-4">
             <h3 className="h6 text-uppercase text-muted mb-2">
@@ -1078,19 +1130,38 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
           renderSighting={renderHistoryItem}
           unauthenticatedContent={unauthenticatedHistory}
         />
+        </div>
       </div>
-    </div>
+    ),
+    [
+      animalName,
+      formatHistoryDay,
+      gallery,
+      handleLoginRedirect,
+      history,
+      historyError,
+      historyLoading,
+      historyMessages,
+      isAuthenticated,
+      locale,
+      renderHistoryItem,
+      t,
+      unauthenticatedHistory,
+    ]
   );
 
-  const sections = [
-    { id: 'overview', label: t('animal.overviewTab'), render: renderOverviewPanel },
-    { id: 'where', label: t('animal.whereToSee'), render: renderWherePanel },
-    {
-      id: 'sightings',
-      label: t('animal.sightingHistoryHeading'),
-      render: renderSightingsPanel,
-    },
-  ];
+  const sections = useMemo(
+    () => [
+      { id: 'overview', label: t('animal.overviewTab'), render: renderOverviewPanel },
+      { id: 'where', label: t('animal.whereToSee'), render: renderWherePanel },
+      {
+        id: 'sightings',
+        label: t('animal.sightingHistoryHeading'),
+        render: renderSightingsPanel,
+      },
+    ],
+    [renderOverviewPanel, renderSightingsPanel, renderWherePanel, t]
+  );
 
   useEffect(() => {
     if (!sections.length) {
@@ -1252,8 +1323,8 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
                 id={`${section.id}-tab`}
                 aria-controls={`${section.id}-panel`}
                 aria-selected={activeSection === section.id}
-                onClick={() => setActiveSection(section.id)}
-                onKeyDown={(event) => handleTabKeyDown(event, index)}
+                onClick={() => { setActiveSection(section.id); }}
+                onKeyDown={(event) => { handleTabKeyDown(event, index); }}
                 ref={(node) => {
                   tabRefs.current[index] = node;
                 }}
@@ -1302,7 +1373,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
                       type="button"
                       aria-expanded={open}
                       aria-controls={`${section.id}-collapse`}
-                      onClick={() => toggleAccordion(section.id)}
+                      onClick={() => { toggleAccordion(section.id); }}
                     >
                       {section.label}
                     </button>
@@ -1328,10 +1399,10 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
           defaultZooName={modalData.zooName}
           defaultAnimalName={modalData.animalName}
           onLogged={() => {
-            loadHistory();
+            void loadHistory();
             onLogged && onLogged();
           }}
-          onClose={() => setModalData(null)}
+          onClose={() => { setModalData(null); }}
         />
       )}
     </div>

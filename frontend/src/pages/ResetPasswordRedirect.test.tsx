@@ -4,9 +4,9 @@ import { cleanup, screen } from '@testing-library/react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
-import { renderWithRouter } from '../test-utils/router';
 import i18n from '../i18n';
 import ResetPasswordRedirect from './ResetPasswordRedirect';
+import { renderWithRouter } from '../test-utils/router';
 
 function LocationProbe() {
   const location = useLocation();
