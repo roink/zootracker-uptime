@@ -1,12 +1,13 @@
 // @ts-nocheck
-import React from 'react';
 import '@testing-library/jest-dom';
 import { screen, waitFor } from '@testing-library/react';
-import { Routes, Route } from 'react-router-dom';
-import { describe, it, beforeEach, afterEach, expect, vi } from 'vitest';
+import { Route, Routes } from 'react-router-dom';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { API } from '../api';
 import { loadLocale } from '../i18n';
+import ZooDetailPage from './ZooDetail';
+import { renderWithRouter } from '../test-utils/router';
 
 const { seoSpy } = vi.hoisted(() => ({
   seoSpy: vi.fn(),
@@ -30,9 +31,6 @@ vi.mock('../components/ZooDetail', () => ({
     return <div data-testid="zoo-detail" />;
   },
 }));
-
-import ZooDetailPage from './ZooDetail';
-import { renderWithRouter } from '../test-utils/router';
 
 async function prepareLocale() {
   await loadLocale('en');

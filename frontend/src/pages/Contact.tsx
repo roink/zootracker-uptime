@@ -87,7 +87,7 @@ export default function ContactPage() {
         let detailPayload = null;
         try {
           detailPayload = await resp.json();
-        } catch (error) {
+        } catch (_error) {
           detailPayload = null;
         }
         const detailValue =

@@ -1,10 +1,10 @@
 // @ts-nocheck
-import React from 'react';
-import '@testing-library/jest-dom';
-import { render, screen, act } from '@testing-library/react';
-import { createMemoryRouter, RouterProvider } from 'react-router-dom';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import '@testing-library/jest-dom';
+import { act, render, screen } from '@testing-library/react';
+import React from 'react';
+import { createMemoryRouter, RouterProvider } from 'react-router-dom';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import Dashboard from './Dashboard';
 import { AuthProvider, useAuth } from '../auth/AuthContext';

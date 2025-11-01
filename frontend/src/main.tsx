@@ -1,5 +1,5 @@
+import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
 import type { Query } from '@tanstack/query-core';
-import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
 import { QueryClient } from '@tanstack/react-query';
 import {
   PersistQueryClientProvider,
@@ -25,7 +25,6 @@ import EmailVerificationAlert from './components/EmailVerificationAlert';
 import Footer from './components/Footer';
 import Header from './components/Header';
 import i18n, { loadLocale, normalizeLang } from './i18n';
-
 // Base URL of the FastAPI backend. When the frontend is served on a different
 // port (e.g. via `python -m http.server`), the API won't be on the same origin
 // anymore, so we explicitly point to the backend running on port 8000.
@@ -71,10 +70,31 @@ const queryClient = new QueryClient({
   }
 });
 
-const persister = createSyncStoragePersister({ storage: window.localStorage });
+const localStoragePersister = createAsyncStoragePersister({
+  storage: {
+    async getItem(key: string) {
+      if (typeof window === 'undefined') {
+        return null;
+      }
+      return window.localStorage.getItem(key);
+    },
+    async setItem(key: string, value: string) {
+      if (typeof window === 'undefined') {
+        return;
+      }
+      window.localStorage.setItem(key, value);
+    },
+    async removeItem(key: string) {
+      if (typeof window === 'undefined') {
+        return;
+      }
+      window.localStorage.removeItem(key);
+    }
+  }
+});
 
 const persistOptions: PersistQueryClientProviderProps['persistOptions'] = {
-  persister,
+  persister: localStoragePersister,
   dehydrateOptions: {
     shouldDehydrateQuery: (query: Query) =>
       !Array.isArray(query.queryKey) || query.queryKey[0] !== 'user'

@@ -53,7 +53,7 @@ describe('ZooDetail component', () => {
     seen = [animalId],
     history = { items: sightings, total: sightings.length, limit: 50, offset: 0 },
   }: any = {}) => {
-    global.fetch.mockImplementation((url, options = {}) => {
+    global.fetch.mockImplementation((url, _options = {}) => {
       const requestUrl = typeof url === 'string' ? url : url?.url ?? '';
       if (requestUrl.endsWith('/auth/refresh')) {
         return Promise.resolve(jsonResponse({ detail: 'unauthorized' }, 401));

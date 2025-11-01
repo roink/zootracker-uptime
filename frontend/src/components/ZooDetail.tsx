@@ -109,7 +109,7 @@ export default function ZooDetail({
       const nextFavorite = Boolean(payload.favorite);
       setFavorite(nextFavorite);
       onFavoriteChange?.(nextFavorite);
-    } catch (err) {
+    } catch (_err) {
       setFavoriteError(t('zoo.favoriteError'));
     } finally {
       setFavoritePending(false);
@@ -193,8 +193,13 @@ export default function ZooDetail({
           setHistory(items);
           setHistoryError(false);
         })
-        .catch((err) => {
-          if (err?.name === 'AbortError') {
+        .catch((err: unknown) => {
+          if (
+            typeof err === 'object' &&
+            err !== null &&
+            'name' in err &&
+            (err as { name?: unknown }).name === 'AbortError'
+          ) {
             return;
           }
           setHistory([]);

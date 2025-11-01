@@ -1,5 +1,14 @@
+import type { LandingMetric, LandingTranslator } from './types';
+
+interface MetricsProps {
+  t: LandingTranslator;
+  metrics: LandingMetric[];
+  isLoading: boolean;
+  isError: boolean;
+}
+
 // Metrics section showing the global counters fetched from the API.
-export default function Metrics({ t, metrics, isLoading, isError }) {
+export default function Metrics({ t, metrics, isLoading, isError }: MetricsProps) {
   return (
     <section className="landing-metrics py-5 bg-light">
       <div className="container">

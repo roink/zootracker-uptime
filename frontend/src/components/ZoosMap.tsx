@@ -84,7 +84,7 @@ export default function ZoosMap({
   ariaLabel,
   onMapReady,
   disableClusterCount = false,
-}: ZoosMapProps): JSX.Element {
+}: ZoosMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MaplibreMap | null>(null);
   const maplibreRef: MutableRefObject<MaplibreModule | null> = useRef(null);
@@ -138,7 +138,7 @@ export default function ZoosMap({
   }, [normalizedZoos]);
 
   const fallbackZoo = useMemo<MapZooFeature | null>(
-    () => (normalizedZoos.length > 0 ? normalizedZoos[0]! : null),
+    () => (normalizedZoos.length > 0 ? normalizedZoos[0] ?? null : null),
     [normalizedZoos]
   );
 
@@ -252,7 +252,8 @@ export default function ZoosMap({
   // Initialize the map when we have a target center.
   useEffect(() => {
     if (mapRef.current) return undefined;
-    if (!containerRef.current) return undefined;
+    const container = containerRef.current;
+    if (!container) return undefined;
     if (!initialState) return undefined;
 
     let cancelled = false;
@@ -264,7 +265,7 @@ export default function ZoosMap({
 
       maplibreRef.current = maplibregl;
       mapRef.current = new maplibregl.Map({
-        container: containerRef.current!,
+        container,
         style: MAP_STYLE_URL,
         center: initialState.center,
         zoom: initialState.zoom ?? FOCUS_ZOOM,
@@ -508,7 +509,7 @@ export default function ZoosMap({
             const nextZoom = Number.isFinite(zoom) ? zoom : map.getZoom?.() ?? FOCUS_ZOOM;
             map.easeTo?.({ center: coordinates as LngLatLike, zoom: nextZoom });
           }
-        } catch (error) {
+        } catch (_error) {
           // Ignore zoom errors to avoid breaking user interaction.
         }
       })();

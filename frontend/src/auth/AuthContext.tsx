@@ -61,12 +61,15 @@ function decodeJwtPayload(token: string | null | undefined): JwtPayload | null {
   const parts = token.split('.');
   if (parts.length < 2) return null;
   try {
-    const payloadSegment = parts[1]!;
+    const payloadSegment = parts[1];
+    if (!payloadSegment) {
+      return null;
+    }
     const payload = payloadSegment.replace(/-/g, '+').replace(/_/g, '/');
     const padded = payload.padEnd(payload.length + ((4 - (payload.length % 4)) % 4), '=');
     const decoded = atob(padded);
     return JSON.parse(decoded) as JwtPayload;
-  } catch (err) {
+  } catch (err: unknown) {
     console.warn('Failed to decode JWT payload', err);
     return null;
   }
@@ -107,7 +110,7 @@ function mergeUser(current: AuthUser | null, patch?: Partial<AuthUser> | null): 
   return Object.keys(next).length > 0 ? next : null;
 }
 
-export function AuthProvider({ children }: PropsWithChildren): JSX.Element {
+export function AuthProvider({ children }: PropsWithChildren) {
   const queryClient = useQueryClient();
   const [authState, setAuthState] = useState<AuthState>({
     token: null,
@@ -152,7 +155,7 @@ export function AuthProvider({ children }: PropsWithChildren): JSX.Element {
       loggingOut.current = true;
       try {
         await fetch(`${API}/auth/logout`, { method: 'POST', credentials: 'include' });
-      } catch (err) {
+      } catch (err: unknown) {
         console.warn('Logout request failed', err);
       } finally {
         clearAuthState();
@@ -188,7 +191,7 @@ export function AuthProvider({ children }: PropsWithChildren): JSX.Element {
       return data.access_token;
     })();
     refreshPromise.current = promise
-      .catch((err) => {
+      .catch((err: unknown) => {
         throw err;
       })
       .finally(() => {

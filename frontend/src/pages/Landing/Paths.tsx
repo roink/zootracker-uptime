@@ -1,7 +1,14 @@
 import { Link } from 'react-router-dom';
 
+import type { LandingTranslator } from './types';
+
+interface PathsProps {
+  t: LandingTranslator;
+  prefix: string;
+}
+
 // Grid of entry points that guide visitors into different parts of the app.
-export default function Paths({ t, prefix }) {
+export default function Paths({ t, prefix }: PathsProps) {
   const cards = [
     {
       key: 'map',

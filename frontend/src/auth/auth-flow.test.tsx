@@ -1,10 +1,10 @@
 // @ts-nocheck
-import { useEffect } from 'react';
-import { fireEvent, waitFor, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
-import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from 'vitest';
+import { useEffect } from 'react';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { useAuth } from './AuthContext';
 import useAuthFetch from '../hooks/useAuthFetch';
