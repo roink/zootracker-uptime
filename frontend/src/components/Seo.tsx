@@ -2,6 +2,15 @@ import PropTypes from 'prop-types';
 import { Helmet } from 'react-helmet-async';
 import { useParams } from 'react-router-dom';
 
+interface SeoProps {
+  title: string;
+  description?: string;
+  image?: string;
+  canonical?: string;
+  jsonLd?: Record<string, unknown> | unknown[];
+  robots?: string;
+}
+
 // Reusable component for setting page title and social meta tags.
 export default function Seo({
   title,
@@ -10,8 +19,8 @@ export default function Seo({
   canonical,
   jsonLd,
   robots,
-}: any) {
-  const HelmetComponent: any = Helmet;
+}: SeoProps) {
+  const HelmetComponent = Helmet;
   const { lang } = useParams();
   const activeLang =
     typeof lang === 'string' && lang.length > 0 ? lang : 'en';

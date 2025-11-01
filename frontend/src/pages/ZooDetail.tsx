@@ -57,7 +57,7 @@ export default function ZooDetailPage({ refresh, onLogged }: any) {
         }
         const data = await response.json();
         setZoo(data);
-      } catch (err) {
+      } catch (_err) {
         if (!controller.signal.aborted) {
           setZoo(null);
         }

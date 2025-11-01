@@ -1,4 +1,27 @@
+import type { ReactElement } from 'react';
 import { useMemo } from 'react';
+
+export interface SearchSuggestionOption {
+  id: string;
+  key: string;
+  type: 'zoo' | 'animal';
+  value: string;
+  label: string;
+  secondary?: string;
+  groupKey?: string;
+  groupLabel?: string;
+  firstInGroup?: boolean;
+  displayName?: string;
+}
+
+interface SearchSuggestionsProps {
+  id: string;
+  labelledBy: string;
+  options: SearchSuggestionOption[];
+  activeIndex: number;
+  onSelect: (option: SearchSuggestionOption) => void;
+  onActivate?: (index: number) => void;
+}
 
 // Dropdown list showing search suggestions below the header search field.
 // Listbox options follow the ARIA pattern so screen readers announce
@@ -10,9 +33,9 @@ export default function SearchSuggestions({
   activeIndex,
   onSelect,
   onActivate,
-}: any) {
+}: SearchSuggestionsProps) {
   const items = useMemo(() => {
-    const rendered = [] as any[];
+    const rendered: ReactElement[] = [];
     options.forEach((option, index) => {
       if (option.firstInGroup && option.groupLabel) {
         rendered.push(
@@ -37,9 +60,15 @@ export default function SearchSuggestions({
             event.preventDefault();
             onSelect(option);
           }}
-          onMouseEnter={() => onActivate?.(index)}
-          onMouseMove={() => onActivate?.(index)}
-          onClick={() => onSelect(option)}
+          onMouseEnter={() => {
+            onActivate?.(index);
+          }}
+          onMouseMove={() => {
+            onActivate?.(index);
+          }}
+          onClick={() => {
+            onSelect(option);
+          }}
           onKeyDown={(event) => {
             if (event.key === 'Enter' || event.key === ' ') {
               event.preventDefault();

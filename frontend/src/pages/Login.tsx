@@ -72,7 +72,7 @@ export default function LoginPage() {
       if (rawValue) {
         try {
           decoded = decodeURIComponent(rawValue);
-        } catch (err) {
+        } catch (_err) {
           decoded = rawValue;
         }
       }
@@ -150,8 +150,8 @@ export default function LoginPage() {
       } else {
         setLoginError(t('auth.login.error'));
       }
-    } catch (err) {
-      const networkError = err instanceof Error ? err : new Error(String(err));
+    } catch (_err) {
+      const networkError = _err instanceof Error ? _err : new Error(String(_err));
       setLoginError(t('auth.common.networkError', { message: networkError.message }));
     } finally {
       setLoggingIn(false);
@@ -205,8 +205,8 @@ export default function LoginPage() {
       } else {
         alert(t('auth.signup.error'));
       }
-    } catch (err) {
-      const networkError = err instanceof Error ? err : new Error(String(err));
+    } catch (_err) {
+      const networkError = _err instanceof Error ? _err : new Error(String(_err));
       alert(t('auth.common.networkError', { message: networkError.message }));
     } finally {
       setSigningUp(false);

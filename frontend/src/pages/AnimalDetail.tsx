@@ -89,14 +89,22 @@ function useMediaQuery(query) {
       return () => {};
     }
     const mediaQueryList = window.matchMedia(query);
-    const handleChange = (event) => { setMatches(event.matches); };
+    const handleChange = (event: MediaQueryListEvent | MediaQueryList) => {
+      setMatches(event.matches);
+    };
     handleChange(mediaQueryList);
     if (typeof mediaQueryList.addEventListener === 'function') {
       mediaQueryList.addEventListener('change', handleChange);
       return () => { mediaQueryList.removeEventListener('change', handleChange); };
     }
-    mediaQueryList.addListener(handleChange);
-    return () => { mediaQueryList.removeListener(handleChange); };
+    const previousHandler = mediaQueryList.onchange;
+    mediaQueryList.onchange = (event: MediaQueryListEvent) => {
+      previousHandler?.call(mediaQueryList, event);
+      handleChange(event);
+    };
+    return () => {
+      mediaQueryList.onchange = previousHandler ?? null;
+    };
   }, [query]);
 
   return matches;
@@ -272,7 +280,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
         setAnimal(data);
         setZoos(data.zoos || []);
         setLoading(false);
-      } catch (err) {
+      } catch (_error: unknown) {
         if (!controller.signal.aborted) {
           setError(true);
           setLoading(false);
@@ -327,8 +335,13 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
           setHistory(items);
           setHistoryError(false);
         })
-        .catch((err) => {
-          if (err?.name === 'AbortError') {
+        .catch((err: unknown) => {
+          if (
+            typeof err === 'object' &&
+            err !== null &&
+            'name' in err &&
+            (err as { name?: unknown }).name === 'AbortError'
+          ) {
             return;
           }
           setHistory([]);
@@ -502,7 +515,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
       const nextFavorite = Boolean(payload.favorite);
       setFavorite(nextFavorite);
       setAnimal((prev) => (prev ? { ...prev, is_favorite: nextFavorite } : prev));
-    } catch (err) {
+    } catch (_error: unknown) {
       setFavoriteError(t('animal.favoriteError'));
     } finally {
       setFavoritePending(false);

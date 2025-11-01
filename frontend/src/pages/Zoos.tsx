@@ -464,7 +464,7 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
   useEffect(() => {
     // State ➜ URL, but only if different (avoid loops & history spam)
     const next = new URLSearchParams();
-    if (query) next.set('q', query);
+    if (search) next.set('q', search);
     if (continentId) next.set('continent', continentId);
     if (countryId) next.set('country', countryId);
     if (visitFilter !== 'all') next.set('visit', visitFilter);
@@ -475,7 +475,7 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
       setSearchParams(next, { replace: true, state: locationState.state });
     }
   }, [
-    query,
+    search,
     continentId,
     countryId,
     visitFilter,
@@ -644,7 +644,7 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
 
 
   useEffect(() => {
-    const id = setTimeout(() => { setQuery(search); }, 500);
+    const id = setTimeout(() => { setQuery(search); }, 200);
     return () => { clearTimeout(id); };
   }, [search]);
 
@@ -896,7 +896,7 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
         },
         { enableHighAccuracy: false, timeout: 3000, maximumAge: 600000 }
       );
-    } catch (error) {
+    } catch (_error) {
       setLocation(null);
       writeStoredLocation(null);
     }

@@ -1,5 +1,11 @@
+import type { LandingTranslator } from './types';
+
+interface HowItWorksProps {
+  t: LandingTranslator;
+}
+
 // Simple three-step explanation of how ZooTracker works.
-export default function HowItWorks({ t }) {
+export default function HowItWorks({ t }: HowItWorksProps) {
   const steps = [
     {
       key: 'search',
