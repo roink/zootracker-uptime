@@ -137,11 +137,6 @@ export default function ZoosMap({
     zooLookupRef.current = lookup;
   }, [normalizedZoos]);
 
-  const fallbackZoo = useMemo<MapZooFeature | null>(
-    () => (normalizedZoos.length > 0 ? normalizedZoos[0] ?? null : null),
-    [normalizedZoos]
-  );
-
   const persistentInitialView = useMemo<CameraState | null>(() => {
     if (!initialView?.center) return null;
     const [lon, lat] = initialView.center;
@@ -170,16 +165,17 @@ export default function ZoosMap({
         pitch: 0,
       };
     }
-    if (fallbackZoo) {
+    const firstZoo = normalizedZoos[0];
+    if (firstZoo) {
       return {
-        center: [fallbackZoo.longitude, fallbackZoo.latitude],
+        center: [firstZoo.longitude, firstZoo.latitude],
         zoom: DEFAULT_ZOOM,
         bearing: 0,
         pitch: 0,
       };
     }
     return null;
-  }, [centerLat, centerLon, fallbackZoo, persistentInitialView]);
+  }, [centerLat, centerLon, normalizedZoos, persistentInitialView]);
 
   useEffect(() => {
     if (persistentInitialView) {

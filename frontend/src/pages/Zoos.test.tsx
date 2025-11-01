@@ -32,7 +32,7 @@ function createFetchMock(routes: FetchRoutes) {
       url = input;
     } else if (input instanceof URL) {
       url = input.href;
-    } else if (input instanceof Request) {
+    } else if (typeof Request !== 'undefined' && input instanceof Request) {
       url = input.url;
     } else {
       throw new Error('Unsupported request input');
@@ -47,8 +47,9 @@ function createFetchMock(routes: FetchRoutes) {
     const payload = typeof handler === 'function' ? await handler(url) : handler;
     return {
       ok: true,
+      status: 200,
       json: () => Promise.resolve(payload),
-    };
+    } as Response;
   });
 }
 
@@ -81,6 +82,10 @@ function stubIntersectionObserver(): void {
 }
 
 describe('ZoosPage', () => {
+  const originalFetch = global.fetch;
+  let originalCreateObjectURL: typeof URL.createObjectURL | undefined;
+  let originalRevokeObjectURL: typeof URL.revokeObjectURL | undefined;
+
   beforeEach(() => {
     stubIntersectionObserver();
     vi.stubGlobal('navigator', {
@@ -92,12 +97,24 @@ describe('ZoosPage', () => {
         },
       },
     });
-    const existingUrl = typeof URL === 'undefined' ? undefined : URL;
-    vi.stubGlobal('URL', {
-      ...(existingUrl || {}),
-      createObjectURL: vi.fn(() => 'blob:mock'),
-      revokeObjectURL: vi.fn(),
-    });
+    if (typeof URL !== 'undefined') {
+      const urlCtor = URL as typeof URL & {
+        createObjectURL?: typeof URL.createObjectURL;
+        revokeObjectURL?: typeof URL.revokeObjectURL;
+      };
+      originalCreateObjectURL = urlCtor.createObjectURL;
+      originalRevokeObjectURL = urlCtor.revokeObjectURL;
+      Object.defineProperty(urlCtor, 'createObjectURL', {
+        configurable: true,
+        writable: true,
+        value: vi.fn(() => 'blob:mock'),
+      });
+      Object.defineProperty(urlCtor, 'revokeObjectURL', {
+        configurable: true,
+        writable: true,
+        value: vi.fn(),
+      });
+    }
     localStorage.clear();
     clearStoredAuth();
   });
@@ -105,6 +122,33 @@ describe('ZoosPage', () => {
   afterEach(() => {
     clearStoredAuth();
     localStorage.clear();
+    if (typeof URL !== 'undefined') {
+      const urlCtor = URL as typeof URL & {
+        createObjectURL?: typeof URL.createObjectURL;
+        revokeObjectURL?: typeof URL.revokeObjectURL;
+      };
+      if (originalCreateObjectURL) {
+        Object.defineProperty(urlCtor, 'createObjectURL', {
+          configurable: true,
+          writable: true,
+          value: originalCreateObjectURL,
+        });
+      } else {
+        Reflect.deleteProperty(urlCtor as unknown as Record<string, unknown>, 'createObjectURL');
+      }
+      if (originalRevokeObjectURL) {
+        Object.defineProperty(urlCtor, 'revokeObjectURL', {
+          configurable: true,
+          writable: true,
+          value: originalRevokeObjectURL,
+        });
+      } else {
+        Reflect.deleteProperty(urlCtor as unknown as Record<string, unknown>, 'revokeObjectURL');
+      }
+      originalCreateObjectURL = undefined;
+      originalRevokeObjectURL = undefined;
+    }
+    global.fetch = originalFetch;
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
@@ -182,6 +226,98 @@ describe('ZoosPage', () => {
     expect(screen.queryByLabelText('Visited')).not.toBeInTheDocument();
   });
 
+  it('filters zoos based on the visit query parameter', async () => {
+    const listZoos = [
+      {
+        id: '1',
+        slug: 'visited-zoo',
+        name: 'Visited Zoo',
+        city: 'Berlin',
+        country_name_en: 'Germany',
+        country_name_de: 'Deutschland',
+      },
+      {
+        id: '2',
+        slug: 'new-zoo',
+        name: 'New Zoo',
+        city: 'Boston',
+        country_name_en: 'United States',
+        country_name_de: 'USA',
+      },
+    ];
+    const mapZoos = [
+      {
+        id: '1',
+        slug: 'visited-zoo',
+        name: 'Visited Zoo',
+        city: 'Berlin',
+        latitude: 52.5,
+        longitude: 13.4,
+      },
+      {
+        id: '2',
+        slug: 'new-zoo',
+        name: 'New Zoo',
+        city: 'Boston',
+        latitude: 42.3,
+        longitude: -71.1,
+      },
+    ];
+
+    const baseRoutes = {
+      [`${API}/zoos/continents`]: [],
+      [`${API}/zoos/map`]: mapZoos,
+      [`${API}/zoos?`]: {
+        items: listZoos,
+        total: 2,
+        offset: 0,
+        limit: 20,
+      },
+      [`${API}/visits/ids`]: ['1'],
+      [`${API}/location/estimate`]: null,
+    } satisfies FetchRoutes;
+
+    const token = createTestToken();
+    const auth = { token, user: { id: 'user-1', email: 'user@example.com' } } as const;
+
+    const renderWithAuth = (route: string, extraRoutes: FetchRoutes = {}) => {
+      const fetchMock = createFetchMock({ ...baseRoutes, ...extraRoutes });
+      global.fetch = fetchMock as unknown as typeof fetch;
+      setStoredAuth(auth);
+      return renderWithRouter(<ZoosPage />, { route, auth });
+    };
+
+    const visitedRender = renderWithAuth('/?visit=visited', {
+      [`${API}/users/${auth.user.id}/zoos/visited`]: {
+        items: [listZoos[0]],
+        total: 1,
+        offset: 0,
+        limit: 20,
+      },
+      [`${API}/users/${auth.user.id}/zoos/visited/map`]: [mapZoos[0]],
+    });
+    expect(await screen.findByRole('link', { name: /Visited Zoo/ })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /New Zoo/ })).not.toBeInTheDocument();
+    visitedRender.unmount();
+
+    const notVisitedRender = renderWithAuth('/?visit=not', {
+      [`${API}/users/${auth.user.id}/zoos/not-visited`]: {
+        items: [listZoos[1]],
+        total: 1,
+        offset: 0,
+        limit: 20,
+      },
+      [`${API}/users/${auth.user.id}/zoos/not-visited/map`]: [mapZoos[1]],
+    });
+    expect(await screen.findByRole('link', { name: /New Zoo/ })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Visited Zoo/ })).not.toBeInTheDocument();
+    notVisitedRender.unmount();
+
+    const allRender = renderWithAuth('/');
+    expect(await screen.findByRole('link', { name: /Visited Zoo/ })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /New Zoo/ })).toBeInTheDocument();
+    allRender.unmount();
+  });
 
   it('shows a helper message when map results lack coordinates', async () => {
     const fetchMock = createFetchMock({

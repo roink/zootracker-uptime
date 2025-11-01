@@ -12,6 +12,8 @@ import prettier from 'eslint-config-prettier';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const project = path.join(__dirname, 'tsconfig.json');
+const { plugins: _importPlugins, ...importRecommended } = importPlugin.flatConfigs.recommended;
+const { plugins: _importTsPlugins, ...importTypescript } = importPlugin.flatConfigs.typescript;
 
 export default tseslint.config(
   {
@@ -25,8 +27,8 @@ export default tseslint.config(
       react.configs.flat.recommended,
       react.configs.flat['jsx-runtime'],
       jsxA11y.flatConfigs.recommended,
-      importPlugin.flatConfigs.recommended,
-      importPlugin.flatConfigs.typescript
+      importRecommended,
+      importTypescript
     ],
     languageOptions: {
       globals: {
@@ -34,7 +36,8 @@ export default tseslint.config(
       }
     },
     plugins: {
-      'react-hooks': reactHooks
+      'react-hooks': reactHooks,
+      import: importPlugin
     },
     settings: {
       react: { version: 'detect' },

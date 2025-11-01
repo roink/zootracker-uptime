@@ -58,9 +58,10 @@ const parsePopularAnimals = (value: unknown): LandingPopularAnimal[] => {
   }
   const animals: LandingPopularAnimal[] = [];
   value.forEach((entry) => {
-    if (!isRecord(entry) || typeof entry.id !== 'string') {
+    if (!isRecord(entry) || (typeof entry.id !== 'string' && typeof entry.id !== 'number')) {
       return;
     }
+    const id = String(entry.id);
     const slug = typeof entry.slug === 'string' && entry.slug.length > 0 ? entry.slug : undefined;
     const nameEn =
       typeof entry.name_en === 'string'
@@ -98,7 +99,7 @@ const parsePopularAnimals = (value: unknown): LandingPopularAnimal[] => {
           : undefined;
 
     const animal: LandingPopularAnimal = {
-      id: entry.id,
+      id,
       zoo_count: zooCount,
       iucn_conservation_status: conservation ?? null,
       default_image_url: imageUrl ?? null
