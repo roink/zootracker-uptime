@@ -1,12 +1,13 @@
 // @ts-nocheck
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
-import { API } from '../api';
-import useAuthFetch from '../hooks/useAuthFetch';
 import { useTranslation } from 'react-i18next';
-import Seo from '../components/Seo';
+import { useParams, useSearchParams } from 'react-router-dom';
+
+import { API } from '../api';
 import { useAuth } from '../auth/AuthContext';
 import AnimalTile from '../components/AnimalTile';
+import Seo from '../components/Seo';
+import useAuthFetch from '../hooks/useAuthFetch';
 
 // Browse all animals with hierarchical taxonomy filters and pagination
 export default function AnimalsPage() {
@@ -177,7 +178,7 @@ export default function AnimalsPage() {
     fetch(`${API}/animals/classes`)
       .then((r) => (r.ok ? r.json() : []))
       .then(setClasses)
-      .catch(() => setClasses([]));
+      .catch(() => { setClasses([]); });
   }, []);
 
   // Remember the latest list data so we can persist it to session storage when needed
@@ -202,7 +203,7 @@ export default function AnimalsPage() {
 
     handleScroll();
     window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
+    return () => { window.removeEventListener('scroll', handleScroll); };
   }, []);
 
   // Persist the currently loaded animals along with the scroll position
@@ -262,7 +263,7 @@ export default function AnimalsPage() {
     };
 
     window.addEventListener('pagehide', handlePageHide);
-    return () => window.removeEventListener('pagehide', handlePageHide);
+    return () => { window.removeEventListener('pagehide', handlePageHide); };
   }, [storePageState]);
 
   useEffect(() => {
@@ -277,7 +278,7 @@ export default function AnimalsPage() {
     };
 
     window.addEventListener('pageshow', handlePageShow);
-    return () => window.removeEventListener('pageshow', handlePageShow);
+    return () => { window.removeEventListener('pageshow', handlePageShow); };
   }, [storePageState]);
 
   // Pre-paint scroll restoration to avoid visible jumps
@@ -313,7 +314,7 @@ export default function AnimalsPage() {
     fetch(`${API}/animals/orders?class_id=${classId}`)
       .then((r) => (r.ok ? r.json() : []))
       .then(setOrders)
-      .catch(() => setOrders([]));
+      .catch(() => { setOrders([]); });
   }, [classId]);
 
   // Fetch families whenever order changes
@@ -326,7 +327,7 @@ export default function AnimalsPage() {
     fetch(`${API}/animals/families?order_id=${orderId}`)
       .then((r) => (r.ok ? r.json() : []))
       .then(setFamilies)
-      .catch(() => setFamilies([]));
+      .catch(() => { setFamilies([]); });
   }, [orderId]);
 
   // Debounce the search input to avoid fetching on every keystroke
@@ -334,7 +335,7 @@ export default function AnimalsPage() {
     const id = setTimeout(() => {
       setQuery(search);
     }, 500);
-    return () => clearTimeout(id);
+    return () => { clearTimeout(id); };
   }, [search]);
 
   // Fetch a page of animals from the API with deterministic pagination
@@ -378,7 +379,7 @@ export default function AnimalsPage() {
 
       const url = `${API}/animals?${params.toString()}`;
 
-      (async () => {
+        void (async () => {
         try {
           const response = await authFetch(url, { signal: controller.signal });
           if (!response.ok) {
@@ -421,7 +422,7 @@ export default function AnimalsPage() {
             }
           }
         }
-      })();
+        })();
 
       return controller;
     },
@@ -475,7 +476,7 @@ export default function AnimalsPage() {
     authFetch(`${API}/users/${uid}/animals`)
       .then((r) => (r.ok ? r.json() : []))
       .then(setSeenAnimals)
-      .catch(() => setSeenAnimals([]));
+      .catch(() => { setSeenAnimals([]); });
   }, [isAuthenticated, uid, authFetch]);
 
   useEffect(() => {
@@ -549,7 +550,7 @@ export default function AnimalsPage() {
           <select
             className="form-select"
             value={familyId}
-            onChange={(e) => setFamilyId(e.target.value)}
+            onChange={(e) => { setFamilyId(e.target.value); }}
             disabled={!orderId}
           >
             <option value="">{t('animal.allFamilies')}</option>
@@ -622,7 +623,7 @@ export default function AnimalsPage() {
           <button
             type="button"
             className="btn btn-link btn-sm"
-            onClick={() => setPrefersManualLoading(true)}
+            onClick={() => { setPrefersManualLoading(true); }}
           >
             {t('animal.useManualLoading')}
           </button>
@@ -645,7 +646,7 @@ export default function AnimalsPage() {
           <button
             type="button"
             className="btn btn-link btn-sm"
-            onClick={() => setPrefersManualLoading(false)}
+            onClick={() => { setPrefersManualLoading(false); }}
             disabled={loading}
           >
             {t('animal.enableAutoLoading')}

@@ -1,7 +1,27 @@
-// @ts-nocheck
 import PropTypes from 'prop-types';
-import { Link } from 'react-router-dom';
+import type { CSSProperties, KeyboardEventHandler, MouseEventHandler, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
+
+import type { AnimalSummary } from '../types/domain';
+
+interface TileAnimal extends AnimalSummary {
+  default_image_url?: string | null;
+  is_favorite?: boolean | null;
+}
+
+type AmbientImageStyle = CSSProperties & { '--img-url'?: string };
+
+interface AnimalTileProps {
+  to: string;
+  animal: TileAnimal;
+  lang: string;
+  seen?: boolean;
+  children?: ReactNode;
+  className?: string;
+  onClick?: MouseEventHandler<HTMLAnchorElement>;
+  onKeyDown?: KeyboardEventHandler<HTMLAnchorElement>;
+}
 
 // Reusable tile that renders an animal preview with image, favorite star and seen badge.
 export default function AnimalTile({
@@ -13,28 +33,28 @@ export default function AnimalTile({
   className = '',
   onClick,
   onKeyDown,
-}: any) {
+}: AnimalTileProps) {
   const { t } = useTranslation();
   const localizedName =
     lang === 'de'
-      ? animal.name_de || animal.name_en
-      : animal.name_en || animal.name_de;
+      ? animal.name_de ?? animal.name_en ?? animal.slug ?? String(animal.id)
+      : animal.name_en ?? animal.name_de ?? animal.slug ?? String(animal.id);
   const escapedImageUrl = animal.default_image_url
     ? animal.default_image_url.replace(/"/g, '\\"')
     : null;
+  const ambientStyle: AmbientImageStyle | undefined = escapedImageUrl
+    ? { '--img-url': `url("${escapedImageUrl}")` }
+    : undefined;
 
   return (
     <Link
       to={to}
-      className={`animal-card d-block text-decoration-none text-reset ${className}`.trim()}
-      onClick={onClick}
-      onKeyDown={onKeyDown}
-    >
-      {animal.default_image_url && (
-        <div
-          className="animal-card-img-ambient"
-          style={{ '--img-url': `url("${escapedImageUrl}")` }}
+          className={`animal-card d-block text-decoration-none text-reset ${className}`.trim()}
+          onClick={onClick}
+          onKeyDown={onKeyDown}
         >
+      {animal.default_image_url && (
+        <div className="animal-card-img-ambient" style={ambientStyle}>
           {/* Present the original image centered with a blurred ambient backdrop */}
           <img
             src={animal.default_image_url}

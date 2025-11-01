@@ -1,13 +1,13 @@
 // @ts-nocheck
-import React from 'react';
 import '@testing-library/jest-dom';
-import { screen, cleanup } from '@testing-library/react';
-import { Routes, Route } from 'react-router-dom';
-import { describe, it, expect, vi } from 'vitest';
+import { cleanup, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { renderWithRouter } from '../test-utils/router';
+import { Route, Routes } from 'react-router-dom';
+import { describe, expect, it, vi } from 'vitest';
+
 import { loadLocale } from '../i18n';
 import ContactPage from './Contact';
+import { renderWithRouter } from '../test-utils/router';
 
 vi.mock('../components/Seo', () => ({ default: () => null }));
 

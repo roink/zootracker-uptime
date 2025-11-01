@@ -1,4 +1,5 @@
 import { Navigate, Outlet, useLocation, useParams } from 'react-router-dom';
+
 import { useAuth } from './AuthContext';
 
 // Guard component that redirects unauthenticated users to the login page.

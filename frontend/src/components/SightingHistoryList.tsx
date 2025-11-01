@@ -1,11 +1,39 @@
-import { useMemo, useCallback, Fragment } from 'react';
 import PropTypes from 'prop-types';
+import type { ReactNode } from 'react';
+import { useMemo, useCallback, Fragment } from 'react';
+
+import type { Sighting } from '../types/domain';
 import { groupSightingsByDay, formatSightingTime } from '../utils/sightingHistory';
+
+interface SightingHistoryMessages {
+  login: string;
+  loginCta: string;
+  loading: string;
+  error: string;
+  empty: string;
+}
+
+interface RenderHelpers {
+  formatTime: (value: string | number | Date | null | undefined) => string | null;
+}
+
+export interface SightingHistoryListProps<T extends Sighting = Sighting> {
+  sightings?: T[];
+  locale: string;
+  isAuthenticated: boolean;
+  loading: boolean;
+  error: boolean;
+  messages: SightingHistoryMessages;
+  onLogin?: () => void;
+  formatDay: (day: string) => string;
+  renderSighting: (sighting: T, helpers: RenderHelpers) => ReactNode;
+  unauthenticatedContent?: ReactNode;
+}
 
 // Generic list component to render sighting history grouped by day.
 // NOTE: React plans to remove support for defaultProps on function components.
 // Use JS default parameters instead: https://react.dev/learn/passing-props-to-a-component
-export default function SightingHistoryList({
+export default function SightingHistoryList<T extends Sighting = Sighting>({
   sightings = [],
   locale,
   isAuthenticated,
@@ -16,7 +44,7 @@ export default function SightingHistoryList({
   formatDay,
   renderSighting,
   unauthenticatedContent = null,
-}: any) {
+}: SightingHistoryListProps<T>) {
   // Pre-compute groups so renderers can focus on UI.
   const groups = useMemo(() => groupSightingsByDay(sightings), [sightings]);
 

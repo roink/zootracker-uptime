@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
+
 import useLang from '../hooks/useLang';
 
 // Switch between English and German by linking to the equivalent URL.

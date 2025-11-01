@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { Trans, useTranslation } from 'react-i18next';
+import { Link, useNavigate, useLocation, useParams } from 'react-router-dom';
+
 import { API } from '../api';
-import Seo from '../components/Seo';
-import { useAuth } from '../auth/AuthContext';
 import { DATA_PROTECTION_VERSION } from './DataProtection';
+import { useAuth } from '../auth/AuthContext';
+import Seo from '../components/Seo';
 import { useVerificationResend } from '../hooks/useVerificationResend';
 
 // Combined authentication page with log in on top and sign up below.
@@ -56,9 +57,9 @@ export default function LoginPage() {
 
   // Extract a one-time message from navigation state then clear it
   useEffect(() => {
-    if (location.state?.message) {
-      setSuccessMessage(location.state.message);
-      navigate(location.pathname, { replace: true, state: {} });
+      if (location.state?.message) {
+        setSuccessMessage(location.state.message);
+        void navigate(location.pathname, { replace: true, state: {} });
     }
   }, [location, navigate]);
 
@@ -71,7 +72,7 @@ export default function LoginPage() {
       if (rawValue) {
         try {
           decoded = decodeURIComponent(rawValue);
-        } catch (err) {
+        } catch (_err) {
           decoded = rawValue;
         }
       }
@@ -139,7 +140,7 @@ export default function LoginPage() {
         setPendingEmail('');
         setLoginError('');
         resetLoginResend();
-        navigate(prefix, { replace: true });
+          void navigate(prefix, { replace: true });
       } else if (resp.status === 403) {
         const payload = await resp.json().catch(() => ({}));
         const detail = typeof payload.detail === 'string' ? payload.detail : t('auth.login.unverified');
@@ -149,8 +150,8 @@ export default function LoginPage() {
       } else {
         setLoginError(t('auth.login.error'));
       }
-    } catch (err) {
-      const networkError = err instanceof Error ? err : new Error(String(err));
+    } catch (_err) {
+      const networkError = _err instanceof Error ? _err : new Error(String(_err));
       setLoginError(t('auth.common.networkError', { message: networkError.message }));
     } finally {
       setLoggingIn(false);
@@ -204,8 +205,8 @@ export default function LoginPage() {
       } else {
         alert(t('auth.signup.error'));
       }
-    } catch (err) {
-      const networkError = err instanceof Error ? err : new Error(String(err));
+    } catch (_err) {
+      const networkError = _err instanceof Error ? _err : new Error(String(_err));
       alert(t('auth.common.networkError', { message: networkError.message }));
     } finally {
       setSigningUp(false);
@@ -260,7 +261,7 @@ export default function LoginPage() {
               <button
                 type="button"
                 className="btn btn-light"
-                onClick={() => navigate(verifyHref)}
+                onClick={() => void navigate(verifyHref)}
               >
                 {t('auth.verification.openForm')}
               </button>
@@ -299,7 +300,7 @@ export default function LoginPage() {
             required
             autoComplete="email"
             value={inputEmail}
-            onChange={(e) => setInputEmail(e.target.value)}
+            onChange={(e) => { setInputEmail(e.target.value); }}
           />
         </div>
         <div className="mb-3">
@@ -310,7 +311,7 @@ export default function LoginPage() {
             required
             autoComplete="current-password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e) => { setPassword(e.target.value); }}
           />
           <Link
             to={`${prefix}/forgot-password`}
@@ -336,7 +337,7 @@ export default function LoginPage() {
             required
             autoComplete="name"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => { setName(e.target.value); }}
           />
         </div>
         <div className="mb-3">
@@ -347,7 +348,7 @@ export default function LoginPage() {
             required
             autoComplete="email"
             value={regEmail}
-            onChange={(e) => setRegEmail(e.target.value)}
+            onChange={(e) => { setRegEmail(e.target.value); }}
           />
         </div>
         <div className="mb-3">

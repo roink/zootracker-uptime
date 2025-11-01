@@ -1,12 +1,13 @@
 // @ts-nocheck
-import React from 'react';
 import '@testing-library/jest-dom';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, it, vi, beforeEach } from 'vitest';
-import { Routes, Route } from 'react-router-dom';
-import { renderWithRouter } from '../test-utils/router';
+import { Route, Routes } from 'react-router-dom';
+import { beforeEach, describe, it, vi } from 'vitest';
+
 import { loadLocale } from '../i18n';
+import AnimalDetailPage from './AnimalDetail';
+import { renderWithRouter } from '../test-utils/router';
 
 vi.mock('../hooks/useAuthFetch', () => ({ default: () => fetch }));
 vi.mock('../components/Seo', () => ({ default: () => null }));
@@ -17,8 +18,6 @@ vi.mock('../components/ZoosMap', () => ({
   __esModule: true,
   default: mapMock,
 }));
-
-import AnimalDetailPage from './AnimalDetail';
 
 describe('AnimalDetailPage', () => {
   const animal = {

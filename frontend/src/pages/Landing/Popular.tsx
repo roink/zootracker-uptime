@@ -1,5 +1,16 @@
 import { Link } from 'react-router-dom';
 
+import type { AnimalNameSource, LandingPopularAnimal, LandingTranslator } from './types';
+
+interface PopularProps {
+  t: LandingTranslator;
+  prefix: string;
+  popular: LandingPopularAnimal[];
+  isLoading: boolean;
+  isError: boolean;
+  getAnimalName: (animal: AnimalNameSource) => string | undefined;
+}
+
 // Horizontally scrollable list of popular animals.
 export default function Popular({
   t,
@@ -8,18 +19,16 @@ export default function Popular({
   isLoading,
   isError,
   getAnimalName,
-}) {
-  const popularTag = (animal, index) => {
-    if (animal.iucn_conservation_status) {
-      const status = animal.iucn_conservation_status.toLowerCase();
-      if (status.includes('endangered') || status.includes('critically')) {
-        return t('landing.popular.tags.endangered');
-      }
+}: PopularProps) {
+  const popularTag = (animal: LandingPopularAnimal, index: number): string => {
+    const status = animal.iucn_conservation_status?.toLowerCase();
+    if (status && (status.includes('endangered') || status.includes('critically'))) {
+      return t('landing.popular.tags.endangered');
     }
     if (index < 2) {
       return t('landing.popular.tags.mostSearched');
     }
-    if (animal.zoo_count && animal.zoo_count >= 20) {
+    if ((animal.zoo_count ?? 0) >= 20) {
       return t('landing.popular.tags.widelyKept');
     }
     return t('landing.popular.tags.trending');
@@ -45,7 +54,11 @@ export default function Popular({
         ) : (
           <div className="landing-popular-scroll d-flex gap-3 overflow-auto pb-2">
             {popular.map((animal, index) => {
-              const name = getAnimalName(animal);
+              const name =
+                getAnimalName(animal) ??
+                animal.name_en ??
+                animal.name_de ??
+                t('landing.popular.title');
               return (
                 <Link
                   key={animal.id}

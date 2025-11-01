@@ -2,6 +2,7 @@ export interface ZooSummary {
   id: string;
   name: string;
   slug?: string;
+  city?: string | null;
   latitude: number;
   longitude: number;
   is_favorite?: boolean;
@@ -9,7 +10,7 @@ export interface ZooSummary {
 
 export interface AnimalSummary {
   id: string;
-  slug: string;
+  slug?: string;
   name_en?: string | null;
   name_de?: string | null;
   scientific_name?: string | null;
@@ -49,4 +50,17 @@ export interface VerificationRequestResult {
 export interface SearchResults {
   zoos: ZooSummary[];
   animals: AnimalSummary[];
+}
+
+export interface PopularAnimal extends AnimalSummary {
+  zoo_count?: number | null;
+  iucn_conservation_status?: string | null;
+  default_image_url?: string | null;
+}
+
+export interface SiteSummary {
+  species: number;
+  zoos: number;
+  countries: number;
+  sightings: number;
 }

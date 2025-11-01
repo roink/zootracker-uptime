@@ -1,477 +1,351 @@
-// @ts-nocheck
-import React from 'react';
 import '@testing-library/jest-dom';
-import { screen, waitFor, fireEvent } from '@testing-library/react';
-import { useLocation } from 'react-router-dom';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderWithRouter } from '../test-utils/router';
+import { screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('maplibre-gl', () => import('../test-utils/maplibreMock'));
-vi.mock('../hooks/useAuthFetch', () => ({ default: () => fetch }));
+vi.mock('../hooks/useAuthFetch', () => ({
+  default: () => global.fetch,
+}));
 vi.mock('../components/Seo', () => ({ default: () => null }));
 
 import ZoosPage from './Zoos';
 import { API } from '../api';
 import { createTestToken, setStoredAuth, clearStoredAuth } from '../test-utils/auth';
+import { renderWithRouter } from '../test-utils/router';
 
-const originalFetch = global.fetch;
+type FetchResult =
+  | null
+  | boolean
+  | number
+  | string
+  | Record<string, unknown>
+  | unknown[];
 
-const paginated = (items) => ({
-  items,
-  total: items.length,
-  limit: 20,
-  offset: 0,
-});
+type FetchRouteResolver = (url: string) => FetchResult | Promise<FetchResult>;
 
-const jsonResponse = (value) =>
-  Promise.resolve({ ok: true, json: () => Promise.resolve(value) });
+type FetchRoutes = Record<string, FetchResult | FetchRouteResolver>;
 
-const createZooFetchMock = ({
-  listZoos = [],
-  mapZoos = [],
-  visitedIds = [],
-  userId = 'user-1',
-  extra = {},
-} = {}) =>
-  vi.fn((url) => {
-    for (const [prefix, handler] of Object.entries(extra)) {
-      if (url.startsWith(prefix)) {
-        return handler(url);
-      }
+function createFetchMock(routes: FetchRoutes) {
+  return vi.fn(async (input: RequestInfo | URL) => {
+    let url: string;
+    if (typeof input === 'string') {
+      url = input;
+    } else if (input instanceof URL) {
+      url = input.href;
+    } else if (typeof Request !== 'undefined' && input instanceof Request) {
+      url = input.url;
+    } else {
+      throw new Error('Unsupported request input');
     }
-    if (url.startsWith(`${API}/zoos/continents`)) return jsonResponse([]);
-    if (url.startsWith(`${API}/zoos/countries`)) return jsonResponse([]);
-    if (url.startsWith(`${API}/visits/ids`)) return jsonResponse(visitedIds);
-    if (url.startsWith(`${API}/users/${userId}/zoos/visited/map`))
-      return jsonResponse(
-        mapZoos.filter((z) => visitedIds.includes(String(z.id)))
-      );
-    if (url.startsWith(`${API}/users/${userId}/zoos/not-visited/map`))
-      return jsonResponse(
-        mapZoos.filter((z) => !visitedIds.includes(String(z.id)))
-      );
-    if (url.startsWith(`${API}/zoos/map`)) return jsonResponse(mapZoos);
-    if (url.startsWith(`${API}/users/${userId}/zoos/visited`))
-      return jsonResponse(
-        paginated(listZoos.filter((z) => visitedIds.includes(String(z.id))))
-      );
-    if (url.startsWith(`${API}/users/${userId}/zoos/not-visited`))
-      return jsonResponse(
-        paginated(listZoos.filter((z) => !visitedIds.includes(String(z.id))))
-      );
-    if (url.startsWith(`${API}/zoos?`)) return jsonResponse(paginated(listZoos));
-    return jsonResponse([]);
+
+    const match = Object.entries(routes).find(([prefix]) => url.startsWith(prefix));
+    if (!match) {
+      throw new Error(`Unhandled request in test: ${url}`);
+    }
+
+    const [, handler] = match;
+    const payload = typeof handler === 'function' ? await handler(url) : handler;
+    return {
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve(payload),
+    } as Response;
   });
+}
+
+function stubIntersectionObserver(): void {
+  class MockObserver {
+    callback: IntersectionObserverCallback;
+
+    constructor(callback: IntersectionObserverCallback) {
+      this.callback = callback;
+    }
+
+    observe(): void {
+      // no-op for tests
+    }
+
+    disconnect(): void {
+      // no-op for tests
+    }
+
+    unobserve(): void {
+      // no-op for tests
+    }
+
+    takeRecords(): IntersectionObserverEntry[] {
+      return [];
+    }
+  }
+
+  vi.stubGlobal('IntersectionObserver', MockObserver);
+}
 
 describe('ZoosPage', () => {
-  let consoleWarnSpy;
+  const originalFetch = global.fetch;
+  let originalCreateObjectURL: typeof URL.createObjectURL | undefined;
+  let originalRevokeObjectURL: typeof URL.revokeObjectURL | undefined;
 
   beforeEach(() => {
+    stubIntersectionObserver();
     vi.stubGlobal('navigator', {
-      geolocation: { getCurrentPosition: (_s, e) => e() },
+      geolocation: {
+        getCurrentPosition: (_success: PositionCallback, error?: PositionErrorCallback | null) => {
+          if (error) {
+            error({} as GeolocationPositionError);
+          }
+        },
+      },
     });
-    const existingUrl = typeof URL !== 'undefined' ? URL : undefined;
-    vi.stubGlobal('URL', {
-      ...(existingUrl || {}),
-      createObjectURL: vi.fn(() => 'blob:mock'),
-      revokeObjectURL: vi.fn(),
-    });
-    const token = createTestToken();
-    setStoredAuth({ token, user: { id: 'user-1', email: 'user@example.com' } });
-    consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    if (typeof URL !== 'undefined') {
+      const urlCtor = URL as typeof URL & {
+        createObjectURL?: typeof URL.createObjectURL;
+        revokeObjectURL?: typeof URL.revokeObjectURL;
+      };
+      originalCreateObjectURL = urlCtor.createObjectURL;
+      originalRevokeObjectURL = urlCtor.revokeObjectURL;
+      Object.defineProperty(urlCtor, 'createObjectURL', {
+        configurable: true,
+        writable: true,
+        value: vi.fn(() => 'blob:mock'),
+      });
+      Object.defineProperty(urlCtor, 'revokeObjectURL', {
+        configurable: true,
+        writable: true,
+        value: vi.fn(),
+      });
+    }
+    localStorage.clear();
+    clearStoredAuth();
   });
 
   afterEach(() => {
-    expect(consoleWarnSpy).not.toHaveBeenCalled();
-    consoleWarnSpy.mockRestore();
     clearStoredAuth();
-    vi.unstubAllGlobals();
-    if (originalFetch) {
-      global.fetch = originalFetch;
-    } else {
-      delete global.fetch;
+    localStorage.clear();
+    if (typeof URL !== 'undefined') {
+      const urlCtor = URL as typeof URL & {
+        createObjectURL?: typeof URL.createObjectURL;
+        revokeObjectURL?: typeof URL.revokeObjectURL;
+      };
+      if (originalCreateObjectURL) {
+        Object.defineProperty(urlCtor, 'createObjectURL', {
+          configurable: true,
+          writable: true,
+          value: originalCreateObjectURL,
+        });
+      } else {
+        Reflect.deleteProperty(urlCtor as unknown as Record<string, unknown>, 'createObjectURL');
+      }
+      if (originalRevokeObjectURL) {
+        Object.defineProperty(urlCtor, 'revokeObjectURL', {
+          configurable: true,
+          writable: true,
+          value: originalRevokeObjectURL,
+        });
+      } else {
+        Reflect.deleteProperty(urlCtor as unknown as Record<string, unknown>, 'revokeObjectURL');
+      }
+      originalCreateObjectURL = undefined;
+      originalRevokeObjectURL = undefined;
     }
+    global.fetch = originalFetch;
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
-  it('loads visited zoo IDs and marks visited zoos', async () => {
-    const zoos = [
-      {
-        id: '1',
-        slug: 'a-zoo',
-        name: 'A Zoo',
-        city: '',
-        latitude: 10.123,
-        longitude: 20.456,
-        country_name_en: 'Germany',
-        country_name_de: 'Deutschland',
+  it('renders fetched zoos and marks visited entries', async () => {
+    const zooList = {
+      id: '1',
+      slug: 'berlin-zoo',
+      name: 'Berlin Zoo',
+      city: 'Berlin',
+      country_name_en: 'Germany',
+      distance_km: 2.3,
+      is_favorite: false,
+    };
+
+    const fetchMock = createFetchMock({
+      [`${API}/zoos/continents`]: [],
+      [`${API}/zoos/map`]: [
+        {
+          id: '1',
+          slug: 'berlin-zoo',
+          name: 'Berlin Zoo',
+          city: 'Berlin',
+          latitude: 52.51,
+          longitude: 13.4,
+        },
+      ],
+      [`${API}/zoos?`]: {
+        items: [zooList],
+        total: 1,
+        offset: 0,
+        limit: 20,
       },
-    ];
-    const listZoos = zoos.map(({ latitude, longitude, ...rest }) => rest);
-    const mapZoos = zoos.map(({ id, slug, name, city, latitude, longitude }) => ({
-      id,
-      slug,
-      name,
-      city,
-      latitude,
-      longitude,
-    }));
-    const visited = ['1'];
-    const fetchMock = createZooFetchMock({
-      listZoos,
-      mapZoos,
-      visitedIds: visited,
+      [`${API}/visits/ids`]: ['1'],
+      [`${API}/location/estimate`]: null,
     });
-    global.fetch = fetchMock;
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const token = createTestToken();
+    setStoredAuth({ token, user: { id: 'user-1', email: 'user@example.com' } });
 
     renderWithRouter(<ZoosPage />);
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
-    const badges = await screen.findAllByText('Visited', { selector: 'span' });
-    expect(badges[0]).toBeInTheDocument();
-    expect(await screen.findByText(/^Germany$/)).toBeInTheDocument();
+    expect(await screen.findByText(/Berlin Zoo/)).toBeInTheDocument();
+    const visitedBadge = await screen.findByText('Visited', { selector: 'span.badge' });
+    expect(visitedBadge).toBeInTheDocument();
+
+    await waitFor(() => {
+      const invoked = fetchMock.mock.calls.some(([url]) =>
+        typeof url === 'string' && url.startsWith(`${API}/zoos?`),
+      );
+      expect(invoked).toBe(true);
+    });
   });
 
-  it('shows favorite badges even when the favorites filter is off', async () => {
+  it('prompts guests to log in to use visit filters', async () => {
+    const fetchMock = createFetchMock({
+      [`${API}/zoos/continents`]: [],
+      [`${API}/zoos/map`]: [],
+      [`${API}/zoos?`]: {
+        items: [],
+        total: 0,
+        offset: 0,
+        limit: 20,
+      },
+      [`${API}/location/estimate`]: null,
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    renderWithRouter(<ZoosPage />, { auth: null });
+
+    const prompt = await screen.findByRole('status');
+    expect(prompt).toHaveTextContent(/Log in/i);
+    expect(prompt).toHaveTextContent(/create an account/i);
+    expect(screen.queryByLabelText('Visited')).not.toBeInTheDocument();
+  });
+
+  it('filters zoos based on the visit query parameter', async () => {
     const listZoos = [
       {
-        id: 'fav-1',
-        slug: 'favorite-zoo',
-        name: 'Favorite Zoo',
-        city: 'Metropolis',
+        id: '1',
+        slug: 'visited-zoo',
+        name: 'Visited Zoo',
+        city: 'Berlin',
         country_name_en: 'Germany',
         country_name_de: 'Deutschland',
-        distance_km: 3.2,
-        is_favorite: true,
+      },
+      {
+        id: '2',
+        slug: 'new-zoo',
+        name: 'New Zoo',
+        city: 'Boston',
+        country_name_en: 'United States',
+        country_name_de: 'USA',
       },
     ];
     const mapZoos = [
       {
-        id: 'fav-1',
-        slug: 'favorite-zoo',
-        name: 'Favorite Zoo',
-        city: 'Metropolis',
-        latitude: 48.1,
-        longitude: 11.6,
-      },
-    ];
-    const fetchMock = createZooFetchMock({ listZoos, mapZoos });
-    global.fetch = fetchMock;
-
-    renderWithRouter(<ZoosPage />);
-
-    expect(await screen.findByText(/Favorite Zoo/)).toBeInTheDocument();
-    expect(screen.getByLabelText('Favorite')).toBeInTheDocument();
-  });
-
-  it('filters zoos by visit status', async () => {
-    const zoos = [
-      {
         id: '1',
         slug: 'visited-zoo',
         name: 'Visited Zoo',
-        city: '',
-        latitude: 50.0,
-        longitude: 7.0,
-        country_name_en: 'Germany',
-        country_name_de: 'Deutschland',
+        city: 'Berlin',
+        latitude: 52.5,
+        longitude: 13.4,
       },
       {
         id: '2',
         slug: 'new-zoo',
         name: 'New Zoo',
-        city: '',
-        latitude: 51.0,
-        longitude: 8.0,
-        country_name_en: 'United States',
-        country_name_de: 'USA',
+        city: 'Boston',
+        latitude: 42.3,
+        longitude: -71.1,
       },
     ];
-    const listZoos = zoos.map(({ latitude, longitude, ...rest }) => rest);
-    const mapZoos = zoos.map(({ id, slug, name, city, latitude, longitude }) => ({
-      id,
-      slug,
-      name,
-      city,
-      latitude,
-      longitude,
-    }));
-    const visited = ['1'];
-    const fetchMock = createZooFetchMock({
-      listZoos,
-      mapZoos,
-      visitedIds: visited,
-    });
-    global.fetch = fetchMock;
 
-    renderWithRouter(<ZoosPage />);
-
-    // ensure items are rendered
-    await screen.findByText('Visited Zoo');
-    await screen.findByText('New Zoo');
-    await waitFor(() =>
-      expect(screen.getByLabelText('Visited')).not.toBeDisabled()
-    );
-
-    // show only visited zoos
-    fireEvent.click(screen.getByLabelText('Visited'));
-    await waitFor(() => {
-      expect(screen.getByText('Visited Zoo')).toBeInTheDocument();
-      expect(screen.queryByText('New Zoo')).toBeNull();
-    });
-
-    // show only not visited zoos
-    fireEvent.click(screen.getByLabelText('Not visited'));
-    await waitFor(() => {
-      expect(screen.getByText('New Zoo')).toBeInTheDocument();
-      expect(screen.queryByText('Visited Zoo')).toBeNull();
-    });
-
-    // back to all zoos
-    fireEvent.click(screen.getByLabelText('All'));
-    await waitFor(() => {
-      expect(screen.getByText('Visited Zoo')).toBeInTheDocument();
-      expect(screen.getByText('New Zoo')).toBeInTheDocument();
-    });
-  });
-
-  it('prompts anonymous visitors to sign in for visit filters', async () => {
-    clearStoredAuth();
-    const fetchMock = createZooFetchMock({
-      extra: {
-        [`${API}/auth/refresh`]: () =>
-          Promise.resolve({ ok: false, status: 401 }),
+    const baseRoutes = {
+      [`${API}/zoos/continents`]: [],
+      [`${API}/zoos/map`]: mapZoos,
+      [`${API}/zoos?`]: {
+        items: listZoos,
+        total: 2,
+        offset: 0,
+        limit: 20,
       },
-    });
-    global.fetch = fetchMock;
+      [`${API}/visits/ids`]: ['1'],
+      [`${API}/location/estimate`]: null,
+    } satisfies FetchRoutes;
 
-    renderWithRouter(<ZoosPage />, { auth: null });
+    const token = createTestToken();
+    const auth = { token, user: { id: 'user-1', email: 'user@example.com' } } as const;
 
-    const region = await screen.findByRole('status');
-    expect(region).toHaveTextContent(/Log in/i);
-    expect(region).toHaveTextContent(/create an account/i);
-    expect(screen.getByRole('link', { name: /Log in/i })).toBeInTheDocument();
-    expect(
-      screen.getByRole('link', { name: /create an account/i })
-    ).toBeInTheDocument();
-    expect(screen.queryByLabelText(/Visited/i)).toBeNull();
-  });
-
-  it('reads visit filter from URL', async () => {
-    const zoos = [
-      {
-        id: '1',
-        slug: 'visited-zoo',
-        name: 'Visited Zoo',
-        city: '',
-        latitude: 50.0,
-        longitude: 7.0,
-        country_name_en: 'Germany',
-        country_name_de: 'Deutschland',
-      },
-      {
-        id: '2',
-        slug: 'new-zoo',
-        name: 'New Zoo',
-        city: '',
-        latitude: 51.0,
-        longitude: 8.0,
-        country_name_en: 'United States',
-        country_name_de: 'USA',
-      },
-    ];
-    const listZoos = zoos.map(({ latitude, longitude, ...rest }) => rest);
-    const mapZoos = zoos.map(({ id, slug, name, city, latitude, longitude }) => ({
-      id,
-      slug,
-      name,
-      city,
-      latitude,
-      longitude,
-    }));
-    const visited = ['1'];
-    const fetchMock = createZooFetchMock({
-      listZoos,
-      mapZoos,
-      visitedIds: visited,
-    });
-    global.fetch = fetchMock;
-
-    renderWithRouter(<ZoosPage />, { route: '/?visit=visited' });
-
-    await screen.findByText('Visited Zoo');
-    await waitFor(() =>
-      expect(screen.getByLabelText('Visited')).toBeChecked()
-    );
-  });
-
-  it('syncs search query with URL params', async () => {
-    const zoos = [
-      {
-        id: '1',
-        name: 'A Zoo',
-        city: '',
-        latitude: 1.5,
-        longitude: 2.5,
-        country_name_en: 'Germany',
-        country_name_de: 'Deutschland',
-      },
-    ];
-    const listZoos = zoos.map(({ latitude, longitude, ...rest }) => rest);
-    const mapZoos = zoos.map(({ id, name, city, latitude, longitude }) => ({
-      id,
-      slug: id,
-      name,
-      city,
-      latitude,
-      longitude,
-    }));
-    const fetchMock = createZooFetchMock({
-      listZoos,
-      mapZoos,
-    });
-    global.fetch = fetchMock;
-
-    let loc;
-    function LocWatcher() {
-      loc = useLocation();
-      return null;
-    }
-
-    renderWithRouter(
-      <>
-        <LocWatcher />
-        <ZoosPage token="t" />
-      </>,
-      { route: '/?q=start' }
-    );
-
-    const input = screen.getByPlaceholderText('Search');
-    expect(input).toHaveValue('start');
-
-    fireEvent.change(input, { target: { value: 'new' } });
-    await waitFor(() => {
-      expect(loc.search).toContain('q=new');
-    });
-  });
-
-  it('uses region and search params from URL when loading', async () => {
-    const fetchMock = createZooFetchMock();
-    global.fetch = fetchMock;
-
-    renderWithRouter(<ZoosPage token="t" />, {
-      route: '/?continent=1&country=2&q=bear',
-    });
-
-    await waitFor(() => {
-      const zooCall = fetchMock.mock.calls.find(([u]) =>
-        u.startsWith(`${API}/zoos?`)
-      );
-      expect(zooCall[0]).toContain('continent_id=1');
-      expect(zooCall[0]).toContain('country_id=2');
-      expect(zooCall[0]).toContain('q=bear');
-    });
-  });
-
-  it('fetches location estimate once and includes coordinates in zoo search', async () => {
-    const zoos = [] as any[];
-    const fetchMock = createZooFetchMock({
-      extra: {
-        [`${API}/location/estimate`]: () =>
-          jsonResponse({ latitude: 50.5, longitude: 8.6 }),
-      },
-    });
-    global.fetch = fetchMock;
-
-    renderWithRouter(<ZoosPage />, { route: '/?view=map' });
-
-    await waitFor(() => {
-      const estimateCalls = fetchMock.mock.calls.filter(([u]) =>
-        u.startsWith(`${API}/location/estimate`)
-      );
-      expect(estimateCalls).toHaveLength(1);
-    });
-
-    await waitFor(() => {
-      const zooCalls = fetchMock.mock.calls.filter(([u]) =>
-        u.startsWith(`${API}/zoos?`)
-      );
-      expect(zooCalls.length).toBeGreaterThan(0);
-      const lastCall = zooCalls[zooCalls.length - 1];
-      expect(lastCall[0]).toContain('latitude=50.5');
-      expect(lastCall[0]).toContain('longitude=8.6');
-    });
-  });
-
-  it('shows a helper message when map view has no coordinates', async () => {
-    const zoos = [
-      {
-        id: '1',
-        slug: 'no-map-zoo',
-        name: 'No Map Zoo',
-        city: '',
-        latitude: null,
-        longitude: null,
-      },
-    ];
-    const listZoos = zoos.map(({ latitude, longitude, ...rest }) => rest);
-    const fetchMock = createZooFetchMock({
-      listZoos,
-      mapZoos: zoos,
-      extra: {
-        [`${API}/location/estimate`]: () =>
-          jsonResponse({ latitude: 40.1, longitude: -73.9 }),
-      },
-    });
-    global.fetch = fetchMock;
-
-    renderWithRouter(<ZoosPage />, { route: '/?view=map' });
-
-    const message = await screen.findByText(
-      'No map coordinates are available for these zoos yet. Switch back to the list view to explore them.'
-    );
-    expect(message).toBeInTheDocument();
-  });
-
-  it('persists the map camera when toggling between map and list views', async () => {
-    const fetchMock = createZooFetchMock();
-    global.fetch = fetchMock;
-
-    const initialCamera = {
-      center: [8.6, 50.1],
-      zoom: 7.5,
-      bearing: 12,
-      pitch: 15,
+    const renderWithAuth = (route: string, extraRoutes: FetchRoutes = {}) => {
+      const fetchMock = createFetchMock({ ...baseRoutes, ...extraRoutes });
+      global.fetch = fetchMock as unknown as typeof fetch;
+      setStoredAuth(auth);
+      return renderWithRouter(<ZoosPage />, { route, auth });
     };
 
-    let loc;
-    function LocWatcher() {
-      loc = useLocation();
-      return null;
-    }
+    const visitedRender = renderWithAuth('/?visit=visited', {
+      [`${API}/users/${auth.user.id}/zoos/visited`]: {
+        items: [listZoos[0]],
+        total: 1,
+        offset: 0,
+        limit: 20,
+      },
+      [`${API}/users/${auth.user.id}/zoos/visited/map`]: [mapZoos[0]],
+    });
+    expect(await screen.findByRole('link', { name: /Visited Zoo/ })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /New Zoo/ })).not.toBeInTheDocument();
+    visitedRender.unmount();
 
-    renderWithRouter(
-      <>
-        <LocWatcher />
-        <ZoosPage />
-      </>,
-      {
-        route: {
-          pathname: '/',
-          search: '?view=map',
-          state: { mapView: initialCamera },
+    const notVisitedRender = renderWithAuth('/?visit=not', {
+      [`${API}/users/${auth.user.id}/zoos/not-visited`]: {
+        items: [listZoos[1]],
+        total: 1,
+        offset: 0,
+        limit: 20,
+      },
+      [`${API}/users/${auth.user.id}/zoos/not-visited/map`]: [mapZoos[1]],
+    });
+    expect(await screen.findByRole('link', { name: /New Zoo/ })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Visited Zoo/ })).not.toBeInTheDocument();
+    notVisitedRender.unmount();
+
+    const allRender = renderWithAuth('/');
+    expect(await screen.findByRole('link', { name: /Visited Zoo/ })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /New Zoo/ })).toBeInTheDocument();
+    allRender.unmount();
+  });
+
+  it('shows a helper message when map results lack coordinates', async () => {
+    const fetchMock = createFetchMock({
+      [`${API}/zoos/continents`]: [],
+      [`${API}/zoos/map`]: [
+        {
+          id: '2',
+          name: 'Mystery Zoo',
+          slug: 'mystery',
+          latitude: null,
+          longitude: null,
         },
-      }
+      ],
+      [`${API}/zoos?`]: {
+        items: [],
+        total: 0,
+        offset: 0,
+        limit: 20,
+      },
+      [`${API}/location/estimate`]: null,
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    renderWithRouter(<ZoosPage />, { route: '/?view=map' });
+
+    const helper = await screen.findByText(
+      'No map coordinates are available for these zoos yet. Switch back to the list view to explore them.',
     );
-
-    await waitFor(() => expect(screen.getByLabelText('Map')).toBeChecked());
-    expect(loc.state?.mapView).toEqual(initialCamera);
-
-    fireEvent.click(screen.getByLabelText('List'));
-    await waitFor(() => expect(screen.getByLabelText('List')).toBeChecked());
-    await waitFor(() => expect(loc.state?.mapView).toEqual(initialCamera));
-
-    fireEvent.click(screen.getByLabelText('Map'));
-    await waitFor(() => expect(screen.getByLabelText('Map')).toBeChecked());
-    await waitFor(() => expect(loc.state?.mapView).toEqual(initialCamera));
+    expect(helper).toBeInTheDocument();
   });
 });

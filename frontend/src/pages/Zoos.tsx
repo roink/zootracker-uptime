@@ -1,5 +1,6 @@
-// @ts-nocheck
+import type { ChangeEvent } from 'react';
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useTranslation, Trans } from 'react-i18next';
 import {
   Link,
   useSearchParams,
@@ -7,31 +8,123 @@ import {
   useNavigate,
   useLocation,
 } from 'react-router-dom';
-import { useTranslation, Trans } from 'react-i18next';
+
 import { API } from '../api';
-import useAuthFetch from '../hooks/useAuthFetch';
-import Seo from '../components/Seo';
 import { useAuth } from '../auth/AuthContext';
+import FavoriteBadge from '../components/FavoriteBadge';
+import Seo from '../components/Seo';
 import ZoosMap from '../components/ZoosMap';
+import useAuthFetch from '../hooks/useAuthFetch';
+import type {
+  CameraState,
+  CameraViewChange,
+  ListFilters,
+  LocationEstimate,
+  MapFilters,
+  MapZooFeature,
+  PaginatedZooPage,
+  RegionOption,
+  RequestConfig,
+  ZooListItem,
+} from '../types/zoos';
 import { normalizeCoordinates } from '../utils/coordinates';
 import { getZooDisplayName } from '../utils/zooDisplayName';
-import FavoriteBadge from '../components/FavoriteBadge';
+
+interface ZoosPageProps {
+  token?: string;
+}
 
 const LOCATION_STORAGE_KEY = 'userLocation';
 const PAGE_SIZE = 20;
 
-function normalizeZooPage(payload, fallbackOffset = 0) {
-  if (payload && typeof payload === 'object' && Array.isArray(payload.items)) {
-    const items = Array.isArray(payload.items) ? payload.items : [];
-    const total = Number.isFinite(payload.total) ? payload.total : items.length;
-    const offset = Number.isFinite(payload.offset)
-      ? payload.offset
-      : fallbackOffset;
-    const limit = Number.isFinite(payload.limit) ? payload.limit : items.length;
+type UnknownRecord = Record<string, unknown>;
+
+function isRecord(value: unknown): value is UnknownRecord {
+  return typeof value === 'object' && value !== null;
+}
+
+function toStringId(value: unknown): string | null {
+  if (typeof value === 'string' && value.trim()) {
+    return value;
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(value);
+  }
+  return null;
+}
+
+function toOptionalString(value: unknown): string | null {
+  return typeof value === 'string' && value ? value : null;
+}
+
+function toOptionalNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function toOptionalBoolean(value: unknown): boolean | null {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'number') {
+    return value !== 0;
+  }
+  return null;
+}
+
+function toZooListItem(value: unknown): ZooListItem | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+  const id = toStringId(value.id);
+  if (!id) {
+    return null;
+  }
+  const latitude = toOptionalNumber(value.latitude);
+  const longitude = toOptionalNumber(value.longitude);
+  const location = isRecord(value.location) ? (value.location) : null;
+  return {
+    id,
+    slug: toOptionalString(value.slug),
+    name: toOptionalString(value.name),
+    name_en: toOptionalString(value.name_en),
+    name_de: toOptionalString(value.name_de),
+    city: toOptionalString(value.city),
+    country_name_en: toOptionalString(value.country_name_en),
+    country_name_de: toOptionalString(value.country_name_de),
+    latitude,
+    longitude,
+    distance_km: toOptionalNumber(value.distance_km),
+    is_favorite: toOptionalBoolean(value.is_favorite),
+    location,
+  };
+}
+
+function normalizeZooItems(source: unknown): ZooListItem[] {
+  if (!Array.isArray(source)) {
+    return [];
+  }
+  return source
+    .map((item) => toZooListItem(item))
+    .filter((item): item is ZooListItem => item !== null);
+}
+
+function normalizeZooPage(payload: unknown, fallbackOffset = 0): PaginatedZooPage {
+  if (isRecord(payload) && Array.isArray(payload.items)) {
+    const items = normalizeZooItems(payload.items);
+    const total = toOptionalNumber(payload.total) ?? items.length;
+    const offset = toOptionalNumber(payload.offset) ?? fallbackOffset;
+    const limit = toOptionalNumber(payload.limit) ?? items.length;
     return { items, total, offset, limit };
   }
   if (Array.isArray(payload)) {
-    const items = payload;
+    const items = normalizeZooItems(payload);
     return {
       items,
       total: items.length,
@@ -40,6 +133,53 @@ function normalizeZooPage(payload, fallbackOffset = 0) {
     };
   }
   return { items: [], total: 0, offset: fallbackOffset, limit: 0 };
+}
+
+function sanitizeCameraState(value: unknown): CameraState | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+  const centerValue = value.center;
+  if (!Array.isArray(centerValue) || centerValue.length < 2) {
+    return null;
+  }
+  const lon = toOptionalNumber(centerValue[0]);
+  const lat = toOptionalNumber(centerValue[1]);
+  if (lon === null || lat === null) {
+    return null;
+  }
+  const zoom = toOptionalNumber(value.zoom ?? null) ?? undefined;
+  const bearing = toOptionalNumber(value.bearing ?? null) ?? undefined;
+  const pitch = toOptionalNumber(value.pitch ?? null) ?? undefined;
+  return {
+    center: [lon, lat],
+    ...(zoom !== undefined ? { zoom } : {}),
+    ...(bearing !== undefined ? { bearing } : {}),
+    ...(pitch !== undefined ? { pitch } : {}),
+  };
+}
+
+function normalizeRegions(source: unknown): RegionOption[] {
+  if (!Array.isArray(source)) {
+    return [];
+  }
+  return source
+    .map((item) => {
+      if (!isRecord(item)) {
+        return null;
+      }
+      const id = toStringId(item.id);
+      if (!id) {
+        return null;
+      }
+      const region: RegionOption = {
+        id,
+        name_en: toOptionalString(item.name_en),
+        name_de: toOptionalString(item.name_de),
+      };
+      return region;
+    })
+    .filter((value): value is RegionOption => value !== null);
 }
 
 /**
@@ -51,7 +191,10 @@ function normalizeZooPage(payload, fallbackOffset = 0) {
  * @description Shared camera schema used by ZoosMap and Zoos.jsx when persisting map position.
  */
 
-function mapViewsEqual(a, b) {
+function mapViewsEqual(
+  a: CameraState | null | undefined,
+  b: CameraState | null | undefined
+): boolean {
   if (!a && !b) return true;
   if (!a || !b) return false;
   if (!Array.isArray(a.center) || !Array.isArray(b.center)) return false;
@@ -68,7 +211,7 @@ function mapViewsEqual(a, b) {
 }
 
 // Safely read a previously stored location from sessionStorage.
-function readStoredLocation() {
+function readStoredLocation(): LocationEstimate | null {
   if (typeof window === 'undefined') return null;
   try {
     const stored = window.sessionStorage?.getItem(LOCATION_STORAGE_KEY);
@@ -79,14 +222,14 @@ function readStoredLocation() {
     if (Number.isFinite(lat) && Number.isFinite(lon)) {
       return { lat, lon };
     }
-  } catch (error) {
+  } catch (_error) {
     // Ignore storage errors (e.g. private browsing) and treat as unset.
   }
   return null;
 }
 
 // Attempt to persist the latest location while tolerating storage errors.
-function writeStoredLocation(value) {
+function writeStoredLocation(value: LocationEstimate | null): void {
   if (typeof window === 'undefined') return;
   try {
     if (
@@ -101,14 +244,14 @@ function writeStoredLocation(value) {
     } else {
       window.sessionStorage?.removeItem(LOCATION_STORAGE_KEY);
     }
-  } catch (error) {
+  } catch (_error) {
     // Ignore storage errors silently so the UI keeps working.
   }
 }
 
 // Listing page showing all zoos with search, region filters and visit status.
 
-export default function ZoosPage() {
+export default function ZoosPage(_props: ZoosPageProps = {}) {
   const { lang } = useParams();
   const prefix = `/${lang}`;
   const [searchParams, setSearchParams] = useSearchParams();
@@ -119,13 +262,13 @@ export default function ZoosPage() {
   const initialView = searchParams.get('view') === 'map' ? 'map' : 'list';
   const initialFavorites = searchParams.get('favorites') === '1';
 
-  const [zoos, setZoos] = useState<any[]>([]);
-  const [mapZoos, setMapZoos] = useState<any[]>([]);
-  const [visitedIds, setVisitedIds] = useState<any[]>([]);
+  const [zoos, setZoos] = useState<ZooListItem[]>([]);
+  const [mapZoos, setMapZoos] = useState<ZooListItem[]>([]);
+  const [visitedIds, setVisitedIds] = useState<string[]>([]);
   const [search, setSearch] = useState(initialSearch);
   const [query, setQuery] = useState(initialSearch);
-  const [continents, setContinents] = useState<any[]>([]);
-  const [countries, setCountries] = useState<any[]>([]);
+  const [continents, setContinents] = useState<RegionOption[]>([]);
+  const [countries, setCountries] = useState<RegionOption[]>([]);
   const [continentId, setContinentId] = useState(initialContinent);
   const [countryId, setCountryId] = useState(initialCountry);
   const [visitFilter, setVisitFilter] = useState(() =>
@@ -133,25 +276,25 @@ export default function ZoosPage() {
   ); // all | visited | not
   const [favoritesOnly, setFavoritesOnly] = useState(initialFavorites);
   const [visitedLoading, setVisitedLoading] = useState(true);
-  const [estimatedLocation, setEstimatedLocation] = useState<any>(null);
+  const [estimatedLocation, setEstimatedLocation] = useState<LocationEstimate | null>(null);
   const [location, setLocation] = useState(() => readStoredLocation());
   const authFetch = useAuthFetch();
   const { isAuthenticated, user } = useAuth();
   const { t } = useTranslation();
   const navigate = useNavigate();
   const locationState = useLocation();
-  const listRequestRef = useRef<any>(null);
-  const mapRequestRef = useRef<any>(null);
-  const sentinelRef = useRef<any>(null);
-  const zoosRef = useRef([]);
-  // Determine whether the router state already includes a stored camera view.
-  const locationHasMapView =
-    locationState.state &&
-    Object.prototype.hasOwnProperty.call(locationState.state, 'mapView');
-  const mapViewRef = useRef(locationHasMapView ? locationState.state.mapView ?? null : null);
-  const [mapView, setMapView] = useState(() => mapViewRef.current);
-  const [preferStoredView, setPreferStoredView] = useState(
-    () => Array.isArray(mapViewRef.current?.center)
+  const listRequestRef = useRef<AbortController | null>(null);
+  const mapRequestRef = useRef<AbortController | null>(null);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const zoosRef = useRef<ZooListItem[]>([]);
+  const routerState = (locationState.state ?? null) as UnknownRecord | null;
+  const initialRouterView = routerState && 'mapView' in routerState
+    ? sanitizeCameraState(routerState.mapView)
+    : null;
+  const mapViewRef = useRef<CameraState | null>(initialRouterView);
+  const [mapView, setMapView] = useState<CameraState | null>(() => mapViewRef.current);
+  const [preferStoredView, setPreferStoredView] = useState<boolean>(
+    () => Boolean(mapViewRef.current)
   );
   const [viewMode, setViewMode] = useState(initialView);
   const [mapResizeToken, setMapResizeToken] = useState(0);
@@ -170,9 +313,9 @@ export default function ZoosPage() {
   const [nextOffset, setNextOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [listLoading, setListLoading] = useState(false);
-  const [listError, setListError] = useState<any>(null);
+  const [listError, setListError] = useState<string | null>(null);
   const [mapLoading, setMapLoading] = useState(false);
-  const [mapError, setMapError] = useState<any>(null);
+  const [mapError, setMapError] = useState<string | null>(null);
 
   useEffect(() => {
     zoosRef.current = zoos;
@@ -180,16 +323,16 @@ export default function ZoosPage() {
 
   useEffect(() => {
     // Only react when the router explicitly sends a camera update.
-    const state = locationState.state;
+    const state = (locationState.state ?? null) as UnknownRecord | null;
     if (!state || !Object.prototype.hasOwnProperty.call(state, 'mapView')) {
       return;
     }
-    const nextView = state.mapView ?? null;
+    const nextView = sanitizeCameraState(state.mapView);
     if (!mapViewsEqual(nextView, mapViewRef.current)) {
       mapViewRef.current = nextView;
       setMapView(nextView);
     }
-    setPreferStoredView(Array.isArray(nextView?.center));
+    setPreferStoredView(Boolean(nextView));
   }, [locationState.state]);
 
   useEffect(() => {
@@ -197,20 +340,12 @@ export default function ZoosPage() {
   }, [mapView]);
 
   const updateMapView = useCallback(
-    (view) => {
+    (view: CameraViewChange | null | undefined) => {
       if (view?.isUserInteraction) {
         setPreferStoredView(true);
       }
 
-      const hasCenter = Array.isArray(view?.center);
-      const sanitizedView = hasCenter
-        ? {
-            center: [...view.center],
-            zoom: view.zoom,
-            bearing: view.bearing,
-            pitch: view.pitch,
-          }
-        : null;
+      const sanitizedView = sanitizeCameraState(view);
 
       if (!sanitizedView) {
         setPreferStoredView(false);
@@ -218,9 +353,11 @@ export default function ZoosPage() {
           mapViewRef.current = null;
           setMapView(null);
         }
-        const baseState = locationState.state ? { ...locationState.state } : {};
+        const baseState: UnknownRecord = isRecord(locationState.state)
+          ? { ...(locationState.state) }
+          : {};
         baseState.mapView = null;
-        navigate(
+        void navigate(
           { pathname: locationState.pathname, search: locationState.search },
           { replace: true, state: baseState }
         );
@@ -233,12 +370,14 @@ export default function ZoosPage() {
 
       mapViewRef.current = sanitizedView;
       setMapView(sanitizedView);
-      const baseState = locationState.state ? { ...locationState.state } : {};
+      const baseState: UnknownRecord = isRecord(locationState.state)
+        ? { ...(locationState.state) }
+        : {};
       baseState.mapView = sanitizedView;
-      navigate(
-        { pathname: locationState.pathname, search: locationState.search },
-        { replace: true, state: baseState }
-      );
+        void navigate(
+          { pathname: locationState.pathname, search: locationState.search },
+          { replace: true, state: baseState }
+        );
     },
     [
       locationState.pathname,
@@ -250,7 +389,7 @@ export default function ZoosPage() {
   );
 
   const handleFavoritesToggle = useCallback(
-    (checked) => {
+    (checked: boolean) => {
       if (listRequestRef.current) {
         listRequestRef.current.abort();
         listRequestRef.current = null;
@@ -259,7 +398,7 @@ export default function ZoosPage() {
         mapRequestRef.current.abort();
         mapRequestRef.current = null;
       }
-      zoosRef.current = [] as any[];
+      zoosRef.current = [];
       setZoos([]);
       setMapZoos([]);
       setTotalZoos(0);
@@ -309,12 +448,23 @@ export default function ZoosPage() {
     if (effectiveVisit !== visitFilter) setVisitFilter(effectiveVisit);
     if (spView !== viewMode) setViewMode(spView);
     if (spFavorites !== favoritesOnly) handleFavoritesToggle(spFavorites);
-  }, [searchParams, isAuthenticated]);
+  }, [
+    continentId,
+    countryId,
+    favoritesOnly,
+    handleFavoritesToggle,
+    isAuthenticated,
+    query,
+    search,
+    searchParams,
+    viewMode,
+    visitFilter,
+  ]);
 
   useEffect(() => {
     // State ➜ URL, but only if different (avoid loops & history spam)
     const next = new URLSearchParams();
-    if (query) next.set('q', query);
+    if (search) next.set('q', search);
     if (continentId) next.set('continent', continentId);
     if (countryId) next.set('country', countryId);
     if (visitFilter !== 'all') next.set('visit', visitFilter);
@@ -325,7 +475,7 @@ export default function ZoosPage() {
       setSearchParams(next, { replace: true, state: locationState.state });
     }
   }, [
-    query,
+    search,
     continentId,
     countryId,
     visitFilter,
@@ -342,7 +492,7 @@ export default function ZoosPage() {
     }
   }, [viewMode]);
 
-  const mapFilters = useMemo(
+  const mapFilters = useMemo<MapFilters>(
     () => ({
       q: query.trim(),
       continent: continentId || '',
@@ -361,7 +511,7 @@ export default function ZoosPage() {
   const userId = user?.id ?? null;
   const isServerFilteredByVisit = isAuthenticated && visitFilterActive;
 
-  const listRequestConfig = useMemo(() => {
+  const listRequestConfig = useMemo<RequestConfig>(() => {
     if (favoritesOnly) {
       if (!isAuthenticated) {
         return { url: null, requiresAuth: true, ready: false };
@@ -393,7 +543,7 @@ export default function ZoosPage() {
     };
   }, [favoritesOnly, isAuthenticated, visitFilterActive, userId, visitSegment]);
 
-  const mapRequestConfig = useMemo(() => {
+  const mapRequestConfig = useMemo<RequestConfig>(() => {
     if (favoritesOnly) {
       if (!isAuthenticated) {
         return { url: null, requiresAuth: true, ready: false };
@@ -438,17 +588,17 @@ export default function ZoosPage() {
     if (mapFilters.favoritesOnly) params.set('favorites_only', 'true');
     const paramsString = params.toString();
     const requestUrl = `${mapRequestConfig.url}${paramsString ? `?${paramsString}` : ''}`;
-    const fetcher = mapRequestConfig.requiresAuth ? authFetch : fetch;
+    const fetcher: typeof fetch = mapRequestConfig.requiresAuth ? authFetch : fetch;
 
-    (async () => {
+    void (async () => {
       try {
         const response = await fetcher(requestUrl, { signal: controller.signal });
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);
         }
-        const data = await response.json();
+        const data = (await response.json()) as unknown;
         if (!controller.signal.aborted) {
-          setMapZoos(Array.isArray(data) ? data : []);
+          setMapZoos(normalizeZooItems(data));
         }
       } catch (error) {
         if (!controller.signal.aborted) {
@@ -474,10 +624,10 @@ export default function ZoosPage() {
   }, [mapFiltersKey, mapFilters, mapRequestConfig, authFetch, mapZoos.length]);
 
   useEffect(() => {
-    fetch(`${API}/zoos/continents`)
-      .then((r) => (r.ok ? r.json() : []))
-      .then(setContinents)
-      .catch(() => setContinents([]));
+    void fetch(`${API}/zoos/continents`)
+      .then(async (r) => (r.ok ? ((await r.json()) as unknown) : []))
+      .then((data) => { setContinents(normalizeRegions(data)); })
+      .catch(() => { setContinents([]); });
   }, []);
 
   useEffect(() => {
@@ -486,24 +636,24 @@ export default function ZoosPage() {
       setCountryId('');
       return;
     }
-    fetch(`${API}/zoos/countries?continent_id=${continentId}`)
-      .then((r) => (r.ok ? r.json() : []))
-      .then(setCountries)
-      .catch(() => setCountries([]));
+    void fetch(`${API}/zoos/countries?continent_id=${continentId}`)
+      .then(async (r) => (r.ok ? ((await r.json()) as unknown) : []))
+      .then((data) => { setCountries(normalizeRegions(data)); })
+      .catch(() => { setCountries([]); });
   }, [continentId]);
 
 
   useEffect(() => {
-    const id = setTimeout(() => setQuery(search), 500);
-    return () => clearTimeout(id);
+    const id = setTimeout(() => { setQuery(search); }, 200);
+    return () => { clearTimeout(id); };
   }, [search]);
 
-  const activeLocation = useMemo(
+  const activeLocation = useMemo<LocationEstimate | null>(
     () => location || estimatedLocation,
     [location, estimatedLocation]
   );
 
-  const listFilters = useMemo(
+  const listFilters = useMemo<ListFilters>(
     () => ({
       q: query.trim(),
       continent: continentId || '',
@@ -559,27 +709,27 @@ export default function ZoosPage() {
     if (listFilters.continent) params.set('continent_id', listFilters.continent);
     if (listFilters.country) params.set('country_id', listFilters.country);
     if (listFilters.favoritesOnly) params.set('favorites_only', 'true');
-    if (Number.isFinite(listFilters.latitude)) {
-      params.set('latitude', listFilters.latitude);
+    if (listFilters.latitude !== null) {
+      params.set('latitude', String(listFilters.latitude));
     }
-    if (Number.isFinite(listFilters.longitude)) {
-      params.set('longitude', listFilters.longitude);
+    if (listFilters.longitude !== null) {
+      params.set('longitude', String(listFilters.longitude));
     }
     params.set('limit', String(PAGE_SIZE));
     params.set('offset', '0');
     const paramsString = params.toString();
     const requestUrl = `${listRequestConfig.url}${paramsString ? `?${paramsString}` : ''}`;
-    const fetcher = listRequestConfig.requiresAuth ? authFetch : fetch;
+    const fetcher: typeof fetch = listRequestConfig.requiresAuth ? authFetch : fetch;
 
     let active = true;
 
-    (async () => {
+      void (async () => {
       try {
         const response = await fetcher(requestUrl, { signal: controller.signal });
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);
         }
-        const data = await response.json();
+        const data = (await response.json()) as unknown;
         if (!active || controller.signal.aborted) {
           return;
         }
@@ -602,7 +752,7 @@ export default function ZoosPage() {
           setListLoading(false);
         }
       }
-    })();
+      })();
 
     return () => {
       active = false;
@@ -627,24 +777,24 @@ export default function ZoosPage() {
     if (listFilters.continent) params.set('continent_id', listFilters.continent);
     if (listFilters.country) params.set('country_id', listFilters.country);
     if (listFilters.favoritesOnly) params.set('favorites_only', 'true');
-    if (Number.isFinite(listFilters.latitude)) {
-      params.set('latitude', listFilters.latitude);
+    if (listFilters.latitude !== null) {
+      params.set('latitude', String(listFilters.latitude));
     }
-    if (Number.isFinite(listFilters.longitude)) {
-      params.set('longitude', listFilters.longitude);
+    if (listFilters.longitude !== null) {
+      params.set('longitude', String(listFilters.longitude));
     }
     params.set('limit', String(PAGE_SIZE));
     params.set('offset', String(nextOffset));
     const paramsString = params.toString();
     const requestUrl = `${listRequestConfig.url}${paramsString ? `?${paramsString}` : ''}`;
-    const fetcher = listRequestConfig.requiresAuth ? authFetch : fetch;
+    const fetcher: typeof fetch = listRequestConfig.requiresAuth ? authFetch : fetch;
 
     try {
       const response = await fetcher(requestUrl, { signal: controller.signal });
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
-      const data = await response.json();
+      const data = (await response.json()) as unknown;
       if (controller.signal.aborted) {
         return;
       }
@@ -683,14 +833,14 @@ export default function ZoosPage() {
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
-          loadNextPage();
-        }
-      },
+          if (entries.some((entry) => entry.isIntersecting)) {
+            void loadNextPage();
+          }
+        },
       { root: null, rootMargin: '200px' }
     );
     observer.observe(node);
-    return () => observer.disconnect();
+    return () => { observer.disconnect(); };
   }, [viewMode, loadNextPage]);
 
   useEffect(() => {
@@ -698,13 +848,14 @@ export default function ZoosPage() {
     estimateAttemptedRef.current = true;
 
     let cancelled = false;
-    fetch(`${API}/location/estimate`)
-      .then((r) => (r.ok ? r.json() : null))
+      void fetch(`${API}/location/estimate`)
+        .then(async (r) => (r.ok ? ((await r.json()) as unknown) : null))
       .then((data) => {
         if (cancelled) return;
-        const lat = Number(data?.latitude);
-        const lon = Number(data?.longitude);
-        if (Number.isFinite(lat) && Number.isFinite(lon)) {
+        const record = isRecord(data) ? data : null;
+        const lat = record ? toOptionalNumber(record.latitude) : null;
+        const lon = record ? toOptionalNumber(record.longitude) : null;
+        if (lat !== null && lon !== null) {
           setEstimatedLocation({ lat, lon });
         } else {
           setEstimatedLocation(null);
@@ -745,7 +896,7 @@ export default function ZoosPage() {
         },
         { enableHighAccuracy: false, timeout: 3000, maximumAge: 600000 }
       );
-    } catch (error) {
+    } catch (_error) {
       setLocation(null);
       writeStoredLocation(null);
     }
@@ -762,10 +913,15 @@ export default function ZoosPage() {
     }
     setVisitedLoading(true);
     authFetch(`${API}/visits/ids`)
-      .then((r) => (r.ok ? r.json() : []))
+      .then(async (r) => {
+        if (!r.ok) return [] as string[];
+        const data = (await r.json()) as unknown;
+        if (!Array.isArray(data)) return [] as string[];
+        return data.map((value) => String(value));
+      })
       .then(setVisitedIds)
-      .catch(() => setVisitedIds([]))
-      .finally(() => setVisitedLoading(false));
+      .catch(() => { setVisitedIds([]); })
+      .finally(() => { setVisitedLoading(false); });
   }, [isAuthenticated, authFetch]);
 
   useEffect(() => {
@@ -781,9 +937,9 @@ export default function ZoosPage() {
     }
   }, [favoritesOnly, visitFilter]);
 
-  const visitedSet = useMemo(() => new Set(visitedIds.map(String)), [visitedIds]);
+  const visitedSet = useMemo(() => new Set(visitedIds), [visitedIds]);
 
-  const updateVisitFilter = (v) => {
+  const updateVisitFilter = (v: 'all' | 'visited' | 'not') => {
     if ((v === 'visited' || v === 'not') && !isAuthenticated) {
       setVisitFilter('all');
       return;
@@ -794,7 +950,7 @@ export default function ZoosPage() {
     setVisitFilter(v);
   };
 
-  const filtered = useMemo(() => {
+  const filtered = useMemo<ZooListItem[]>(() => {
     if (isServerFilteredByVisit) {
       return zoos;
     }
@@ -805,7 +961,7 @@ export default function ZoosPage() {
     });
   }, [zoos, visitFilter, visitedSet, isServerFilteredByVisit]);
 
-  const mapFiltered = useMemo(() => {
+  const mapFiltered = useMemo<ZooListItem[]>(() => {
     if (isServerFilteredByVisit) {
       return mapZoos;
     }
@@ -816,7 +972,7 @@ export default function ZoosPage() {
     });
   }, [mapZoos, visitFilter, visitedSet, isServerFilteredByVisit]);
 
-  const mapZoosWithCoordinates = useMemo(
+  const mapZoosWithCoordinates = useMemo<MapZooFeature[]>(
     () =>
       mapFiltered
         .map((zoo) => {
@@ -824,9 +980,9 @@ export default function ZoosPage() {
           if (!coords) {
             return null;
           }
-          return { ...zoo, ...coords };
+          return { ...zoo, latitude: coords.latitude, longitude: coords.longitude };
         })
-        .filter(Boolean),
+        .filter((value): value is MapZooFeature => value !== null),
     [mapFiltered]
   );
 
@@ -841,7 +997,7 @@ export default function ZoosPage() {
       mapFiltered.length > 0 &&
       mapZoosWithCoordinates.length === 0
     ) {
-      // eslint-disable-next-line no-console
+       
       console.warn(
         'ZoosPage: no coordinate fields found on items. Example keys:',
         Object.keys(mapFiltered[0] || {})
@@ -849,24 +1005,24 @@ export default function ZoosPage() {
     }
   }, [mapFiltered, mapZoosWithCoordinates]);
 
-  const localizedName = (item) =>
-    lang === 'de' ? item.name_de || item.name_en : item.name_en || item.name_de;
+  const localizedName = (item: RegionOption): string =>
+    lang === 'de' ? item.name_de || item.name_en || '' : item.name_en || item.name_de || '';
 
-  const localizedCountry = (item) =>
+  const localizedCountry = (item: ZooListItem): string | null =>
     lang === 'de'
-      ? item.country_name_de || item.country_name_en
-      : item.country_name_en || item.country_name_de;
+      ? item.country_name_de || item.country_name_en || null
+      : item.country_name_en || item.country_name_de || null;
 
-  const handleViewChange = (mode) => {
+  const handleViewChange = (mode: 'list' | 'map') => {
     setViewMode(mode);
   };
 
-  const handleSelectZoo = (zoo, view) => {
-    if (view) {
-      updateMapView(view);
-    }
-    navigate(`${prefix}/zoos/${zoo.slug || zoo.id}`);
-  };
+    const handleSelectZoo = (zoo: ZooListItem, view?: CameraViewChange | null) => {
+      if (view) {
+        updateMapView(view);
+      }
+      void navigate(`${prefix}/zoos/${zoo.slug || zoo.id}`);
+    };
 
   return (
     <div className="container">
@@ -880,7 +1036,7 @@ export default function ZoosPage() {
             className="form-control"
             placeholder={t('nav.search')}
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => { setSearch(e.target.value); }}
           />
         </div>
         <div className="col-md-4 mb-2">
@@ -888,7 +1044,7 @@ export default function ZoosPage() {
             className="form-select"
             aria-label={t('zoo.continent')}
             value={continentId}
-            onChange={(e) => {
+            onChange={(e: ChangeEvent<HTMLSelectElement>) => {
               setContinentId(e.target.value);
               setCountryId('');
             }}
@@ -906,7 +1062,7 @@ export default function ZoosPage() {
             className="form-select"
             aria-label={t('zoo.country')}
             value={countryId}
-            onChange={(e) => setCountryId(e.target.value)}
+            onChange={(e: ChangeEvent<HTMLSelectElement>) => { setCountryId(e.target.value); }}
             disabled={!continentId}
           >
             <option value="">{t('zoo.allCountries')}</option>
@@ -939,7 +1095,7 @@ export default function ZoosPage() {
                   id="visit-all"
                   autoComplete="off"
                   checked={visitFilter === 'all'}
-                  onChange={() => updateVisitFilter('all')}
+                  onChange={() => { updateVisitFilter('all'); }}
                   disabled={visitedLoading}
                 />
                 <label
@@ -956,7 +1112,7 @@ export default function ZoosPage() {
                   id="visit-visited"
                   autoComplete="off"
                   checked={visitFilter === 'visited'}
-                  onChange={() => updateVisitFilter('visited')}
+                  onChange={() => { updateVisitFilter('visited'); }}
                   disabled={visitedLoading}
                 />
                 <label
@@ -973,7 +1129,7 @@ export default function ZoosPage() {
                   id="visit-not"
                   autoComplete="off"
                   checked={visitFilter === 'not'}
-                  onChange={() => updateVisitFilter('not')}
+                  onChange={() => { updateVisitFilter('not'); }}
                   disabled={visitedLoading}
                 />
                 <label className="btn btn-outline-primary" htmlFor="visit-not">
@@ -1018,7 +1174,9 @@ export default function ZoosPage() {
                 type="checkbox"
                 id="zoos-favorites-only"
                 checked={favoritesOnly}
-                onChange={(e) => handleFavoritesToggle(e.target.checked)}
+                onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                  { handleFavoritesToggle(e.target.checked); }
+                }
               />
               <label className="form-check-label" htmlFor="zoos-favorites-only">
                 {t('zoo.favoritesOnly')}
@@ -1037,7 +1195,7 @@ export default function ZoosPage() {
             id="zoo-view-list"
             autoComplete="off"
             checked={viewMode === 'list'}
-            onChange={() => handleViewChange('list')}
+            onChange={() => { handleViewChange('list'); }}
           />
           <label className="btn btn-outline-primary" htmlFor="zoo-view-list">
             {t('zoo.viewList')}
@@ -1050,7 +1208,7 @@ export default function ZoosPage() {
             id="zoo-view-map"
             autoComplete="off"
             checked={viewMode === 'map'}
-            onChange={() => handleViewChange('map')}
+            onChange={() => { handleViewChange('map'); }}
           />
           <label className="btn btn-outline-primary" htmlFor="zoo-view-map">
             {t('zoo.viewMap')}

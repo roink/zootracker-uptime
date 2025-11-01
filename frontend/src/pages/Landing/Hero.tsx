@@ -1,10 +1,44 @@
-// @ts-nocheck
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent
+} from 'react';
 import { Link } from 'react-router-dom';
+
+import LandingSuggestionList from './SuggestionList';
+import type {
+  AnimalNameSource,
+  LandingMapCoordinates,
+  LandingSuggestionOption,
+  LandingTranslator,
+  RecentSearches
+} from './types';
 import LazyMap from '../../components/LazyMap';
 import useSearchSuggestions from '../../hooks/useSearchSuggestions';
 import { getZooDisplayName } from '../../utils/zooDisplayName';
-import LandingSuggestionList from './SuggestionList';
+
+interface HeroProps {
+  t: LandingTranslator;
+  prefix: string;
+  recentSearches: RecentSearches;
+  onRecordRecent: (term: string) => void;
+  onNavigate: (url: string) => void;
+  mapCoords: LandingMapCoordinates;
+  getAnimalName: (animal: AnimalNameSource) => string | undefined;
+}
+
+const LIST_HIDE_DELAY_MS = 100;
+
+const isFiniteNumber = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value);
+
+const normalizeIdentifier = (value: string | undefined, fallback: string): string =>
+  (value && value.length > 0 ? value : fallback);
 
 // Hero section with search, CTAs and a live map preview.
 export default function Hero({
@@ -14,34 +48,41 @@ export default function Hero({
   onRecordRecent,
   onNavigate,
   mapCoords,
-  getAnimalName,
-}) {
+  getAnimalName
+}: HeroProps) {
   const [query, setQuery] = useState('');
   const [focused, setFocused] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const searchId = useId();
-  const searchInputId = `landing-search-${searchId.replace(/:/g, '')}`;
+  const safeId = searchId.replace(/:/g, '');
+  const searchInputId = `landing-search-${safeId}`;
   const searchLabelId = `${searchInputId}-label`;
   const suggestionListId = `${searchInputId}-listbox`;
-  const searchInputRef = useRef(null);
-  const blurTimeout = useRef(null);
-  const mapCardRef = useRef(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const blurTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mapCardRef = useRef<HTMLDivElement | null>(null);
   const [mapReady, setMapReady] = useState(false);
 
   useEffect(() => {
     const node = mapCardRef.current;
-    if (!node) return undefined;
+    if (!node || typeof IntersectionObserver === 'undefined') {
+      return undefined;
+    }
     const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setMapReady(true);
-          observer.disconnect();
+      (entries) => {
+        const [entry] = entries;
+        if (!entry?.isIntersecting) {
+          return;
         }
+        setMapReady(true);
+        observer.disconnect();
       },
       { rootMargin: '200px' }
     );
     observer.observe(node);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+    };
   }, []);
 
   useEffect(
@@ -55,43 +96,47 @@ export default function Hero({
 
   const results = useSearchSuggestions(query, query.trim().length > 0);
 
-  const options = useMemo(() => {
-    const list = [];
-    if (results.animals.length) {
+  const options = useMemo<LandingSuggestionOption[]>(() => {
+    const list: LandingSuggestionOption[] = [];
+    if (results.animals.length > 0) {
       const groupLabel = t('nav.searchGroupAnimals');
       results.animals.forEach((animal, index) => {
-        const identifier = animal.id ?? animal.slug;
-        const displayName = getAnimalName(animal);
+        const identifier = normalizeIdentifier(animal.slug, animal.id);
+        const displayName =
+          getAnimalName(animal) ??
+          animal.name_en ??
+          animal.name_de ??
+          identifier;
         list.push({
           id: `${suggestionListId}-animal-${identifier}`,
           key: `animal-${identifier}`,
           type: 'animal',
-          value: animal.slug || animal.id,
+          value: normalizeIdentifier(animal.slug, animal.id),
           displayName,
-          subtitle: animal.scientific_name || '',
+          subtitle: animal.scientific_name ?? '',
           groupKey: 'animals',
           groupLabel,
           firstInGroup: index === 0,
-          recordValue: displayName,
+          recordValue: displayName
         });
       });
     }
-    if (results.zoos.length) {
+    if (results.zoos.length > 0) {
       const groupLabel = t('nav.searchGroupZoos');
       results.zoos.forEach((zoo, index) => {
-        const identifier = zoo.id ?? zoo.slug;
-        const displayName = getZooDisplayName(zoo);
+        const identifier = normalizeIdentifier(zoo.slug, zoo.id);
+        const displayName = getZooDisplayName(zoo) || zoo.name;
         list.push({
           id: `${suggestionListId}-zoo-${identifier}`,
           key: `zoo-${identifier}`,
           type: 'zoo',
-          value: zoo.slug || zoo.id,
+          value: identifier,
           displayName,
-          subtitle: zoo.city || '',
+          subtitle: zoo.city ?? '',
           groupKey: 'zoos',
           groupLabel,
           firstInGroup: index === 0,
-          recordValue: displayName,
+          recordValue: displayName
         });
       });
     }
@@ -101,10 +146,12 @@ export default function Hero({
   const suggestionsOpen =
     focused && query.trim().length > 0 && options.length > 0;
 
-  const activeDescendant =
-    suggestionsOpen && activeIndex >= 0 && activeIndex < options.length
-      ? options[activeIndex].id
+  const currentOption =
+    activeIndex >= 0 && activeIndex < options.length
+      ? options[activeIndex]
       : undefined;
+
+  const activeDescendant = suggestionsOpen && currentOption ? currentOption.id : undefined;
 
   useEffect(() => {
     if (!suggestionsOpen) {
@@ -128,8 +175,8 @@ export default function Hero({
   }, []);
 
   const handleOptionSelect = useCallback(
-    (option) => {
-      onRecordRecent(option.recordValue || '');
+    (option: LandingSuggestionOption) => {
+      onRecordRecent(option.recordValue);
       setQuery('');
       closeSuggestions();
       if (option.type === 'zoo') {
@@ -142,10 +189,12 @@ export default function Hero({
   );
 
   const handleSearchSubmit = useCallback(
-    (event) => {
+    (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
       const normalized = query.trim();
-      if (!normalized) return;
+      if (normalized.length === 0) {
+        return;
+      }
       onRecordRecent(normalized);
       setQuery('');
       closeSuggestions();
@@ -155,7 +204,7 @@ export default function Hero({
   );
 
   const handleKeyDown = useCallback(
-    (event) => {
+    (event: KeyboardEvent<HTMLInputElement>) => {
       if (event.key === 'ArrowDown') {
         if (!options.length) return;
         event.preventDefault();
@@ -167,7 +216,10 @@ export default function Hero({
       } else if (event.key === 'Enter') {
         if (activeIndex >= 0 && activeIndex < options.length) {
           event.preventDefault();
-          handleOptionSelect(options[activeIndex]);
+          const selectedOption = options[activeIndex];
+          if (selectedOption) {
+            handleOptionSelect(selectedOption);
+          }
         }
       } else if (event.key === 'Escape') {
         event.preventDefault();
@@ -181,7 +233,7 @@ export default function Hero({
   );
 
   const handleRecentClick = useCallback(
-    (term) => {
+    (term: string) => {
       onRecordRecent(term);
       closeSuggestions();
       setQuery('');
@@ -200,7 +252,7 @@ export default function Hero({
   const handleBlur = () => {
     blurTimeout.current = setTimeout(() => {
       closeSuggestions();
-    }, 100);
+    }, LIST_HIDE_DELAY_MS);
   };
 
   const showEmptyState =
@@ -236,7 +288,9 @@ export default function Hero({
                   className="form-control"
                   value={query}
                   placeholder={t('landing.hero.searchPlaceholder')}
-                  onChange={(event) => setQuery(event.target.value)}
+                  onChange={(event) => {
+                    setQuery(event.target.value);
+                  }}
                   onKeyDown={handleKeyDown}
                   onFocus={handleFocus}
                   onBlur={handleBlur}
@@ -263,7 +317,9 @@ export default function Hero({
                   options={options}
                   activeIndex={activeIndex}
                   onSelect={handleOptionSelect}
-                  onActivate={(index) => setActiveIndex(index)}
+                  onActivate={(index) => {
+                    setActiveIndex(index);
+                  }}
                 />
               ) : null}
             </form>
@@ -283,7 +339,9 @@ export default function Hero({
                       key={term}
                       type="button"
                       className="btn btn-outline-secondary btn-sm"
-                      onClick={() => handleRecentClick(term)}
+                      onClick={() => {
+                        handleRecentClick(term);
+                      }}
                     >
                       {term}
                     </button>
@@ -312,7 +370,7 @@ export default function Hero({
                 <h2 className="h5">{t('landing.map.title')}</h2>
                 <p className="text-muted mb-3">{t('landing.map.subtitle')}</p>
                 <div className="landing-map" aria-label={t('landing.map.alt')}>
-                  {mapReady ? (
+                  {mapReady && isFiniteNumber(mapCoords.lat) && isFiniteNumber(mapCoords.lon) ? (
                     <LazyMap latitude={mapCoords.lat} longitude={mapCoords.lon} />
                   ) : (
                     <div className="map-container" aria-hidden="true" />

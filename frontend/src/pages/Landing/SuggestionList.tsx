@@ -1,4 +1,16 @@
-// @ts-nocheck
+import type { MouseEvent, ReactElement } from 'react';
+
+import type { LandingSuggestionOption } from './types';
+
+interface LandingSuggestionListProps {
+  id: string;
+  labelledBy: string;
+  options: LandingSuggestionOption[];
+  activeIndex: number;
+  onSelect: (option: LandingSuggestionOption) => void;
+  onActivate?: (index: number) => void;
+}
+
 // Suggestion dropdown showing grouped results for the hero search.
 export default function LandingSuggestionList({
   id,
@@ -7,8 +19,8 @@ export default function LandingSuggestionList({
   activeIndex,
   onSelect,
   onActivate,
-}) {
-  const items = [];
+}: LandingSuggestionListProps) {
+  const items: ReactElement[] = [];
   options.forEach((option, index) => {
     if (option.firstInGroup && option.groupLabel) {
       items.push(
@@ -22,6 +34,10 @@ export default function LandingSuggestionList({
       );
     }
     const isActive = index === activeIndex;
+    const handlePointerDown = (event: MouseEvent<HTMLLIElement>) => {
+      event.preventDefault();
+      onSelect(option);
+    };
     items.push(
       <li
         key={option.key}
@@ -31,13 +47,22 @@ export default function LandingSuggestionList({
         className={`list-group-item landing-suggestion-item${
           isActive ? ' active' : ''
         }`}
-        onPointerDown={(event) => {
-          event.preventDefault();
+        onPointerDown={handlePointerDown}
+        onMouseEnter={() => {
+          onActivate?.(index);
+        }}
+        onMouseMove={() => {
+          onActivate?.(index);
+        }}
+        onClick={() => {
           onSelect(option);
         }}
-        onMouseEnter={() => onActivate?.(index)}
-        onMouseMove={() => onActivate?.(index)}
-        onClick={() => onSelect(option)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            onSelect(option);
+          }
+        }}
       >
         <div className="landing-suggestion-text">
           <div className="landing-suggestion-name">{option.displayName}</div>

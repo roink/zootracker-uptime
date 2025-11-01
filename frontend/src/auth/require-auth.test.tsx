@@ -1,12 +1,13 @@
 // @ts-nocheck
 import '@testing-library/jest-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, act } from '@testing-library/react';
 import { useEffect } from 'react';
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryRouter, RouterProvider, Outlet, useLocation } from 'react-router-dom';
-import RequireAuth from './RequireAuth';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+
 import { AuthProvider, useAuth } from './AuthContext';
+import RequireAuth from './RequireAuth';
 import { createTestToken } from '../test-utils/auth';
 
 function Layout() {

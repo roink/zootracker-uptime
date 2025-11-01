@@ -1,5 +1,11 @@
+import type { LandingTranslator } from './types';
+
+interface AboutProps {
+  t: LandingTranslator;
+}
+
 // Concise explainer about ZooTracker's purpose.
-export default function About({ t }) {
+export default function About({ t }: AboutProps) {
   return (
     <section className="landing-about py-5">
       <div className="container">

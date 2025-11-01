@@ -1,13 +1,14 @@
 // @ts-nocheck
-import React from 'react';
-import '@testing-library/jest-dom';
-import { render, screen, act } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import '@testing-library/jest-dom';
+import { act, render, screen } from '@testing-library/react';
+import React from 'react';
+import { createMemoryRouter, RouterProvider } from 'react-router-dom';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
 import Dashboard from './Dashboard';
-import { loadLocale } from '../i18n';
 import { AuthProvider, useAuth } from '../auth/AuthContext';
+import { loadLocale } from '../i18n';
 import { createTestToken } from '../test-utils/auth';
 
 vi.mock('../hooks/useAuthFetch', () => ({ default: () => fetch }));
@@ -85,10 +86,10 @@ describe('Dashboard', () => {
     );
     expect(achievementCalls).toHaveLength(0);
 
-    await act(async () => {
-      await loadLocale('de');
-      router.navigate('/de');
-    });
+      await act(async () => {
+        await loadLocale('de');
+        await router.navigate('/de');
+      });
 
     const german = await screen.findByText(
       'Löwe im Berlin Zoo am 2024-05-01 gesehen'

@@ -1,12 +1,13 @@
 // @ts-nocheck
-import React from 'react';
 import '@testing-library/jest-dom';
 import { screen, waitFor } from '@testing-library/react';
-import { Routes, Route } from 'react-router-dom';
-import { describe, it, beforeEach, afterEach, expect, vi } from 'vitest';
-import { renderWithRouter } from '../test-utils/router';
-import { loadLocale } from '../i18n';
+import { Route, Routes } from 'react-router-dom';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { API } from '../api';
+import { loadLocale } from '../i18n';
+import ZooDetailPage from './ZooDetail';
+import { renderWithRouter } from '../test-utils/router';
 
 const { seoSpy } = vi.hoisted(() => ({
   seoSpy: vi.fn(),
@@ -30,8 +31,6 @@ vi.mock('../components/ZooDetail', () => ({
     return <div data-testid="zoo-detail" />;
   },
 }));
-
-import ZooDetailPage from './ZooDetail';
 
 async function prepareLocale() {
   await loadLocale('en');
@@ -66,7 +65,7 @@ describe('ZooDetailPage', () => {
 
     expect(await screen.findByText('Loading...')).toBeInTheDocument();
 
-    await waitFor(() => expect(seoSpy).toHaveBeenCalled());
+    await waitFor(() => { expect(seoSpy).toHaveBeenCalled(); });
     expect(global.fetch).toHaveBeenCalledWith(
       `${API}/zoos/berlin-zoo`,
       expect.objectContaining({ signal: expect.any(Object) })
@@ -108,7 +107,7 @@ describe('ZooDetailPage', () => {
       { route: '/en/zoos/berlin-zoo' }
     );
 
-    await waitFor(() => expect(zooDetailSpy).toHaveBeenCalled());
+    await waitFor(() => { expect(zooDetailSpy).toHaveBeenCalled(); });
 
     const lastCall = seoSpy.mock.calls.at(-1)[0];
     expect(lastCall.description).toBe('Plan a visit to Berlin Zoo today!');

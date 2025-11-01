@@ -1,7 +1,14 @@
 import { Link } from 'react-router-dom';
 
+import type { LandingTranslator } from './types';
+
+interface FinalCtaProps {
+  t: LandingTranslator;
+  prefix: string;
+}
+
 // Repeated CTA band that closes the page with clear next steps.
-export default function FinalCta({ t, prefix }) {
+export default function FinalCta({ t, prefix }: FinalCtaProps) {
   return (
     <section className="landing-final-cta py-5">
       <div className="container text-center">

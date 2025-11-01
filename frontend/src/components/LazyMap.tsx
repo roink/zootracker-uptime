@@ -1,11 +1,25 @@
-import { useEffect, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
+import { useEffect, useMemo, useRef, useState } from 'react';
+
 import MapView from './MapView';
 
+interface LazyMapProps {
+  latitude?: number | null;
+  longitude?: number | null;
+}
+
+const resolveCoordinates = (value?: number | null): number | null =>
+  typeof value === 'number' && Number.isFinite(value) ? value : null;
+
 // Wrapper that loads the map only when scrolled into view to save resources.
-export default function LazyMap({ latitude, longitude }: any) {
-  const holderRef = useRef<any>(null);
+export default function LazyMap({ latitude, longitude }: LazyMapProps) {
+  const holderRef = useRef<HTMLDivElement | null>(null);
   const [visible, setVisible] = useState(false);
+  const coords = useMemo(() => {
+    const lat = resolveCoordinates(latitude);
+    const lon = resolveCoordinates(longitude);
+    return lat !== null && lon !== null ? { latitude: lat, longitude: lon } : null;
+  }, [latitude, longitude]);
 
   useEffect(() => {
     const io = new IntersectionObserver(
@@ -19,13 +33,13 @@ export default function LazyMap({ latitude, longitude }: any) {
       { rootMargin: '200px' }
     );
     if (holderRef.current) io.observe(holderRef.current);
-    return () => io.disconnect();
+    return () => { io.disconnect(); };
   }, []);
 
   return (
     <div ref={holderRef}>
-      {visible ? (
-        <MapView latitude={latitude} longitude={longitude} />
+      {visible && coords ? (
+        <MapView latitude={coords.latitude} longitude={coords.longitude} />
       ) : (
         <div className="map-container" />
       )}

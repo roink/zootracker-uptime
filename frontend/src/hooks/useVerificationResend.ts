@@ -33,7 +33,7 @@ export function useVerificationResend(
     const timer = setTimeout(() => {
       setCooldown((prev) => (prev > 0 ? prev - 1 : 0));
     }, 1000);
-    return () => clearTimeout(timer);
+    return () => { clearTimeout(timer); };
   }, [cooldown]);
 
   const reset = useCallback(() => {

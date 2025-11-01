@@ -15,7 +15,7 @@ export default function ResetPasswordRedirect() {
     const targetLang = normalizeLang(candidate);
     const search = location.search || '';
     const hash = location.hash || '';
-    navigate(`/${targetLang}/reset-password${search}${hash}`, { replace: true });
+    void navigate(`/${targetLang}/reset-password${search}${hash}`, { replace: true });
   }, [navigate, location.search, location.hash]);
 
   return null;
