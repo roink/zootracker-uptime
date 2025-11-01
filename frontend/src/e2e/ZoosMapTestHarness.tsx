@@ -1,26 +1,70 @@
-// @ts-nocheck
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import ZoosMap from '../components/ZoosMap';
 import { loadLocale } from '../i18n';
+import type { CameraState, NormalizedCameraState } from '../types/zoos';
 
-const DEFAULT_VIEW = { center: [13.405, 52.52], zoom: 5, bearing: 0, pitch: 0 };
+const DEFAULT_VIEW: NormalizedCameraState = {
+  center: [13.405, 52.52] as [number, number],
+  zoom: 5,
+  bearing: 0,
+  pitch: 0,
+};
 
-function normalizeView(view) {
-  if (!view || !Array.isArray(view.center) || view.center.length !== 2) {
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+type HarnessView = {
+  center?: unknown;
+  zoom?: unknown;
+  bearing?: unknown;
+  pitch?: unknown;
+};
+
+function normalizeView(view: unknown): CameraState {
+  const candidate = view as HarnessView | null | undefined;
+  if (!candidate || !Array.isArray(candidate.center) || candidate.center.length !== 2) {
     return DEFAULT_VIEW;
   }
+  const [lng, lat] = candidate.center as [unknown, unknown];
+  const center: [number, number] = [Number(lng), Number(lat)];
+  const zoom =
+    typeof candidate.zoom === 'number' && Number.isFinite(candidate.zoom)
+      ? candidate.zoom
+      : DEFAULT_VIEW.zoom;
+  const bearing =
+    typeof candidate.bearing === 'number' && Number.isFinite(candidate.bearing)
+      ? candidate.bearing
+      : DEFAULT_VIEW.bearing;
+  const pitch =
+    typeof candidate.pitch === 'number' && Number.isFinite(candidate.pitch)
+      ? candidate.pitch
+      : DEFAULT_VIEW.pitch;
   return {
-    center: [Number(view.center[0]), Number(view.center[1])],
-    zoom: Number.isFinite(view.zoom) ? view.zoom : DEFAULT_VIEW.zoom,
-    bearing: Number.isFinite(view.bearing) ? view.bearing : DEFAULT_VIEW.bearing,
-    pitch: Number.isFinite(view.pitch) ? view.pitch : DEFAULT_VIEW.pitch,
+    center,
+    zoom,
+    bearing,
+    pitch,
   };
 }
 
+type HarnessZoo = { id: string; name: string; latitude: number; longitude: number };
+
+declare global {
+  interface Window {
+    __setZoosData?: (entries: unknown) => void;
+    __setInitialView?: (view: unknown) => void;
+    __mapHarnessReady?: boolean;
+    __mapInstance?: unknown;
+    __mapInstanceReady?: boolean;
+    __waitForIdle?: () => Promise<void>;
+    __currentZooCount?: number;
+  }
+}
+
 export default function ZoosMapTestHarness() {
-  const [zoos, setZoos] = useState<any[]>([]);
-  const [view, setView] = useState(DEFAULT_VIEW);
+  const [zoos, setZoos] = useState<HarnessZoo[]>([]);
+  const [view, setView] = useState<CameraState>(DEFAULT_VIEW);
 
   useEffect(() => {
     void loadLocale('en');
@@ -32,25 +76,48 @@ export default function ZoosMapTestHarness() {
         setZoos([]);
         return;
       }
-      const normalized = entries
-        .map((entry, index) => {
-          if (!entry) return null;
-          const latitude = Number(entry.latitude ?? entry.lat);
-          const longitude = Number(entry.longitude ?? entry.lon ?? entry.lng);
-          if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+        const normalized = (entries as unknown[])
+          .map((rawEntry, index) => {
+            if (!isRecord(rawEntry)) {
+              return null;
+            }
+            const entry = rawEntry;
+          const pickNumber = (value: unknown): number | null => {
+            if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+            if (typeof value === 'string') {
+              const parsed = Number(value);
+              return Number.isFinite(parsed) ? parsed : null;
+            }
+            return null;
+          };
+          const latitudeCandidate =
+            pickNumber((entry as { latitude?: unknown }).latitude) ??
+            pickNumber((entry as { lat?: unknown }).lat);
+          const longitudeCandidate =
+            pickNumber((entry as { longitude?: unknown }).longitude) ??
+            pickNumber((entry as { lon?: unknown }).lon) ??
+            pickNumber((entry as { lng?: unknown }).lng);
+          if (latitudeCandidate === null || longitudeCandidate === null) {
             return null;
           }
-          const id = entry.id ?? `fixture-${index + 1}`;
+          const idRaw = entry['id'];
+          const idValue =
+            typeof idRaw === 'string' || typeof idRaw === 'number'
+              ? idRaw
+              : `fixture-${index + 1}`;
           return {
-            id,
-            name: entry.name ?? `Fixture Zoo ${index + 1}`,
-            latitude,
-            longitude,
+            id: String(idValue),
+            name:
+              typeof entry['name'] === 'string'
+                ? entry['name']
+                : `Fixture Zoo ${index + 1}`,
+            latitude: latitudeCandidate,
+            longitude: longitudeCandidate,
           };
         })
-        .filter(Boolean);
-      setZoos(normalized);
-    };
+          .filter((value): value is { id: string; name: string; latitude: number; longitude: number } => value !== null);
+        setZoos(normalized);
+      };
 
     window.__setInitialView = (nextView) => {
       setView(normalizeView(nextView));
@@ -105,7 +172,7 @@ export default function ZoosMapTestHarness() {
     []
   );
 
-  const initialView = useMemo(() => normalizeView(view), [view]);
+  const initialView = useMemo<CameraState>(() => normalizeView(view), [view]);
 
   return (
     <div

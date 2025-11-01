@@ -142,7 +142,7 @@ export default tseslint.config(
         { allowBoolean: true, allowNumber: true }
       ],
       '@typescript-eslint/no-confusing-void-expression': 'warn',
-      '@typescript-eslint/no-unnecessary-condition': 'warn',
+      '@typescript-eslint/no-unnecessary-condition': 'error',
       '@typescript-eslint/no-unnecessary-type-assertion': 'warn',
       '@typescript-eslint/no-unnecessary-type-conversion': 'warn',
       '@typescript-eslint/no-unused-expressions': 'warn',

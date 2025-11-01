@@ -221,22 +221,26 @@ export function LangApp({ refreshCounter, refreshSeen }: LangAppProps) {
 
 export function RootRedirect() {
   const navigate = useNavigate();
-  useEffect(() => {
-    const detected = i18n.services?.languageDetector?.detect?.();
-    const candidate = Array.isArray(detected) ? detected[0] : detected;
-    const targetLang = normalizeLang(candidate);
-    void navigate(`/${targetLang}`, { replace: true });
-  }, [navigate]);
+    useEffect(() => {
+      const detector = i18n.services.languageDetector;
+      const detected =
+        detector && typeof detector.detect === 'function' ? detector.detect() : undefined;
+      const candidate = Array.isArray(detected) ? detected[0] : detected;
+      const targetLang = normalizeLang(candidate);
+      void navigate(`/${targetLang}`, { replace: true });
+    }, [navigate]);
   return null;
 }
 
 export function VerifyEmailRedirect() {
   const navigate = useNavigate();
   const location = useLocation();
-  useEffect(() => {
-    const stored = localStorage.getItem('lang');
-    const detected = i18n.services?.languageDetector?.detect?.();
-    const candidate = stored || (Array.isArray(detected) ? detected[0] : detected);
+    useEffect(() => {
+      const stored = localStorage.getItem('lang');
+      const detector = i18n.services.languageDetector;
+      const detected =
+        detector && typeof detector.detect === 'function' ? detector.detect() : undefined;
+      const candidate = stored || (Array.isArray(detected) ? detected[0] : detected);
     const targetLang = normalizeLang(candidate);
     const search = location.search || '';
     const hash = location.hash || '';

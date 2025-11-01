@@ -37,7 +37,7 @@ async function prepareLocale() {
 }
 
 describe('ZooDetailPage', () => {
-  const originalFetch = global.fetch;
+    const originalFetch = global.fetch as typeof fetch | undefined;
 
   beforeEach(async () => {
     await prepareLocale();
@@ -45,13 +45,13 @@ describe('ZooDetailPage', () => {
     zooDetailSpy.mockClear();
   });
 
-  afterEach(() => {
-    if (originalFetch) {
-      global.fetch = originalFetch;
-    } else {
-      delete global.fetch;
-    }
-  });
+    afterEach(() => {
+      if (typeof originalFetch === 'function') {
+        global.fetch = originalFetch;
+      } else {
+        delete global.fetch;
+      }
+    });
 
   it('provides sanitized SEO metadata while loading', async () => {
     global.fetch = vi.fn(() => new Promise(() => {}));

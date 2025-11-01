@@ -11,7 +11,7 @@ import { toLocalYMD } from '../utils/sightingHistory';
 
 vi.mock('./LazyMap', () => ({ default: () => <div data-testid="map" /> }));
 
-const originalFetch = global.fetch;
+const originalFetch = global.fetch as typeof fetch | undefined;
 
 describe('ZooDetail component', () => {
   const zoo = { id: 'z1', slug: 'test-zoo', name: 'Test Zoo', is_favorite: false };
@@ -86,7 +86,7 @@ describe('ZooDetail component', () => {
   });
 
   afterEach(() => {
-    if (originalFetch) {
+    if (typeof originalFetch === 'function') {
       global.fetch = originalFetch;
     } else {
       delete global.fetch;

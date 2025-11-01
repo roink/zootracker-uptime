@@ -145,8 +145,8 @@ export default function ZooDetail({
         setVisited(false);
         return;
       }
-      const result = (await response.json()) as { visited?: unknown };
-      setVisited(Boolean(result?.visited));
+        const result = (await response.json()) as { visited?: unknown };
+        setVisited(Boolean(result.visited));
     } catch {
       setVisited(false);
     }

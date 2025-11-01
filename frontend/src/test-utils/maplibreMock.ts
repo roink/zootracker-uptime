@@ -2,13 +2,13 @@
 import { vi } from 'vitest';
 
 if (typeof window !== 'undefined') {
-  if (!window.URL) {
-    window.URL = {};
+  if (typeof window.URL === 'undefined') {
+    window.URL = {} as typeof window.URL;
   }
-  if (!window.URL.createObjectURL) {
+  if (typeof window.URL.createObjectURL !== 'function') {
     window.URL.createObjectURL = vi.fn();
   }
-  if (!window.URL.revokeObjectURL) {
+  if (typeof window.URL.revokeObjectURL !== 'function') {
     window.URL.revokeObjectURL = vi.fn();
   }
 }

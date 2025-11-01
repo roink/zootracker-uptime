@@ -12,7 +12,7 @@ export default function useAuthFetch() {
 
   return useCallback(
     async (input: FetchInput, options: FetchInit = {}): Promise<Response> => {
-      const headers = new Headers(options?.headers ?? {});
+        const headers = new Headers(options.headers ?? {});
       let authToken = token ?? null;
       const now = Date.now();
 

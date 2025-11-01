@@ -213,8 +213,8 @@ function mapViewsEqual(
 // Safely read a previously stored location from sessionStorage.
 function readStoredLocation(): LocationEstimate | null {
   if (typeof window === 'undefined') return null;
-  try {
-    const stored = window.sessionStorage?.getItem(LOCATION_STORAGE_KEY);
+    try {
+      const stored = window.sessionStorage.getItem(LOCATION_STORAGE_KEY);
     if (!stored) return null;
     const parsed = JSON.parse(stored);
     const lat = Number(parsed?.lat);
@@ -237,12 +237,12 @@ function writeStoredLocation(value: LocationEstimate | null): void {
       Number.isFinite(value.lat) &&
       Number.isFinite(value.lon)
     ) {
-      window.sessionStorage?.setItem(
-        LOCATION_STORAGE_KEY,
-        JSON.stringify({ lat: value.lat, lon: value.lon })
-      );
-    } else {
-      window.sessionStorage?.removeItem(LOCATION_STORAGE_KEY);
+        window.sessionStorage.setItem(
+          LOCATION_STORAGE_KEY,
+          JSON.stringify({ lat: value.lat, lon: value.lon })
+        );
+      } else {
+        window.sessionStorage.removeItem(LOCATION_STORAGE_KEY);
     }
   } catch (_error) {
     // Ignore storage errors silently so the UI keeps working.
@@ -283,12 +283,12 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
   const { isAuthenticated, user } = useAuth();
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const locationState = useLocation();
+    const locationState = useLocation();
   const listRequestRef = useRef<AbortController | null>(null);
   const mapRequestRef = useRef<AbortController | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const zoosRef = useRef<ZooListItem[]>([]);
-  const routerState = (locationState.state ?? null) as UnknownRecord | null;
+    const routerState = locationState.state as UnknownRecord | null;
   const initialRouterView = routerState && 'mapView' in routerState
     ? sanitizeCameraState(routerState['mapView'])
     : null;
@@ -324,7 +324,7 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
 
   useEffect(() => {
     // Only react when the router explicitly sends a camera update.
-    const state = (locationState.state ?? null) as UnknownRecord | null;
+      const state = locationState.state as UnknownRecord | null;
     if (!state || !Object.prototype.hasOwnProperty.call(state, 'mapView')) {
       return;
     }
@@ -624,29 +624,29 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
     };
   }, [mapFiltersKey, mapFilters, mapRequestConfig, authFetch, mapZoos.length]);
 
-  useEffect(() => {
-    let cancelled = false;
+    useEffect(() => {
+      const controller = new AbortController();
 
-    const loadContinents = async () => {
-      try {
-        const response = await fetch(`${API}/zoos/continents`);
-        const data = response.ok ? ((await response.json()) as unknown) : [];
-        if (!cancelled) {
-          setContinents(normalizeRegions(data));
+      const loadContinents = async () => {
+        try {
+          const response = await fetch(`${API}/zoos/continents`, { signal: controller.signal });
+          const data = response.ok ? ((await response.json()) as unknown) : [];
+          if (!controller.signal.aborted) {
+            setContinents(normalizeRegions(data));
+          }
+        } catch {
+          if (!controller.signal.aborted) {
+            setContinents([]);
+          }
         }
-      } catch {
-        if (!cancelled) {
-          setContinents([]);
-        }
-      }
-    };
+      };
 
-    void loadContinents();
+      void loadContinents();
 
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+      return () => {
+        controller.abort();
+      };
+    }, []);
 
   useEffect(() => {
     if (!continentId) {
@@ -654,28 +654,30 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
       setCountryId('');
       return;
     }
-    let cancelled = false;
+      const controller = new AbortController();
 
-    const loadCountries = async () => {
-      try {
-        const response = await fetch(`${API}/zoos/countries?continent_id=${continentId}`);
-        const data = response.ok ? ((await response.json()) as unknown) : [];
-        if (!cancelled) {
-          setCountries(normalizeRegions(data));
+      const loadCountries = async () => {
+        try {
+          const response = await fetch(`${API}/zoos/countries?continent_id=${continentId}`, {
+            signal: controller.signal,
+          });
+          const data = response.ok ? ((await response.json()) as unknown) : [];
+          if (!controller.signal.aborted) {
+            setCountries(normalizeRegions(data));
+          }
+        } catch {
+          if (!controller.signal.aborted) {
+            setCountries([]);
+          }
         }
-      } catch {
-        if (!cancelled) {
-          setCountries([]);
-        }
-      }
-    };
+      };
 
-    void loadCountries();
+      void loadCountries();
 
-    return () => {
-      cancelled = true;
-    };
-  }, [continentId]);
+      return () => {
+        controller.abort();
+      };
+    }, [continentId]);
 
 
   useEffect(() => {
@@ -688,30 +690,18 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
     [location, estimatedLocation]
   );
 
-  const listFilters = useMemo<ListFilters>(
-    () => ({
-      q: query.trim(),
-      continent: continentId || '',
-      country: countryId || '',
-      favoritesOnly,
-      latitude:
-        typeof activeLocation?.lat === 'number' && Number.isFinite(activeLocation.lat)
-          ? activeLocation.lat
-          : null,
-      longitude:
-        typeof activeLocation?.lon === 'number' && Number.isFinite(activeLocation.lon)
-          ? activeLocation.lon
-          : null,
-    }),
-    [
-      query,
-      continentId,
-      countryId,
-      favoritesOnly,
-      activeLocation?.lat,
-      activeLocation?.lon,
-    ]
-  );
+    const listFilters = useMemo<ListFilters>(() => {
+      const lat = activeLocation?.lat;
+      const lon = activeLocation?.lon;
+      return {
+        q: query.trim(),
+        continent: continentId || '',
+        country: countryId || '',
+        favoritesOnly,
+        latitude: typeof lat === 'number' && Number.isFinite(lat) ? lat : null,
+        longitude: typeof lon === 'number' && Number.isFinite(lon) ? lon : null,
+      };
+    }, [query, continentId, countryId, favoritesOnly, activeLocation]);
   const listFiltersKey = useMemo(
     () => JSON.stringify(listFilters),
     [listFilters]
@@ -756,44 +746,44 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
     const requestUrl = `${listRequestConfig.url}${paramsString ? `?${paramsString}` : ''}`;
     const fetcher: typeof fetch = listRequestConfig.requiresAuth ? authFetch : fetch;
 
-    let active = true;
+      const activeRef = { current: true };
 
       void (async () => {
-      try {
-        const response = await fetcher(requestUrl, { signal: controller.signal });
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
-        const data = (await response.json()) as unknown;
-        if (!active || controller.signal.aborted) {
-          return;
-        }
+        try {
+          const response = await fetcher(requestUrl, { signal: controller.signal });
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+          const data = (await response.json()) as unknown;
+          if (!activeRef.current || controller.signal.aborted) {
+            return;
+          }
         const page = normalizeZooPage(data, 0);
         setZoos(page.items);
         const newOffset = page.offset + page.items.length;
         setNextOffset(newOffset);
         setTotalZoos(page.total);
         setHasMore(newOffset < page.total && page.items.length > 0);
-      } catch (error) {
-        if (!active || controller.signal.aborted) {
-          return;
+        } catch (error) {
+          if (!activeRef.current || controller.signal.aborted) {
+            return;
+          }
+          setListError(error instanceof Error ? error.message : 'Failed to load zoos');
+        } finally {
+          if (listRequestRef.current === controller) {
+            listRequestRef.current = null;
+          }
+          if (!controller.signal.aborted && activeRef.current) {
+            setListLoading(false);
+          }
         }
-        setListError(error instanceof Error ? error.message : 'Failed to load zoos');
-      } finally {
+      })();
+
+      return () => {
+        activeRef.current = false;
         if (listRequestRef.current === controller) {
           listRequestRef.current = null;
         }
-        if (!controller.signal.aborted && active) {
-          setListLoading(false);
-        }
-      }
-      })();
-
-    return () => {
-      active = false;
-      if (listRequestRef.current === controller) {
-        listRequestRef.current = null;
-      }
       controller.abort();
     };
   }, [listFiltersKey, listFilters, listRequestConfig, authFetch]);
@@ -882,13 +872,13 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
     if (estimateAttemptedRef.current) return;
     estimateAttemptedRef.current = true;
 
-    let cancelled = false;
+    const controller = new AbortController();
 
     const estimateLocation = async () => {
       try {
-        const response = await fetch(`${API}/location/estimate`);
+        const response = await fetch(`${API}/location/estimate`, { signal: controller.signal });
         const data = response.ok ? ((await response.json()) as unknown) : null;
-        if (cancelled) {
+        if (controller.signal.aborted) {
           return;
         }
         const record = isRecord(data) ? data : null;
@@ -900,7 +890,7 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
           setEstimatedLocation(null);
         }
       } catch {
-        if (!cancelled) {
+        if (!controller.signal.aborted) {
           setEstimatedLocation(null);
         }
       }
@@ -909,18 +899,19 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
     void estimateLocation();
 
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, []);
 
-  useEffect(() => {
-    if (!navigator?.geolocation) return;
+    useEffect(() => {
+      const geolocation = (globalThis as { navigator?: Navigator }).navigator?.geolocation;
+      if (!geolocation) return;
 
-    let cancelled = false;
+    let active = true;
     try {
-      navigator.geolocation.getCurrentPosition(
+      geolocation.getCurrentPosition(
         (pos) => {
-          if (cancelled) return;
+          if (!active) return;
           const lat = Number(pos.coords.latitude);
           const lon = Number(pos.coords.longitude);
           if (Number.isFinite(lat) && Number.isFinite(lon)) {
@@ -933,7 +924,7 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
           }
         },
         () => {
-          if (cancelled) return;
+          if (!active) return;
           setLocation(null);
           writeStoredLocation(null);
         },
@@ -945,7 +936,7 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
     }
 
     return () => {
-      cancelled = true;
+      active = false;
     };
   }, []);
 
@@ -955,31 +946,31 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
       return;
     }
 
-    let cancelled = false;
+    const controller = new AbortController();
     setVisitedLoading(true);
 
     const loadVisited = async () => {
       try {
-        const response = await authFetch(`${API}/visits/ids`);
+        const response = await authFetch(`${API}/visits/ids`, { signal: controller.signal });
         if (!response.ok) {
-          if (!cancelled) {
+          if (!controller.signal.aborted) {
             setVisitedIds([]);
           }
           return;
         }
         const data = (await response.json()) as unknown;
-        if (!cancelled) {
+        if (!controller.signal.aborted) {
           const ids = Array.isArray(data)
             ? data.map((value) => String(value))
             : [];
           setVisitedIds(ids);
         }
       } catch {
-        if (!cancelled) {
+        if (!controller.signal.aborted) {
           setVisitedIds([]);
         }
       } finally {
-        if (!cancelled) {
+        if (!controller.signal.aborted) {
           setVisitedLoading(false);
         }
       }
@@ -988,7 +979,7 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
     void loadVisited();
 
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, [isAuthenticated, authFetch]);
 
@@ -1057,10 +1048,8 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
   useEffect(() => {
     const importMetaEnv = typeof import.meta !== 'undefined' ? import.meta.env : undefined;
     const isVitest = importMetaEnv?.MODE === 'test';
-    const isNodeTest =
-      typeof process !== 'undefined' &&
-      process.env &&
-      process.env['NODE_ENV'] === 'test';
+      const isNodeTest =
+        typeof process !== 'undefined' && process.env['NODE_ENV'] === 'test';
     if (
       importMetaEnv?.DEV &&
       !isVitest &&

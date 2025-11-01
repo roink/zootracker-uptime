@@ -157,9 +157,9 @@ export default function SightingModal({
     }
     return () => {
       document.body.style.overflow = previousOverflow;
-      if (appRoot) {
-        if (previousHidden === null) appRoot.removeAttribute('aria-hidden');
-        else appRoot.setAttribute('aria-hidden', previousHidden ?? 'false');
+        if (appRoot) {
+          if (previousHidden === null) appRoot.removeAttribute('aria-hidden');
+          else appRoot.setAttribute('aria-hidden', previousHidden);
         if (hadInert) appRoot.setAttribute('inert', '');
         else appRoot.removeAttribute('inert');
       }

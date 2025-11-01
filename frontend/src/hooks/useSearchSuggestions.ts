@@ -11,7 +11,7 @@ export default function useSearchSuggestions(query: string, enabled = true): Sea
   const fetchRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    const rawQuery = query?.trim() ?? '';
+      const rawQuery = query.trim();
     if (!enabled || !rawQuery) {
       setResults(createEmptyResults());
       if (fetchRef.current) fetchRef.current.abort();
@@ -45,9 +45,9 @@ export default function useSearchSuggestions(query: string, enabled = true): Sea
           ]);
 
           const combined: SearchResults = {
-            zoos: Array.isArray((zoosBody as { items?: unknown }).items)
-              ? ((zoosBody as { items: ZooSummary[] }).items ?? [])
-              : [],
+              zoos: Array.isArray((zoosBody as { items?: unknown }).items)
+                ? (zoosBody as { items: ZooSummary[] }).items
+                : [],
             animals: Array.isArray(animalsBody)
               ? (animalsBody as AnimalSummary[])
               : []

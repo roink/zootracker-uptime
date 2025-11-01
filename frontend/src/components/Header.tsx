@@ -131,7 +131,7 @@ export default function Header() {
     if (results.animals.length) {
       const groupLabel = t('nav.searchGroupAnimals');
       results.animals.forEach((animal, index) => {
-        const identifier = animal.id ?? animal.slug;
+        const identifier = animal.slug ?? animal.id;
         list.push({
           id: `${suggestionListId}-a-${identifier}`,
           key: `a-${identifier}`,
@@ -148,7 +148,7 @@ export default function Header() {
     if (results.zoos.length) {
       const groupLabel = t('nav.searchGroupZoos');
       results.zoos.forEach((zoo, index) => {
-        const identifier = zoo.id ?? zoo.slug;
+        const identifier = zoo.slug ?? zoo.id;
         const displayName = getZooDisplayName(zoo);
         list.push({
           id: `${suggestionListId}-z-${identifier}`,

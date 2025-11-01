@@ -27,33 +27,30 @@ export default function MapView({ latitude, longitude, zoom = 14 }: MapViewProps
     if (!containerElement) return;
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
 
-    let cancelled = false;
-
     void (async () => {
       // Dynamically load MapLibre so the heavy library only loads when needed
       const { default: maplibregl } = await import('maplibre-gl');
-      if (cancelled) return;
+      if (!containerElement.isConnected) return;
 
-      mapRef.current = new maplibregl.Map({
+      const mapInstance = new maplibregl.Map({
         container: containerElement,
         style: MAP_STYLE_URL,
         center: [longitude, latitude],
         zoom,
       });
 
-      if (mapRef.current?.on) {
-        mapRef.current.on('load', () => {
-          applyBaseMapLanguage(mapRef.current, i18n.language);
-        });
-      }
+      mapRef.current = mapInstance;
+
+      mapInstance.on('load', () => {
+        applyBaseMapLanguage(mapInstance, i18n.language);
+      });
 
       markerRef.current = new maplibregl.Marker()
         .setLngLat([longitude, latitude])
-        .addTo(mapRef.current);
+        .addTo(mapInstance);
     })();
 
     return () => {
-      cancelled = true;
       mapRef.current?.remove();
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps

@@ -11,7 +11,7 @@ export const DATA_PROTECTION_VERSION = '2025-09-22';
 export default function DataProtectionPage() {
   const { t, i18n } = useTranslation();
   const { lang } = useParams();
-  const locale = (lang ?? i18n.language ?? 'en');
+    const locale = lang ?? (i18n.language || 'en');
   const langSegment = locale.split('-')[0] || 'en';
   const versionDate = new Date(`${DATA_PROTECTION_VERSION}T00:00:00Z`);
   const formattedVersionDate = new Intl.DateTimeFormat(

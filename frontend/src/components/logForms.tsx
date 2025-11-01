@@ -275,21 +275,27 @@ export function LogSighting({
     }
   };
 
-  const zooActiveId =
-    zooListOpen &&
-    zooActiveIndex >= 0 &&
-    zooActiveIndex < zooSuggestions.length
-      ? `${zooListId}-z-${zooSuggestions[zooActiveIndex].id ?? zooSuggestions[zooActiveIndex].slug}`
-      : undefined;
+    const zooActiveId =
+      zooListOpen &&
+      zooActiveIndex >= 0 &&
+      zooActiveIndex < zooSuggestions.length
+        ? (() => {
+            const suggestion = zooSuggestions[zooActiveIndex];
+            const identifier = suggestion.slug ?? suggestion.id;
+            return `${zooListId}-z-${identifier}`;
+          })()
+        : undefined;
 
-  const animalActiveId =
-    animalListOpen &&
-    animalActiveIndex >= 0 &&
-    animalActiveIndex < animalSuggestions.length
-      ? `${
-          animalListId
-        }-a-${animalSuggestions[animalActiveIndex].id ?? animalSuggestions[animalActiveIndex].slug}`
-      : undefined;
+    const animalActiveId =
+      animalListOpen &&
+      animalActiveIndex >= 0 &&
+      animalActiveIndex < animalSuggestions.length
+        ? (() => {
+            const suggestion = animalSuggestions[animalActiveIndex];
+            const identifier = suggestion.slug ?? suggestion.id;
+            return `${animalListId}-a-${identifier}`;
+          })()
+        : undefined;
 
   // Send a new sighting to the API for the selected animal and zoo.
   const submit = async (e) => {
@@ -398,14 +404,21 @@ export function LogSighting({
             id={zooListId}
             aria-labelledby={zooLabelId}
           >
-            {zooSuggestions.map((z, index) => {
-              const key = z.id ?? z.slug ?? index;
-              const optionId = `${zooListId}-z-${key}`;
-              const isActive = index === zooActiveIndex;
-              return (
-                <li
-                  key={key}
-                  id={optionId}
+              {zooSuggestions.map((z, index) => {
+                let keyValue: string;
+                if (typeof z.slug === 'string' && z.slug.length > 0) {
+                  keyValue = z.slug;
+                } else if (typeof z.id === 'string' || typeof z.id === 'number') {
+                  keyValue = String(z.id);
+                } else {
+                  keyValue = String(index);
+                }
+                const optionId = `${zooListId}-z-${keyValue}`;
+                const isActive = index === zooActiveIndex;
+                return (
+                  <li
+                    key={keyValue}
+                    id={optionId}
                   role="option"
                   aria-selected={isActive ? 'true' : 'false'}
                   className={`list-group-item${isActive ? ' active' : ''}`}
@@ -470,13 +483,20 @@ export function LogSighting({
             id={animalListId}
             aria-labelledby={animalLabelId}
           >
-            {animalSuggestions.map((a, index) => {
-              const key = a.id ?? a.slug ?? index;
-              const optionId = `${animalListId}-a-${key}`;
-              const isActive = index === animalActiveIndex;
-              return (
-                <li
-                  key={key}
+              {animalSuggestions.map((a, index) => {
+                let keyValue: string;
+                if (typeof a.slug === 'string' && a.slug.length > 0) {
+                  keyValue = a.slug;
+                } else if (typeof a.id === 'string' || typeof a.id === 'number') {
+                  keyValue = String(a.id);
+                } else {
+                  keyValue = String(index);
+                }
+                const optionId = `${animalListId}-a-${keyValue}`;
+                const isActive = index === animalActiveIndex;
+                return (
+                  <li
+                    key={keyValue}
                   id={optionId}
                   role="option"
                   aria-selected={isActive ? 'true' : 'false'}

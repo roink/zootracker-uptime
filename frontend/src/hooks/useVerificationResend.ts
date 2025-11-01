@@ -44,7 +44,7 @@ export function useVerificationResend(
 
   const request = useCallback(
     async (email: string, options: VerificationResendRequestOptions = {}) => {
-      const trimmed = (email ?? '').trim();
+        const trimmed = email.trim();
       if (!trimmed) return;
       setStatus('loading');
       setMessage('');

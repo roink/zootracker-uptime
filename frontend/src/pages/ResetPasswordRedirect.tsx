@@ -9,8 +9,10 @@ export default function ResetPasswordRedirect() {
   const location = useLocation();
 
   useEffect(() => {
-    const stored = localStorage.getItem('lang');
-    const detected = i18n.services?.languageDetector?.detect?.();
+      const stored = localStorage.getItem('lang');
+      const detector = i18n.services.languageDetector;
+      const detected =
+        detector && typeof detector.detect === 'function' ? detector.detect() : undefined;
     const candidate = stored || (Array.isArray(detected) ? detected[0] : detected);
     const targetLang = normalizeLang(candidate);
     const search = location.search || '';

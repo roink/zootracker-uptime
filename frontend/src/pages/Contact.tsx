@@ -83,17 +83,20 @@ export default function ContactPage() {
       } else if (resp.status === 429) {
         // Show specific guidance when the rate limit is hit
         setStatusKey('contactPage.status.rateLimit');
-      } else if (resp.status === 422) {
-        let detailPayload = null;
+        } else if (resp.status === 422) {
+          let detailPayload: unknown = null;
         try {
           detailPayload = await resp.json();
         } catch (_error) {
           detailPayload = null;
         }
-        const detailValue =
-          detailPayload && typeof detailPayload.detail === 'string'
-            ? detailPayload.detail
-            : null;
+          const detailValue =
+            typeof detailPayload === 'object' &&
+            detailPayload !== null &&
+            'detail' in detailPayload &&
+            typeof (detailPayload as { detail?: unknown }).detail === 'string'
+              ? (detailPayload as { detail: string }).detail
+              : null;
         if (detailValue === 'too_fast') {
           setStatusKey('contactPage.status.tooFast');
         } else {
