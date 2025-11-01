@@ -99,23 +99,54 @@ export function LogSighting({
 
 
   useEffect(() => {
+    let cancelled = false;
+
+    const loadAnimals = async () => {
+      try {
+        const response = await fetch(`${API}/animals`);
+        if (cancelled) {
+          return;
+        }
+        const data = await response.json();
+        setAnimals(Array.isArray(data) ? data : []);
+      } catch {
+        if (!cancelled) {
+          setAnimals([]);
+        }
+      }
+    };
+
+    const loadZoos = async () => {
+      try {
+        const response = await fetch(`${API}/zoos?limit=6000`);
+        const data = response.ok ? await response.json() : [];
+        if (cancelled) {
+          return;
+        }
+        if (Array.isArray(data?.items)) {
+          setZoos(data.items);
+        } else if (Array.isArray(data)) {
+          setZoos(data);
+        } else {
+          setZoos([]);
+        }
+      } catch {
+        if (!cancelled) {
+          setZoos([]);
+        }
+      }
+    };
+
     if (!propAnimals) {
-      void fetch(`${API}/animals`).then((r) => r.json()).then(setAnimals);
+      void loadAnimals();
     }
     if (!propZoos) {
-      void fetch(`${API}/zoos?limit=6000`)
-        .then((r) => (r.ok ? r.json() : []))
-        .then((data) => {
-          if (Array.isArray(data?.items)) {
-            setZoos(data.items);
-          } else if (Array.isArray(data)) {
-            setZoos(data);
-          } else {
-            setZoos([]);
-          }
-        })
-        .catch(() => { setZoos([]); });
+      void loadZoos();
     }
+
+    return () => {
+      cancelled = true;
+    };
   }, [propAnimals, propZoos]);
 
 

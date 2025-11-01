@@ -105,18 +105,27 @@ export default function SearchPage() {
 
     let cancelled = false;
 
-      void authFetch(`${API}/users/${uid}/animals`)
-        .then((r) => (r.ok ? r.json() : []))
-      .then((data) => {
-        if (!cancelled) {
-          setSeenAnimals(data);
+    const loadSeen = async () => {
+      try {
+        const response = await authFetch(`${API}/users/${uid}/animals`);
+        if (!response.ok) {
+          if (!cancelled) {
+            setSeenAnimals([]);
+          }
+          return;
         }
-      })
-      .catch(() => {
+        const data = await response.json();
+        if (!cancelled) {
+          setSeenAnimals(Array.isArray(data) ? data : []);
+        }
+      } catch {
         if (!cancelled) {
           setSeenAnimals([]);
         }
-      });
+      }
+    };
+
+    void loadSeen();
 
     return () => {
       cancelled = true;

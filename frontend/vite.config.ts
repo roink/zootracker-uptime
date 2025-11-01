@@ -11,7 +11,11 @@ export default defineConfig({
     react(),
     checker({
       typescript: true,
-      eslint: { lintCommand: 'eslint .', useFlatConfig: true }
+      eslint: {
+        lintCommand: 'eslint "./src/**/*.{ts,tsx}" --cache',
+        useFlatConfig: true,
+        watchPath: './src'
+      }
     })
   ]
 });

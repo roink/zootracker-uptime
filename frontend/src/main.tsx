@@ -103,15 +103,15 @@ const persistOptions: PersistQueryClientProviderProps['persistOptions'] = {
   buster: 'app@1.0.0'
 };
 
-function DashboardPage({ refresh, onUpdate }: DashboardPageProps) {
+export function DashboardPage({ refresh, onUpdate }: DashboardPageProps) {
   return <Dashboard refresh={refresh} onUpdate={onUpdate} />;
 }
 
-function BadgesPage() {
+export function BadgesPage() {
   return <h2>Badges</h2>;
 }
 
-function ProfilePage() {
+export function ProfilePage() {
   const { user } = useAuth();
   return (
     <div>
@@ -121,7 +121,7 @@ function ProfilePage() {
   );
 }
 
-function AppRoutes({ refreshCounter, refreshSeen }: LangAppProps) {
+export function AppRoutes({ refreshCounter, refreshSeen }: LangAppProps) {
   const location = useLocation();
   const { isAuthenticated } = useAuth();
   return (
@@ -176,11 +176,11 @@ function AppRoutes({ refreshCounter, refreshSeen }: LangAppProps) {
   );
 }
 
-function LangApp({ refreshCounter, refreshSeen }: LangAppProps) {
+export function LangApp({ refreshCounter, refreshSeen }: LangAppProps) {
   const params = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const lang = params.lang;
+  const lang = params['lang'];
   const rest = params['*'] ?? '';
   const { ready } = useTranslation();
 
@@ -219,7 +219,7 @@ function LangApp({ refreshCounter, refreshSeen }: LangAppProps) {
   return <AppRoutes refreshCounter={refreshCounter} refreshSeen={refreshSeen} />;
 }
 
-function RootRedirect() {
+export function RootRedirect() {
   const navigate = useNavigate();
   useEffect(() => {
     const detected = i18n.services?.languageDetector?.detect?.();
@@ -230,7 +230,7 @@ function RootRedirect() {
   return null;
 }
 
-function VerifyEmailRedirect() {
+export function VerifyEmailRedirect() {
   const navigate = useNavigate();
   const location = useLocation();
   useEffect(() => {
@@ -245,7 +245,7 @@ function VerifyEmailRedirect() {
   return null;
 }
 
-function App() {
+export function App() {
   const [refreshCounter, setRefreshCounter] = useState(0);
 
   const refreshSeen = () => {

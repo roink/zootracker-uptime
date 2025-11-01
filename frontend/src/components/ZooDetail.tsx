@@ -116,39 +116,58 @@ export default function ZooDetail({
     }
   }, [authFetch, favorite, isAuthenticated, navigate, onFavoriteChange, prefix, t, zoo]);
 
-  const loadAnimals = useCallback(() => {
+  const loadAnimals = useCallback(async () => {
     if (!zooSlug) {
       setAnimals([]);
-      return Promise.resolve();
+      return;
     }
-    return authFetch(`${API}/zoos/${zooSlug}/animals`)
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data) => {
-        setAnimals(Array.isArray(data) ? data : []);
-      })
-      .catch(() => { setAnimals([]); });
+    try {
+      const response = await authFetch(`${API}/zoos/${zooSlug}/animals`);
+      if (!response.ok) {
+        setAnimals([]);
+        return;
+      }
+      const data = await response.json();
+      setAnimals(Array.isArray(data) ? data : []);
+    } catch {
+      setAnimals([]);
+    }
   }, [authFetch, zooSlug]);
 
-  const loadVisited = useCallback(() => {
+  const loadVisited = useCallback(async () => {
     if (!isAuthenticated || !zooSlug) {
       setVisited(false);
-      return Promise.resolve();
+      return;
     }
-    return authFetch(`${API}/zoos/${zooSlug}/visited`)
-      .then((r) => (r.ok ? r.json() : { visited: false }))
-      .then((d) => { setVisited(Boolean(d.visited)); })
-      .catch(() => { setVisited(false); });
+    try {
+      const response = await authFetch(`${API}/zoos/${zooSlug}/visited`);
+      if (!response.ok) {
+        setVisited(false);
+        return;
+      }
+      const result = (await response.json()) as { visited?: unknown };
+      setVisited(Boolean(result?.visited));
+    } catch {
+      setVisited(false);
+    }
   }, [authFetch, isAuthenticated, zooSlug]);
 
-  const loadSeenIds = useCallback(() => {
+  const loadSeenIds = useCallback(async () => {
     if (!isAuthenticated || !userId) {
       setSeenIds(new Set());
-      return Promise.resolve();
+      return;
     }
-    return authFetch(`${API}/users/${userId}/animals/ids`)
-      .then((r) => (r.ok ? r.json() : []))
-      .then((ids) => { setSeenIds(new Set(ids)); })
-      .catch(() => { setSeenIds(new Set()); });
+    try {
+      const response = await authFetch(`${API}/users/${userId}/animals/ids`);
+      if (!response.ok) {
+        setSeenIds(new Set());
+        return;
+      }
+      const ids = await response.json();
+      setSeenIds(new Set(Array.isArray(ids) ? ids : []));
+    } catch {
+      setSeenIds(new Set());
+    }
   }, [authFetch, isAuthenticated, userId]);
 
   const fetchHistory = useCallback(
@@ -179,37 +198,35 @@ export default function ZooDetail({
   );
 
   const loadHistory = useCallback(
-    ({ signal } = {}) => {
+    async ({ signal } = {}) => {
       if (!isAuthenticated || !zooSlug) {
         setHistory([]);
         setHistoryError(false);
         setHistoryLoading(false);
-        return Promise.resolve();
+        return;
       }
       setHistoryLoading(true);
       setHistoryError(false);
-      return fetchHistory({ signal })
-        .then((items) => {
-          setHistory(items);
-          setHistoryError(false);
-        })
-        .catch((err: unknown) => {
-          if (
-            typeof err === 'object' &&
-            err !== null &&
-            'name' in err &&
-            (err as { name?: unknown }).name === 'AbortError'
-          ) {
-            return;
-          }
-          setHistory([]);
-          setHistoryError(true);
-        })
-        .finally(() => {
-          if (!signal || !signal.aborted) {
-            setHistoryLoading(false);
-          }
-        });
+      try {
+        const items = await fetchHistory({ signal });
+        setHistory(items);
+        setHistoryError(false);
+      } catch (err) {
+        if (
+          typeof err === 'object' &&
+          err !== null &&
+          'name' in err &&
+          (err as { name?: unknown }).name === 'AbortError'
+        ) {
+          return;
+        }
+        setHistory([]);
+        setHistoryError(true);
+      } finally {
+        if (!signal || !signal.aborted) {
+          setHistoryLoading(false);
+        }
+      }
     },
     [fetchHistory, isAuthenticated, zooSlug]
   );

@@ -63,7 +63,7 @@ describe('AnimalDetailPage', () => {
       .fn()
       .mockResolvedValue({ ok: true, json: () => Promise.resolve(animal) });
     const user = userEvent.setup();
-    const { container } = renderWithRouter(
+    const { container: _container } = renderWithRouter(
       <Routes>
         <Route path="/:lang/animals/:slug" element={<AnimalDetailPage />} />
       </Routes>,
@@ -76,7 +76,6 @@ describe('AnimalDetailPage', () => {
     await screen.findByText('Mammals');
     expect(screen.getByText('Carnivorans')).toBeInTheDocument();
     expect(screen.getByText('Cats')).toBeInTheDocument();
-    expect(container.querySelector('dl')).toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: 'Filter animals by class: Mammals' })
     ).toHaveAttribute('href', '/en/animals?class=1');

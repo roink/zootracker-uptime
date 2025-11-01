@@ -8,6 +8,7 @@ import { API } from '../api';
 import { createTestToken } from '../test-utils/auth';
 import { renderWithRouter } from '../test-utils/router';
 import { toLocalYMD } from '../utils/sightingHistory';
+
 vi.mock('./LazyMap', () => ({ default: () => <div data-testid="map" /> }));
 
 const originalFetch = global.fetch;

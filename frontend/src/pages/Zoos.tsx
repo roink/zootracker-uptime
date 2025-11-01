@@ -82,26 +82,26 @@ function toZooListItem(value: unknown): ZooListItem | null {
   if (!isRecord(value)) {
     return null;
   }
-  const id = toStringId(value.id);
+  const id = toStringId(value['id']);
   if (!id) {
     return null;
   }
-  const latitude = toOptionalNumber(value.latitude);
-  const longitude = toOptionalNumber(value.longitude);
-  const location = isRecord(value.location) ? (value.location) : null;
+  const latitude = toOptionalNumber(value['latitude']);
+  const longitude = toOptionalNumber(value['longitude']);
+  const location = isRecord(value['location']) ? value['location'] : null;
   return {
     id,
-    slug: toOptionalString(value.slug),
-    name: toOptionalString(value.name),
-    name_en: toOptionalString(value.name_en),
-    name_de: toOptionalString(value.name_de),
-    city: toOptionalString(value.city),
-    country_name_en: toOptionalString(value.country_name_en),
-    country_name_de: toOptionalString(value.country_name_de),
+    slug: toOptionalString(value['slug']),
+    name: toOptionalString(value['name']),
+    name_en: toOptionalString(value['name_en']),
+    name_de: toOptionalString(value['name_de']),
+    city: toOptionalString(value['city']),
+    country_name_en: toOptionalString(value['country_name_en']),
+    country_name_de: toOptionalString(value['country_name_de']),
     latitude,
     longitude,
-    distance_km: toOptionalNumber(value.distance_km),
-    is_favorite: toOptionalBoolean(value.is_favorite),
+    distance_km: toOptionalNumber(value['distance_km']),
+    is_favorite: toOptionalBoolean(value['is_favorite']),
     location,
   };
 }
@@ -116,11 +116,11 @@ function normalizeZooItems(source: unknown): ZooListItem[] {
 }
 
 function normalizeZooPage(payload: unknown, fallbackOffset = 0): PaginatedZooPage {
-  if (isRecord(payload) && Array.isArray(payload.items)) {
-    const items = normalizeZooItems(payload.items);
-    const total = toOptionalNumber(payload.total) ?? items.length;
-    const offset = toOptionalNumber(payload.offset) ?? fallbackOffset;
-    const limit = toOptionalNumber(payload.limit) ?? items.length;
+  if (isRecord(payload) && Array.isArray(payload['items'])) {
+    const items = normalizeZooItems(payload['items']);
+    const total = toOptionalNumber(payload['total']) ?? items.length;
+    const offset = toOptionalNumber(payload['offset']) ?? fallbackOffset;
+    const limit = toOptionalNumber(payload['limit']) ?? items.length;
     return { items, total, offset, limit };
   }
   if (Array.isArray(payload)) {
@@ -139,7 +139,7 @@ function sanitizeCameraState(value: unknown): CameraState | null {
   if (!isRecord(value)) {
     return null;
   }
-  const centerValue = value.center;
+  const centerValue = value['center'];
   if (!Array.isArray(centerValue) || centerValue.length < 2) {
     return null;
   }
@@ -148,9 +148,9 @@ function sanitizeCameraState(value: unknown): CameraState | null {
   if (lon === null || lat === null) {
     return null;
   }
-  const zoom = toOptionalNumber(value.zoom ?? null) ?? undefined;
-  const bearing = toOptionalNumber(value.bearing ?? null) ?? undefined;
-  const pitch = toOptionalNumber(value.pitch ?? null) ?? undefined;
+  const zoom = toOptionalNumber(value['zoom'] ?? null) ?? undefined;
+  const bearing = toOptionalNumber(value['bearing'] ?? null) ?? undefined;
+  const pitch = toOptionalNumber(value['pitch'] ?? null) ?? undefined;
   return {
     center: [lon, lat],
     ...(zoom !== undefined ? { zoom } : {}),
@@ -168,14 +168,14 @@ function normalizeRegions(source: unknown): RegionOption[] {
       if (!isRecord(item)) {
         return null;
       }
-      const id = toStringId(item.id);
+      const id = toStringId(item['id']);
       if (!id) {
         return null;
       }
       const region: RegionOption = {
         id,
-        name_en: toOptionalString(item.name_en),
-        name_de: toOptionalString(item.name_de),
+        name_en: toOptionalString(item['name_en']),
+        name_de: toOptionalString(item['name_de']),
       };
       return region;
     })
@@ -252,7 +252,8 @@ function writeStoredLocation(value: LocationEstimate | null): void {
 // Listing page showing all zoos with search, region filters and visit status.
 
 export default function ZoosPage(_props: ZoosPageProps = {}) {
-  const { lang } = useParams();
+  const params = useParams();
+  const lang = params['lang'];
   const prefix = `/${lang}`;
   const [searchParams, setSearchParams] = useSearchParams();
   const initialSearch = searchParams.get('q') || '';
@@ -289,7 +290,7 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
   const zoosRef = useRef<ZooListItem[]>([]);
   const routerState = (locationState.state ?? null) as UnknownRecord | null;
   const initialRouterView = routerState && 'mapView' in routerState
-    ? sanitizeCameraState(routerState.mapView)
+    ? sanitizeCameraState(routerState['mapView'])
     : null;
   const mapViewRef = useRef<CameraState | null>(initialRouterView);
   const [mapView, setMapView] = useState<CameraState | null>(() => mapViewRef.current);
@@ -327,7 +328,7 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
     if (!state || !Object.prototype.hasOwnProperty.call(state, 'mapView')) {
       return;
     }
-    const nextView = sanitizeCameraState(state.mapView);
+    const nextView = sanitizeCameraState(state['mapView']);
     if (!mapViewsEqual(nextView, mapViewRef.current)) {
       mapViewRef.current = nextView;
       setMapView(nextView);
@@ -356,7 +357,7 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
         const baseState: UnknownRecord = isRecord(locationState.state)
           ? { ...(locationState.state) }
           : {};
-        baseState.mapView = null;
+        baseState['mapView'] = null;
         void navigate(
           { pathname: locationState.pathname, search: locationState.search },
           { replace: true, state: baseState }
@@ -373,7 +374,7 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
       const baseState: UnknownRecord = isRecord(locationState.state)
         ? { ...(locationState.state) }
         : {};
-      baseState.mapView = sanitizedView;
+      baseState['mapView'] = sanitizedView;
         void navigate(
           { pathname: locationState.pathname, search: locationState.search },
           { replace: true, state: baseState }
@@ -624,10 +625,27 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
   }, [mapFiltersKey, mapFilters, mapRequestConfig, authFetch, mapZoos.length]);
 
   useEffect(() => {
-    void fetch(`${API}/zoos/continents`)
-      .then(async (r) => (r.ok ? ((await r.json()) as unknown) : []))
-      .then((data) => { setContinents(normalizeRegions(data)); })
-      .catch(() => { setContinents([]); });
+    let cancelled = false;
+
+    const loadContinents = async () => {
+      try {
+        const response = await fetch(`${API}/zoos/continents`);
+        const data = response.ok ? ((await response.json()) as unknown) : [];
+        if (!cancelled) {
+          setContinents(normalizeRegions(data));
+        }
+      } catch {
+        if (!cancelled) {
+          setContinents([]);
+        }
+      }
+    };
+
+    void loadContinents();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -636,10 +654,27 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
       setCountryId('');
       return;
     }
-    void fetch(`${API}/zoos/countries?continent_id=${continentId}`)
-      .then(async (r) => (r.ok ? ((await r.json()) as unknown) : []))
-      .then((data) => { setCountries(normalizeRegions(data)); })
-      .catch(() => { setCountries([]); });
+    let cancelled = false;
+
+    const loadCountries = async () => {
+      try {
+        const response = await fetch(`${API}/zoos/countries?continent_id=${continentId}`);
+        const data = response.ok ? ((await response.json()) as unknown) : [];
+        if (!cancelled) {
+          setCountries(normalizeRegions(data));
+        }
+      } catch {
+        if (!cancelled) {
+          setCountries([]);
+        }
+      }
+    };
+
+    void loadCountries();
+
+    return () => {
+      cancelled = true;
+    };
   }, [continentId]);
 
 
@@ -848,22 +883,30 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
     estimateAttemptedRef.current = true;
 
     let cancelled = false;
-      void fetch(`${API}/location/estimate`)
-        .then(async (r) => (r.ok ? ((await r.json()) as unknown) : null))
-      .then((data) => {
-        if (cancelled) return;
+
+    const estimateLocation = async () => {
+      try {
+        const response = await fetch(`${API}/location/estimate`);
+        const data = response.ok ? ((await response.json()) as unknown) : null;
+        if (cancelled) {
+          return;
+        }
         const record = isRecord(data) ? data : null;
-        const lat = record ? toOptionalNumber(record.latitude) : null;
-        const lon = record ? toOptionalNumber(record.longitude) : null;
+        const lat = record ? toOptionalNumber(record['latitude']) : null;
+        const lon = record ? toOptionalNumber(record['longitude']) : null;
         if (lat !== null && lon !== null) {
           setEstimatedLocation({ lat, lon });
         } else {
           setEstimatedLocation(null);
         }
-      })
-      .catch(() => {
-        if (!cancelled) setEstimatedLocation(null);
-      });
+      } catch {
+        if (!cancelled) {
+          setEstimatedLocation(null);
+        }
+      }
+    };
+
+    void estimateLocation();
 
     return () => {
       cancelled = true;
@@ -911,17 +954,42 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
       setVisitedLoading(false);
       return;
     }
+
+    let cancelled = false;
     setVisitedLoading(true);
-    authFetch(`${API}/visits/ids`)
-      .then(async (r) => {
-        if (!r.ok) return [] as string[];
-        const data = (await r.json()) as unknown;
-        if (!Array.isArray(data)) return [] as string[];
-        return data.map((value) => String(value));
-      })
-      .then(setVisitedIds)
-      .catch(() => { setVisitedIds([]); })
-      .finally(() => { setVisitedLoading(false); });
+
+    const loadVisited = async () => {
+      try {
+        const response = await authFetch(`${API}/visits/ids`);
+        if (!response.ok) {
+          if (!cancelled) {
+            setVisitedIds([]);
+          }
+          return;
+        }
+        const data = (await response.json()) as unknown;
+        if (!cancelled) {
+          const ids = Array.isArray(data)
+            ? data.map((value) => String(value))
+            : [];
+          setVisitedIds(ids);
+        }
+      } catch {
+        if (!cancelled) {
+          setVisitedIds([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setVisitedLoading(false);
+        }
+      }
+    };
+
+    void loadVisited();
+
+    return () => {
+      cancelled = true;
+    };
   }, [isAuthenticated, authFetch]);
 
   useEffect(() => {
@@ -989,7 +1057,10 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
   useEffect(() => {
     const importMetaEnv = typeof import.meta !== 'undefined' ? import.meta.env : undefined;
     const isVitest = importMetaEnv?.MODE === 'test';
-    const isNodeTest = typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'test';
+    const isNodeTest =
+      typeof process !== 'undefined' &&
+      process.env &&
+      process.env['NODE_ENV'] === 'test';
     if (
       importMetaEnv?.DEV &&
       !isVitest &&

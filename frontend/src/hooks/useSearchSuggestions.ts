@@ -27,18 +27,23 @@ export default function useSearchSuggestions(query: string, enabled = true): Sea
     fetchRef.current = controller;
     const timeout = setTimeout(() => {
       const params = new URLSearchParams({ limit: '5', q });
-      Promise.all([
-        fetch(`${API}/zoos?${params.toString()}`, { signal: controller.signal }),
-        fetch(`${API}/animals?${params.toString()}`, { signal: controller.signal })
-      ])
-        .then(async ([zoosRes, animalsRes]) => {
+
+      const loadSuggestions = async () => {
+        try {
+          const [zoosRes, animalsRes] = await Promise.all([
+            fetch(`${API}/zoos?${params.toString()}`, { signal: controller.signal }),
+            fetch(`${API}/animals?${params.toString()}`, { signal: controller.signal })
+          ]);
+
           if (!zoosRes.ok || !animalsRes.ok) {
             throw new Error('Search request failed');
           }
+
           const [zoosBody, animalsBody] = await Promise.all([
             zoosRes.json(),
             animalsRes.json()
           ]);
+
           const combined: SearchResults = {
             zoos: Array.isArray((zoosBody as { items?: unknown }).items)
               ? ((zoosBody as { items: ZooSummary[] }).items ?? [])
@@ -47,14 +52,19 @@ export default function useSearchSuggestions(query: string, enabled = true): Sea
               ? (animalsBody as AnimalSummary[])
               : []
           };
+
           searchCache[q] = combined;
-          if (!controller.signal.aborted) setResults(combined);
-        })
-        .catch(() => {
+          if (!controller.signal.aborted) {
+            setResults(combined);
+          }
+        } catch {
           if (!controller.signal.aborted) {
             setResults(createEmptyResults());
           }
-        });
+        }
+      };
+
+      void loadSuggestions();
     }, 500);
     return () => {
       clearTimeout(timeout);

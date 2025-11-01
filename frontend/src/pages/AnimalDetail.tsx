@@ -321,37 +321,35 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
   );
 
   const loadHistory = useCallback(
-    ({ signal } = {}) => {
+    async ({ signal } = {}) => {
       if (!isAuthenticated || !slug) {
         setHistory([]);
         setHistoryError(false);
         setHistoryLoading(false);
-        return Promise.resolve();
+        return;
       }
       setHistoryLoading(true);
       setHistoryError(false);
-      return fetchHistory({ signal })
-        .then((items) => {
-          setHistory(items);
-          setHistoryError(false);
-        })
-        .catch((err: unknown) => {
-          if (
-            typeof err === 'object' &&
-            err !== null &&
-            'name' in err &&
-            (err as { name?: unknown }).name === 'AbortError'
-          ) {
-            return;
-          }
-          setHistory([]);
-          setHistoryError(true);
-        })
-        .finally(() => {
-          if (!signal || !signal.aborted) {
-            setHistoryLoading(false);
-          }
-        });
+      try {
+        const items = await fetchHistory({ signal });
+        setHistory(items);
+        setHistoryError(false);
+      } catch (err) {
+        if (
+          typeof err === 'object' &&
+          err !== null &&
+          'name' in err &&
+          (err as { name?: unknown }).name === 'AbortError'
+        ) {
+          return;
+        }
+        setHistory([]);
+        setHistoryError(true);
+      } finally {
+        if (!signal || !signal.aborted) {
+          setHistoryLoading(false);
+        }
+      }
     },
     [fetchHistory, isAuthenticated, slug]
   );

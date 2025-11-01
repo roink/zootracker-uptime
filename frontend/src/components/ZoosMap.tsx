@@ -1,12 +1,5 @@
 import type { Feature, FeatureCollection, Point } from 'geojson';
-import type {
-  GeoJSONSource,
-  LngLat,
-  LngLatLike,
-  LngLatBoundsLike,
-  Map as MaplibreMap,
-  MapLayerMouseEvent,
-} from 'maplibre-gl';
+import type * as maplibre from 'maplibre-gl';
 import PropTypes from 'prop-types';
 import type { MutableRefObject } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -34,7 +27,15 @@ const CLUSTER_COUNT_LAYER_ID = 'zoos-cluster-count';
 const UNCLUSTERED_LAYER_ID = 'zoos-unclustered';
 const SET_DATA_TIMEOUT_MS = 32;
 
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
 type MaplibreModule = typeof import('maplibre-gl');
+type MaplibreImport = MaplibreModule & { default?: MaplibreModule };
+type GeoJSONSource = maplibre.GeoJSONSource;
+type LngLat = maplibre.LngLat;
+type LngLatLike = maplibre.LngLatLike;
+type LngLatBoundsLike = maplibre.LngLatBoundsLike;
+type MaplibreMap = maplibre.Map;
+type MapLayerMouseEvent = maplibre.MapLayerMouseEvent;
 
 type ClusterGeoJSONSource = GeoJSONSource & {
   getClusterExpansionZoom?: (clusterId: number) => Promise<number>;
@@ -255,8 +256,8 @@ export default function ZoosMap({
     let cancelled = false;
 
     void (async () => {
-      const module = await import('maplibre-gl');
-      const maplibregl: MaplibreModule = (module.default ?? module);
+      const loadedModule = (await import('maplibre-gl')) as MaplibreImport;
+      const maplibregl: MaplibreModule = loadedModule.default ?? loadedModule;
       if (cancelled) return;
 
       maplibreRef.current = maplibregl;
@@ -493,7 +494,7 @@ export default function ZoosMap({
       void (async () => {
         const feature = event.features?.[0];
         if (!feature) return;
-        const clusterId = feature.properties?.cluster_id as number | undefined;
+        const clusterId = feature.properties?.['cluster_id'] as number | undefined;
         if (clusterId == null) return;
         const rawSource = hasGetSource ? map.getSource(ZOOS_SOURCE_ID) : null;
         const clusterSource = (rawSource as ClusterGeoJSONSource | null);
@@ -514,7 +515,7 @@ export default function ZoosMap({
     const handlePointClick = (event: MapLayerMouseEvent) => {
       const feature = event.features?.[0];
       if (!feature) return;
-      const id = feature.properties?.zoo_id;
+      const id = feature.properties?.['zoo_id'];
       if (!id) return;
       const target = zooLookupRef.current.get(String(id));
       if (target && onSelectRef.current) {
