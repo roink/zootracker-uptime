@@ -13,8 +13,7 @@ export default defineConfig({
       typescript: true,
       eslint: {
         lintCommand: 'eslint "./src/**/*.{ts,tsx}" --cache',
-        useFlatConfig: true,
-        watchPath: './src'
+        useFlatConfig: true
       }
     })
   ]

@@ -1,11 +1,16 @@
 // @ts-nocheck
 import '@testing-library/jest-dom';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('maplibre-gl', () => import('../test-utils/maplibreMock'));
-
 import ZoosMap from './ZoosMap';
+import maplibreMock from '../test-utils/maplibreMock';
+
+vi.mock('maplibre-gl', () => ({
+  __esModule: true,
+  default: maplibreMock,
+  ...maplibreMock,
+}));
 
 describe('ZoosMap', () => {
   it('fires onSelect when pressing Enter on a marker', async () => {
@@ -103,5 +108,72 @@ describe('ZoosMap', () => {
     });
 
     expect(setDataSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('resizes the map when the resize token changes', async () => {
+    const { rerender } = render(
+      <ZoosMap
+        zoos={[
+          { id: '1', name: 'Resize Zoo', latitude: 10, longitude: 10 },
+        ]}
+        center={{ lat: 0, lon: 0 }}
+        resizeToken={0}
+      />
+    );
+
+    await screen.findAllByRole('link');
+
+    const maplibregl = await import('maplibre-gl');
+    const [mapInstance] = maplibregl.default.__getMaps().slice(-1);
+    const resizeSpy = vi.spyOn(mapInstance, 'resize');
+
+    rerender(
+      <ZoosMap
+        zoos={[
+          { id: '1', name: 'Resize Zoo', latitude: 10, longitude: 10 },
+        ]}
+        center={{ lat: 0, lon: 0 }}
+        resizeToken={1}
+      />
+    );
+
+    await waitFor(() => {
+      expect(resizeSpy).toHaveBeenCalled();
+    });
+  });
+
+  it('notifies when the WebGL context is lost and restored', async () => {
+    const onContextLostChange = vi.fn();
+
+    render(
+      <ZoosMap
+        zoos={[
+          { id: '1', name: 'Context Zoo', latitude: 12.3, longitude: 45.6 },
+        ]}
+        center={{ lat: 0, lon: 0 }}
+        onContextLostChange={onContextLostChange}
+      />
+    );
+
+    await screen.findAllByRole('link');
+
+    const maplibregl = await import('maplibre-gl');
+    const [mapInstance] = maplibregl.default.__getMaps().slice(-1);
+    const resizeSpy = vi.spyOn(mapInstance, 'resize');
+    const canvas = mapInstance.getCanvas();
+    const preventDefault = vi.fn();
+
+    canvas.dispatchEvent({ type: 'webglcontextlost', preventDefault } as Event);
+
+    expect(preventDefault).toHaveBeenCalled();
+    expect(onContextLostChange).toHaveBeenCalledWith(true);
+    await waitFor(() => {
+      expect(resizeSpy).toHaveBeenCalled();
+    });
+
+    canvas.dispatchEvent({ type: 'webglcontextrestored' } as Event);
+    await waitFor(() => {
+      expect(onContextLostChange).toHaveBeenCalledWith(false);
+    });
   });
 });

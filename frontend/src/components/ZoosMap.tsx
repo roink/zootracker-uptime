@@ -51,6 +51,7 @@ interface ZoosMapProps {
   ariaLabel?: string;
   onMapReady?: (map: MaplibreMap) => void;
   disableClusterCount?: boolean;
+  onContextLostChange?: (isLost: boolean) => void;
 }
 
 interface ScheduledFrame {
@@ -84,6 +85,7 @@ export default function ZoosMap({
   ariaLabel,
   onMapReady,
   disableClusterCount = false,
+  onContextLostChange,
 }: ZoosMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MaplibreMap | null>(null);
@@ -93,6 +95,9 @@ export default function ZoosMap({
   const onSelectRef = useRef<ZoosMapProps['onSelect']>(onSelect);
   const onViewChangeRef = useRef<ZoosMapProps['onViewChange']>(onViewChange);
   const onMapReadyRef = useRef<ZoosMapProps['onMapReady']>(onMapReady);
+  const onContextLostChangeRef = useRef<ZoosMapProps['onContextLostChange']>(
+    onContextLostChange
+  );
   const zooLookupRef = useRef<Map<string, MapZooFeature>>(new Map());
   const previousFeatureIdsRef = useRef<string[]>([]);
   const hasFitToZoosRef = useRef<boolean>(false);
@@ -128,6 +133,10 @@ export default function ZoosMap({
   useEffect(() => {
     onMapReadyRef.current = onMapReady;
   }, [onMapReady]);
+
+  useEffect(() => {
+    onContextLostChangeRef.current = onContextLostChange;
+  }, [onContextLostChange]);
 
   useEffect(() => {
     const lookup = new Map<string, MapZooFeature>();
@@ -380,14 +389,18 @@ export default function ZoosMap({
         resizeObserverRef.current = null;
       }
       cancelPendingSetData();
-        if (mapRef.current) {
-          mapRef.current.remove();
-          mapRef.current = null;
-        }
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
       maplibreRef.current = null;
       setMapReady(false);
       hasFitToZoosRef.current = false;
       previousFeatureIdsRef.current = [];
+      const handler = onContextLostChangeRef.current;
+      if (handler) {
+        handler(false);
+      }
     },
     [cancelPendingSetData]
   );
@@ -747,6 +760,55 @@ export default function ZoosMap({
     return undefined;
   }, [mapReady, resizeToken, triggerResize]);
 
+  useEffect(() => {
+    if (!mapReady || !mapRef.current) {
+      return undefined;
+    }
+
+    const canvas = mapRef.current.getCanvas?.();
+    if (!canvas || typeof canvas.addEventListener !== 'function') {
+      const handler = onContextLostChangeRef.current;
+      if (handler) {
+        handler(false);
+      }
+      return undefined;
+    }
+
+    const notify = onContextLostChangeRef.current;
+    if (notify) {
+      notify(false);
+    }
+
+    const handleLost = (event: Event) => {
+      const maybePrevent = event as { preventDefault?: () => void };
+      if (typeof maybePrevent.preventDefault === 'function') {
+        maybePrevent.preventDefault();
+      }
+      if (onContextLostChangeRef.current) {
+        onContextLostChangeRef.current(true);
+      }
+      triggerResize();
+    };
+
+    const handleRestored = () => {
+      if (onContextLostChangeRef.current) {
+        onContextLostChangeRef.current(false);
+      }
+      triggerResize();
+    };
+
+    canvas.addEventListener('webglcontextlost', handleLost as EventListener);
+    canvas.addEventListener('webglcontextrestored', handleRestored as EventListener);
+
+    return () => {
+      canvas.removeEventListener('webglcontextlost', handleLost as EventListener);
+      canvas.removeEventListener('webglcontextrestored', handleRestored as EventListener);
+      if (onContextLostChangeRef.current) {
+        onContextLostChangeRef.current(false);
+      }
+    };
+  }, [mapReady, triggerResize]);
+
   const mapAriaLabel = ariaLabel || t('zoo.mapAriaLabel');
 
   return (
@@ -796,5 +858,6 @@ ZoosMap.propTypes = {
   ariaLabel: PropTypes.string,
   onMapReady: PropTypes.func,
   disableClusterCount: PropTypes.bool,
+  onContextLostChange: PropTypes.func,
 };
 
