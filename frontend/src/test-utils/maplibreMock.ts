@@ -21,7 +21,30 @@ class MockMap {
     this.events = {};
     this.sources = new Map();
     this.layers = new Map();
-    this.canvas = { style: {} };
+    const canvasListeners = new Map();
+    this.canvas = {
+      style: {},
+      addEventListener: vi.fn((type, handler) => {
+        const handlers = canvasListeners.get(type) || [];
+        handlers.push(handler);
+        canvasListeners.set(type, handlers);
+      }),
+      removeEventListener: vi.fn((type, handler) => {
+        const handlers = canvasListeners.get(type);
+        if (!handlers) return;
+        canvasListeners.set(
+          type,
+          handlers.filter((fn: unknown) => fn !== handler)
+        );
+      }),
+      dispatchEvent: vi.fn((event) => {
+        const handlers = canvasListeners.get(event?.type) || [];
+        handlers.forEach((fn: (evt: unknown) => void) => {
+          fn(event);
+        });
+        return true;
+      }),
+    } as unknown as HTMLCanvasElement;
     this.center = { lng: center[0], lat: center[1] };
     this.zoom = zoom;
     this.bearing = bearing;
