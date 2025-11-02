@@ -140,9 +140,10 @@ export default function ZoosMap({
 
   useEffect(() => {
     const lookup = new Map<string, MapZooFeature>();
-    normalizedZoos.forEach((zoo) => {
-      lookup.set(String(zoo.id), zoo);
-    });
+      normalizedZoos.forEach((zoo) => {
+        const key = typeof zoo.id === 'string' ? zoo.id : String(zoo.id);
+        lookup.set(key, zoo);
+      });
     zooLookupRef.current = lookup;
   }, [normalizedZoos]);
 
@@ -327,13 +328,13 @@ export default function ZoosMap({
     }
   }, []);
 
-  const scheduleDataUpdate = useCallback(
-    (callback: () => void): (() => void) | void => {
-      cancelPendingSetData();
+    const scheduleDataUpdate = useCallback(
+      (callback: () => void): () => void => {
+        cancelPendingSetData();
 
-      if (typeof window === 'undefined') {
-        callback();
-        return () => {};
+        if (typeof window === 'undefined') {
+          callback();
+          return () => {};
       }
 
       if (typeof window.requestAnimationFrame === 'function') {
@@ -377,10 +378,10 @@ export default function ZoosMap({
       }
 
       callback();
-      return () => {};
-    },
-    [cancelPendingSetData]
-  );
+        return () => {};
+      },
+      [cancelPendingSetData]
+    );
 
   useEffect(
     () => () => {
@@ -610,8 +611,8 @@ export default function ZoosMap({
 
     const updateFeatures = () => {
       const nextIds: string[] = [];
-      const features: Feature<Point, ZooFeatureProperties>[] = normalizedZoos.map((zoo) => {
-        const zooId = String(zoo.id);
+        const features: Feature<Point, ZooFeatureProperties>[] = normalizedZoos.map((zoo) => {
+          const zooId = typeof zoo.id === 'string' ? zoo.id : String(zoo.id);
         nextIds.push(zooId);
         return {
           type: 'Feature',
@@ -765,13 +766,22 @@ export default function ZoosMap({
       return undefined;
     }
 
-    const canvas = mapRef.current.getCanvas?.();
-    if (!canvas || typeof canvas.addEventListener !== 'function') {
+    const map = mapRef.current;
+    if (typeof map.getCanvas !== 'function') {
       const handler = onContextLostChangeRef.current;
       if (handler) {
         handler(false);
       }
       return undefined;
+    }
+
+      const canvas = map.getCanvas();
+      if (typeof canvas.addEventListener !== 'function') {
+        const handler = onContextLostChangeRef.current;
+        if (handler) {
+          handler(false);
+        }
+        return undefined;
     }
 
     const notify = onContextLostChangeRef.current;

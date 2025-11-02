@@ -1,23 +1,24 @@
-// @ts-nocheck
 import { screen, waitFor, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
-import ZooDetail from './ZooDetail';
+import ZooDetail, { type ZooDetailData } from './ZooDetail';
 import { API } from '../api';
 import { createTestToken } from '../test-utils/auth';
 import { renderWithRouter } from '../test-utils/router';
+import type { Sighting } from '../types/domain';
 import { toLocalYMD } from '../utils/sightingHistory';
 
 vi.mock('./LazyMap', () => ({ default: () => <div data-testid="map" /> }));
 
-const originalFetch = global.fetch as typeof fetch | undefined;
+const originalFetch = global.fetch;
+const fetchMock = vi.fn<typeof fetch>();
 
 describe('ZooDetail component', () => {
-  const zoo = { id: 'z1', slug: 'test-zoo', name: 'Test Zoo', is_favorite: false };
+  const zoo: ZooDetailData = { id: 'z1', slug: 'test-zoo', name: 'Test Zoo', latitude: 0, longitude: 0, city: null, is_favorite: false };
   const userId = 'u1';
   const animalId = 'a1';
-  const sightings = [
+  const sightings: Sighting[] = [
     {
       id: 's2',
       zoo_id: zoo.id,
@@ -42,20 +43,34 @@ describe('ZooDetail component', () => {
     },
   ];
 
-  const jsonResponse = (data, status = 200) => ({
-    ok: status >= 200 && status < 300,
+const jsonResponse = (data: unknown, status = 200) =>
+  new Response(JSON.stringify(data), {
     status,
-    json: () => Promise.resolve(data),
+    headers: { 'Content-Type': 'application/json' },
   });
+
+const isHeaderRecord = (value: HeadersInit): value is Record<string, string> => {
+  return !(value instanceof Headers) && !Array.isArray(value);
+};
 
   const setupFetch = ({
     animals = [{ id: animalId, name_en: 'Lion', slug: 'lion', is_favorite: false }],
     visited = { visited: true },
     seen = [animalId],
     history = { items: sightings, total: sightings.length, limit: 50, offset: 0 },
-  }: any = {}) => {
-    global.fetch.mockImplementation((url, _options = {}) => {
-      const requestUrl = typeof url === 'string' ? url : url?.url ?? '';
+  }: {
+    animals?: Array<Record<string, unknown>>;
+    visited?: { visited?: boolean };
+    seen?: string[];
+    history?: Response | Promise<Response> | { items?: unknown; total?: number; limit?: number; offset?: number };
+  } = {}) => {
+    fetchMock.mockImplementation((request: RequestInfo | URL, _options: RequestInit = {}) => {
+      const requestUrl =
+        typeof request === 'string'
+          ? request
+          : request instanceof URL
+            ? request.toString()
+            : request.url;
       if (requestUrl.endsWith('/auth/refresh')) {
         return Promise.resolve(jsonResponse({ detail: 'unauthorized' }, 401));
       }
@@ -75,6 +90,9 @@ describe('ZooDetail component', () => {
         if (history instanceof Promise) {
           return history;
         }
+        if (history instanceof Response) {
+          return Promise.resolve(history);
+        }
         return Promise.resolve(jsonResponse(history));
       }
       return Promise.resolve(jsonResponse([]));
@@ -82,15 +100,12 @@ describe('ZooDetail component', () => {
   };
 
   beforeEach(() => {
-    global.fetch = vi.fn();
+    fetchMock.mockReset();
+    global.fetch = fetchMock as unknown as typeof fetch;
   });
 
   afterEach(() => {
-    if (typeof originalFetch === 'function') {
-      global.fetch = originalFetch;
-    } else {
-      delete global.fetch;
-    }
+    global.fetch = originalFetch;
     vi.restoreAllMocks();
   });
 
@@ -113,23 +128,40 @@ describe('ZooDetail component', () => {
     expect(screen.getByText('Sunny day')).toBeInTheDocument();
     expect(screen.getByText(/You saw Lion/)).toBeInTheDocument();
 
-    expect(global.fetch).toHaveBeenCalledWith(
+    expect(fetchMock).toHaveBeenCalledWith(
       expect.stringMatching(`${API}/zoos/${zoo.slug}/visited`),
       expect.any(Object)
     );
-    expect(global.fetch).toHaveBeenCalledWith(
+    expect(fetchMock).toHaveBeenCalledWith(
       expect.stringMatching(`${API}/users/${userId}/animals/ids`),
       expect.any(Object)
     );
-    const historyCall = global.fetch.mock.calls.find(([requestUrl]) =>
-      typeof requestUrl === 'string' && requestUrl.endsWith(`/zoos/${zoo.slug}/sightings`)
-    );
-    expect(historyCall).toBeTruthy();
+    let historyCall: [RequestInfo | URL, RequestInit?] | undefined;
+    const fetchCalls = fetchMock.mock.calls as Array<[RequestInfo | URL, RequestInit?]>;
+    for (const call of fetchCalls) {
+      const [request] = call;
+      const requestUrl =
+        typeof request === 'string'
+          ? request
+          : request instanceof URL
+            ? request.toString()
+            : request.url;
+      if (typeof requestUrl === 'string' && requestUrl.endsWith(`/zoos/${zoo.slug}/sightings`)) {
+        historyCall = call;
+        break;
+      }
+    }
+    expect(historyCall).toBeDefined();
     const historyHeaders = historyCall?.[1]?.headers;
-    const authHeader =
-      typeof historyHeaders?.get === 'function'
-        ? historyHeaders.get('Authorization')
-        : historyHeaders?.Authorization;
+    let authHeader: string | undefined;
+    if (historyHeaders instanceof Headers) {
+      authHeader = historyHeaders.get('Authorization') ?? undefined;
+    } else if (Array.isArray(historyHeaders)) {
+      const match = historyHeaders.find(([name]) => name.toLowerCase() === 'authorization');
+      authHeader = match?.[1];
+    } else if (historyHeaders && isHeaderRecord(historyHeaders)) {
+      authHeader = historyHeaders['Authorization'] ?? historyHeaders['authorization'];
+    }
     expect(authHeader).toMatch(/^Bearer /);
   });
 
@@ -148,8 +180,8 @@ describe('ZooDetail component', () => {
   });
 
   it('shows loading state while history request is pending', async () => {
-    let resolveHistory;
-    const deferred = new Promise((resolve) => {
+    let resolveHistory: ((response: Response) => void) | undefined;
+    const deferred = new Promise<Response>((resolve) => {
       resolveHistory = resolve;
     });
     setupFetch({ history: deferred });
@@ -162,10 +194,12 @@ describe('ZooDetail component', () => {
 
     expect(await screen.findByText('Loading your visit history…')).toBeInTheDocument();
 
-    resolveHistory(jsonResponse({ items: sightings, total: sightings.length, limit: 50, offset: 0 }));
-    await waitFor(() =>
-      { expect(screen.queryByText('Loading your visit history…')).not.toBeInTheDocument(); }
-    );
+    if (resolveHistory) {
+      resolveHistory(jsonResponse({ items: sightings, total: sightings.length, limit: 50, offset: 0 }));
+    }
+    await waitFor(() => {
+      expect(screen.queryByText('Loading your visit history…')).not.toBeInTheDocument();
+    });
   });
 
   it('shows an error message when history fails to load', async () => {
@@ -246,26 +280,29 @@ describe('ZooDetail component', () => {
   });
 
   it('aborts the history request when the component unmounts', async () => {
-    let historySignal;
-    const historyPromise = new Promise(() => {});
-    global.fetch.mockImplementation((url, options = {}) => {
-      if (typeof url !== 'string') {
-        return Promise.resolve(jsonResponse([]));
-      }
-      if (url.endsWith('/auth/refresh')) {
+    let historySignal: AbortSignal | undefined;
+    const historyPromise = new Promise<Response>(() => {});
+    fetchMock.mockImplementation((request: RequestInfo | URL, options: RequestInit = {}) => {
+      const requestUrl =
+        typeof request === 'string'
+          ? request
+          : request instanceof URL
+            ? request.toString()
+            : request.url;
+      if (requestUrl.endsWith('/auth/refresh')) {
         return Promise.resolve(jsonResponse({ detail: 'unauthorized' }, 401));
       }
-      if (url.endsWith(`/zoos/${zoo.slug}/animals`)) {
+      if (requestUrl.endsWith(`/zoos/${zoo.slug}/animals`)) {
         return Promise.resolve(jsonResponse([{ id: animalId, name_en: 'Lion' }]));
       }
-      if (url.endsWith(`/zoos/${zoo.slug}/visited`)) {
+      if (requestUrl.endsWith(`/zoos/${zoo.slug}/visited`)) {
         return Promise.resolve(jsonResponse({ visited: true }));
       }
-      if (url.endsWith(`/users/${userId}/animals/ids`)) {
+      if (requestUrl.endsWith(`/users/${userId}/animals/ids`)) {
         return Promise.resolve(jsonResponse([animalId]));
       }
-      if (url.includes(`/zoos/${zoo.slug}/sightings`)) {
-        historySignal = options.signal;
+      if (requestUrl.includes(`/zoos/${zoo.slug}/sightings`)) {
+        historySignal = options.signal ?? undefined;
         return historyPromise;
       }
       return Promise.resolve(jsonResponse([]));
@@ -281,15 +318,18 @@ describe('ZooDetail component', () => {
       }
     );
 
-    await waitFor(() =>
-      { expect(global.fetch).toHaveBeenCalledWith(
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
         expect.stringMatching(`${API}/zoos/${zoo.slug}/sightings`),
         expect.any(Object)
-      ); }
-    );
+      );
+    });
 
     unmount();
-    expect(historySignal?.aborted).toBe(true);
+    if (!historySignal) {
+      throw new Error('Expected history request to include an AbortSignal');
+    }
+    expect(historySignal.aborted).toBe(true);
 
     await act(async () => {
       await Promise.resolve();

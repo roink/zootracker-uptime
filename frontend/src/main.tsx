@@ -72,23 +72,25 @@ const queryClient = new QueryClient({
 
 const localStoragePersister = createAsyncStoragePersister({
   storage: {
-    async getItem(key: string) {
+    getItem(key: string) {
       if (typeof window === 'undefined') {
-        return null;
+        return Promise.resolve(null);
       }
-      return window.localStorage.getItem(key);
+      return Promise.resolve(window.localStorage.getItem(key));
     },
-    async setItem(key: string, value: string) {
+    setItem(key: string, value: string) {
       if (typeof window === 'undefined') {
-        return;
+        return Promise.resolve();
       }
       window.localStorage.setItem(key, value);
+      return Promise.resolve();
     },
-    async removeItem(key: string) {
+    removeItem(key: string) {
       if (typeof window === 'undefined') {
-        return;
+        return Promise.resolve();
       }
       window.localStorage.removeItem(key);
+      return Promise.resolve();
     }
   }
 });
