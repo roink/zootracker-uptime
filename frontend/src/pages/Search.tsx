@@ -8,6 +8,7 @@ import AnimalTile from '../components/AnimalTile';
 import Seo from '../components/Seo';
 import useAuthFetch from '../hooks/useAuthFetch';
 import type { AnimalSummary, PopularAnimal, ZooSummary } from '../types/domain';
+import { fetchJson, readJsonArray } from '../utils/fetchJson';
 import { getZooDisplayName } from '../utils/zooDisplayName';
 
 export default function SearchPage() {
@@ -55,40 +56,13 @@ export default function SearchPage() {
 
     const loadResults = async () => {
       try {
-        const [zoosResponse, animalsResponse] = await Promise.all([
-          authFetch(`${API}/zoos?${zooParams.toString()}`, {
-            signal: controller.signal,
-          }),
-          authFetch(`${API}/animals?${animalParams.toString()}`, {
-            signal: controller.signal,
-          }),
-        ]);
-
-        if (!zoosResponse.ok) {
-          throw new Error('Failed to load zoos');
-        }
-        if (!animalsResponse.ok) {
-          throw new Error('Failed to load animals');
-        }
-
         const [zoosData, animalsData] = await Promise.all([
-          zoosResponse.json() as Promise<unknown>,
-          animalsResponse.json() as Promise<unknown>,
+          fetchJson(`${API}/zoos?${zooParams.toString()}`, { signal: controller.signal }, authFetch),
+          fetchJson(`${API}/animals?${animalParams.toString()}`, { signal: controller.signal }, authFetch),
         ]);
 
-        if (
-          typeof zoosData === 'object' &&
-          zoosData !== null &&
-          Array.isArray((zoosData as { items?: unknown }).items)
-        ) {
-          setZoos((zoosData as { items: ZooSummary[] }).items);
-        } else if (Array.isArray(zoosData)) {
-          setZoos(zoosData as ZooSummary[]);
-        } else {
-          setZoos([]);
-        }
-
-        setAnimals(Array.isArray(animalsData) ? (animalsData as PopularAnimal[]) : []);
+        setZoos(readJsonArray<ZooSummary>(zoosData));
+        setAnimals(readJsonArray<PopularAnimal>(animalsData));
       } catch (error: unknown) {
         if (error instanceof DOMException && error.name === 'AbortError') {
           return;
@@ -128,16 +102,9 @@ export default function SearchPage() {
 
     const loadSeen = async () => {
       try {
-        const response = await authFetch(`${API}/users/${uid}/animals`);
-        if (!response.ok) {
-          if (!cancelled) {
-            setSeenAnimals([]);
-          }
-          return;
-        }
-        const data = (await response.json()) as unknown;
+        const data = await fetchJson(`${API}/users/${uid}/animals`, undefined, authFetch);
         if (!cancelled) {
-          setSeenAnimals(Array.isArray(data) ? (data as AnimalSummary[]) : []);
+          setSeenAnimals(readJsonArray<AnimalSummary>(data));
         }
       } catch {
         if (!cancelled) {

@@ -170,6 +170,23 @@ export default tseslint.config(
     }
   },
   {
+    files: ['src/pages/Contact.tsx', 'src/pages/Dashboard.tsx', 'src/pages/Search.tsx'],
+    rules: {
+      '@typescript-eslint/ban-ts-comment': [
+        'error',
+        {
+          'ts-ignore': true,
+          'ts-nocheck': true,
+          'ts-expect-error': 'allow-with-description'
+        }
+      ],
+      'no-warning-comments': [
+        'error',
+        { terms: ['@ts-nocheck'], location: 'anywhere' }
+      ]
+    }
+  },
+  {
     files: ['src/pages/Landing/**/*.{ts,tsx}'],
     rules: {
       '@typescript-eslint/no-explicit-any': 'error',

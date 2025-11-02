@@ -10,10 +10,11 @@ import Seo from '../components/Seo';
 import SightingModal from '../components/SightingModal';
 import useAuthFetch from '../hooks/useAuthFetch';
 import type { AnimalSummary, Sighting, Visit, ZooSummary } from '../types/domain';
+import { fetchJson, isJsonObject, readJsonArray } from '../utils/fetchJson';
 import { groupSightingsByDay, formatSightingDayLabel } from '../utils/sightingHistory';
 
 interface DashboardProps {
-  refresh: number;
+  refresh?: number;
   onUpdate?: () => void;
 }
 
@@ -55,50 +56,32 @@ export default function Dashboard({ refresh, onUpdate }: DashboardProps) {
     void queryClient.invalidateQueries({ queryKey: ['user', uid, 'sightings'] });
   }, [refresh, uid, isAuthenticated, queryClient]);
 
-  const { data: zooMap = {}, isFetching: zoosFetching } = useQuery<
-    ZooSummary[],
-    Error,
-    ZooMap
-  >({
+  const { data: zooMap = {}, isFetching: zoosFetching } = useQuery<unknown, Error, ZooMap>({
     queryKey: ['zoos'],
-    queryFn: async ({ signal }) => {
-      const response = await fetch(`${API}/zoos?limit=6000`, { signal });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const payload = (await response.json()) as unknown;
-      if (
-        typeof payload === 'object' &&
-        payload !== null &&
-        Array.isArray((payload as { items?: unknown }).items)
-      ) {
-        return (payload as { items: ZooOption[] }).items;
-      }
-      if (Array.isArray(payload)) {
-        return payload as ZooOption[];
-      }
-      return [];
-    },
+    queryFn: ({ signal }) => fetchJson(`${API}/zoos?limit=6000`, { signal }),
     staleTime: Infinity,
     gcTime: 30 * 60 * 1000,
     placeholderData: keepPreviousData,
-    select: (zoos) => Object.fromEntries(zoos.map((zoo) => [zoo.id, zoo])) as ZooMap,
+    select: (payload) => {
+      const zoos = readJsonArray<ZooOption>(payload);
+      return Object.fromEntries(zoos.map((zoo) => [zoo.id, zoo] as const)) as ZooMap;
+    },
   });
 
   const { data: animalMap = {}, isFetching: animalsFetching } = useQuery<
-    AnimalSummary[],
+    unknown,
     Error,
     AnimalMap
   >({
     queryKey: ['animals'],
-    queryFn: async ({ signal }) => {
-      const response = await fetch(`${API}/animals`, { signal });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const payload = (await response.json()) as unknown;
-      return Array.isArray(payload) ? (payload as AnimalOption[]) : [];
-    },
+    queryFn: ({ signal }) => fetchJson(`${API}/animals`, { signal }),
     staleTime: Infinity,
     gcTime: 30 * 60 * 1000,
     placeholderData: keepPreviousData,
-    select: (animals) => Object.fromEntries(animals.map((animal) => [animal.id, animal])) as AnimalMap,
+    select: (payload) => {
+      const animals = readJsonArray<AnimalOption>(payload);
+      return Object.fromEntries(animals.map((animal) => [animal.id, animal] as const)) as AnimalMap;
+    },
   });
 
   const {
@@ -107,9 +90,7 @@ export default function Dashboard({ refresh, onUpdate }: DashboardProps) {
   } = useQuery<Visit[]>({
     queryKey: ['user', uid, 'visits'],
     queryFn: async ({ signal }) => {
-      const response = await authFetch(`${API}/visits`, { signal });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const payload = (await response.json()) as unknown;
+      const payload = await fetchJson(`${API}/visits`, { signal }, authFetch);
       return Array.isArray(payload) ? (payload as Visit[]) : [];
     },
     enabled: isAuthenticated,
@@ -123,15 +104,8 @@ export default function Dashboard({ refresh, onUpdate }: DashboardProps) {
   } = useQuery<number>({
     queryKey: ['user', uid, 'animalsSeen'],
     queryFn: async ({ signal }) => {
-      const response = await authFetch(`${API}/users/${uid}/animals/count`, { signal });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const payload = (await response.json()) as unknown;
-      if (
-        typeof payload === 'object' &&
-        payload !== null &&
-        'count' in payload &&
-        typeof (payload as { count?: unknown }).count === 'number'
-      ) {
+      const payload = await fetchJson(`${API}/users/${uid}/animals/count`, { signal }, authFetch);
+      if (isJsonObject(payload) && typeof (payload as { count?: unknown }).count === 'number') {
         return (payload as { count: number }).count;
       }
       return 0;
@@ -147,9 +121,7 @@ export default function Dashboard({ refresh, onUpdate }: DashboardProps) {
   } = useQuery<Sighting[]>({
     queryKey: ['user', uid, 'sightings'],
     queryFn: async ({ signal }) => {
-      const response = await authFetch(`${API}/sightings`, { signal });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const payload = (await response.json()) as unknown;
+      const payload = await fetchJson(`${API}/sightings`, { signal }, authFetch);
       return Array.isArray(payload) ? (payload as Sighting[]) : [];
     },
     enabled: isAuthenticated,
@@ -259,7 +231,7 @@ export default function Dashboard({ refresh, onUpdate }: DashboardProps) {
                       zooName: sighting.zoo_name ?? null,
                       animalId: sighting.animal_id,
                       animalName: displayAnimalName(sighting),
-                      note: sighting.notes ?? '',
+                      note: sighting.notes ?? null,
                     });
                   }}
                 >
@@ -298,10 +270,10 @@ export default function Dashboard({ refresh, onUpdate }: DashboardProps) {
           zoos={zoos}
           animals={animals}
           sightingId={modalData.sightingId ?? null}
-          defaultZooId={modalData.zooId ?? ''}
-          defaultAnimalId={modalData.animalId ?? ''}
-          defaultZooName={modalData.zooName ?? ''}
-          defaultAnimalName={modalData.animalName ?? ''}
+          {...(modalData.zooId ? { defaultZooId: modalData.zooId } : {})}
+          {...(modalData.animalId ? { defaultAnimalId: modalData.animalId } : {})}
+          {...(modalData.zooName ? { defaultZooName: modalData.zooName } : {})}
+          {...(modalData.animalName ? { defaultAnimalName: modalData.animalName } : {})}
           defaultNotes={modalData.note ?? ''}
           onLogged={() => {
             onUpdate?.();

@@ -136,13 +136,13 @@ export default function ContactPage() {
     : counterId;
 
   const statusTone = statusKey?.split('.').pop();
-  const statusClassMap: Record<ContactStatusTone, string> = {
+  const statusClassMap = {
     success: 'alert-success',
     rateLimit: 'alert-warning',
     validation: 'alert-danger',
     error: 'alert-danger',
     tooFast: 'alert-info',
-  };
+  } satisfies Record<ContactStatusTone, string>;
   const statusClassName =
     statusTone && isStatusTone(statusTone) ? statusClassMap[statusTone] : 'alert-info';
 
