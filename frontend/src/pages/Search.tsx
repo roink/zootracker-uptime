@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
@@ -8,22 +7,23 @@ import { useAuth } from '../auth/AuthContext';
 import AnimalTile from '../components/AnimalTile';
 import Seo from '../components/Seo';
 import useAuthFetch from '../hooks/useAuthFetch';
+import type { AnimalSummary, PopularAnimal, ZooSummary } from '../types/domain';
 import { getZooDisplayName } from '../utils/zooDisplayName';
 
 export default function SearchPage() {
-  const { lang } = useParams();
+  const { lang = 'en' } = useParams<{ lang: string }>();
   const prefix = `/${lang}`;
   const [searchParams] = useSearchParams();
   const query = searchParams.get('q') || '';
-  const [zoos, setZoos] = useState<any[]>([]);
-  const [animals, setAnimals] = useState<any[]>([]);
+  const [zoos, setZoos] = useState<ZooSummary[]>([]);
+  const [animals, setAnimals] = useState<PopularAnimal[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [hasError, setHasError] = useState(false);
   const { t } = useTranslation();
   const authFetch = useAuthFetch();
   const { isAuthenticated, user } = useAuth();
-  const uid = user?.id;
-  const [seenAnimals, setSeenAnimals] = useState<any[]>([]);
+  const uid = user?.id ?? null;
+  const [seenAnimals, setSeenAnimals] = useState<AnimalSummary[]>([]);
 
   // Trim whitespace so empty queries don't trigger fetches
   const normalizedQuery = useMemo(() => query.trim(), [query]);
@@ -72,14 +72,33 @@ export default function SearchPage() {
         }
 
         const [zoosData, animalsData] = await Promise.all([
-          zoosResponse.json(),
-          animalsResponse.json(),
+          zoosResponse.json() as Promise<unknown>,
+          animalsResponse.json() as Promise<unknown>,
         ]);
 
-        setZoos(Array.isArray(zoosData?.items) ? zoosData.items : []);
-        setAnimals(Array.isArray(animalsData) ? animalsData : []);
-      } catch (err) {
-        if (err.name === 'AbortError') {
+        if (
+          typeof zoosData === 'object' &&
+          zoosData !== null &&
+          Array.isArray((zoosData as { items?: unknown }).items)
+        ) {
+          setZoos((zoosData as { items: ZooSummary[] }).items);
+        } else if (Array.isArray(zoosData)) {
+          setZoos(zoosData as ZooSummary[]);
+        } else {
+          setZoos([]);
+        }
+
+        setAnimals(Array.isArray(animalsData) ? (animalsData as PopularAnimal[]) : []);
+      } catch (error: unknown) {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          return;
+        }
+        if (
+          typeof error === 'object' &&
+          error !== null &&
+          'name' in error &&
+          (error as { name?: unknown }).name === 'AbortError'
+        ) {
           return;
         }
         setZoos([]);
@@ -92,9 +111,11 @@ export default function SearchPage() {
       }
     };
 
-      void loadResults();
+    void loadResults();
 
-    return () => { controller.abort(); };
+    return () => {
+      controller.abort();
+    };
   }, [authFetch, hasQuery, normalizedQuery]);
 
   useEffect(() => {
@@ -114,9 +135,9 @@ export default function SearchPage() {
           }
           return;
         }
-        const data = await response.json();
+        const data = (await response.json()) as unknown;
         if (!cancelled) {
-          setSeenAnimals(Array.isArray(data) ? data : []);
+          setSeenAnimals(Array.isArray(data) ? (data as AnimalSummary[]) : []);
         }
       } catch {
         if (!cancelled) {
@@ -181,7 +202,7 @@ export default function SearchPage() {
           <div className="card h-100">
             <div
               className="card-body"
-              aria-busy={hasQuery && isLoading ? 'true' : 'false'}
+              aria-busy={hasQuery && isLoading}
             >
               <h3 className="h5 mb-3">{t('searchPage.zoosHeading')}</h3>
               {!hasQuery && (
@@ -198,26 +219,24 @@ export default function SearchPage() {
               )}
               {hasQuery && !isLoading && !hasError && zoos.length > 0 && (
                 <ul className="list-group">
-                  {zoos.map((z) => {
-                    const displayName = getZooDisplayName(z);
+                  {zoos.map((zoo) => {
+                    const displayName = getZooDisplayName(zoo);
                     return (
-                    <li
-                      key={z.slug || z.id}
-                      className="list-group-item p-0 border-0"
-                    >
-                      <Link
-                        to={`${prefix}/zoos/${z.slug || z.id}`}
-                        className="list-group-item list-group-item-action text-start w-100 border-0"
+                      <li
+                        key={zoo.slug || zoo.id}
+                        className="list-group-item p-0 border-0"
                       >
-                        <div className="fw-bold">
-                          {displayName}
-                        </div>
-                        {z.city && (
-                          <div className="text-muted small">{z.city}</div>
-                        )}
-                      </Link>
-                    </li>
-                  );
+                        <Link
+                          to={`${prefix}/zoos/${zoo.slug || zoo.id}`}
+                          className="list-group-item list-group-item-action text-start w-100 border-0"
+                        >
+                          <div className="fw-bold">{displayName}</div>
+                          {zoo.city && (
+                            <div className="text-muted small">{zoo.city}</div>
+                          )}
+                        </Link>
+                      </li>
+                    );
                   })}
                 </ul>
               )}
@@ -228,7 +247,7 @@ export default function SearchPage() {
           <div className="card h-100">
             <div
               className="card-body"
-              aria-busy={hasQuery && isLoading ? 'true' : 'false'}
+              aria-busy={hasQuery && isLoading}
             >
               <h3 className="h5 mb-3">{t('searchPage.animalsHeading')}</h3>
               {!hasQuery && (

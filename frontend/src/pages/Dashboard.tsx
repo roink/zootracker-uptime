@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { useState, useMemo, useEffect, Fragment, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -6,70 +5,112 @@ import { useNavigate, useParams } from 'react-router-dom';
 
 import { API } from '../api';
 import { useAuth } from '../auth/AuthContext';
+import type { AnimalOption, ZooOption } from '../components/logForms';
 import Seo from '../components/Seo';
 import SightingModal from '../components/SightingModal';
 import useAuthFetch from '../hooks/useAuthFetch';
+import type { AnimalSummary, Sighting, Visit, ZooSummary } from '../types/domain';
 import { groupSightingsByDay, formatSightingDayLabel } from '../utils/sightingHistory';
+
+interface DashboardProps {
+  refresh: number;
+  onUpdate?: () => void;
+}
+
+type ZooMap = Record<string, ZooOption>;
+type AnimalMap = Record<string, AnimalOption>;
+
+type Achievement = {
+  id: string;
+  name?: string | null;
+};
+
+type ModalData = {
+  sightingId?: string | null;
+  zooId?: string | null;
+  zooName?: string | null;
+  animalId?: string | null;
+  animalName?: string | null;
+  note?: string | null;
+};
 
 // User dashboard showing recent visits, sightings and badges. Includes
 // buttons to open forms for logging additional activity.
-export default function Dashboard({ refresh, onUpdate }: any) {
-  const [modalData, setModalData] = useState<any>(null);
+export default function Dashboard({ refresh, onUpdate }: DashboardProps) {
+  const [modalData, setModalData] = useState<ModalData | null>(null);
   const navigate = useNavigate();
-  const { lang } = useParams();
+  const { lang = 'en' } = useParams<{ lang: string }>();
   const prefix = `/${lang}`;
   const authFetch = useAuthFetch();
   const queryClient = useQueryClient();
   const { isAuthenticated, user } = useAuth();
-  const uid = user?.id;
+  const uid = user?.id ?? null;
   const { t } = useTranslation();
 
   // Refetch dashboard data when refresh counter changes
   useEffect(() => {
     if (!isAuthenticated || !uid) return;
-      void queryClient.invalidateQueries({ queryKey: ['user', uid, 'visits'] });
-      void queryClient.invalidateQueries({ queryKey: ['user', uid, 'animalsSeen'] });
-      void queryClient.invalidateQueries({ queryKey: ['user', uid, 'sightings'] });
+    void queryClient.invalidateQueries({ queryKey: ['user', uid, 'visits'] });
+    void queryClient.invalidateQueries({ queryKey: ['user', uid, 'animalsSeen'] });
+    void queryClient.invalidateQueries({ queryKey: ['user', uid, 'sightings'] });
   }, [refresh, uid, isAuthenticated, queryClient]);
 
-  const { data: zooMap = {}, isFetching: zoosFetching } = useQuery({
+  const { data: zooMap = {}, isFetching: zoosFetching } = useQuery<
+    ZooSummary[],
+    Error,
+    ZooMap
+  >({
     queryKey: ['zoos'],
     queryFn: async ({ signal }) => {
-      const r = await fetch(`${API}/zoos?limit=6000`, { signal });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const payload = await r.json();
-      if (Array.isArray(payload?.items)) return payload.items;
-      if (Array.isArray(payload)) return payload;
+      const response = await fetch(`${API}/zoos?limit=6000`, { signal });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const payload = (await response.json()) as unknown;
+      if (
+        typeof payload === 'object' &&
+        payload !== null &&
+        Array.isArray((payload as { items?: unknown }).items)
+      ) {
+        return (payload as { items: ZooOption[] }).items;
+      }
+      if (Array.isArray(payload)) {
+        return payload as ZooOption[];
+      }
       return [];
     },
     staleTime: Infinity,
     gcTime: 30 * 60 * 1000,
     placeholderData: keepPreviousData,
-    select: (zoos) => Object.fromEntries(zoos.map((z) => [z.id, z])),
+    select: (zoos) => Object.fromEntries(zoos.map((zoo) => [zoo.id, zoo])) as ZooMap,
   });
 
-  const { data: animalMap = {}, isFetching: animalsFetching } = useQuery({
+  const { data: animalMap = {}, isFetching: animalsFetching } = useQuery<
+    AnimalSummary[],
+    Error,
+    AnimalMap
+  >({
     queryKey: ['animals'],
     queryFn: async ({ signal }) => {
-      const r = await fetch(`${API}/animals`, { signal });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      return r.json();
+      const response = await fetch(`${API}/animals`, { signal });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const payload = (await response.json()) as unknown;
+      return Array.isArray(payload) ? (payload as AnimalOption[]) : [];
     },
     staleTime: Infinity,
     gcTime: 30 * 60 * 1000,
     placeholderData: keepPreviousData,
-    select: (animals) => Object.fromEntries(animals.map((a) => [a.id, a])),
+    select: (animals) => Object.fromEntries(animals.map((animal) => [animal.id, animal])) as AnimalMap,
   });
 
   const {
     data: visits = [],
     isFetching: visitsFetching,
-  } = useQuery({
+  } = useQuery<Visit[]>({
     queryKey: ['user', uid, 'visits'],
     queryFn: async ({ signal }) => {
-      const r = await authFetch(`${API}/visits`, { signal });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      return r.json();
+      const response = await authFetch(`${API}/visits`, { signal });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const payload = (await response.json()) as unknown;
+      return Array.isArray(payload) ? (payload as Visit[]) : [];
     },
     enabled: isAuthenticated,
     placeholderData: keepPreviousData,
@@ -79,13 +120,21 @@ export default function Dashboard({ refresh, onUpdate }: any) {
   const {
     data: seenCount = 0,
     isFetching: seenFetching,
-  } = useQuery({
+  } = useQuery<number>({
     queryKey: ['user', uid, 'animalsSeen'],
     queryFn: async ({ signal }) => {
-      const r = await authFetch(`${API}/users/${uid}/animals/count`, { signal });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const d = await r.json();
-      return d.count ?? 0;
+      const response = await authFetch(`${API}/users/${uid}/animals/count`, { signal });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const payload = (await response.json()) as unknown;
+      if (
+        typeof payload === 'object' &&
+        payload !== null &&
+        'count' in payload &&
+        typeof (payload as { count?: unknown }).count === 'number'
+      ) {
+        return (payload as { count: number }).count;
+      }
+      return 0;
     },
     enabled: isAuthenticated && !!uid,
     placeholderData: keepPreviousData,
@@ -95,12 +144,13 @@ export default function Dashboard({ refresh, onUpdate }: any) {
   const {
     data: sightings = [],
     isFetching: sightingsFetching,
-  } = useQuery({
+  } = useQuery<Sighting[]>({
     queryKey: ['user', uid, 'sightings'],
     queryFn: async ({ signal }) => {
-      const r = await authFetch(`${API}/sightings`, { signal });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      return r.json();
+      const response = await authFetch(`${API}/sightings`, { signal });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const payload = (await response.json()) as unknown;
+      return Array.isArray(payload) ? (payload as Sighting[]) : [];
     },
     enabled: isAuthenticated,
     placeholderData: keepPreviousData,
@@ -110,22 +160,22 @@ export default function Dashboard({ refresh, onUpdate }: any) {
   const {
     data: badges = [],
     isFetching: badgesFetching,
-  } = useQuery({
+  } = useQuery<Achievement[]>({
     queryKey: ['user', uid, 'achievements'],
     // Placeholder query: achievements endpoint is not yet available so we
     // avoid calling it and just return an empty list for now.
     queryFn: async () => [],
     enabled: false,
-    initialData: [],
+    initialData: [] as Achievement[],
     staleTime: Infinity,
   });
 
   const zoos = useMemo(() => Object.values(zooMap), [zooMap]);
   const animals = useMemo(() => Object.values(animalMap), [animalMap]);
-  const displayAnimalName = (s) =>
+  const displayAnimalName = (sighting: Sighting) =>
     lang === 'de'
-      ? s.animal_name_de || s.animal_name_en
-      : s.animal_name_en || s.animal_name_de;
+      ? sighting.animal_name_de || sighting.animal_name_en || sighting.animal_id
+      : sighting.animal_name_en || sighting.animal_name_de || sighting.animal_id;
 
   const refreshing =
     zoosFetching ||
@@ -142,7 +192,7 @@ export default function Dashboard({ refresh, onUpdate }: any) {
   );
 
   const formatDay = useCallback(
-    (day) =>
+    (day: string) =>
       formatSightingDayLabel(day, lang === 'de' ? 'de-DE' : 'en-US', {
         today: t('dashboard.today'),
         yesterday: t('dashboard.yesterday'),
@@ -153,8 +203,8 @@ export default function Dashboard({ refresh, onUpdate }: any) {
   // Distinct zoo count, derived from visits and sightings in case visit sync is missing
   const visitedZooCount = useMemo(() => {
     const ids = new Set([
-      ...visits.map((v) => v.zoo_id),
-      ...sightings.map((s) => s.zoo_id),
+      ...visits.map((visit) => visit.zoo_id),
+      ...sightings.map((sighting) => sighting.zoo_id),
     ]);
     return ids.size;
   }, [visits, sightings]);
@@ -178,40 +228,40 @@ export default function Dashboard({ refresh, onUpdate }: any) {
       </div>
       <h3>{t('dashboard.activityFeed')}</h3>
       <ul className="list-group mb-3">
-        {groupedSightings.map((g) => (
-          <Fragment key={g.day}>
-            <li className="list-group-item active">{formatDay(g.day)}</li>
-            {g.items.map((s) => (
+        {groupedSightings.map((group) => (
+          <Fragment key={group.day}>
+            <li className="list-group-item active">{formatDay(group.day)}</li>
+            {group.items.map((sighting) => (
               <li
-                key={s.id}
+                key={sighting.id}
                 className="list-group-item d-flex justify-content-between align-items-start"
               >
                 <div className="me-3">
                   <div>
                     {t('dashboard.sighting', {
-                      animal: displayAnimalName(s),
-                      zoo: s.zoo_name ?? s.zoo_id,
-                      date: s.sighting_datetime.slice(0, 10),
+                      animal: displayAnimalName(sighting),
+                      zoo: sighting.zoo_name ?? sighting.zoo_id,
+                      date: sighting.sighting_datetime.slice(0, 10),
                     })}
                   </div>
-                  {s.notes && (
+                  {sighting.notes && (
                     <div className="text-muted small mt-1">
-                      {t('dashboard.note', { note: s.notes })}
+                      {t('dashboard.note', { note: sighting.notes })}
                     </div>
                   )}
                 </div>
                 <button
                   className="btn btn-sm btn-outline-secondary"
-                  onClick={() =>
-                    { setModalData({
-                      sightingId: s.id,
-                      zooId: s.zoo_id,
-                      zooName: s.zoo_name,
-                      animalId: s.animal_id,
-                      animalName: displayAnimalName(s),
-                      note: s.notes ?? '',
-                    }); }
-                  }
+                  onClick={() => {
+                    setModalData({
+                      sightingId: sighting.id,
+                      zooId: sighting.zoo_id,
+                      zooName: sighting.zoo_name ?? null,
+                      animalId: sighting.animal_id,
+                      animalName: displayAnimalName(sighting),
+                      note: sighting.notes ?? '',
+                    });
+                  }}
                 >
                   {t('actions.edit')}
                 </button>
@@ -225,18 +275,18 @@ export default function Dashboard({ refresh, onUpdate }: any) {
         {badges.length === 0 && (
           <div className="p-2">{t('dashboard.noBadges')}</div>
         )}
-        {badges.map((b) => (
-          <div key={b.id} className="me-2">{b.name}</div>
+        {badges.map((badge) => (
+          <div key={badge.id} className="me-2">{badge.name ?? '—'}</div>
         ))}
       </div>
       <div className="mt-2">
         <button
           className="btn btn-secondary me-2"
           onClick={() => {
-              if (!isAuthenticated) {
-                void navigate(`${prefix}/login`);
-                return;
-              }
+            if (!isAuthenticated) {
+              void navigate(`${prefix}/login`);
+              return;
+            }
             setModalData({});
           }}
         >
@@ -247,19 +297,21 @@ export default function Dashboard({ refresh, onUpdate }: any) {
         <SightingModal
           zoos={zoos}
           animals={animals}
-          sightingId={modalData.sightingId}
-          defaultZooId={modalData.zooId}
-          defaultAnimalId={modalData.animalId}
-          defaultZooName={modalData.zooName}
-          defaultAnimalName={modalData.animalName}
+          sightingId={modalData.sightingId ?? null}
+          defaultZooId={modalData.zooId ?? ''}
+          defaultAnimalId={modalData.animalId ?? ''}
+          defaultZooName={modalData.zooName ?? ''}
+          defaultAnimalName={modalData.animalName ?? ''}
           defaultNotes={modalData.note ?? ''}
           onLogged={() => {
-            onUpdate && onUpdate();
+            onUpdate?.();
           }}
           onUpdated={() => {
-            onUpdate && onUpdate();
+            onUpdate?.();
           }}
-          onClose={() => { setModalData(null); }}
+          onClose={() => {
+            setModalData(null);
+          }}
         />
       )}
     </div>
