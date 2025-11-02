@@ -1,4 +1,4 @@
-import i18n from 'i18next';
+import i18n, { changeLanguage } from 'i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 import { initReactI18next } from 'react-i18next';
 
@@ -26,6 +26,7 @@ export function normalizeLang(lang: unknown): SupportedLang {
   return (partialMatch ?? DEFAULT_LANG);
 }
 
+// eslint-disable-next-line import/no-named-as-default-member
 void i18n
   .use(LanguageDetector)
   .use(initReactI18next)
@@ -68,7 +69,7 @@ export async function loadLocale(requestedLang: unknown): Promise<SupportedLang>
 
     const module = await loader();
     i18n.addResourceBundle(activeLang, 'translation', module.default, true, true);
-    await i18n.changeLanguage(activeLang);
+    await changeLanguage(activeLang);
     document.documentElement.lang = activeLang;
     return activeLang;
   })();

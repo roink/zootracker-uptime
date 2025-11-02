@@ -1,4 +1,3 @@
-// @ts-nocheck
 import '@testing-library/jest-dom';
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
@@ -11,6 +10,12 @@ import useAuthFetch from '../hooks/useAuthFetch';
 import { createTestToken } from '../test-utils/auth';
 import { renderWithRouter } from '../test-utils/router';
 
+interface FetchHarnessProps {
+  token: string;
+  endpoint?: string;
+  onFetched?: (response: Response) => void;
+}
+
 const server = setupServer(
   http.post('*/auth/refresh', () =>
     HttpResponse.json({ detail: 'no session' }, { status: 401 })
@@ -22,7 +27,7 @@ beforeAll(() => { server.listen({ onUnhandledRequest: 'error' }); });
 afterEach(() => { server.resetHandlers(); });
 afterAll(() => { server.close(); });
 
-function FetchHarness({ token, endpoint = '/protected', onFetched }: any) {
+function FetchHarness({ token, endpoint = '/protected', onFetched }: FetchHarnessProps) {
   const authFetch = useAuthFetch();
   const { login, isAuthenticated } = useAuth();
 
@@ -53,7 +58,7 @@ function AuthStatus() {
 
 describe('useAuthFetch integration', () => {
   it('attaches the bearer token when authenticated', async () => {
-    const headers = [] as any[];
+    const headers: Array<string | null> = [];
     server.use(
       http.get('/protected', ({ request }) => {
         headers.push(request.headers.get('authorization'));
@@ -77,7 +82,7 @@ describe('useAuthFetch integration', () => {
   });
 
   it('logs out once on 401 and stops sending the header', async () => {
-    const headers = [] as any[];
+    const headers: Array<string | null> = [];
     let callCount = 0;
     server.use(
       http.get('/protected', ({ request }) => {
@@ -109,7 +114,7 @@ describe('useAuthFetch integration', () => {
   });
 
   it('does not clear auth state on 403 responses', async () => {
-    const headers = [] as any[];
+    const headers: Array<string | null> = [];
     server.use(
       http.get('/protected', ({ request }) => {
         headers.push(request.headers.get('authorization'));

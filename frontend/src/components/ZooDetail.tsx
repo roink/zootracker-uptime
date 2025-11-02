@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -9,8 +8,44 @@ import SightingHistoryList from './SightingHistoryList';
 import SightingModal from './SightingModal';
 import { useAuth } from '../auth/AuthContext';
 import useAuthFetch from '../hooks/useAuthFetch';
+import type { AnimalSummary, Sighting, ZooSummary } from '../types/domain';
 import { formatSightingDayLabel } from '../utils/sightingHistory';
 import { getZooDisplayName } from '../utils/zooDisplayName';
+
+type HeadingLevel = 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
+
+export interface ZooDetailData extends Omit<ZooSummary, 'slug' | 'is_favorite'> {
+  slug?: string | null;
+  description_en?: string | null;
+  description_de?: string | null;
+  address?: string | null;
+  country?: string | null;
+  seo_description_en?: string | null;
+  seo_description_de?: string | null;
+  is_favorite?: boolean | null;
+}
+
+type ZooAnimal = AnimalSummary & {
+  slug?: string | null;
+  scientific_name?: string | null;
+  is_favorite?: boolean | null;
+};
+
+interface ModalState {
+  zooId: string;
+  zooName: string;
+  animalId: string;
+  animalName: string;
+}
+
+interface ZooDetailProps {
+  zoo: ZooDetailData;
+  displayName?: string;
+  headingLevel?: HeadingLevel;
+  refresh?: number;
+  onLogged?: () => void;
+  onFavoriteChange?: (nextFavorite: boolean) => void;
+}
 
 // Detailed view for a single zoo with a list of resident animals.
 // Used by the ZooDetailPage component.
@@ -18,49 +53,49 @@ export default function ZooDetail({
   zoo,
   displayName,
   headingLevel = 'h2',
-  refresh,
+  refresh = 0,
   onLogged,
   onFavoriteChange,
-}: any) {
-  const [animals, setAnimals] = useState<any[]>([]);
+}: ZooDetailProps) {
+  const [animals, setAnimals] = useState<ZooAnimal[]>([]);
   const [visited, setVisited] = useState(false);
-  const [seenIds, setSeenIds] = useState(new Set());
-  const [history, setHistory] = useState<any[]>([]);
+  const [seenIds, setSeenIds] = useState<Set<string>>(new Set());
+  const [history, setHistory] = useState<Sighting[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState(false);
-  const [modalData, setModalData] = useState<any>(null);
+  const [modalData, setModalData] = useState<ModalState | null>(null);
   const navigate = useNavigate();
-  const { lang } = useParams();
-  const prefix = `/${lang}`;
+  const { lang: langParam } = useParams();
+  const prefix = langParam ? `/${langParam}` : '';
   const { t } = useTranslation();
   const authFetch = useAuthFetch();
   const { isAuthenticated, user } = useAuth();
   const userId = user?.id;
-  const zooSlug = zoo?.slug;
-  const locale = lang === 'de' ? 'de-DE' : 'en-US';
+  const zooSlug = zoo.slug ?? null;
+  const locale = langParam === 'de' ? 'de-DE' : 'en-US';
   const [descExpanded, setDescExpanded] = useState(false); // track full description visibility
   const [favorite, setFavorite] = useState(false);
   const [favoritePending, setFavoritePending] = useState(false);
   const [favoriteError, setFavoriteError] = useState('');
   // Helper: pick animal name in current language
   const getAnimalName = useCallback(
-    (a) =>
-      lang === 'de'
-        ? a.name_de || a.name_en
-        : a.name_en || a.name_de,
-    [lang]
+    (animal: ZooAnimal) =>
+      langParam === 'de'
+        ? animal.name_de || animal.name_en || ''
+        : animal.name_en || animal.name_de || '',
+    [langParam]
   );
 
   const getSightingAnimalName = useCallback(
-    (s) =>
-      lang === 'de'
-        ? s.animal_name_de || s.animal_name_en
-        : s.animal_name_en || s.animal_name_de,
-    [lang]
+    (sighting: Sighting) =>
+      langParam === 'de'
+        ? sighting.animal_name_de || sighting.animal_name_en || ''
+        : sighting.animal_name_en || sighting.animal_name_de || '',
+    [langParam]
   );
 
   const formatHistoryDay = useCallback(
-    (day) =>
+    (day: string) =>
       formatSightingDayLabel(day, locale, {
         today: t('dashboard.today'),
         yesterday: t('dashboard.yesterday'),
@@ -69,7 +104,7 @@ export default function ZooDetail({
   );
 
   const renderHistoryItem = useCallback(
-    (sighting, helpers) => {
+    (sighting: Sighting, helpers: { formatTime: (value: string) => string | null }) => {
       const animalName = getSightingAnimalName(sighting);
       const timeLabel = helpers.formatTime(sighting.sighting_datetime);
       const message = timeLabel
@@ -91,7 +126,7 @@ export default function ZooDetail({
   );
 
   const handleFavoriteToggle = useCallback(async () => {
-    if (!zoo) return;
+    if (!zooSlug) return;
     if (!isAuthenticated) {
       void navigate(`${prefix}/login`);
       return;
@@ -99,14 +134,14 @@ export default function ZooDetail({
     setFavoritePending(true);
     setFavoriteError('');
     try {
-      const response = await authFetch(`${API}/zoos/${zoo.slug}/favorite`, {
+      const response = await authFetch(`${API}/zoos/${zooSlug}/favorite`, {
         method: favorite ? 'DELETE' : 'PUT',
       });
       if (!response.ok) {
         throw new Error('Failed to toggle favorite');
       }
       const payload = await response.json();
-      const nextFavorite = Boolean(payload.favorite);
+      const nextFavorite = Boolean((payload as { favorite?: unknown }).favorite);
       setFavorite(nextFavorite);
       onFavoriteChange?.(nextFavorite);
     } catch (_err) {
@@ -114,7 +149,7 @@ export default function ZooDetail({
     } finally {
       setFavoritePending(false);
     }
-  }, [authFetch, favorite, isAuthenticated, navigate, onFavoriteChange, prefix, t, zoo]);
+  }, [authFetch, favorite, isAuthenticated, navigate, onFavoriteChange, prefix, t, zooSlug]);
 
   const loadAnimals = useCallback(async () => {
     if (!zooSlug) {
@@ -127,8 +162,8 @@ export default function ZooDetail({
         setAnimals([]);
         return;
       }
-      const data = await response.json();
-      setAnimals(Array.isArray(data) ? data : []);
+      const data = (await response.json()) as unknown;
+      setAnimals(Array.isArray(data) ? (data as ZooAnimal[]) : []);
     } catch {
       setAnimals([]);
     }
@@ -145,8 +180,8 @@ export default function ZooDetail({
         setVisited(false);
         return;
       }
-        const result = (await response.json()) as { visited?: unknown };
-        setVisited(Boolean(result.visited));
+      const result = (await response.json()) as { visited?: unknown };
+      setVisited(Boolean(result.visited));
     } catch {
       setVisited(false);
     }
@@ -163,15 +198,18 @@ export default function ZooDetail({
         setSeenIds(new Set());
         return;
       }
-      const ids = await response.json();
-      setSeenIds(new Set(Array.isArray(ids) ? ids : []));
+      const ids = (await response.json()) as unknown;
+      const normalized = Array.isArray(ids)
+        ? ids.filter((value): value is string => typeof value === 'string')
+        : [];
+      setSeenIds(new Set(normalized));
     } catch {
       setSeenIds(new Set());
     }
   }, [authFetch, isAuthenticated, userId]);
 
   const fetchHistory = useCallback(
-    async ({ signal, limit, offset } = {}) => {
+    async ({ signal, limit, offset }: { signal?: AbortSignal; limit?: number; offset?: number } = {}): Promise<Sighting[]> => {
       if (!zooSlug) {
         return [];
       }
@@ -184,21 +222,24 @@ export default function ZooDetail({
       }
       const baseUrl = `${API}/zoos/${zooSlug}/sightings`;
       const url = params.size ? `${baseUrl}?${params.toString()}` : baseUrl;
-      const response = await authFetch(url, { signal });
+      const response = await authFetch(url, signal ? { signal } : {});
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
-      const data = await response.json();
-      if (data && Array.isArray(data.items)) {
-        return data.items;
+      const data = (await response.json()) as unknown;
+      if (data && typeof data === 'object' && Array.isArray((data as { items?: unknown }).items)) {
+        return (data as { items: Sighting[] }).items.map((item) => item);
       }
-      return Array.isArray(data) ? data : [];
+      if (Array.isArray(data)) {
+        return data as Sighting[];
+      }
+      return [];
     },
     [authFetch, zooSlug]
   );
 
   const loadHistory = useCallback(
-    async ({ signal } = {}) => {
+    async ({ signal }: { signal?: AbortSignal } = {}) => {
       if (!isAuthenticated || !zooSlug) {
         setHistory([]);
         setHistoryError(false);
@@ -208,7 +249,7 @@ export default function ZooDetail({
       setHistoryLoading(true);
       setHistoryError(false);
       try {
-        const items = await fetchHistory({ signal });
+        const items = await fetchHistory(signal ? { signal } : {});
         setHistory(items);
         setHistoryError(false);
       } catch (err) {
@@ -244,10 +285,10 @@ export default function ZooDetail({
     void loadAnimals();
   }, [loadAnimals, refresh]);
 
-  useEffect(() => {
-    setFavorite(Boolean(zoo?.is_favorite));
-    setFavoriteError('');
-  }, [zoo?.is_favorite]);
+    useEffect(() => {
+      setFavorite(Boolean(zoo.is_favorite));
+      setFavoriteError('');
+    }, [zoo.is_favorite]);
 
   // Load whether user has visited this zoo
   useEffect(() => {
@@ -267,14 +308,14 @@ export default function ZooDetail({
 
   // pick description based on current language with fallback to generic text
   const zooDescription =
-    lang === 'de' ? zoo.description_de : zoo.description_en;
+    langParam === 'de' ? zoo.description_de : zoo.description_en;
   const MAX_DESC = 400; // collapse threshold
   const needsCollapse = zooDescription && zooDescription.length > MAX_DESC;
 
   // Build the heading text by prefixing the city when available
   const zooDisplayName = displayName || getZooDisplayName(zoo);
-  const allowedHeadingLevels = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
-  const HeadingTag = allowedHeadingLevels.includes(headingLevel)
+  const allowedHeadingLevels: HeadingLevel[] = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
+  const HeadingTag: HeadingLevel = allowedHeadingLevels.includes(headingLevel)
     ? headingLevel
     : 'h2';
 
@@ -442,7 +483,7 @@ export default function ZooDetail({
           defaultZooName={modalData.zooName}
           defaultAnimalName={modalData.animalName}
           onLogged={() => {
-            onLogged && onLogged();
+            onLogged?.();
             reloadLocalData();
           }}
           onClose={() => { setModalData(null); }}

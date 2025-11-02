@@ -37,8 +37,8 @@ export default function AnimalTile({
   const { t } = useTranslation();
   const localizedName =
     lang === 'de'
-      ? animal.name_de ?? animal.name_en ?? animal.slug ?? String(animal.id)
-      : animal.name_en ?? animal.name_de ?? animal.slug ?? String(animal.id);
+      ? animal.name_de ?? animal.name_en ?? animal.slug ?? animal.id
+      : animal.name_en ?? animal.name_de ?? animal.slug ?? animal.id;
   const escapedImageUrl = animal.default_image_url
     ? animal.default_image_url.replace(/"/g, '\\"')
     : null;

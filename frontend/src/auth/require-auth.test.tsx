@@ -1,7 +1,7 @@
-// @ts-nocheck
 import '@testing-library/jest-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, act } from '@testing-library/react';
+import type { ReactNode } from 'react';
 import { useEffect } from 'react';
 import { createMemoryRouter, RouterProvider, Outlet, useLocation } from 'react-router-dom';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -9,6 +9,17 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { AuthProvider, useAuth } from './AuthContext';
 import RequireAuth from './RequireAuth';
 import { createTestToken } from '../test-utils/auth';
+
+interface TestAuthPayload {
+  token: string;
+  user?: { id?: string; email?: string | null } | null;
+  expiresIn?: number | null;
+}
+
+interface AuthLoginProps {
+  auth?: TestAuthPayload;
+  children: ReactNode;
+}
 
 function Layout() {
   return <Outlet />;
@@ -25,7 +36,7 @@ function LoginCapture() {
 
 describe('RequireAuth', () => {
   beforeEach(() => {
-    global.fetch = vi.fn(() => Promise.resolve({ ok: false, status: 401, json: () => Promise.resolve({}) }));
+    global.fetch = vi.fn(() => Promise.resolve(new Response(JSON.stringify({}), { status: 401 }))) as unknown as typeof fetch;
   });
 
   afterEach(() => {
@@ -61,7 +72,8 @@ describe('RequireAuth', () => {
 
     const login = await screen.findByTestId('login-page');
     expect(login).toBeInTheDocument();
-    expect(login.dataset.from).toBe('/en/secret');
+    const fromPath = login.dataset['from'] ?? '';
+    expect(fromPath).toBe('/en/secret');
     expect(router.state.location.pathname).toBe('/en/login');
 
     await act(async () => {
@@ -108,7 +120,7 @@ describe('RequireAuth', () => {
   });
 });
 
-function AuthLogin({ auth, children }: any) {
+function AuthLogin({ auth, children }: AuthLoginProps) {
   const { login, token, hydrated } = useAuth();
 
   useEffect(() => {

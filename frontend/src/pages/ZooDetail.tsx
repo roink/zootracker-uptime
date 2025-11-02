@@ -1,11 +1,10 @@
-// @ts-nocheck
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 
 import { API } from '../api';
 import Seo from '../components/Seo';
-import ZooDetail from '../components/ZooDetail';
+import ZooDetail, { type ZooDetailData } from '../components/ZooDetail';
 import useAuthFetch from '../hooks/useAuthFetch';
 import { normalizeLang } from '../i18n';
 import { getZooDisplayName } from '../utils/zooDisplayName';
@@ -13,7 +12,7 @@ import { getZooDisplayName } from '../utils/zooDisplayName';
 const META_DESCRIPTION_LIMIT = 160;
 
 // Sanitize description copy for SEO snippets by removing tags, collapsing whitespace and truncating at word boundaries.
-function sanitizeDescription(value) {
+function sanitizeDescription(value: unknown) {
   if (typeof value !== 'string') {
     return '';
   }
@@ -30,10 +29,15 @@ function sanitizeDescription(value) {
   return `${truncated.trim()}…`;
 }
 
+interface ZooDetailPageProps {
+  refresh: number;
+  onLogged?: () => void;
+}
+
 // Page that fetches a single zoo and renders the ZooDetail component
-export default function ZooDetailPage({ refresh, onLogged }: any) {
+export default function ZooDetailPage({ refresh, onLogged }: ZooDetailPageProps) {
   const { slug, lang: langParam } = useParams();
-  const [zoo, setZoo] = useState<any>(null);
+  const [zoo, setZoo] = useState<ZooDetailData | null>(null);
   const { i18n } = useTranslation();
   const authFetch = useAuthFetch();
   const urlLang = typeof langParam === 'string' ? normalizeLang(langParam) : null;
@@ -55,7 +59,7 @@ export default function ZooDetailPage({ refresh, onLogged }: any) {
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);
         }
-        const data = await response.json();
+        const data = (await response.json()) as ZooDetailData;
         setZoo(data);
       } catch (_err) {
         if (!controller.signal.aborted) {
@@ -94,7 +98,7 @@ export default function ZooDetailPage({ refresh, onLogged }: any) {
       (value) => typeof value === 'string' && value.trim().length > 0,
     );
     const fallbackCopy = t('zoo.seoFallback', {
-      name: (displayName || zoo?.name || fallbackName).trim(),
+      name: (displayName || zoo.name || fallbackName).trim(),
     });
     return sanitizeDescription(chosen ?? fallbackCopy);
   }, [activeLang, zoo, t, displayName, fallbackName]);
@@ -113,7 +117,16 @@ export default function ZooDetailPage({ refresh, onLogged }: any) {
 
   const localizedPath = `/${activeLang}/zoos/${slugOrId}`;
 
-  const structuredData = {
+  const structuredData: {
+    '@context': string;
+    '@type': string;
+    '@id': string;
+    name: string;
+    url: string;
+    address: { '@type': string; addressLocality: string; addressCountry: string };
+    description: string;
+    geo?: { '@type': string; latitude: number; longitude: number };
+  } = {
     '@context': 'https://schema.org',
     '@type': 'Zoo',
     '@id': `https://zootracker.app${localizedPath}#zoo`,
@@ -148,7 +161,7 @@ export default function ZooDetailPage({ refresh, onLogged }: any) {
         displayName={displayName}
         headingLevel="h1"
         refresh={refresh}
-        onLogged={onLogged}
+        {...(onLogged ? { onLogged } : {})}
         onFavoriteChange={(next) =>
           { setZoo((prev) => (prev ? { ...prev, is_favorite: next } : prev)); }
         }
