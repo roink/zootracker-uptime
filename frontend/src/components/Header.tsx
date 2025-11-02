@@ -1,14 +1,15 @@
-// @ts-nocheck
 import { useQueryClient } from '@tanstack/react-query';
 import { useState, useEffect, useRef, useId, useMemo, useCallback } from 'react';
+import type { ChangeEvent, FormEvent, KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useLocation, useParams } from 'react-router-dom';
 
 import LanguageSwitcher from './LanguageSwitcher';
-import SearchSuggestions from './SearchSuggestions';
+import SearchSuggestions, { type SearchSuggestionOption } from './SearchSuggestions';
 import { API } from '../api';
 import { useAuth } from '../auth/AuthContext';
 import useSearchSuggestions from '../hooks/useSearchSuggestions';
+import type { AnimalSummary, SearchResults, ZooSummary } from '../types/domain';
 import { getZooDisplayName } from '../utils/zooDisplayName';
 
 // Navigation header shown on all pages. Includes a simple search
@@ -21,15 +22,15 @@ export default function Header() {
   const [activeIndex, setActiveIndex] = useState(-1);
   const [liveMessage, setLiveMessage] = useState('');
   // keep a ref for the blur timeout so we can cancel it if focus returns quickly
-  const blurRef = useRef<any>(null);
-  const liveRegionTimeout = useRef<any>(null);
+  const blurRef = useRef<number | null>(null);
+  const liveRegionTimeout = useRef<number | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
-  const { lang } = useParams();
-  const prefix = `/${lang}`;
+  const { lang: langParam } = useParams();
+  const prefix = langParam ? `/${langParam}` : '';
   const { t } = useTranslation();
-  const collapseRef = useRef<any>(null);
-  const toggleRef = useRef<any>(null);
+  const collapseRef = useRef<HTMLDivElement | null>(null);
+  const toggleRef = useRef<HTMLButtonElement | null>(null);
   const { isAuthenticated, logout } = useAuth();
   const queryClient = useQueryClient();
   const searchId = useId();
@@ -37,36 +38,51 @@ export default function Header() {
   const searchLabelId = `${searchInputId}-label`;
   const suggestionListId = `${searchInputId}-listbox`;
 
+  const hideCollapse = useCallback((element: HTMLElement) => {
+    const bootstrap = (window as typeof window & {
+      bootstrap?: {
+        Collapse?: {
+          getInstance(target: Element): { hide: () => void } | null;
+        };
+      };
+    }).bootstrap;
+    const instance = bootstrap?.Collapse?.getInstance(element);
+    if (instance) {
+      instance.hide();
+    } else {
+      element.classList.remove('show');
+    }
+  }, []);
+
   // Close the mobile menu when the route changes
   useEffect(() => {
     const menu = collapseRef.current;
     if (menu && menu.classList.contains('show')) {
-      const inst = (window as any).bootstrap?.Collapse.getInstance(menu);
-      if (inst) inst.hide();
-      else menu.classList.remove('show');
+      hideCollapse(menu);
       setMenuOpen(false);
     }
-  }, [location]);
+  }, [hideCollapse, location]);
 
   // Hide menu when clicking outside of it
   useEffect(() => {
-    const handle = (e) => {
+    const handle = (event: MouseEvent) => {
       const menu = collapseRef.current;
+      const toggle = toggleRef.current;
+      const target = event.target;
       if (
         menu &&
         menu.classList.contains('show') &&
-        !menu.contains(e.target) &&
-        !toggleRef.current.contains(e.target)
+        target instanceof Node &&
+        !menu.contains(target) &&
+        (!toggle || !toggle.contains(target))
       ) {
-        const inst = (window as any).bootstrap?.Collapse.getInstance(menu);
-        if (inst) inst.hide();
-        else menu.classList.remove('show');
+        hideCollapse(menu);
         setMenuOpen(false);
       }
     };
     document.addEventListener('click', handle);
     return () => { document.removeEventListener('click', handle); };
-  }, []);
+  }, [hideCollapse]);
 
   // Track collapse state to keep ARIA attributes in sync
   useEffect(() => {
@@ -83,17 +99,18 @@ export default function Header() {
   }, []);
 
   // Fetch suggestions with a small delay and shared cache
-  const results = useSearchSuggestions(query, true);
+  const results: SearchResults = useSearchSuggestions(query, true);
 
   // Navigate to the search page with the entered query.
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (query.trim()) {
-      void navigate(`${prefix}/search?q=${encodeURIComponent(query.trim())}`);
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const trimmed = query.trim();
+    if (trimmed) {
+      void navigate(`${prefix}/search?q=${encodeURIComponent(trimmed)}`);
     }
   };
 
-  const handleSelect = useCallback((option) => {
+  const handleSelect = useCallback((option: SearchSuggestionOption) => {
     setQuery('');
     setFocused(false);
     setActiveIndex(-1);
@@ -113,32 +130,32 @@ export default function Header() {
       });
   };
 
+  const hasSuggestions = results.zoos.length > 0 || results.animals.length > 0;
   const suggestionsOpen =
-    focused &&
-    query &&
-    (results.zoos.length || results.animals.length);
+    focused && query.trim().length > 0 && hasSuggestions;
 
   const getAnimalName = useCallback(
-    (animal) =>
-      lang === 'de'
-        ? animal.name_de || animal.name_en
-        : animal.name_en || animal.name_de,
-    [lang]
+    (animal: AnimalSummary) => {
+      return langParam === 'de'
+        ? animal.name_de || animal.name_en || ''
+        : animal.name_en || animal.name_de || '';
+    },
+    [langParam]
   );
 
   const options = useMemo(() => {
-    const list = [] as any[];
+    const list: SearchSuggestionOption[] = [];
     if (results.animals.length) {
       const groupLabel = t('nav.searchGroupAnimals');
-      results.animals.forEach((animal, index) => {
-        const identifier = animal.id ?? animal.slug;
+      results.animals.forEach((animal: AnimalSummary, index) => {
+        const identifier = animal.slug ?? animal.id;
         list.push({
           id: `${suggestionListId}-a-${identifier}`,
           key: `a-${identifier}`,
           type: 'animal',
           value: animal.slug || animal.id,
           label: t('nav.searchAnimalOption', { name: getAnimalName(animal) }),
-          secondary: animal.scientific_name || '',
+          secondary: animal.scientific_name ?? '',
           groupKey: 'animals',
           groupLabel,
           firstInGroup: index === 0,
@@ -147,8 +164,8 @@ export default function Header() {
     }
     if (results.zoos.length) {
       const groupLabel = t('nav.searchGroupZoos');
-      results.zoos.forEach((zoo, index) => {
-        const identifier = zoo.id ?? zoo.slug;
+      results.zoos.forEach((zoo: ZooSummary, index) => {
+        const identifier = zoo.slug ?? zoo.id;
         const displayName = getZooDisplayName(zoo);
         list.push({
           id: `${suggestionListId}-z-${identifier}`,
@@ -161,7 +178,7 @@ export default function Header() {
                 city: zoo.city,
               })
             : t('nav.searchZooOption', { name: zoo.name }),
-          secondary: zoo.city || '',
+          secondary: zoo.city ?? '',
           groupKey: 'zoos',
           groupLabel,
           firstInGroup: index === 0,
@@ -170,12 +187,11 @@ export default function Header() {
       });
     }
     return list;
-  }, [results, suggestionListId, t, getAnimalName]);
+  }, [getAnimalName, results.animals, results.zoos, suggestionListId, t]);
 
-  const activeOptionId =
-    activeIndex >= 0 && activeIndex < options.length
-      ? options[activeIndex].id
-      : undefined;
+  const activeOption =
+    activeIndex >= 0 && activeIndex < options.length ? options[activeIndex] : undefined;
+  const activeOptionId = activeOption?.id;
 
   useEffect(() => {
     if (!suggestionsOpen) {
@@ -195,14 +211,14 @@ export default function Header() {
 
   useEffect(() => {
     if (liveRegionTimeout.current) {
-      clearTimeout(liveRegionTimeout.current);
+      window.clearTimeout(liveRegionTimeout.current);
     }
-    if (!query) {
+    if (!query.trim()) {
       setLiveMessage('');
       return;
     }
-    liveRegionTimeout.current = setTimeout(() => {
-      if (!query) return;
+    liveRegionTimeout.current = window.setTimeout(() => {
+      if (!query.trim()) return;
       setLiveMessage(
         options.length
           ? t('nav.searchSuggestionCount', { count: options.length })
@@ -211,19 +227,19 @@ export default function Header() {
     }, 150);
     return () => {
       if (liveRegionTimeout.current) {
-        clearTimeout(liveRegionTimeout.current);
+        window.clearTimeout(liveRegionTimeout.current);
       }
     };
   }, [options.length, query, t]);
 
   useEffect(() => () => {
     if (liveRegionTimeout.current) {
-      clearTimeout(liveRegionTimeout.current);
+      window.clearTimeout(liveRegionTimeout.current);
     }
   }, []);
 
   const moveActive = useCallback(
-    (delta) => {
+    (delta: number) => {
       if (!options.length) return;
       setActiveIndex((prev) => {
         if (prev < 0) {
@@ -243,7 +259,7 @@ export default function Header() {
   );
 
   const handleKeyDown = useCallback(
-    (event) => {
+    (event: KeyboardEvent<HTMLInputElement>) => {
       if (event.key === 'ArrowDown') {
         if (!options.length) return;
         event.preventDefault();
@@ -259,6 +275,7 @@ export default function Header() {
         if (activeIndex < 0 || activeIndex >= options.length) return;
         event.preventDefault();
         const option = options[activeIndex];
+        if (!option) return;
         handleSelect(option);
       } else if (event.key === 'Escape') {
         if (!suggestionsOpen) return;
@@ -380,15 +397,17 @@ export default function Header() {
               type="search"
               placeholder={t('nav.searchPlaceholder')}
               value={query}
-              onChange={(e) => { setQuery(e.target.value); }}
+              onChange={(event: ChangeEvent<HTMLInputElement>) => {
+                setQuery(event.target.value);
+              }}
               onFocus={() => {
                 // cancel pending blur when focusing again
-                if (blurRef.current) clearTimeout(blurRef.current);
+                if (blurRef.current) window.clearTimeout(blurRef.current);
                 setFocused(true);
               }}
               onBlur={() => {
                 // delay hiding suggestions to allow clicks on them
-                blurRef.current = setTimeout(() => {
+                blurRef.current = window.setTimeout(() => {
                   setFocused(false);
                   setActiveIndex(-1);
                 }, 100);
@@ -397,7 +416,7 @@ export default function Header() {
               role="combobox"
               aria-autocomplete="list"
               aria-haspopup="listbox"
-              aria-expanded={Boolean(suggestionsOpen)}
+              aria-expanded={suggestionsOpen}
               aria-controls={suggestionsOpen ? suggestionListId : undefined}
               aria-activedescendant={suggestionsOpen ? activeOptionId : undefined}
               autoComplete="off"

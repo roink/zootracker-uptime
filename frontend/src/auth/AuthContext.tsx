@@ -203,17 +203,23 @@ export function AuthProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     if (authState.hydrated) return;
     let active = true;
-    refreshAccessToken()
-      .catch(() => {
+
+    const hydrate = async () => {
+      try {
+        await refreshAccessToken();
+      } catch {
         if (active) {
           clearAuthState();
         }
-      })
-      .finally(() => {
+      } finally {
         if (active) {
           setAuthState((prev) => (prev.hydrated ? prev : { ...prev, hydrated: true }));
         }
-      });
+      }
+    };
+
+    void hydrate();
+
     return () => {
       active = false;
     };

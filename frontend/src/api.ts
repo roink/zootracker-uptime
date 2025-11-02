@@ -7,4 +7,4 @@ const hostname = window.location.hostname;
 const defaultApi = import.meta.env.DEV ? `http://${hostname}:8000` : '';
 
 // `VITE_API_URL` can override this if the backend runs elsewhere.
-export const API = import.meta.env.VITE_API_URL || defaultApi;
+export const API = import.meta.env['VITE_API_URL'] || defaultApi;

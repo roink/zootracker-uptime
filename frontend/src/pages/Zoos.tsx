@@ -9,6 +9,7 @@ import {
   useLocation,
 } from 'react-router-dom';
 
+import { ensureMapViewSearch, type ViewMode } from './zoosViewHelpers';
 import { API } from '../api';
 import { useAuth } from '../auth/AuthContext';
 import FavoriteBadge from '../components/FavoriteBadge';
@@ -82,26 +83,26 @@ function toZooListItem(value: unknown): ZooListItem | null {
   if (!isRecord(value)) {
     return null;
   }
-  const id = toStringId(value.id);
+  const id = toStringId(value['id']);
   if (!id) {
     return null;
   }
-  const latitude = toOptionalNumber(value.latitude);
-  const longitude = toOptionalNumber(value.longitude);
-  const location = isRecord(value.location) ? (value.location) : null;
+  const latitude = toOptionalNumber(value['latitude']);
+  const longitude = toOptionalNumber(value['longitude']);
+  const location = isRecord(value['location']) ? value['location'] : null;
   return {
     id,
-    slug: toOptionalString(value.slug),
-    name: toOptionalString(value.name),
-    name_en: toOptionalString(value.name_en),
-    name_de: toOptionalString(value.name_de),
-    city: toOptionalString(value.city),
-    country_name_en: toOptionalString(value.country_name_en),
-    country_name_de: toOptionalString(value.country_name_de),
+    slug: toOptionalString(value['slug']),
+    name: toOptionalString(value['name']),
+    name_en: toOptionalString(value['name_en']),
+    name_de: toOptionalString(value['name_de']),
+    city: toOptionalString(value['city']),
+    country_name_en: toOptionalString(value['country_name_en']),
+    country_name_de: toOptionalString(value['country_name_de']),
     latitude,
     longitude,
-    distance_km: toOptionalNumber(value.distance_km),
-    is_favorite: toOptionalBoolean(value.is_favorite),
+    distance_km: toOptionalNumber(value['distance_km']),
+    is_favorite: toOptionalBoolean(value['is_favorite']),
     location,
   };
 }
@@ -116,11 +117,11 @@ function normalizeZooItems(source: unknown): ZooListItem[] {
 }
 
 function normalizeZooPage(payload: unknown, fallbackOffset = 0): PaginatedZooPage {
-  if (isRecord(payload) && Array.isArray(payload.items)) {
-    const items = normalizeZooItems(payload.items);
-    const total = toOptionalNumber(payload.total) ?? items.length;
-    const offset = toOptionalNumber(payload.offset) ?? fallbackOffset;
-    const limit = toOptionalNumber(payload.limit) ?? items.length;
+  if (isRecord(payload) && Array.isArray(payload['items'])) {
+    const items = normalizeZooItems(payload['items']);
+    const total = toOptionalNumber(payload['total']) ?? items.length;
+    const offset = toOptionalNumber(payload['offset']) ?? fallbackOffset;
+    const limit = toOptionalNumber(payload['limit']) ?? items.length;
     return { items, total, offset, limit };
   }
   if (Array.isArray(payload)) {
@@ -139,7 +140,7 @@ function sanitizeCameraState(value: unknown): CameraState | null {
   if (!isRecord(value)) {
     return null;
   }
-  const centerValue = value.center;
+  const centerValue = value['center'];
   if (!Array.isArray(centerValue) || centerValue.length < 2) {
     return null;
   }
@@ -148,9 +149,9 @@ function sanitizeCameraState(value: unknown): CameraState | null {
   if (lon === null || lat === null) {
     return null;
   }
-  const zoom = toOptionalNumber(value.zoom ?? null) ?? undefined;
-  const bearing = toOptionalNumber(value.bearing ?? null) ?? undefined;
-  const pitch = toOptionalNumber(value.pitch ?? null) ?? undefined;
+  const zoom = toOptionalNumber(value['zoom'] ?? null) ?? undefined;
+  const bearing = toOptionalNumber(value['bearing'] ?? null) ?? undefined;
+  const pitch = toOptionalNumber(value['pitch'] ?? null) ?? undefined;
   return {
     center: [lon, lat],
     ...(zoom !== undefined ? { zoom } : {}),
@@ -168,14 +169,14 @@ function normalizeRegions(source: unknown): RegionOption[] {
       if (!isRecord(item)) {
         return null;
       }
-      const id = toStringId(item.id);
+      const id = toStringId(item['id']);
       if (!id) {
         return null;
       }
       const region: RegionOption = {
         id,
-        name_en: toOptionalString(item.name_en),
-        name_de: toOptionalString(item.name_de),
+        name_en: toOptionalString(item['name_en']),
+        name_de: toOptionalString(item['name_de']),
       };
       return region;
     })
@@ -213,8 +214,8 @@ function mapViewsEqual(
 // Safely read a previously stored location from sessionStorage.
 function readStoredLocation(): LocationEstimate | null {
   if (typeof window === 'undefined') return null;
-  try {
-    const stored = window.sessionStorage?.getItem(LOCATION_STORAGE_KEY);
+    try {
+      const stored = window.sessionStorage.getItem(LOCATION_STORAGE_KEY);
     if (!stored) return null;
     const parsed = JSON.parse(stored);
     const lat = Number(parsed?.lat);
@@ -237,12 +238,12 @@ function writeStoredLocation(value: LocationEstimate | null): void {
       Number.isFinite(value.lat) &&
       Number.isFinite(value.lon)
     ) {
-      window.sessionStorage?.setItem(
-        LOCATION_STORAGE_KEY,
-        JSON.stringify({ lat: value.lat, lon: value.lon })
-      );
-    } else {
-      window.sessionStorage?.removeItem(LOCATION_STORAGE_KEY);
+        window.sessionStorage.setItem(
+          LOCATION_STORAGE_KEY,
+          JSON.stringify({ lat: value.lat, lon: value.lon })
+        );
+      } else {
+        window.sessionStorage.removeItem(LOCATION_STORAGE_KEY);
     }
   } catch (_error) {
     // Ignore storage errors silently so the UI keeps working.
@@ -252,14 +253,15 @@ function writeStoredLocation(value: LocationEstimate | null): void {
 // Listing page showing all zoos with search, region filters and visit status.
 
 export default function ZoosPage(_props: ZoosPageProps = {}) {
-  const { lang } = useParams();
+  const params = useParams();
+  const lang = params['lang'];
   const prefix = `/${lang}`;
   const [searchParams, setSearchParams] = useSearchParams();
   const initialSearch = searchParams.get('q') || '';
   const initialContinent = searchParams.get('continent') || '';
   const initialCountry = searchParams.get('country') || '';
   const initialVisit = searchParams.get('visit');
-  const initialView = searchParams.get('view') === 'map' ? 'map' : 'list';
+  const initialView: ViewMode = searchParams.get('view') === 'map' ? 'map' : 'list';
   const initialFavorites = searchParams.get('favorites') === '1';
 
   const [zoos, setZoos] = useState<ZooListItem[]>([]);
@@ -287,17 +289,20 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
   const mapRequestRef = useRef<AbortController | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const zoosRef = useRef<ZooListItem[]>([]);
-  const routerState = (locationState.state ?? null) as UnknownRecord | null;
+  const routerState = locationState.state as UnknownRecord | null;
   const initialRouterView = routerState && 'mapView' in routerState
-    ? sanitizeCameraState(routerState.mapView)
+    ? sanitizeCameraState(routerState['mapView'])
     : null;
   const mapViewRef = useRef<CameraState | null>(initialRouterView);
   const [mapView, setMapView] = useState<CameraState | null>(() => mapViewRef.current);
+  const [hasMountedMap, setHasMountedMap] = useState<boolean>(() => initialView === 'map');
   const [preferStoredView, setPreferStoredView] = useState<boolean>(
     () => Boolean(mapViewRef.current)
   );
-  const [viewMode, setViewMode] = useState(initialView);
+  const [viewMode, setViewMode] = useState<ViewMode>(initialView);
+  const pendingViewModeRef = useRef<ViewMode | null>(null);
   const [mapResizeToken, setMapResizeToken] = useState(0);
+  const [mapContextLost, setMapContextLost] = useState(false);
   const estimateAttemptedRef = useRef(false);
   useEffect(() => () => {
     if (listRequestRef.current) {
@@ -316,6 +321,7 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
   const [listError, setListError] = useState<string | null>(null);
   const [mapLoading, setMapLoading] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
+  const lastSearchParamsKeyRef = useRef<string>(searchParams.toString());
 
   useEffect(() => {
     zoosRef.current = zoos;
@@ -323,11 +329,11 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
 
   useEffect(() => {
     // Only react when the router explicitly sends a camera update.
-    const state = (locationState.state ?? null) as UnknownRecord | null;
+    const state = locationState.state as UnknownRecord | null;
     if (!state || !Object.prototype.hasOwnProperty.call(state, 'mapView')) {
       return;
     }
-    const nextView = sanitizeCameraState(state.mapView);
+    const nextView = sanitizeCameraState(state['mapView']);
     if (!mapViewsEqual(nextView, mapViewRef.current)) {
       mapViewRef.current = nextView;
       setMapView(nextView);
@@ -338,6 +344,12 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
   useEffect(() => {
     mapViewRef.current = mapView;
   }, [mapView]);
+
+  useEffect(() => {
+    if (viewMode === 'map' && !hasMountedMap) {
+      setHasMountedMap(true);
+    }
+  }, [hasMountedMap, viewMode]);
 
   const updateMapView = useCallback(
     (view: CameraViewChange | null | undefined) => {
@@ -356,11 +368,23 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
         const baseState: UnknownRecord = isRecord(locationState.state)
           ? { ...(locationState.state) }
           : {};
-        baseState.mapView = null;
-        void navigate(
-          { pathname: locationState.pathname, search: locationState.search },
-          { replace: true, state: baseState }
-        );
+        const currentStored = sanitizeCameraState(baseState['mapView']);
+        const ensuredSearch = ensureMapViewSearch(locationState.search, viewMode);
+        if (baseState['mapView'] !== null) {
+          baseState['mapView'] = null;
+        }
+        const shouldUpdateSearch = ensuredSearch !== locationState.search;
+        const shouldUpdateState = currentStored !== null;
+        if (shouldUpdateSearch || shouldUpdateState) {
+          void navigate(
+            {
+              pathname: locationState.pathname,
+              search: ensuredSearch,
+              hash: locationState.hash,
+            },
+            { replace: true, state: baseState }
+          );
+        }
         return;
       }
 
@@ -373,18 +397,30 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
       const baseState: UnknownRecord = isRecord(locationState.state)
         ? { ...(locationState.state) }
         : {};
-      baseState.mapView = sanitizedView;
+      const previousStored = sanitizeCameraState(baseState['mapView']);
+      const ensuredSearch = ensureMapViewSearch(locationState.search, viewMode);
+      baseState['mapView'] = sanitizedView;
+      const shouldUpdateSearch = ensuredSearch !== locationState.search;
+      const shouldUpdateState = !mapViewsEqual(previousStored, sanitizedView);
+      if (shouldUpdateSearch || shouldUpdateState) {
         void navigate(
-          { pathname: locationState.pathname, search: locationState.search },
+          {
+            pathname: locationState.pathname,
+            search: ensuredSearch,
+            hash: locationState.hash,
+          },
           { replace: true, state: baseState }
         );
+      }
     },
     [
       locationState.pathname,
       locationState.search,
       locationState.state,
+      locationState.hash,
       navigate,
       setPreferStoredView,
+      viewMode,
     ]
   );
 
@@ -431,13 +467,19 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
 
   // Keep local state in sync with URL (supports browser back/forward)
   useEffect(() => {
+    const currentParamsKey = searchParams.toString();
+    if (lastSearchParamsKeyRef.current === currentParamsKey) {
+      return;
+    }
+    lastSearchParamsKeyRef.current = currentParamsKey;
+
     const spQ = searchParams.get('q') || '';
     const spCont = searchParams.get('continent') || '';
     const spCountry = searchParams.get('country') || '';
     const spVisit = searchParams.get('visit');
     const spVisitNorm =
       spVisit === 'visited' || spVisit === 'not' ? spVisit : 'all';
-    const spView = searchParams.get('view') === 'map' ? 'map' : 'list';
+    const spView: ViewMode = searchParams.get('view') === 'map' ? 'map' : 'list';
     const spFavorites = searchParams.get('favorites') === '1';
 
     if (spQ !== search) setSearch(spQ);
@@ -446,7 +488,19 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
     if (spCountry !== countryId) setCountryId(spCountry);
     const effectiveVisit = !isAuthenticated ? 'all' : spVisitNorm;
     if (effectiveVisit !== visitFilter) setVisitFilter(effectiveVisit);
-    if (spView !== viewMode) setViewMode(spView);
+    let pendingMode = pendingViewModeRef.current;
+    if (pendingMode !== null && spView === pendingMode) {
+      pendingViewModeRef.current = null;
+      pendingMode = null;
+    }
+    if (spView !== viewMode) {
+      if (pendingMode !== null && spView !== pendingMode) {
+        // Skip reverting while a local transition is pending.
+      } else {
+        pendingViewModeRef.current = null;
+        setViewMode(spView);
+      }
+    }
     if (spFavorites !== favoritesOnly) handleFavoritesToggle(spFavorites);
   }, [
     continentId,
@@ -454,6 +508,7 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
     favoritesOnly,
     handleFavoritesToggle,
     isAuthenticated,
+    lastSearchParamsKeyRef,
     query,
     search,
     searchParams,
@@ -487,10 +542,10 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
   ]);
 
   useEffect(() => {
-    if (viewMode === 'map') {
+    if (viewMode === 'map' && hasMountedMap) {
       setMapResizeToken((token) => token + 1);
     }
-  }, [viewMode]);
+  }, [hasMountedMap, viewMode]);
 
   const mapFilters = useMemo<MapFilters>(
     () => ({
@@ -566,20 +621,18 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
   useEffect(() => {
     if (mapRequestRef.current) {
       mapRequestRef.current.abort();
+      mapRequestRef.current = null;
     }
-    const controller = new AbortController();
-    mapRequestRef.current = controller;
-    setMapLoading(mapZoos.length === 0);
-    setMapError(null);
 
     if (!mapRequestConfig.ready || !mapRequestConfig.url) {
-      return () => {
-        if (mapRequestRef.current === controller) {
-          mapRequestRef.current = null;
-        }
-        controller.abort();
-      };
+      setMapLoading(false);
+      return undefined;
     }
+
+    const controller = new AbortController();
+    mapRequestRef.current = controller;
+    setMapLoading(true);
+    setMapError(null);
 
     const params = new URLSearchParams();
     if (mapFilters.q) params.set('q', mapFilters.q);
@@ -621,14 +674,31 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
       }
       controller.abort();
     };
-  }, [mapFiltersKey, mapFilters, mapRequestConfig, authFetch, mapZoos.length]);
+  }, [mapFiltersKey, mapFilters, mapRequestConfig, authFetch]);
 
-  useEffect(() => {
-    void fetch(`${API}/zoos/continents`)
-      .then(async (r) => (r.ok ? ((await r.json()) as unknown) : []))
-      .then((data) => { setContinents(normalizeRegions(data)); })
-      .catch(() => { setContinents([]); });
-  }, []);
+    useEffect(() => {
+      const controller = new AbortController();
+
+      const loadContinents = async () => {
+        try {
+          const response = await fetch(`${API}/zoos/continents`, { signal: controller.signal });
+          const data = response.ok ? ((await response.json()) as unknown) : [];
+          if (!controller.signal.aborted) {
+            setContinents(normalizeRegions(data));
+          }
+        } catch {
+          if (!controller.signal.aborted) {
+            setContinents([]);
+          }
+        }
+      };
+
+      void loadContinents();
+
+      return () => {
+        controller.abort();
+      };
+    }, []);
 
   useEffect(() => {
     if (!continentId) {
@@ -636,11 +706,30 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
       setCountryId('');
       return;
     }
-    void fetch(`${API}/zoos/countries?continent_id=${continentId}`)
-      .then(async (r) => (r.ok ? ((await r.json()) as unknown) : []))
-      .then((data) => { setCountries(normalizeRegions(data)); })
-      .catch(() => { setCountries([]); });
-  }, [continentId]);
+      const controller = new AbortController();
+
+      const loadCountries = async () => {
+        try {
+          const response = await fetch(`${API}/zoos/countries?continent_id=${continentId}`, {
+            signal: controller.signal,
+          });
+          const data = response.ok ? ((await response.json()) as unknown) : [];
+          if (!controller.signal.aborted) {
+            setCountries(normalizeRegions(data));
+          }
+        } catch {
+          if (!controller.signal.aborted) {
+            setCountries([]);
+          }
+        }
+      };
+
+      void loadCountries();
+
+      return () => {
+        controller.abort();
+      };
+    }, [continentId]);
 
 
   useEffect(() => {
@@ -653,30 +742,18 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
     [location, estimatedLocation]
   );
 
-  const listFilters = useMemo<ListFilters>(
-    () => ({
-      q: query.trim(),
-      continent: continentId || '',
-      country: countryId || '',
-      favoritesOnly,
-      latitude:
-        typeof activeLocation?.lat === 'number' && Number.isFinite(activeLocation.lat)
-          ? activeLocation.lat
-          : null,
-      longitude:
-        typeof activeLocation?.lon === 'number' && Number.isFinite(activeLocation.lon)
-          ? activeLocation.lon
-          : null,
-    }),
-    [
-      query,
-      continentId,
-      countryId,
-      favoritesOnly,
-      activeLocation?.lat,
-      activeLocation?.lon,
-    ]
-  );
+    const listFilters = useMemo<ListFilters>(() => {
+      const lat = activeLocation?.lat;
+      const lon = activeLocation?.lon;
+      return {
+        q: query.trim(),
+        continent: continentId || '',
+        country: countryId || '',
+        favoritesOnly,
+        latitude: typeof lat === 'number' && Number.isFinite(lat) ? lat : null,
+        longitude: typeof lon === 'number' && Number.isFinite(lon) ? lon : null,
+      };
+    }, [query, continentId, countryId, favoritesOnly, activeLocation]);
   const listFiltersKey = useMemo(
     () => JSON.stringify(listFilters),
     [listFilters]
@@ -721,44 +798,44 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
     const requestUrl = `${listRequestConfig.url}${paramsString ? `?${paramsString}` : ''}`;
     const fetcher: typeof fetch = listRequestConfig.requiresAuth ? authFetch : fetch;
 
-    let active = true;
+      const activeRef = { current: true };
 
       void (async () => {
-      try {
-        const response = await fetcher(requestUrl, { signal: controller.signal });
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
-        const data = (await response.json()) as unknown;
-        if (!active || controller.signal.aborted) {
-          return;
-        }
+        try {
+          const response = await fetcher(requestUrl, { signal: controller.signal });
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+          const data = (await response.json()) as unknown;
+          if (!activeRef.current || controller.signal.aborted) {
+            return;
+          }
         const page = normalizeZooPage(data, 0);
         setZoos(page.items);
         const newOffset = page.offset + page.items.length;
         setNextOffset(newOffset);
         setTotalZoos(page.total);
         setHasMore(newOffset < page.total && page.items.length > 0);
-      } catch (error) {
-        if (!active || controller.signal.aborted) {
-          return;
+        } catch (error) {
+          if (!activeRef.current || controller.signal.aborted) {
+            return;
+          }
+          setListError(error instanceof Error ? error.message : 'Failed to load zoos');
+        } finally {
+          if (listRequestRef.current === controller) {
+            listRequestRef.current = null;
+          }
+          if (!controller.signal.aborted && activeRef.current) {
+            setListLoading(false);
+          }
         }
-        setListError(error instanceof Error ? error.message : 'Failed to load zoos');
-      } finally {
+      })();
+
+      return () => {
+        activeRef.current = false;
         if (listRequestRef.current === controller) {
           listRequestRef.current = null;
         }
-        if (!controller.signal.aborted && active) {
-          setListLoading(false);
-        }
-      }
-      })();
-
-    return () => {
-      active = false;
-      if (listRequestRef.current === controller) {
-        listRequestRef.current = null;
-      }
       controller.abort();
     };
   }, [listFiltersKey, listFilters, listRequestConfig, authFetch]);
@@ -847,37 +924,46 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
     if (estimateAttemptedRef.current) return;
     estimateAttemptedRef.current = true;
 
-    let cancelled = false;
-      void fetch(`${API}/location/estimate`)
-        .then(async (r) => (r.ok ? ((await r.json()) as unknown) : null))
-      .then((data) => {
-        if (cancelled) return;
+    const controller = new AbortController();
+
+    const estimateLocation = async () => {
+      try {
+        const response = await fetch(`${API}/location/estimate`, { signal: controller.signal });
+        const data = response.ok ? ((await response.json()) as unknown) : null;
+        if (controller.signal.aborted) {
+          return;
+        }
         const record = isRecord(data) ? data : null;
-        const lat = record ? toOptionalNumber(record.latitude) : null;
-        const lon = record ? toOptionalNumber(record.longitude) : null;
+        const lat = record ? toOptionalNumber(record['latitude']) : null;
+        const lon = record ? toOptionalNumber(record['longitude']) : null;
         if (lat !== null && lon !== null) {
           setEstimatedLocation({ lat, lon });
         } else {
           setEstimatedLocation(null);
         }
-      })
-      .catch(() => {
-        if (!cancelled) setEstimatedLocation(null);
-      });
+      } catch {
+        if (!controller.signal.aborted) {
+          setEstimatedLocation(null);
+        }
+      }
+    };
+
+    void estimateLocation();
 
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, []);
 
-  useEffect(() => {
-    if (!navigator?.geolocation) return;
+    useEffect(() => {
+      const geolocation = (globalThis as { navigator?: Navigator }).navigator?.geolocation;
+      if (!geolocation) return;
 
-    let cancelled = false;
+    let active = true;
     try {
-      navigator.geolocation.getCurrentPosition(
+      geolocation.getCurrentPosition(
         (pos) => {
-          if (cancelled) return;
+          if (!active) return;
           const lat = Number(pos.coords.latitude);
           const lon = Number(pos.coords.longitude);
           if (Number.isFinite(lat) && Number.isFinite(lon)) {
@@ -890,7 +976,7 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
           }
         },
         () => {
-          if (cancelled) return;
+          if (!active) return;
           setLocation(null);
           writeStoredLocation(null);
         },
@@ -902,7 +988,7 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
     }
 
     return () => {
-      cancelled = true;
+      active = false;
     };
   }, []);
 
@@ -911,17 +997,42 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
       setVisitedLoading(false);
       return;
     }
+
+    const controller = new AbortController();
     setVisitedLoading(true);
-    authFetch(`${API}/visits/ids`)
-      .then(async (r) => {
-        if (!r.ok) return [] as string[];
-        const data = (await r.json()) as unknown;
-        if (!Array.isArray(data)) return [] as string[];
-        return data.map((value) => String(value));
-      })
-      .then(setVisitedIds)
-      .catch(() => { setVisitedIds([]); })
-      .finally(() => { setVisitedLoading(false); });
+
+    const loadVisited = async () => {
+      try {
+        const response = await authFetch(`${API}/visits/ids`, { signal: controller.signal });
+        if (!response.ok) {
+          if (!controller.signal.aborted) {
+            setVisitedIds([]);
+          }
+          return;
+        }
+        const data = (await response.json()) as unknown;
+        if (!controller.signal.aborted) {
+          const ids = Array.isArray(data)
+            ? data.map((value) => String(value))
+            : [];
+          setVisitedIds(ids);
+        }
+      } catch {
+        if (!controller.signal.aborted) {
+          setVisitedIds([]);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setVisitedLoading(false);
+        }
+      }
+    };
+
+    void loadVisited();
+
+    return () => {
+      controller.abort();
+    };
   }, [isAuthenticated, authFetch]);
 
   useEffect(() => {
@@ -989,7 +1100,8 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
   useEffect(() => {
     const importMetaEnv = typeof import.meta !== 'undefined' ? import.meta.env : undefined;
     const isVitest = importMetaEnv?.MODE === 'test';
-    const isNodeTest = typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'test';
+      const isNodeTest =
+        typeof process !== 'undefined' && process.env['NODE_ENV'] === 'test';
     if (
       importMetaEnv?.DEV &&
       !isVitest &&
@@ -1013,7 +1125,11 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
       ? item.country_name_de || item.country_name_en || null
       : item.country_name_en || item.country_name_de || null;
 
-  const handleViewChange = (mode: 'list' | 'map') => {
+  const handleViewChange = (mode: ViewMode) => {
+    if (mode === 'map') {
+      setHasMountedMap(true);
+    }
+    pendingViewModeRef.current = mode;
     setViewMode(mode);
   };
 
@@ -1215,7 +1331,7 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
           </label>
         </fieldset>
       </div>
-      {viewMode === 'list' ? (
+      {viewMode === 'list' && (
         <>
           {filtered.length === 0 ? (
             <div className="my-4">
@@ -1300,8 +1416,12 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
             </>
           )}
         </>
-      ) : (
-        <div className="position-relative">
+      )}
+      {hasMountedMap && (
+        <div
+          className={`position-relative${viewMode === 'map' ? '' : ' map-hidden'}`}
+          aria-hidden={viewMode !== 'map'}
+        >
           <ZoosMap
             zoos={mapZoosWithCoordinates}
             center={preferStoredView ? null : activeLocation}
@@ -1310,7 +1430,15 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
             suppressAutoFit={Boolean(mapViewRef.current)}
             onViewChange={updateMapView}
             resizeToken={mapResizeToken}
+            onContextLostChange={setMapContextLost}
           />
+          {!mapLoading && !mapError && mapContextLost && (
+            <div className="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center">
+              <div className="alert alert-info mb-0" role="status" aria-live="polite">
+                {t('zoo.mapRecovering')}
+              </div>
+            </div>
+          )}
           {mapLoading && (
             <div
               className="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"

@@ -150,7 +150,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
   const isDesktop = useMediaQuery('(min-width: 992px)');
   const [activeSection, setActiveSection] = useState('overview');
   const [openSections, setOpenSections] = useState(() => new Set(['overview']));
-  const tabRefs = useRef([]);
+  const tabRefs = useRef<Array<HTMLButtonElement | null | undefined>>([]);
   const [taxonomyOpen, setTaxonomyOpen] = useState(false);
 
   // Choose localized name for current language
@@ -321,37 +321,35 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
   );
 
   const loadHistory = useCallback(
-    ({ signal } = {}) => {
+    async ({ signal } = {}) => {
       if (!isAuthenticated || !slug) {
         setHistory([]);
         setHistoryError(false);
         setHistoryLoading(false);
-        return Promise.resolve();
+        return;
       }
       setHistoryLoading(true);
       setHistoryError(false);
-      return fetchHistory({ signal })
-        .then((items) => {
-          setHistory(items);
-          setHistoryError(false);
-        })
-        .catch((err: unknown) => {
-          if (
-            typeof err === 'object' &&
-            err !== null &&
-            'name' in err &&
-            (err as { name?: unknown }).name === 'AbortError'
-          ) {
-            return;
-          }
-          setHistory([]);
-          setHistoryError(true);
-        })
-        .finally(() => {
-          if (!signal || !signal.aborted) {
-            setHistoryLoading(false);
-          }
-        });
+      try {
+        const items = await fetchHistory({ signal });
+        setHistory(items);
+        setHistoryError(false);
+      } catch (err) {
+        if (
+          typeof err === 'object' &&
+          err !== null &&
+          'name' in err &&
+          (err as { name?: unknown }).name === 'AbortError'
+        ) {
+          return;
+        }
+        setHistory([]);
+        setHistoryError(true);
+      } finally {
+        if (!signal || !signal.aborted) {
+          setHistoryLoading(false);
+        }
+      }
     },
     [fetchHistory, isAuthenticated, slug]
   );
@@ -386,16 +384,21 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
     };
   }, [routerState, slug]);
 
-  useEffect(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) =>
-          { setUserLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude }); },
-        () => { setUserLocation(null); },
+    useEffect(() => {
+      const geolocation = (globalThis as { navigator?: Navigator }).navigator?.geolocation;
+      if (!geolocation) {
+        return;
+      }
+      geolocation.getCurrentPosition(
+        (pos) => {
+          setUserLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+        },
+        () => {
+          setUserLocation(null);
+        },
         { enableHighAccuracy: false, timeout: 3000, maximumAge: 600000 }
       );
-    }
-  }, []);
+    }, []);
 
   // Keep sort default in sync with location availability
   const filteredZoos = useMemo(() => {
@@ -647,9 +650,10 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
                     seenSet.add(v.width);
                   }
                 }
-                const srcSet = uniqueByWidth
-                  .map((v) => `${v.thumb_url} ${v.width}w`)
-                  .join(', ');
+                  const srcSet = uniqueByWidth
+                    .map((v) => `${v.thumb_url} ${v.width}w`)
+                    .join(', ');
+                  const hasSrcSet = srcSet.trim().length > 0;
                 const isFirst = idx === 0;
                 const loadingAttr = isFirst ? 'eager' : 'lazy';
                 const fetchPri = isFirst ? 'high' : 'low';
@@ -669,8 +673,8 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
                         rel="preload"
                         as="image"
                         href={fallbackSrc}
-                        imageSrcSet={srcSet || undefined}
-                        imageSizes={sizes || undefined}
+                          imageSrcSet={hasSrcSet ? srcSet : undefined}
+                          imageSizes={sizes}
                       />
                     )}
 
@@ -689,8 +693,8 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
                           fetchPriority={bgFetchPri}
                           draggable="false"
                           src={fallbackSrc}
-                          srcSet={srcSet}
-                          sizes={sizes}
+                            srcSet={hasSrcSet ? srcSet : undefined}
+                            sizes={sizes}
                         />
                         <img
                           src={fallbackSrc}
@@ -1247,7 +1251,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
     });
   }, [animal, animalId, animalName, closestZoo, handleLoginRedirect, isAuthenticated]);
 
-  tabRefs.current = sections.map((_, index) => tabRefs.current[index] || null);
+    tabRefs.current = sections.map((_, index) => tabRefs.current[index] ?? null);
 
   if (loading) return <div className="page-container">Loading...</div>;
   if (error) return (

@@ -72,23 +72,25 @@ const queryClient = new QueryClient({
 
 const localStoragePersister = createAsyncStoragePersister({
   storage: {
-    async getItem(key: string) {
+    getItem(key: string) {
       if (typeof window === 'undefined') {
-        return null;
+        return Promise.resolve(null);
       }
-      return window.localStorage.getItem(key);
+      return Promise.resolve(window.localStorage.getItem(key));
     },
-    async setItem(key: string, value: string) {
+    setItem(key: string, value: string) {
       if (typeof window === 'undefined') {
-        return;
+        return Promise.resolve();
       }
       window.localStorage.setItem(key, value);
+      return Promise.resolve();
     },
-    async removeItem(key: string) {
+    removeItem(key: string) {
       if (typeof window === 'undefined') {
-        return;
+        return Promise.resolve();
       }
       window.localStorage.removeItem(key);
+      return Promise.resolve();
     }
   }
 });
@@ -103,15 +105,15 @@ const persistOptions: PersistQueryClientProviderProps['persistOptions'] = {
   buster: 'app@1.0.0'
 };
 
-function DashboardPage({ refresh, onUpdate }: DashboardPageProps) {
+export function DashboardPage({ refresh, onUpdate }: DashboardPageProps) {
   return <Dashboard refresh={refresh} onUpdate={onUpdate} />;
 }
 
-function BadgesPage() {
+export function BadgesPage() {
   return <h2>Badges</h2>;
 }
 
-function ProfilePage() {
+export function ProfilePage() {
   const { user } = useAuth();
   return (
     <div>
@@ -121,7 +123,7 @@ function ProfilePage() {
   );
 }
 
-function AppRoutes({ refreshCounter, refreshSeen }: LangAppProps) {
+export function AppRoutes({ refreshCounter, refreshSeen }: LangAppProps) {
   const location = useLocation();
   const { isAuthenticated } = useAuth();
   return (
@@ -176,11 +178,11 @@ function AppRoutes({ refreshCounter, refreshSeen }: LangAppProps) {
   );
 }
 
-function LangApp({ refreshCounter, refreshSeen }: LangAppProps) {
+export function LangApp({ refreshCounter, refreshSeen }: LangAppProps) {
   const params = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const lang = params.lang;
+  const lang = params['lang'];
   const rest = params['*'] ?? '';
   const { ready } = useTranslation();
 
@@ -219,24 +221,28 @@ function LangApp({ refreshCounter, refreshSeen }: LangAppProps) {
   return <AppRoutes refreshCounter={refreshCounter} refreshSeen={refreshSeen} />;
 }
 
-function RootRedirect() {
+export function RootRedirect() {
   const navigate = useNavigate();
-  useEffect(() => {
-    const detected = i18n.services?.languageDetector?.detect?.();
-    const candidate = Array.isArray(detected) ? detected[0] : detected;
-    const targetLang = normalizeLang(candidate);
-    void navigate(`/${targetLang}`, { replace: true });
-  }, [navigate]);
+    useEffect(() => {
+      const detector = i18n.services.languageDetector;
+      const detected =
+        detector && typeof detector.detect === 'function' ? detector.detect() : undefined;
+      const candidate = Array.isArray(detected) ? detected[0] : detected;
+      const targetLang = normalizeLang(candidate);
+      void navigate(`/${targetLang}`, { replace: true });
+    }, [navigate]);
   return null;
 }
 
-function VerifyEmailRedirect() {
+export function VerifyEmailRedirect() {
   const navigate = useNavigate();
   const location = useLocation();
-  useEffect(() => {
-    const stored = localStorage.getItem('lang');
-    const detected = i18n.services?.languageDetector?.detect?.();
-    const candidate = stored || (Array.isArray(detected) ? detected[0] : detected);
+    useEffect(() => {
+      const stored = localStorage.getItem('lang');
+      const detector = i18n.services.languageDetector;
+      const detected =
+        detector && typeof detector.detect === 'function' ? detector.detect() : undefined;
+      const candidate = stored || (Array.isArray(detected) ? detected[0] : detected);
     const targetLang = normalizeLang(candidate);
     const search = location.search || '';
     const hash = location.hash || '';
@@ -245,7 +251,7 @@ function VerifyEmailRedirect() {
   return null;
 }
 
-function App() {
+export function App() {
   const [refreshCounter, setRefreshCounter] = useState(0);
 
   const refreshSeen = () => {

@@ -8,16 +8,25 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import jsxA11y from 'eslint-plugin-jsx-a11y';
 import importPlugin from 'eslint-plugin-import';
 import prettier from 'eslint-config-prettier';
+import reactRefresh from 'eslint-plugin-react-refresh';
+import promise from 'eslint-plugin-promise';
+import unicorn from 'eslint-plugin-unicorn';
+import sonarjs from 'eslint-plugin-sonarjs';
+import testingLibrary from 'eslint-plugin-testing-library';
+import jestDom from 'eslint-plugin-jest-dom';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const project = path.join(__dirname, 'tsconfig.json');
 const { plugins: _importPlugins, ...importRecommended } = importPlugin.flatConfigs.recommended;
 const { plugins: _importTsPlugins, ...importTypescript } = importPlugin.flatConfigs.typescript;
+void _importPlugins;
+void _importTsPlugins;
 
 export default tseslint.config(
   {
-    ignores: ['dist', 'build', 'node_modules', 'eslint.config.js']
+    ignores: ['dist', 'build', 'node_modules', 'eslint.config.js'],
+    linterOptions: { reportUnusedDisableDirectives: true }
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
@@ -28,7 +37,9 @@ export default tseslint.config(
       react.configs.flat['jsx-runtime'],
       jsxA11y.flatConfigs.recommended,
       importRecommended,
-      importTypescript
+      importTypescript,
+      reactRefresh.configs.vite,
+      promise.configs['flat/recommended']
     ],
     languageOptions: {
       globals: {
@@ -37,7 +48,9 @@ export default tseslint.config(
     },
     plugins: {
       'react-hooks': reactHooks,
-      import: importPlugin
+      import: importPlugin,
+      unicorn,
+      sonarjs
     },
     settings: {
       react: { version: 'detect' },
@@ -45,7 +58,8 @@ export default tseslint.config(
         typescript: {
           project
         }
-      }
+      },
+      'import/internal-regex': '^(@|src)/'
     },
     rules: {
       'react/jsx-uses-react': 'off',
@@ -53,14 +67,21 @@ export default tseslint.config(
       'react/prop-types': 'off',
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'error',
+      'react-refresh/only-export-components': [
+        'error',
+        {
+          allowConstantExport: true,
+          allowExportNames: ['useAuth', 'CSRF_HEADER_NAME', 'MAP_STYLE_URL']
+        }
+      ],
       '@typescript-eslint/ban-ts-comment': 'off',
       '@typescript-eslint/consistent-type-imports': 'error',
+      '@typescript-eslint/unified-signatures': 'off',
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/no-unused-vars': [
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' }
       ],
-      '@typescript-eslint/no-unused-expressions': 'off',
       'no-unused-expressions': 'off',
       'import/order': [
         'error',
@@ -91,7 +112,12 @@ export default tseslint.config(
           ]
         }
       ],
-      'import/no-cycle': 'error'
+      'import/no-cycle': 'error',
+      'import/no-duplicates': 'error',
+      'import/newline-after-import': 'error',
+      'import/no-useless-path-segments': 'warn',
+      'unicorn/prefer-node-protocol': 'error',
+      'unicorn/no-invalid-remove-event-listener': 'error'
     }
   },
   {
@@ -116,7 +142,7 @@ export default tseslint.config(
         { allowBoolean: true, allowNumber: true }
       ],
       '@typescript-eslint/no-confusing-void-expression': 'warn',
-      '@typescript-eslint/no-unnecessary-condition': 'warn',
+      '@typescript-eslint/no-unnecessary-condition': 'error',
       '@typescript-eslint/no-unnecessary-type-assertion': 'warn',
       '@typescript-eslint/no-unnecessary-type-conversion': 'warn',
       '@typescript-eslint/no-unused-expressions': 'warn',
@@ -135,10 +161,28 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-return': 'off',
       '@typescript-eslint/no-unsafe-argument': 'off',
       '@typescript-eslint/ban-ts-comment': 'off',
-      '@typescript-eslint/consistent-type-imports': 'warn',
+      '@typescript-eslint/consistent-type-imports': 'error',
+      '@typescript-eslint/unified-signatures': 'off',
       '@typescript-eslint/no-unused-vars': [
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' }
+      ]
+    }
+  },
+  {
+    files: ['src/pages/Contact.tsx', 'src/pages/Dashboard.tsx', 'src/pages/Search.tsx'],
+    rules: {
+      '@typescript-eslint/ban-ts-comment': [
+        'error',
+        {
+          'ts-ignore': true,
+          'ts-nocheck': true,
+          'ts-expect-error': 'allow-with-description'
+        }
+      ],
+      'no-warning-comments': [
+        'error',
+        { terms: ['@ts-nocheck'], location: 'anywhere' }
       ]
     }
   },
@@ -154,7 +198,12 @@ export default tseslint.config(
     }
   },
   {
-    files: ['**/*.{test,spec}.{ts,tsx}', 'tests/**/*.{ts,tsx}'],
+    files: ['**/*.{test,spec}.{ts,tsx}', 'tests/**/*.{ts,tsx}', 'src/test-utils/**/*.{ts,tsx}'],
+    extends: [
+      testingLibrary.configs['flat/react'],
+      jestDom.configs['flat/recommended'],
+      reactRefresh.configs.vite
+    ],
     languageOptions: {
       globals: {
         ...globals.browser,
@@ -163,6 +212,12 @@ export default tseslint.config(
       }
     },
     rules: {
+      'react-refresh/only-export-components': 'off',
+      'testing-library/no-manual-cleanup': 'off',
+      'testing-library/no-node-access': 'off',
+      'testing-library/render-result-naming-convention': 'off',
+      'jest-dom/prefer-focus': 'off',
+      'jest-dom/prefer-to-have-text-content': 'off',
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/no-unsafe-assignment': 'off',
       '@typescript-eslint/no-unsafe-call': 'off',

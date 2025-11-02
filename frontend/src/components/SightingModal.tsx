@@ -1,11 +1,26 @@
-// @ts-nocheck
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { useState, useEffect, useRef, useId, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams } from 'react-router-dom';
 
-import { LogSighting } from './logForms';
+import { LogSighting, type AnimalOption, type ZooOption } from './logForms';
 import { API } from '../api';
 import useAuthFetch from '../hooks/useAuthFetch';
+import type { Sighting } from '../types/domain';
+
+interface SightingModalProps {
+  sightingId?: string | null;
+  defaultZooId?: string;
+  defaultAnimalId?: string;
+  defaultZooName?: string;
+  defaultAnimalName?: string;
+  defaultNotes?: string;
+  zoos?: ZooOption[] | null;
+  animals?: AnimalOption[] | null;
+  onLogged?: () => void;
+  onUpdated?: () => void;
+  onClose?: () => void;
+}
 
 // Modal wrapper for creating or editing sightings. When a `sightingId`
 // is provided the existing entry is loaded and the form works in edit mode.
@@ -16,26 +31,31 @@ export default function SightingModal({
   defaultZooName = '',
   defaultAnimalName = '',
   defaultNotes = '',
-  // Optional pre-fetched lists to skip fetching inside the modal
   zoos: propZoos = null,
   animals: propAnimals = null,
   onLogged,
   onUpdated,
   onClose,
-}: any) {
-  // Start with provided lists if available
-  const [zoos, setZoos] = useState(propZoos || []);
-  const [animals, setAnimals] = useState(propAnimals || []);
-  const [sighting, setSighting] = useState<any>(null);
+}: SightingModalProps) {
+  const [zoos, setZoos] = useState<ZooOption[]>(propZoos ?? []);
+  const [animals, setAnimals] = useState<AnimalOption[]>(propAnimals ?? []);
+  const [sighting, setSighting] = useState<Sighting | null>(null);
   const authFetch = useAuthFetch();
   const { lang } = useParams();
-  const getName = (a) =>
-    lang === 'de' ? a.name_de || a.name_en : a.name_en || a.name_de;
-  const modalRef = useRef<any>(null);
-  const overlayRef = useRef<any>(null);
-  const previouslyFocused = useRef<any>(null);
+  const getName = useCallback(
+    (animal: AnimalOption | null | undefined) => {
+      if (!animal) return '';
+      return lang === 'de'
+        ? animal.name_de || animal.name_en || ''
+        : animal.name_en || animal.name_de || '';
+    },
+    [lang]
+  );
+  const modalRef = useRef<HTMLDivElement | null>(null);
+  const overlayRef = useRef<HTMLDivElement | null>(null);
+  const previouslyFocused = useRef<HTMLElement | null>(null);
   const titleId = `sighting-modal-title-${useId().replace(/:/g, '')}`;
-  const [portalNode] = useState(() => {
+  const [portalNode] = useState<HTMLDivElement | null>(() => {
     if (typeof document === 'undefined') return null;
     const node = document.createElement('div');
     node.className = 'modal-portal';
@@ -52,11 +72,11 @@ export default function SightingModal({
       try {
         const resp = await fetch(`${API}/zoos?limit=6000`);
         if (resp.ok) {
-          const payload = await resp.json();
-          const items = Array.isArray(payload?.items)
-            ? payload.items
+          const payload = (await resp.json()) as unknown;
+          const items = Array.isArray((payload as { items?: unknown }).items)
+            ? (payload as { items: ZooOption[] }).items
             : Array.isArray(payload)
-              ? payload
+              ? (payload as ZooOption[])
               : [];
           setZoos(items);
         }
@@ -76,7 +96,10 @@ export default function SightingModal({
       }
       try {
         const resp = await fetch(`${API}/animals`);
-        if (resp.ok) setAnimals(await resp.json());
+        if (resp.ok) {
+          const payload = (await resp.json()) as unknown;
+          setAnimals(Array.isArray(payload) ? (payload as AnimalOption[]) : []);
+        }
       } catch {
         setAnimals([]);
       }
@@ -90,7 +113,14 @@ export default function SightingModal({
     const loadSighting = async () => {
       try {
         const resp = await authFetch(`${API}/sightings/${sightingId}`);
-        if (resp.ok) setSighting(await resp.json());
+        if (resp.ok) {
+          const payload = (await resp.json()) as unknown;
+          if (payload && typeof payload === 'object') {
+            setSighting(payload as Sighting);
+          } else {
+            setSighting(null);
+          }
+        }
       } catch {
         setSighting(null);
       }
@@ -101,11 +131,11 @@ export default function SightingModal({
   // Notify parent and close the modal after saving or deleting
   const handleDone = () => {
     if (sightingId) {
-      onUpdated && onUpdated();
+      onUpdated?.();
     } else {
-      onLogged && onLogged();
+      onLogged?.();
     }
-    onClose && onClose();
+    onClose?.();
   };
 
   useEffect(() => {
@@ -127,16 +157,19 @@ export default function SightingModal({
     const focusModal = () => {
       const modalNode = modalRef.current;
       if (!modalNode) return;
-      const focusable = modalNode.querySelectorAll(focusableSelector);
-      if (focusable.length > 0) {
-        focusable[0].focus();
+      const focusableElements = Array.from(
+        modalNode.querySelectorAll<HTMLElement>(focusableSelector)
+      );
+      const firstFocusable = focusableElements[0];
+      if (firstFocusable) {
+        firstFocusable.focus();
       } else {
         modalNode.focus();
       }
-    };
-    const focusTimeout = setTimeout(focusModal, 0);
+  };
+    const focusTimeout = window.setTimeout(focusModal, 0);
     return () => {
-      clearTimeout(focusTimeout);
+      window.clearTimeout(focusTimeout);
       const prev = previouslyFocused.current;
       if (prev && typeof prev.focus === 'function') {
         prev.focus();
@@ -150,7 +183,7 @@ export default function SightingModal({
     document.body.style.overflow = 'hidden';
     const appRoot = document.getElementById('root');
     const previousHidden = appRoot?.getAttribute('aria-hidden') ?? null;
-    const hadInert = appRoot?.hasAttribute('inert');
+    const hadInert = appRoot?.hasAttribute('inert') ?? false;
     if (appRoot) {
       appRoot.setAttribute('aria-hidden', 'true');
       appRoot.setAttribute('inert', '');
@@ -158,45 +191,58 @@ export default function SightingModal({
     return () => {
       document.body.style.overflow = previousOverflow;
       if (appRoot) {
-        if (previousHidden === null) appRoot.removeAttribute('aria-hidden');
-        else appRoot.setAttribute('aria-hidden', previousHidden ?? 'false');
-        if (hadInert) appRoot.setAttribute('inert', '');
-        else appRoot.removeAttribute('inert');
+        if (previousHidden === null) {
+          appRoot.removeAttribute('aria-hidden');
+        } else {
+          appRoot.setAttribute('aria-hidden', previousHidden);
+        }
+        if (hadInert) {
+          appRoot.setAttribute('inert', '');
+        } else {
+          appRoot.removeAttribute('inert');
+        }
       }
     };
   }, []);
 
   const handleKeyDown = useCallback(
-    (event) => {
+    (event: ReactKeyboardEvent<HTMLDivElement>) => {
       const modalNode = modalRef.current;
       if (!modalNode) return;
       if (event.key === 'Escape') {
         event.preventDefault();
         event.stopPropagation();
-        onClose && onClose();
+        onClose?.();
         return;
       }
       if (event.key !== 'Tab') return;
-      const focusable = modalNode.querySelectorAll(
-        'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
-      );
-      if (focusable.length === 0) {
-        event.preventDefault();
-        modalNode.focus();
-        return;
-      }
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      const active = document.activeElement;
-      if (event.shiftKey) {
-        if (!modalNode.contains(active) || active === first) {
+        const focusableElements = Array.from(
+          modalNode.querySelectorAll<HTMLElement>(
+            'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+          )
+        );
+        if (focusableElements.length === 0) {
           event.preventDefault();
-          last.focus();
+          modalNode.focus();
+          return;
         }
-      } else if (!modalNode.contains(active) || active === last) {
-        event.preventDefault();
-        first.focus();
-      }
+        const first = focusableElements[0];
+        const last = focusableElements[focusableElements.length - 1];
+        if (!first || !last) {
+          event.preventDefault();
+          modalNode.focus();
+          return;
+        }
+        const active = document.activeElement;
+        if (event.shiftKey) {
+          if (!active || !modalNode.contains(active) || active === first) {
+            event.preventDefault();
+            last.focus();
+          }
+        } else if (!active || !modalNode.contains(active) || active === last) {
+          event.preventDefault();
+          first.focus();
+        }
     },
     [onClose]
   );
@@ -225,26 +271,32 @@ export default function SightingModal({
           animals={animals}
           defaultZooId={sighting ? sighting.zoo_id : defaultZooId}
           defaultAnimalId={sighting ? sighting.animal_id : defaultAnimalId}
-          defaultDate={
-            sighting ? sighting.sighting_datetime.slice(0, 10) : undefined
-          }
+            defaultDate={sighting ? sighting.sighting_datetime.slice(0, 10) : null}
           initialZooName={
             sighting
-              ? zoos.find((z) => z.id === sighting.zoo_id)?.name || defaultZooName
+              ? (() => {
+                  const match = zoos.find((z) => z.id === sighting.zoo_id);
+                  if (!match) {
+                    return defaultZooName;
+                  }
+                  return match.name || defaultZooName;
+                })()
               : defaultZooName
           }
           initialAnimalName={
             sighting
-              ? getName(
-                  animals.find((a) => a.id === sighting.animal_id) || {}
-                ) || defaultAnimalName
+              ? (() => {
+                  const match = animals.find((a) => a.id === sighting.animal_id);
+                  const resolved = getName(match);
+                  return resolved || defaultAnimalName;
+                })()
               : defaultAnimalName
           }
           defaultNotes={sighting ? sighting.notes ?? '' : defaultNotes}
           sightingId={sightingId}
           onLogged={handleDone}
           onDeleted={handleDone}
-          onCancel={() => onClose && onClose()}
+          onCancel={() => onClose?.()}
           titleId={titleId}
         />
       </div>

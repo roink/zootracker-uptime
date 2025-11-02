@@ -6,6 +6,17 @@ import Seo from '../components/Seo';
 import { ORG } from '../config/org';
 import { DEFAULT_LANG, normalizeLang } from '../i18n';
 
+type LegalNoticeSection = {
+  heading?: string;
+  legalReference?: string;
+  contactTitle?: string;
+  vatTitle?: string;
+  vatLabel?: string;
+  vatLabelTitle?: string;
+  city?: string;
+  country?: string;
+} & Record<string, unknown>;
+
 // Legal notice page showing German and English provider identification.
 export default function LegalNoticePage() {
   const { lang } = useParams();
@@ -15,12 +26,15 @@ export default function LegalNoticePage() {
   const normalizedLang = normalizeLang(langSegment);
   const prefix = `/${normalizedLang}`;
 
-  const sections = t('legalNoticePage.sections', { returnObjects: true }) || {};
-  const hasActiveSection =
-    sections && Object.prototype.hasOwnProperty.call(sections, normalizedLang);
+    const rawSections = t('legalNoticePage.sections', { returnObjects: true }) as unknown;
+  const sections =
+    typeof rawSections === 'object' && rawSections !== null
+      ? (rawSections as Record<string, LegalNoticeSection | undefined>)
+      : {};
+  const hasActiveSection = Object.prototype.hasOwnProperty.call(sections, normalizedLang);
   const displayLang = hasActiveSection ? normalizedLang : DEFAULT_LANG;
   const sectionKeyPrefix = `legalNoticePage.sections.${displayLang}`;
-  const sectionContent = sections[displayLang] || {};
+  const sectionContent = sections[displayLang] ?? {};
   const {
     heading = '',
     legalReference,

@@ -45,10 +45,10 @@ const parseSiteSummary = (value: unknown): LandingSiteSummary => {
   const readCount = (input: unknown): number =>
     typeof input === 'number' && Number.isFinite(input) ? input : 0;
   return {
-    species: readCount(value.species),
-    zoos: readCount(value.zoos),
-    countries: readCount(value.countries),
-    sightings: readCount(value.sightings)
+    species: readCount(value['species']),
+    zoos: readCount(value['zoos']),
+    countries: readCount(value['countries']),
+    sightings: readCount(value['sightings'])
   };
 };
 
@@ -58,43 +58,54 @@ const parsePopularAnimals = (value: unknown): LandingPopularAnimal[] => {
   }
   const animals: LandingPopularAnimal[] = [];
   value.forEach((entry) => {
-    if (!isRecord(entry) || (typeof entry.id !== 'string' && typeof entry.id !== 'number')) {
+    if (!isRecord(entry)) {
       return;
     }
-    const id = String(entry.id);
-    const slug = typeof entry.slug === 'string' && entry.slug.length > 0 ? entry.slug : undefined;
+    const rawId = entry['id'];
+    if (typeof rawId !== 'string' && typeof rawId !== 'number') {
+      return;
+    }
+    const id = String(rawId);
+    const rawSlug = entry['slug'];
+    const slug = typeof rawSlug === 'string' && rawSlug.length > 0 ? rawSlug : undefined;
+    const rawNameEn = entry['name_en'];
     const nameEn =
-      typeof entry.name_en === 'string'
-        ? entry.name_en
-        : entry.name_en === null
+      typeof rawNameEn === 'string'
+        ? rawNameEn
+        : rawNameEn === null
           ? null
           : undefined;
+    const rawNameDe = entry['name_de'];
     const nameDe =
-      typeof entry.name_de === 'string'
-        ? entry.name_de
-        : entry.name_de === null
+      typeof rawNameDe === 'string'
+        ? rawNameDe
+        : rawNameDe === null
           ? null
           : undefined;
+    const rawScientificName = entry['scientific_name'];
     const scientificName =
-      typeof entry.scientific_name === 'string'
-        ? entry.scientific_name
-        : entry.scientific_name === null
+      typeof rawScientificName === 'string'
+        ? rawScientificName
+        : rawScientificName === null
           ? null
           : undefined;
+    const rawZooCount = entry['zoo_count'];
     const zooCount =
-      typeof entry.zoo_count === 'number' && Number.isFinite(entry.zoo_count)
-        ? entry.zoo_count
+      typeof rawZooCount === 'number' && Number.isFinite(rawZooCount)
+        ? rawZooCount
         : null;
+    const rawConservation = entry['iucn_conservation_status'];
     const conservation =
-      typeof entry.iucn_conservation_status === 'string'
-        ? entry.iucn_conservation_status
-        : entry.iucn_conservation_status === null
+      typeof rawConservation === 'string'
+        ? rawConservation
+        : rawConservation === null
           ? null
           : undefined;
+    const rawImageUrl = entry['default_image_url'];
     const imageUrl =
-      typeof entry.default_image_url === 'string'
-        ? entry.default_image_url
-        : entry.default_image_url === null
+      typeof rawImageUrl === 'string'
+        ? rawImageUrl
+        : rawImageUrl === null
           ? null
           : undefined;
 
@@ -144,7 +155,8 @@ const readStoredSearches = (): RecentSearches => {
 export default function Landing() {
   const navigate = useNavigate();
   const params = useParams<LandingRouteParams>();
-  const urlLang = typeof params.lang === 'string' && params.lang.length > 0 ? params.lang : 'en';
+  const rawLang = params['lang'];
+  const urlLang = typeof rawLang === 'string' && rawLang.length > 0 ? rawLang : 'en';
   const prefix = `/${urlLang}`;
   const { t, i18n } = useTranslation();
 

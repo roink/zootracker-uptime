@@ -1,4 +1,4 @@
-// @ts-nocheck
+import type { ChangeEvent, FormEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
@@ -6,6 +6,21 @@ import { Link } from 'react-router-dom';
 import { API } from '../api';
 import Seo from '../components/Seo';
 import useLang from '../hooks/useLang';
+
+const statusTones = ['success', 'rateLimit', 'validation', 'error', 'tooFast'] as const;
+
+type ContactStatusTone = (typeof statusTones)[number];
+
+type ContactStatusKey =
+  | 'contactPage.status.success'
+  | 'contactPage.status.rateLimit'
+  | 'contactPage.status.validation'
+  | 'contactPage.status.error'
+  | 'contactPage.status.tooFast';
+
+function isStatusTone(value: string): value is ContactStatusTone {
+  return (statusTones as readonly string[]).includes(value);
+}
 
 // Contact form where users can send a name, email and message.
 export default function ContactPage() {
@@ -18,27 +33,28 @@ export default function ContactPage() {
   const counterId = 'contactMessageHelp';
   const shortHintId = 'contactMessageTooShort';
   const honeypotId = 'contactWebsite';
-  const formStartRef = useRef(Date.now());
-  const statusRef = useRef<any>(null);
+  const formStartRef = useRef<number>(Date.now());
+  const statusRef = useRef<HTMLDivElement | null>(null);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState('');
   const [messageTouched, setMessageTouched] = useState(false);
   const [honeypot, setHoneypot] = useState('');
-  const [statusKey, setStatusKey] = useState<any>(null);
+  const [statusKey, setStatusKey] = useState<ContactStatusKey | null>(null);
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
     if (!statusKey || statusKey === 'contactPage.status.success') {
       return;
     }
-    if (statusRef.current) {
-      statusRef.current.focus();
+    const statusNode = statusRef.current;
+    if (statusNode) {
+      statusNode.focus();
     }
   }, [statusKey]);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     if (sending) return;
     setMessageTouched(true);
     setStatusKey(null);
@@ -84,15 +100,18 @@ export default function ContactPage() {
         // Show specific guidance when the rate limit is hit
         setStatusKey('contactPage.status.rateLimit');
       } else if (resp.status === 422) {
-        let detailPayload = null;
+        let detailPayload: unknown = null;
         try {
           detailPayload = await resp.json();
         } catch (_error) {
           detailPayload = null;
         }
         const detailValue =
-          detailPayload && typeof detailPayload.detail === 'string'
-            ? detailPayload.detail
+          typeof detailPayload === 'object' &&
+          detailPayload !== null &&
+          'detail' in detailPayload &&
+          typeof (detailPayload as { detail?: unknown }).detail === 'string'
+            ? (detailPayload as { detail: string }).detail
             : null;
         if (detailValue === 'too_fast') {
           setStatusKey('contactPage.status.tooFast');
@@ -116,15 +135,36 @@ export default function ContactPage() {
     ? `${counterId} ${shortHintId}`
     : counterId;
 
-  const statusTone = statusKey ? statusKey.split('.').pop() : null;
+  const statusTone = statusKey?.split('.').pop();
   const statusClassMap = {
     success: 'alert-success',
     rateLimit: 'alert-warning',
     validation: 'alert-danger',
     error: 'alert-danger',
     tooFast: 'alert-info',
+  } satisfies Record<ContactStatusTone, string>;
+  const statusClassName =
+    statusTone && isStatusTone(statusTone) ? statusClassMap[statusTone] : 'alert-info';
+
+  const handleNameChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setName(event.target.value);
   };
-  const statusClassName = statusTone ? statusClassMap[statusTone] || 'alert-info' : 'alert-info';
+
+  const handleEmailChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setEmail(event.target.value);
+  };
+
+  const handleMessageChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
+    setMessage(event.target.value);
+  };
+
+  const handleHoneypotChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setHoneypot(event.target.value);
+  };
+
+  const markMessageTouched = () => {
+    setMessageTouched(true);
+  };
 
   const dataProtectionHref = `${langPrefix}/data-protection`;
   const legalNoticeHref = `${langPrefix}/legal-notice`;
@@ -158,8 +198,8 @@ export default function ContactPage() {
             type="text"
             className="form-control"
             value={name}
-            onChange={(e) => { setName(e.target.value); }}
-            maxLength="100"
+            onChange={handleNameChange}
+            maxLength={100}
             autoComplete="name"
             required
           />
@@ -173,7 +213,7 @@ export default function ContactPage() {
             type="email"
             className="form-control"
             value={email}
-            onChange={(e) => { setEmail(e.target.value); }}
+            onChange={handleEmailChange}
             autoComplete="email"
             inputMode="email"
             required
@@ -186,16 +226,16 @@ export default function ContactPage() {
           <textarea
             id="contactMessage"
             className="form-control"
-            rows="4"
+            rows={4}
             maxLength={maxMessageLength}
             value={message}
-            onChange={(e) => { setMessage(e.target.value); }}
-            onBlur={() => { setMessageTouched(true); }}
-            onInvalid={() => { setMessageTouched(true); }}
+            onChange={handleMessageChange}
+            onBlur={markMessageTouched}
+            onInvalid={markMessageTouched}
             minLength={minMessageLength}
             aria-describedby={messageDescribedBy}
             aria-errormessage={messageTooShort ? shortHintId : undefined}
-            aria-invalid={messageTooShort ? 'true' : undefined}
+            aria-invalid={messageTooShort}
             required
           />
           <div id={counterId} className="form-text text-end">
@@ -216,7 +256,7 @@ export default function ContactPage() {
             autoComplete="off"
             aria-hidden="true"
             value={honeypot}
-            onChange={(e) => { setHoneypot(e.target.value); }}
+            onChange={handleHoneypotChange}
           />
         </div>
         <button type="submit" className="btn btn-success" disabled={sending}>

@@ -108,9 +108,9 @@ export default function AnimalsPage() {
     const previous = window.history.scrollRestoration;
     window.history.scrollRestoration = 'manual';
 
-    return () => {
-      window.history.scrollRestoration = previous || 'auto';
-    };
+      return () => {
+        window.history.scrollRestoration = previous;
+      };
   }, []);
 
   const withInstantScroll = useCallback((fn) => {
@@ -216,10 +216,10 @@ export default function AnimalsPage() {
     try {
       sessionStorage.setItem(
         storageKey,
-        JSON.stringify({
-          animals: snapshot.animals ?? [],
-          hasMore: Boolean(snapshot.hasMore),
-          statusMessage: snapshot.statusMessage ?? '',
+          JSON.stringify({
+            animals: snapshot.animals,
+            hasMore: Boolean(snapshot.hasMore),
+            statusMessage: snapshot.statusMessage,
           prefersManualLoading: Boolean(snapshot.prefersManualLoading),
           offset: offsetRef.current,
           scrollY: scrollPositionRef.current,
