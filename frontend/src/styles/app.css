@@ -393,6 +393,15 @@
   transform: scale(1.02);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .animal-card-img-ambient::before,
+  .animal-card-img-ambient::after,
+  .animal-card-img-ambient__img {
+    transition: none !important;
+    transform: none !important;
+  }
+}
+
 @supports not (aspect-ratio: 1 / 1) {
   .animal-card-img-ambient {
     position: relative;

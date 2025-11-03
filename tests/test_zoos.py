@@ -22,14 +22,87 @@ def _extract_items(response_json):
 async def test_get_animals_for_zoo(client, data):
     resp = await client.get(f"/zoos/{data['zoo'].slug}/animals")
     assert resp.status_code == 200
-    animals = resp.json()
-    # With enriched seed, the zoo keeps both the parent species and a subspecies
-    assert len(animals) == 2
-    slugs = {animal["slug"] for animal in animals}
+    payload = resp.json()
+    assert payload["total"] == 2
+    assert payload["available_total"] == 2
+    items = payload["items"]
+    assert len(items) == 2
+    assert len(payload["inventory"]) == payload["available_total"]
+    slugs = {animal["slug"] for animal in items}
     assert slugs == {data["animal"].slug, data["lion_subspecies"].slug}
-    lion_entry = next(a for a in animals if a["id"] == str(data["animal"].id))
+    lion_entry = next(a for a in items if a["id"] == str(data["animal"].id))
     assert lion_entry["is_favorite"] is False
+    assert lion_entry["seen"] is False
+    facets = payload["facets"]
+    assert facets["classes"]
+    assert facets["orders"]
+    assert facets["families"]
 
+
+async def test_zoo_animal_search_and_taxonomy_filters(client, data):
+    base_url = f"/zoos/{data['zoo'].slug}/animals"
+
+    resp = await client.get(f"{base_url}?q=asiatic")
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload["total"] == 1
+    assert payload["items"][0]["slug"] == data["lion_subspecies"].slug
+
+    resp = await client.get(f"{base_url}?class=1")
+    assert resp.status_code == 200
+    class_payload = resp.json()
+    assert class_payload["total"] == 1
+
+    resp = await client.get(f"{base_url}?family=999")
+    assert resp.status_code == 200
+    assert resp.json()["total"] == 0
+
+
+async def test_zoo_animal_seen_and_favorite_filters(client, data):
+    token, _user_id = await register_and_login()
+    headers = {"Authorization": f"Bearer {token}"}
+    base_url = f"/zoos/{data['zoo'].slug}/animals"
+
+    # Mark the lion as a favorite and log a sighting so both filters can be applied.
+    fav_resp = await client.put(
+        f"/animals/{data['animal'].slug}/favorite",
+        headers=headers,
+    )
+    assert fav_resp.status_code == 200
+
+    sighting_time = datetime(2024, 7, 1, 12, 0, tzinfo=UTC)
+    log_resp = await client.post(
+        "/sightings",
+        json={
+            "zoo_id": str(data["zoo"].id),
+            "animal_id": str(data["animal"].id),
+            "sighting_datetime": sighting_time.isoformat(),
+            "notes": "Filter test sighting",
+        },
+        headers=headers,
+    )
+    assert log_resp.status_code == 200
+
+    fav_filter = await client.get(f"{base_url}?favorites=1", headers=headers)
+    assert fav_filter.status_code == 200
+    fav_payload = fav_filter.json()
+    assert fav_payload["total"] == 1
+    assert fav_payload["items"][0]["id"] == str(data["animal"].id)
+    assert fav_payload["items"][0]["is_favorite"] is True
+
+    seen_filter = await client.get(f"{base_url}?seen=1", headers=headers)
+    assert seen_filter.status_code == 200
+    seen_payload = seen_filter.json()
+    assert seen_payload["total"] == 1
+    assert seen_payload["items"][0]["id"] == str(data["animal"].id)
+    assert seen_payload["items"][0]["seen"] is True
+
+    # Combine filters to ensure AND semantics.
+    combined = await client.get(f"{base_url}?seen=1&favorites=1", headers=headers)
+    assert combined.status_code == 200
+    combined_payload = combined.json()
+    assert combined_payload["total"] == 1
+    assert combined_payload["items"][0]["id"] == str(data["animal"].id)
 async def test_get_zoo_details(client, data):
     resp = await client.get(f"/zoos/{data['zoo'].slug}")
     assert resp.status_code == 200

@@ -240,6 +240,7 @@ class ZooMapPoint(BaseModel):
 
 class AnimalRead(BaseModel):
     """Minimal representation of an animal."""
+
     id: UUID
     slug: str
     name_en: str
@@ -248,6 +249,58 @@ class AnimalRead(BaseModel):
     zoo_count: int = 0
     is_favorite: bool = False
     default_image_url: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
+
+
+class ZooAnimalFacetOption(BaseModel):
+    """Facet entry describing a taxonomic classification option."""
+
+    id: int
+    name_de: Optional[str] = None
+    name_en: Optional[str] = None
+    count: int = 0
+
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
+
+
+class ZooAnimalFacets(BaseModel):
+    """Grouped facet metadata for zoo animal listings."""
+
+    classes: list[ZooAnimalFacetOption] = Field(default_factory=list)
+    orders: list[ZooAnimalFacetOption] = Field(default_factory=list)
+    families: list[ZooAnimalFacetOption] = Field(default_factory=list)
+
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
+
+
+class ZooAnimalListItem(BaseModel):
+    """Animal entry enriched with favorite and seen flags for a zoo."""
+
+    id: UUID
+    slug: str
+    name_en: Optional[str] = None
+    scientific_name: Optional[str] = None
+    name_de: Optional[str] = None
+    zoo_count: int = 0
+    is_favorite: bool = False
+    default_image_url: Optional[str] = None
+    seen: bool = False
+    klasse: Optional[int] = None
+    ordnung: Optional[int] = None
+    familie: Optional[int] = None
+
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
+
+
+class ZooAnimalListing(BaseModel):
+    """Response payload for animals available at a zoo."""
+
+    items: list[ZooAnimalListItem] = Field(default_factory=list)
+    total: int = 0
+    available_total: int = 0
+    inventory: list[ZooAnimalListItem] = Field(default_factory=list)
+    facets: ZooAnimalFacets = Field(default_factory=ZooAnimalFacets)
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 

@@ -335,21 +335,43 @@ def list_zoo_sightings(
     )
 
 
-@router.get("/zoos/{zoo_slug}/animals", response_model=list[schemas.AnimalRead])
+@router.get("/zoos/{zoo_slug}/animals", response_model=schemas.ZooAnimalListing)
 def list_zoo_animals(
     response: Response,
     zoo_slug: str,
+    q: str | None = None,
+    class_filters: list[int] = Query(default_factory=list, alias="class"),
+    order_filters: list[int] = Query(default_factory=list, alias="order"),
+    family_filters: list[int] = Query(default_factory=list, alias="family"),
+    seen: str | None = None,
+    favorites: str | None = None,
     db: Session = _db_dependency,
     user: models.User | None = _optional_user_dependency,
-) -> list[schemas.AnimalRead]:
+) -> schemas.ZooAnimalListing:
     """Return animals that are associated with a specific zoo."""
 
     set_personalized_cache_headers(response)
 
     zoo = _get_zoo_or_404(zoo_slug, db)
-    favorites: set = set()
+
+    search_text = (q or "").strip().lower()
+    selected_classes = {value for value in class_filters if value is not None}
+    selected_orders = {value for value in order_filters if value is not None}
+    selected_families = {value for value in family_filters if value is not None}
+
+    def _as_bool(value: str | None) -> bool:
+        if value is None:
+            return False
+        lowered = value.strip().lower()
+        return lowered in {"1", "true", "yes", "on"}
+
+    require_seen = _as_bool(seen)
+    require_favorites = _as_bool(favorites)
+
+    favorite_ids: set = set()
+    seen_ids: set = set()
     if user is not None:
-        favorites = {
+        favorite_ids = {
             row[0]
             for row in (
                 db.query(models.UserFavoriteAnimal.animal_id)
@@ -357,23 +379,206 @@ def list_zoo_animals(
                 .all()
             )
         }
-    animals = (
+        seen_ids = {
+            row[0]
+            for row in (
+                db.query(models.AnimalSighting.animal_id)
+                .filter(models.AnimalSighting.user_id == user.id)
+                .distinct()
+                .all()
+            )
+        }
+
+    animals_query = (
         db.query(models.Animal)
         .join(models.ZooAnimal, models.Animal.id == models.ZooAnimal.animal_id)
         .filter(models.ZooAnimal.zoo_id == zoo.id)
-        .order_by(models.Animal.zoo_count.desc())
-        .all()
-    )
-    return [
-        schemas.AnimalRead(
-            id=a.id,
-            slug=a.slug,
-            name_en=a.name_en,
-            scientific_name=a.scientific_name,
-            name_de=a.name_de,
-            zoo_count=a.zoo_count,
-            is_favorite=a.id in favorites,
-            default_image_url=a.default_image_url,
+        .options(
+            joinedload(models.Animal.klasse_name),
+            joinedload(models.Animal.ordnung_name),
+            joinedload(models.Animal.familie_name),
         )
-        for a in animals
+        .order_by(
+            models.Animal.zoo_count.desc(),
+            models.Animal.name_en.asc(),
+            models.Animal.id.asc(),
+        )
+    )
+    animals = animals_query.all()
+
+    def _matches_search(animal: models.Animal) -> bool:
+        if not search_text:
+            return True
+        candidates = (
+            animal.name_en,
+            animal.name_de,
+            animal.scientific_name,
+            animal.slug,
+        )
+        for candidate in candidates:
+            if candidate and search_text in candidate.lower():
+                return True
+        return False
+
+    def _matches_filters(animal: models.Animal) -> bool:
+        if require_favorites and animal.id not in favorite_ids:
+            return False
+        if require_seen and animal.id not in seen_ids:
+            return False
+        if selected_classes and (animal.klasse not in selected_classes):
+            return False
+        if selected_orders and (animal.ordnung not in selected_orders):
+            return False
+        if selected_families and (animal.familie not in selected_families):
+            return False
+        return _matches_search(animal)
+
+    def _passes_common_filters(animal: models.Animal) -> bool:
+        if require_favorites and animal.id not in favorite_ids:
+            return False
+        if require_seen and animal.id not in seen_ids:
+            return False
+        return _matches_search(animal)
+
+    filtered_animals = [animal for animal in animals if _matches_filters(animal)]
+
+    def _collect_labels(animal: models.Animal) -> tuple[
+        dict[int, tuple[str | None, str | None]],
+        dict[int, tuple[str | None, str | None]],
+        dict[int, tuple[str | None, str | None]],
+    ]:
+        return (
+            {
+                animal.klasse: (
+                    getattr(animal.klasse_name, "name_de", None),
+                    getattr(animal.klasse_name, "name_en", None),
+                )
+                for _ in [None]
+                if animal.klasse is not None
+            },
+            {
+                animal.ordnung: (
+                    getattr(animal.ordnung_name, "name_de", None),
+                    getattr(animal.ordnung_name, "name_en", None),
+                )
+                for _ in [None]
+                if animal.ordnung is not None
+            },
+            {
+                animal.familie: (
+                    getattr(animal.familie_name, "name_de", None),
+                    getattr(animal.familie_name, "name_en", None),
+                )
+                for _ in [None]
+                if animal.familie is not None
+            },
+        )
+
+    class_labels: dict[int, tuple[str | None, str | None]] = {}
+    order_labels: dict[int, tuple[str | None, str | None]] = {}
+    family_labels: dict[int, tuple[str | None, str | None]] = {}
+    class_counts: dict[int, int] = {}
+    order_counts: dict[int, int] = {}
+    family_counts: dict[int, int] = {}
+
+    for animal in animals:
+        cls_label, ord_label, fam_label = _collect_labels(animal)
+        class_labels.update(cls_label)
+        order_labels.update(ord_label)
+        family_labels.update(fam_label)
+
+        if (
+            _passes_common_filters(animal)
+            and (not selected_orders or animal.ordnung in selected_orders)
+            and (not selected_families or animal.familie in selected_families)
+            and animal.klasse is not None
+        ):
+            class_counts[animal.klasse] = class_counts.get(animal.klasse, 0) + 1
+
+        if (
+            _passes_common_filters(animal)
+            and (not selected_classes or animal.klasse in selected_classes)
+            and (not selected_families or animal.familie in selected_families)
+            and animal.ordnung is not None
+        ):
+            order_counts[animal.ordnung] = order_counts.get(animal.ordnung, 0) + 1
+
+        if (
+            _passes_common_filters(animal)
+            and (not selected_classes or animal.klasse in selected_classes)
+            and (not selected_orders or animal.ordnung in selected_orders)
+            and animal.familie is not None
+        ):
+            family_counts[animal.familie] = family_counts.get(animal.familie, 0) + 1
+
+    def _sort_key(
+        labels: dict[int, tuple[str | None, str | None]],
+        identifier: int,
+    ) -> tuple[str, int]:
+        name_en = labels.get(identifier, (None, None))[1] or ""
+        return (name_en.lower(), identifier)
+
+    class_facets = [
+        schemas.ZooAnimalFacetOption(
+            id=klass,
+            name_de=class_labels.get(klass, (None, None))[0],
+            name_en=class_labels.get(klass, (None, None))[1],
+            count=count,
+        )
+        for klass, count in sorted(
+            class_counts.items(), key=lambda item: _sort_key(class_labels, item[0])
+        )
     ]
+    order_facets = [
+        schemas.ZooAnimalFacetOption(
+            id=ordnung,
+            name_de=order_labels.get(ordnung, (None, None))[0],
+            name_en=order_labels.get(ordnung, (None, None))[1],
+            count=count,
+        )
+        for ordnung, count in sorted(
+            order_counts.items(), key=lambda item: _sort_key(order_labels, item[0])
+        )
+    ]
+    family_facets = [
+        schemas.ZooAnimalFacetOption(
+            id=familie,
+            name_de=family_labels.get(familie, (None, None))[0],
+            name_en=family_labels.get(familie, (None, None))[1],
+            count=count,
+        )
+        for familie, count in sorted(
+            family_counts.items(), key=lambda item: _sort_key(family_labels, item[0])
+        )
+    ]
+
+    def _serialize(animal: models.Animal) -> schemas.ZooAnimalListItem:
+        return schemas.ZooAnimalListItem(
+            id=animal.id,
+            slug=animal.slug,
+            name_en=animal.name_en,
+            scientific_name=animal.scientific_name,
+            name_de=animal.name_de,
+            zoo_count=animal.zoo_count or 0,
+            is_favorite=animal.id in favorite_ids,
+            default_image_url=animal.default_image_url,
+            seen=animal.id in seen_ids,
+            klasse=animal.klasse,
+            ordnung=animal.ordnung,
+            familie=animal.familie,
+        )
+
+    inventory_items = [_serialize(animal) for animal in animals]
+    filtered_items = [_serialize(animal) for animal in filtered_animals]
+
+    return schemas.ZooAnimalListing(
+        items=filtered_items,
+        total=len(filtered_items),
+        available_total=len(inventory_items),
+        inventory=inventory_items,
+        facets=schemas.ZooAnimalFacets(
+            classes=class_facets,
+            orders=order_facets,
+            families=family_facets,
+        ),
+    )

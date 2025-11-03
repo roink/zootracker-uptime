@@ -49,10 +49,14 @@ export default function AnimalTile({
   return (
     <Link
       to={to}
-          className={`animal-card d-block text-decoration-none text-reset ${className}`.trim()}
-          onClick={onClick}
-          onKeyDown={onKeyDown}
-        >
+      className={
+        ['animal-card d-block text-decoration-none text-reset', className]
+          .filter(Boolean)
+          .join(' ')
+      }
+      onClick={onClick}
+      onKeyDown={onKeyDown}
+    >
       {animal.default_image_url && (
         <div className="animal-card-img-ambient" style={ambientStyle}>
           {/* Present the original image centered with a blurred ambient backdrop */}
