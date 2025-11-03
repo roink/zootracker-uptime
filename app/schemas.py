@@ -1,7 +1,7 @@
 """Pydantic schemas used for request and response models."""
 
 from datetime import date, datetime
-from typing import Annotated, Literal, Optional
+from typing import Annotated, Literal
 from uuid import UUID
 
 from pydantic import (
@@ -145,7 +145,7 @@ class PasswordResetTokenStatus(BaseModel):
     """Response describing the status of a password reset token."""
 
     status: Literal["valid", "invalid", "consumed", "expired", "rate_limited"]
-    detail: Optional[str] = None
+    detail: str | None = None
 
     model_config = ConfigDict(extra="forbid")
 
@@ -156,7 +156,7 @@ class Token(BaseModel):
     access_token: str
     token_type: str
     expires_in: int
-    user_id: Optional[UUID] = None
+    user_id: UUID | None = None
     email_verified: bool = False
 
     model_config = ConfigDict(extra="forbid")
@@ -167,8 +167,8 @@ class ZooRead(BaseModel):
     id: UUID
     slug: str
     name: str
-    address: Optional[str] = None
-    city: Optional[str] = None
+    address: str | None = None
+    city: str | None = None
     is_favorite: bool = False
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")
@@ -179,13 +179,13 @@ class ZooDetail(BaseModel):
     id: UUID
     slug: str
     name: str
-    address: Optional[str] = None
-    city: Optional[str] = None
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
-    description_de: Optional[str] = None
-    description_en: Optional[str] = None
-    distance_km: Optional[float] = None
+    address: str | None = None
+    city: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    description_de: str | None = None
+    description_en: str | None = None
+    distance_km: float | None = None
     is_favorite: bool = False
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")
@@ -197,10 +197,10 @@ class ZooSearchResult(BaseModel):
     id: UUID
     slug: str
     name: str
-    city: Optional[str] = None
-    country_name_de: Optional[str] = None
-    country_name_en: Optional[str] = None
-    distance_km: Optional[float] = None
+    city: str | None = None
+    country_name_de: str | None = None
+    country_name_en: str | None = None
+    distance_km: float | None = None
     is_favorite: bool = False
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")
@@ -231,23 +231,76 @@ class ZooMapPoint(BaseModel):
     id: UUID
     slug: str
     name: str
-    city: Optional[str] = None
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
+    city: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 
 
 class AnimalRead(BaseModel):
     """Minimal representation of an animal."""
+
     id: UUID
     slug: str
     name_en: str
-    scientific_name: Optional[str] = None
-    name_de: Optional[str] = None
+    scientific_name: str | None = None
+    name_de: str | None = None
     zoo_count: int = 0
     is_favorite: bool = False
-    default_image_url: Optional[str] = None
+    default_image_url: str | None = None
+
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
+
+
+class ZooAnimalFacetOption(BaseModel):
+    """Facet entry describing a taxonomic classification option."""
+
+    id: int
+    name_de: str | None = None
+    name_en: str | None = None
+    count: int = 0
+
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
+
+
+class ZooAnimalFacets(BaseModel):
+    """Grouped facet metadata for zoo animal listings."""
+
+    classes: list[ZooAnimalFacetOption] = Field(default_factory=list)
+    orders: list[ZooAnimalFacetOption] = Field(default_factory=list)
+    families: list[ZooAnimalFacetOption] = Field(default_factory=list)
+
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
+
+
+class ZooAnimalListItem(BaseModel):
+    """Animal entry enriched with favorite and seen flags for a zoo."""
+
+    id: UUID
+    slug: str
+    name_en: str | None = None
+    scientific_name: str | None = None
+    name_de: str | None = None
+    zoo_count: int = 0
+    is_favorite: bool = False
+    default_image_url: str | None = None
+    seen: bool = False
+    klasse: int | None = None
+    ordnung: int | None = None
+    familie: int | None = None
+
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
+
+
+class ZooAnimalListing(BaseModel):
+    """Response payload for animals available at a zoo."""
+
+    items: list[ZooAnimalListItem] = Field(default_factory=list)
+    total: int = 0
+    available_total: int = 0
+    inventory: list[ZooAnimalListItem] = Field(default_factory=list)
+    facets: ZooAnimalFacets = Field(default_factory=ZooAnimalFacets)
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 
@@ -258,24 +311,35 @@ class AnimalListItem(BaseModel):
     id: UUID
     slug: str
     name_en: str
-    scientific_name: Optional[str] = None
-    name_de: Optional[str] = None
-    category: Optional[str] = None
-    description_de: Optional[str] = None
-    iucn_conservation_status: Optional[str] = None
-    default_image_url: Optional[str] = None
+    scientific_name: str | None = None
+    name_de: str | None = None
+    category: str | None = None
+    description_de: str | None = None
+    iucn_conservation_status: str | None = None
+    default_image_url: str | None = None
     zoo_count: int = 0
     is_favorite: bool = False
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 
 
+class AnimalSearchPage(BaseModel):
+    """Paginated response for animal search results."""
+
+    items: list[AnimalListItem] = Field(default_factory=list)
+    total: int = 0
+    limit: int = 50
+    offset: int = 0
+
+    model_config = ConfigDict(extra="forbid")
+
+
 class TaxonName(BaseModel):
     """Represents a taxonomic name with German and English labels."""
 
     id: int
-    name_de: Optional[str] = None
-    name_en: Optional[str] = None
+    name_de: str | None = None
+    name_en: str | None = None
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 
@@ -304,13 +368,13 @@ class ImageAttribution(BaseModel):
 
     mid: str
     original_url: str
-    commons_page_url: Optional[str] = None
-    commons_title: Optional[str] = None
-    author: Optional[str] = None
-    license: Optional[str] = None
-    license_url: Optional[str] = None
-    credit_line: Optional[str] = None
-    attribution_required: Optional[bool] = None
+    commons_page_url: str | None = None
+    commons_title: str | None = None
+    author: str | None = None
+    license: str | None = None
+    license_url: str | None = None
+    credit_line: str | None = None
+    attribution_required: bool | None = None
     variants: list[ImageVariant] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")
@@ -320,7 +384,7 @@ class ZooVisitCreate(BaseModel):
     """Input data required to log a zoo visit."""
     zoo_id: UUID
     visit_date: date
-    notes: Optional[str] = Field(default=None, max_length=1000)
+    notes: str | None = Field(default=None, max_length=1000)
 
     model_config = ConfigDict(extra="forbid")
 
@@ -330,7 +394,7 @@ class ZooVisitRead(BaseModel):
     id: UUID
     zoo_id: UUID
     visit_date: date
-    notes: Optional[str] = None
+    notes: str | None = None
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 
@@ -340,13 +404,13 @@ class AnimalSightingCreate(BaseModel):
     zoo_id: UUID
     animal_id: UUID
     sighting_datetime: datetime
-    notes: Optional[str] = Field(default=None, max_length=1000)
+    notes: str | None = Field(default=None, max_length=1000)
 
     model_config = ConfigDict(extra="forbid")
 
     @field_validator("notes", mode="before")
     @classmethod
-    def _normalize_notes(cls, value: Optional[str]) -> Optional[str]:
+    def _normalize_notes(cls, value: str | None) -> str | None:
         """Trim whitespace and collapse empty notes to ``None``."""
         if value is None:
             return None
@@ -359,12 +423,12 @@ class AnimalSightingRead(BaseModel):
     id: UUID
     zoo_id: UUID
     animal_id: UUID
-    animal_name_de: Optional[str] = None
-    animal_name_en: Optional[str] = None
-    zoo_name: Optional[str] = None
+    animal_name_de: str | None = None
+    animal_name_en: str | None = None
+    zoo_name: str | None = None
     sighting_datetime: datetime
-    notes: Optional[str] = None
-    photo_url: Optional[str] = None
+    notes: str | None = None
+    photo_url: str | None = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")
@@ -384,8 +448,8 @@ class AnimalSightingPage(BaseModel):
 class ZooVisitUpdate(BaseModel):
     """Fields allowed when updating a zoo visit."""
 
-    visit_date: Optional[date] = None
-    notes: Optional[str] = Field(default=None, max_length=1000)
+    visit_date: date | None = None
+    notes: str | None = Field(default=None, max_length=1000)
 
     model_config = ConfigDict(extra="forbid")
 
@@ -393,17 +457,17 @@ class ZooVisitUpdate(BaseModel):
 class AnimalSightingUpdate(BaseModel):
     """Fields allowed when updating an animal sighting."""
 
-    zoo_id: Optional[UUID] = None
-    animal_id: Optional[UUID] = None
-    sighting_datetime: Optional[datetime] = None
-    notes: Optional[str] = Field(default=None, max_length=1000)
-    photo_url: Optional[str] = Field(default=None, max_length=512)
+    zoo_id: UUID | None = None
+    animal_id: UUID | None = None
+    sighting_datetime: datetime | None = None
+    notes: str | None = Field(default=None, max_length=1000)
+    photo_url: str | None = Field(default=None, max_length=512)
 
     model_config = ConfigDict(extra="forbid")
 
     @field_validator("notes", mode="before")
     @classmethod
-    def _normalize_notes(cls, value: Optional[str]) -> Optional[str]:
+    def _normalize_notes(cls, value: str | None) -> str | None:
         """Trim whitespace and collapse empty notes to ``None``."""
         if value is None:
             return None
@@ -415,9 +479,9 @@ class AnimalRelation(BaseModel):
     """Lightweight reference to a related animal used for taxonomy links."""
 
     slug: str
-    name_en: Optional[str] = None
-    name_de: Optional[str] = None
-    scientific_name: Optional[str] = None
+    name_en: str | None = None
+    name_de: str | None = None
+    scientific_name: str | None = None
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 
@@ -428,28 +492,28 @@ class AnimalDetail(BaseModel):
     id: UUID
     slug: str
     name_en: str
-    scientific_name: Optional[str] = None
-    name_de: Optional[str] = None
-    category: Optional[str] = None
-    description_de: Optional[str] = None
-    description_en: Optional[str] = None
-    iucn_conservation_status: Optional[str] = None
-    taxon_rank: Optional[str] = None
-    class_id: Optional[int] = None
-    class_name_de: Optional[str] = None
-    class_name_en: Optional[str] = None
-    order_id: Optional[int] = None
-    order_name_de: Optional[str] = None
-    order_name_en: Optional[str] = None
-    family_id: Optional[int] = None
-    family_name_de: Optional[str] = None
-    family_name_en: Optional[str] = None
-    default_image_url: Optional[str] = None
+    scientific_name: str | None = None
+    name_de: str | None = None
+    category: str | None = None
+    description_de: str | None = None
+    description_en: str | None = None
+    iucn_conservation_status: str | None = None
+    taxon_rank: str | None = None
+    class_id: int | None = None
+    class_name_de: str | None = None
+    class_name_en: str | None = None
+    order_id: int | None = None
+    order_name_de: str | None = None
+    order_name_en: str | None = None
+    family_id: int | None = None
+    family_name_de: str | None = None
+    family_name_en: str | None = None
+    default_image_url: str | None = None
     images: list[ImageRead] = Field(default_factory=list)
     # include full zoo details with distance information
     zoos: list[ZooDetail] = Field(default_factory=list)
     is_favorite: bool = False
-    parent: Optional[AnimalRelation] = None
+    parent: AnimalRelation | None = None
     subspecies: list[AnimalRelation] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")
@@ -472,11 +536,11 @@ class PopularAnimal(BaseModel):
     id: UUID
     slug: str
     name_en: str
-    name_de: Optional[str] = None
-    scientific_name: Optional[str] = None
-    zoo_count: Optional[int] = None
-    iucn_conservation_status: Optional[str] = None
-    default_image_url: Optional[str] = None
+    name_de: str | None = None
+    scientific_name: str | None = None
+    zoo_count: int | None = None
+    iucn_conservation_status: str | None = None
+    default_image_url: str | None = None
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 
@@ -510,7 +574,7 @@ class Visited(BaseModel):
 class LocationEstimate(BaseModel):
     """Estimated geographic coordinates derived from network information."""
 
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
+    latitude: float | None = None
+    longitude: float | None = None
 
     model_config = ConfigDict(extra="forbid")

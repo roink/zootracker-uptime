@@ -14,3 +14,13 @@ Key modules and subpackages include:
 - `metrics.py`, `triggers.py`, and `create_tables.py` – background metrics, database triggers, and setup scripts.
 
 Keep modules focused on a single concern and prefer importing cross-cutting helpers via the relevant subpackage.
+
+## Testing and validation
+
+The agent environment has PostgreSQL installed. When making changes to the backend, always run:
+
+1. **Tests**: `pytest -q`
+2. **Linting**: `ruff check app`
+3. **Type checking**: `mypy app`
+
+Ensure the virtual environment is activated with `source venv/bin/activate` before running these commands.

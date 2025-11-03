@@ -9,7 +9,7 @@ import type { AnimalOption, ZooOption } from '../components/logForms';
 import Seo from '../components/Seo';
 import SightingModal from '../components/SightingModal';
 import useAuthFetch from '../hooks/useAuthFetch';
-import type { AnimalSummary, Sighting, Visit, ZooSummary } from '../types/domain';
+import type { Sighting, Visit } from '../types/domain';
 import { fetchJson, isJsonObject, readJsonArray } from '../utils/fetchJson';
 import { groupSightingsByDay, formatSightingDayLabel } from '../utils/sightingHistory';
 

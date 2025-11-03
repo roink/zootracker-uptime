@@ -54,16 +54,27 @@ const isHeaderRecord = (value: HeadersInit): value is Record<string, string> => 
 };
 
   const setupFetch = ({
-    animals = [{ id: animalId, name_en: 'Lion', slug: 'lion', is_favorite: false }],
+    animals = [
+      {
+        id: animalId,
+        name_en: 'Lion',
+        slug: 'lion',
+        is_favorite: false,
+        seen: true,
+      },
+    ],
     visited = { visited: true },
-    seen = [animalId],
     history = { items: sightings, total: sightings.length, limit: 50, offset: 0 },
+    facets = { classes: [], orders: [], families: [] },
+    inventory,
   }: {
     animals?: Array<Record<string, unknown>>;
     visited?: { visited?: boolean };
-    seen?: string[];
     history?: Response | Promise<Response> | { items?: unknown; total?: number; limit?: number; offset?: number };
+    facets?: { classes?: unknown; orders?: unknown; families?: unknown };
+    inventory?: Array<Record<string, unknown>>;
   } = {}) => {
+    const inventoryAnimals = inventory ?? animals;
     fetchMock.mockImplementation((request: RequestInfo | URL, _options: RequestInit = {}) => {
       const requestUrl =
         typeof request === 'string'
@@ -78,13 +89,18 @@ const isHeaderRecord = (value: HeadersInit): value is Record<string, string> => 
         return Promise.resolve(jsonResponse({}));
       }
       if (requestUrl.endsWith(`/zoos/${zoo.slug}/animals`)) {
-        return Promise.resolve(jsonResponse(animals));
+        return Promise.resolve(
+          jsonResponse({
+            items: animals,
+            total: animals.length,
+            available_total: animals.length,
+            inventory: inventoryAnimals,
+            facets,
+          })
+        );
       }
       if (requestUrl.endsWith(`/zoos/${zoo.slug}/visited`)) {
         return Promise.resolve(jsonResponse(visited));
-      }
-      if (requestUrl.endsWith(`/users/${userId}/animals/ids`)) {
-        return Promise.resolve(jsonResponse(seen));
       }
       if (requestUrl.includes(`/zoos/${zoo.slug}/sightings`)) {
         if (history instanceof Promise) {
@@ -119,8 +135,10 @@ const isHeaderRecord = (value: HeadersInit): value is Record<string, string> => 
 
     await waitFor(() => {
       expect(screen.getByText('Visited? ☑️ Yes')).toBeInTheDocument();
-      expect(screen.getByText('✔️')).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /Lion/i })).toBeInTheDocument();
     });
+
+    expect(screen.getByText('Seen')).toBeInTheDocument();
 
     expect(await screen.findByText('Your visits at this zoo')).toBeInTheDocument();
     expect(screen.queryByText(/Log in or create an account/)).not.toBeInTheDocument();
@@ -133,7 +151,7 @@ const isHeaderRecord = (value: HeadersInit): value is Record<string, string> => 
       expect.any(Object)
     );
     expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringMatching(`${API}/users/${userId}/animals/ids`),
+      expect.stringMatching(`${API}/zoos/${zoo.slug}/animals`),
       expect.any(Object)
     );
     let historyCall: [RequestInfo | URL, RequestInit?] | undefined;

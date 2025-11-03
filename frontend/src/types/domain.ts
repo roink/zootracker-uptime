@@ -64,3 +64,35 @@ export interface SiteSummary {
   countries: number;
   sightings: number;
 }
+
+export interface ZooAnimalTile extends AnimalSummary {
+  scientific_name?: string | null;
+  name_en?: string | null;
+  name_de?: string | null;
+  zoo_count?: number | null;
+  default_image_url?: string | null;
+  is_favorite?: boolean | null;
+  seen?: boolean;
+  klasse?: number | null;
+  ordnung?: number | null;
+  familie?: number | null;
+}
+
+export interface ZooAnimalFacetOption {
+  id: number;
+  name_de?: string | null;
+  name_en?: string | null;
+  count: number;
+}
+
+export interface ZooAnimalListing {
+  items: ZooAnimalTile[];
+  total: number;
+  available_total: number;
+  inventory: ZooAnimalTile[];
+  facets: {
+    classes: ZooAnimalFacetOption[];
+    orders: ZooAnimalFacetOption[];
+    families: ZooAnimalFacetOption[];
+  };
+}

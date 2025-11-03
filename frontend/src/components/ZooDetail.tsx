@@ -3,12 +3,22 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { API } from '../api';
+import AnimalFilters from './AnimalFilters';
+import AnimalTile from './AnimalTile';
 import LazyMap from './LazyMap';
 import SightingHistoryList from './SightingHistoryList';
 import SightingModal from './SightingModal';
 import { useAuth } from '../auth/AuthContext';
+import { useAnimalFilters } from '../hooks/useAnimalFilters';
 import useAuthFetch from '../hooks/useAuthFetch';
-import type { AnimalSummary, Sighting, ZooSummary } from '../types/domain';
+import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
+import type {
+  Sighting,
+  ZooAnimalFacetOption,
+  ZooAnimalListing,
+  ZooAnimalTile,
+  ZooSummary,
+} from '../types/domain';
 import { formatSightingDayLabel } from '../utils/sightingHistory';
 import { getZooDisplayName } from '../utils/zooDisplayName';
 
@@ -24,12 +34,6 @@ export interface ZooDetailData extends Omit<ZooSummary, 'slug' | 'is_favorite'> 
   seo_description_de?: string | null;
   is_favorite?: boolean | null;
 }
-
-type ZooAnimal = AnimalSummary & {
-  slug?: string | null;
-  scientific_name?: string | null;
-  is_favorite?: boolean | null;
-};
 
 interface ModalState {
   zooId: string;
@@ -47,6 +51,12 @@ interface ZooDetailProps {
   onFavoriteChange?: (nextFavorite: boolean) => void;
 }
 
+type ZooAnimalFacetsState = {
+  classes: ZooAnimalFacetOption[];
+  orders: ZooAnimalFacetOption[];
+  families: ZooAnimalFacetOption[];
+};
+
 // Detailed view for a single zoo with a list of resident animals.
 // Used by the ZooDetailPage component.
 export default function ZooDetail({
@@ -57,29 +67,70 @@ export default function ZooDetail({
   onLogged,
   onFavoriteChange,
 }: ZooDetailProps) {
-  const [animals, setAnimals] = useState<ZooAnimal[]>([]);
+  // Use shared filter hook
+  const filters = useAnimalFilters();
+  
+  // Local state
+  const [animals, setAnimals] = useState<ZooAnimalTile[]>([]);
+  const [facets, setFacets] = useState<ZooAnimalFacetsState>({
+    classes: [],
+    orders: [],
+    families: [],
+  });
+  const [animalsLoading, setAnimalsLoading] = useState(false);
+  const [animalsError, setAnimalsError] = useState('');
+  const [hasMore, setHasMore] = useState(false);
+  const [offset, setOffset] = useState(0);
+  const [_total, setTotal] = useState(0);
+  
   const [visited, setVisited] = useState(false);
-  const [seenIds, setSeenIds] = useState<Set<string>>(new Set());
   const [history, setHistory] = useState<Sighting[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState(false);
   const [modalData, setModalData] = useState<ModalState | null>(null);
+  const [descExpanded, setDescExpanded] = useState(false);
+  const [favorite, setFavorite] = useState(false);
+  const [favoritePending, setFavoritePending] = useState(false);
+  const [favoriteError, setFavoriteError] = useState('');
+  const [authMessage, setAuthMessage] = useState('');
+  
   const navigate = useNavigate();
   const { lang: langParam } = useParams();
   const prefix = langParam ? `/${langParam}` : '';
   const { t } = useTranslation();
   const authFetch = useAuthFetch();
-  const { isAuthenticated, user } = useAuth();
-  const userId = user?.id;
+  const { isAuthenticated } = useAuth();
   const zooSlug = zoo.slug ?? null;
   const locale = langParam === 'de' ? 'de-DE' : 'en-US';
-  const [descExpanded, setDescExpanded] = useState(false); // track full description visibility
-  const [favorite, setFavorite] = useState(false);
-  const [favoritePending, setFavoritePending] = useState(false);
-  const [favoriteError, setFavoriteError] = useState('');
+  const limit = 50;
+
+  // Reset authentication-required filters when not authenticated
+  useEffect(() => {
+    if (!isAuthenticated) {
+      if (filters.favoritesOnly) {
+        filters.setFavoritesOnly(false);
+      }
+      if (filters.seenOnly) {
+        filters.setSeenOnly(false);
+      }
+    } else {
+      // Clear auth message when user logs in
+      setAuthMessage('');
+    }
+  }, [isAuthenticated, filters]);
+
+  // Clear auth message when filters change
+  useEffect(() => {
+    setAuthMessage('');
+  }, [
+    filters.query,
+    filters.selectedClass,
+    filters.selectedOrder,
+    filters.selectedFamily,
+  ]);
   // Helper: pick animal name in current language
   const getAnimalName = useCallback(
-    (animal: ZooAnimal) =>
+    (animal: ZooAnimalTile) =>
       langParam === 'de'
         ? animal.name_de || animal.name_en || ''
         : animal.name_en || animal.name_de || '',
@@ -125,6 +176,8 @@ export default function ZooDetail({
     [getSightingAnimalName, t]
   );
 
+  const tileLang = langParam === 'de' ? 'de' : 'en';
+
   const handleFavoriteToggle = useCallback(async () => {
     if (!zooSlug) return;
     if (!isAuthenticated) {
@@ -151,23 +204,121 @@ export default function ZooDetail({
     }
   }, [authFetch, favorite, isAuthenticated, navigate, onFavoriteChange, prefix, t, zooSlug]);
 
-  const loadAnimals = useCallback(async () => {
-    if (!zooSlug) {
-      setAnimals([]);
-      return;
-    }
-    try {
-      const response = await authFetch(`${API}/zoos/${zooSlug}/animals`);
-      if (!response.ok) {
+  // Fetch animals with pagination support
+  const fetchZooAnimals = useCallback(
+    async ({ reset = false, signal }: { reset?: boolean; signal?: AbortSignal } = {}) => {
+      if (!zooSlug) {
         setAnimals([]);
+        setFacets({ classes: [], orders: [], families: [] });
+        setAnimalsError('');
+        setAnimalsLoading(false);
+        setHasMore(false);
         return;
       }
-      const data = (await response.json()) as unknown;
-      setAnimals(Array.isArray(data) ? (data as ZooAnimal[]) : []);
-    } catch {
-      setAnimals([]);
+
+      setAnimalsLoading(true);
+      setAnimalsError('');
+
+      try {
+        const currentOffset = reset ? 0 : offset;
+        const params = new URLSearchParams();
+        params.set('limit', String(limit));
+        params.set('offset', String(currentOffset));
+        if (filters.query) params.set('q', filters.query);
+        if (filters.selectedClass !== null) params.set('class', String(filters.selectedClass));
+        if (filters.selectedOrder !== null) params.set('order', String(filters.selectedOrder));
+        if (filters.selectedFamily !== null) params.set('family', String(filters.selectedFamily));
+        if (filters.seenOnly) params.set('seen', '1');
+        if (filters.favoritesOnly) params.set('favorites', '1');
+
+        const url = `${API}/zoos/${zooSlug}/animals?${params.toString()}`;
+        const response = await authFetch(url, signal ? { signal } : {});
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const payload = (await response.json()) as ZooAnimalListing;
+        const items = Array.isArray(payload.items) ? payload.items : [];
+        const responseTotal = payload.total || 0;
+
+        if (reset) {
+          setAnimals(items);
+          setOffset(items.length);
+        } else {
+          setAnimals((prev) => [...prev, ...items]);
+          setOffset((prev) => prev + items.length);
+        }
+
+        setTotal(responseTotal);
+        setHasMore(currentOffset + items.length < responseTotal);
+
+        // Update facets (only on reset/initial load)
+        if (reset) {
+          const rawFacets = (payload as { facets?: unknown }).facets;
+          const safeFacets =
+            rawFacets && typeof rawFacets === 'object'
+              ? (rawFacets as Partial<Record<'classes' | 'orders' | 'families', unknown>>)
+              : {};
+          const nextFacets: ZooAnimalFacetsState = {
+            classes: Array.isArray(safeFacets.classes)
+              ? (safeFacets.classes as ZooAnimalFacetOption[])
+              : [],
+            orders: Array.isArray(safeFacets.orders)
+              ? (safeFacets.orders as ZooAnimalFacetOption[])
+              : [],
+            families: Array.isArray(safeFacets.families)
+              ? (safeFacets.families as ZooAnimalFacetOption[])
+              : [],
+          };
+          setFacets(nextFacets);
+        }
+
+        setAnimalsError('');
+      } catch (_err) {
+        if (signal?.aborted) {
+          return;
+        }
+        if (reset) {
+          setAnimals([]);
+          setFacets({ classes: [], orders: [], families: [] });
+        }
+        setAnimalsError(t('zoo.animalsLoadError'));
+        setHasMore(false);
+      } finally {
+        if (!signal?.aborted) {
+          setAnimalsLoading(false);
+        }
+      }
+    },
+    [
+      authFetch,
+      filters.favoritesOnly,
+      filters.query,
+      filters.selectedClass,
+      filters.selectedFamily,
+      filters.selectedOrder,
+      filters.seenOnly,
+      limit,
+      offset,
+      t,
+      zooSlug,
+    ],
+  );
+
+  // Load more handler for infinite scroll
+  const loadMore = useCallback(() => {
+    if (!animalsLoading && hasMore) {
+      void fetchZooAnimals({ reset: false });
     }
-  }, [authFetch, zooSlug]);
+  }, [animalsLoading, fetchZooAnimals, hasMore]);
+
+  // Use infinite scroll hook
+  const sentinelRef = useInfiniteScroll({
+    hasMore,
+    loading: animalsLoading,
+    onLoadMore: loadMore,
+  });
 
   const loadVisited = useCallback(async () => {
     if (!isAuthenticated || !zooSlug) {
@@ -186,27 +337,6 @@ export default function ZooDetail({
       setVisited(false);
     }
   }, [authFetch, isAuthenticated, zooSlug]);
-
-  const loadSeenIds = useCallback(async () => {
-    if (!isAuthenticated || !userId) {
-      setSeenIds(new Set());
-      return;
-    }
-    try {
-      const response = await authFetch(`${API}/users/${userId}/animals/ids`);
-      if (!response.ok) {
-        setSeenIds(new Set());
-        return;
-      }
-      const ids = (await response.json()) as unknown;
-      const normalized = Array.isArray(ids)
-        ? ids.filter((value): value is string => typeof value === 'string')
-        : [];
-      setSeenIds(new Set(normalized));
-    } catch {
-      setSeenIds(new Set());
-    }
-  }, [authFetch, isAuthenticated, userId]);
 
   const fetchHistory = useCallback(
     async ({ signal, limit, offset }: { signal?: AbortSignal; limit?: number; offset?: number } = {}): Promise<Sighting[]> => {
@@ -273,32 +403,39 @@ export default function ZooDetail({
   );
 
   const reloadLocalData = useCallback(() => {
-    void loadAnimals();
+    void fetchZooAnimals({ reset: true });
     void loadVisited();
-    void loadSeenIds();
     void loadHistory();
-  }, [loadAnimals, loadVisited, loadSeenIds, loadHistory]);
+  }, [fetchZooAnimals, loadVisited, loadHistory]);
 
-  // Load animals in this zoo (server already returns popularity order;
-  // keep client-side sort as a fallback for robustness)
+  // Reset and load animals when filters change
   useEffect(() => {
-    void loadAnimals();
-  }, [loadAnimals, refresh]);
+    const controller = new AbortController();
+    void fetchZooAnimals({ reset: true, signal: controller.signal });
+    return () => {
+      controller.abort();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    filters.query,
+    filters.selectedClass,
+    filters.selectedOrder,
+    filters.selectedFamily,
+    filters.seenOnly,
+    filters.favoritesOnly,
+    zooSlug,
+    refresh,
+  ]);
 
-    useEffect(() => {
-      setFavorite(Boolean(zoo.is_favorite));
-      setFavoriteError('');
-    }, [zoo.is_favorite]);
+  useEffect(() => {
+    setFavorite(Boolean(zoo.is_favorite));
+    setFavoriteError('');
+  }, [zoo.is_favorite]);
 
   // Load whether user has visited this zoo
   useEffect(() => {
     void loadVisited();
   }, [loadVisited, refresh]);
-
-  // Load IDs of animals the user has seen
-  useEffect(() => {
-    void loadSeenIds();
-  }, [loadSeenIds, refresh]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -404,80 +541,113 @@ export default function ZooDetail({
             error: t('zoo.visitHistoryError'),
             empty: t('zoo.visitHistoryEmpty'),
           }}
-          onLogin={() => void navigate(`${prefix}/login`)}
+          onLogin={() => {
+            void navigate(`${prefix}/login`);
+          }}
           formatDay={formatHistoryDay}
           renderSighting={renderHistoryItem}
         />
       </div>
       {/* visit logging removed - visits are created automatically from sightings */}
-      <h4 className="mt-3">{t('zoo.animals')}</h4>
-      <table className="table">
-        <thead>
-          <tr>
-            <th align="left">{t('zoo.name')}</th>
-            <th className="text-center">{t('zoo.seen')}</th>
-            <th className="text-center"></th>
-          </tr>
-        </thead>
-        <tbody>
-          {animals.map((a) => (
-            <tr
-              key={a.id}
-              className="pointer-row"
-              onClick={() => void navigate(`${prefix}/animals/${a.slug || a.id}`)}
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  void navigate(`${prefix}/animals/${a.slug || a.id}`);
-                }
-              }}
+      <div className="mt-3">
+        <h4>{t('zoo.animals')}</h4>
+        <div className="mt-2">
+          <AnimalFilters
+            searchInput={filters.searchInput}
+            onSearchChange={filters.setSearchInput}
+            selectedClass={filters.selectedClass}
+            onClassChange={filters.handleClassChange}
+            selectedOrder={filters.selectedOrder}
+            onOrderChange={filters.handleOrderChange}
+            selectedFamily={filters.selectedFamily}
+            onFamilyChange={filters.handleFamilyChange}
+            seenOnly={filters.seenOnly}
+            onSeenChange={filters.setSeenOnly}
+            favoritesOnly={filters.favoritesOnly}
+            onFavoritesChange={filters.setFavoritesOnly}
+            classes={facets.classes}
+            orders={facets.orders}
+            families={facets.families}
+            hasActiveFilters={filters.hasActiveFilters}
+            onClearFilters={filters.clearAllFilters}
+            isAuthenticated={isAuthenticated}
+            lang={langParam || 'en'}
+            showSeenFilter
+            searchLabelKey="zoo.animalSearchLabel"
+            onAuthRequired={setAuthMessage}
+          />
+        </div>
+        {authMessage && (
+          <div className="alert alert-info mt-3" role="status">
+            {authMessage}
+          </div>
+        )}
+        {animalsError && (
+          <div className="alert alert-danger mt-3" role="alert">
+            {animalsError}
+          </div>
+        )}
+        <div
+          className="animals-grid mt-3"
+          aria-busy={animalsLoading}
+          aria-describedby="zoo-animals-status"
+        >
+          {animals.map((animal) => (
+            <AnimalTile
+              key={animal.id}
+              to={`${prefix}/animals/${animal.slug || animal.id}`}
+              animal={animal}
+              lang={tileLang}
+              seen={Boolean(animal.seen)}
             >
-              <td>
-                <div className="d-flex align-items-center gap-1">
-                  {getAnimalName(a)}
-                  {a.is_favorite && (
-                    <span
-                      className="text-warning"
-                      role="img"
-                      aria-label={t('animal.favoriteBadge')}
-                    >
-                      ★
-                    </span>
-                  )}
-                </div>
-                {a.scientific_name && (
-                  <div className="fst-italic small">{a.scientific_name}</div>
-                )}
-              </td>
-              <td className="text-center">{seenIds.has(a.id) ? '✔️' : '—'}</td>
-              <td className="text-center">
-                <button
-                  className="btn btn-sm btn-outline-secondary"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (!isAuthenticated) {
-                      void navigate(`${prefix}/login`);
-                      return;
-                    }
-                    setModalData({
-                      zooId: zoo.id,
-                      zooName: zooDisplayName,
-                      animalId: a.id,
-                      animalName: getAnimalName(a),
-                    });
-                  }}
-                >
-                  ➕
-                </button>
-              </td>
-            </tr>
+              <button
+                type="button"
+                className="btn btn-sm btn-outline-secondary action-button-bottom-right"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  if (!isAuthenticated) {
+                    void navigate(`${prefix}/login`);
+                    return;
+                  }
+                  setModalData({
+                    zooId: zoo.id,
+                    zooName: zooDisplayName,
+                    animalId: animal.id,
+                    animalName: getAnimalName(animal),
+                  });
+                }}
+                aria-label={t('actions.logSighting')}
+              >
+                ➕
+              </button>
+            </AnimalTile>
           ))}
-        </tbody>
-      </table>
+        </div>
+        
+        {/* Infinite scroll sentinel */}
+        <div ref={sentinelRef} className="infinite-scroll-sentinel" aria-hidden="true" />
+        
+        {animalsLoading && (
+          <div className="text-center my-3">
+            <div className="spinner-border" role="status" aria-hidden="true" />
+            <span className="visually-hidden">{t('actions.loading')}</span>
+          </div>
+        )}
+        {!animalsLoading && animals.length === 0 && !animalsError && (
+          <div className="alert alert-info mt-3" role="status">
+            {t('zoo.noAnimalsMatch')}
+          </div>
+        )}
+        {!animalsLoading && !hasMore && animals.length > 0 && (
+          <div className="text-center my-3 text-muted small">
+            {t('zoo.noMoreResults')}
+          </div>
+        )}
+      </div>
       {modalData && (
         <SightingModal
-          animals={animals}
+          animals={null}
           defaultZooId={modalData.zooId}
           defaultAnimalId={modalData.animalId}
           defaultZooName={modalData.zooName}
