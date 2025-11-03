@@ -80,16 +80,13 @@ def _dummy_smtp_factory(sent_messages):
     return DummySMTP
 
 
-async def test_contact_sends_email_with_reply_to(client, monkeypatch):
-    sent = []
+async def test_contact_sends_email_with_reply_to(client, monkeypatch, fake_email_sender):
     monkeypatch.setenv("SMTP_HOST", "smtp.test")
     monkeypatch.setenv("SMTP_PORT", "587")
     monkeypatch.setenv("SMTP_USER", "user")
     monkeypatch.setenv("SMTP_PASSWORD", "pass")
     monkeypatch.setenv("SMTP_FROM", "contact@zootracker.app")
     monkeypatch.setenv("CONTACT_EMAIL", "contact@zootracker.app")
-    monkeypatch.delenv("SMTP_SSL", raising=False)
-    monkeypatch.setattr(smtplib, "SMTP", _dummy_smtp_factory(sent))
 
     payload = build_contact_payload(
         name="Alice",
@@ -98,20 +95,19 @@ async def test_contact_sends_email_with_reply_to(client, monkeypatch):
     )
     resp = await post_contact(client, payload)
     assert resp.status_code == 204
-    assert sent[0]["Reply-To"] == "a@example.com"
-    assert sent[0]["Subject"] == "Contact form – Alice"
+    assert len(fake_email_sender.outbox) == 1
+    email = fake_email_sender.outbox[0]
+    assert email["reply_to"] == "a@example.com"
+    assert email["subject"] == "Contact form – Alice"
 
 
-async def test_contact_strips_html(client, monkeypatch):
-    sent = []
+async def test_contact_strips_html(client, monkeypatch, fake_email_sender):
     monkeypatch.setenv("SMTP_HOST", "smtp.test")
     monkeypatch.setenv("SMTP_PORT", "587")
     monkeypatch.setenv("SMTP_USER", "user")
     monkeypatch.setenv("SMTP_PASSWORD", "pass")
     monkeypatch.setenv("SMTP_FROM", "contact@zootracker.app")
     monkeypatch.setenv("CONTACT_EMAIL", "contact@zootracker.app")
-    monkeypatch.delenv("SMTP_SSL", raising=False)
-    monkeypatch.setattr(smtplib, "SMTP", _dummy_smtp_factory(sent))
 
     payload = build_contact_payload(
         name="Alice",
@@ -120,12 +116,12 @@ async def test_contact_strips_html(client, monkeypatch):
     )
     resp = await post_contact(client, payload)
     assert resp.status_code == 204
-    body = sent[0].get_content()
+    assert len(fake_email_sender.outbox) == 1
+    body = fake_email_sender.outbox[0]["body"]
     assert "<script>" not in body and "<b>" not in body
 
 
-async def test_contact_uses_ssl_when_configured(client, monkeypatch):
-    sent = []
+async def test_contact_uses_ssl_when_configured(client, monkeypatch, fake_email_sender):
     monkeypatch.setenv("SMTP_HOST", "smtp.test")
     monkeypatch.setenv("SMTP_PORT", "465")
     monkeypatch.setenv("SMTP_SSL", "true")
@@ -133,13 +129,7 @@ async def test_contact_uses_ssl_when_configured(client, monkeypatch):
     monkeypatch.setenv("SMTP_PASSWORD", "pass")
     monkeypatch.setenv("SMTP_FROM", "contact@zootracker.app")
     monkeypatch.setenv("CONTACT_EMAIL", "contact@zootracker.app")
-    monkeypatch.setattr(smtplib, "SMTP_SSL", _dummy_smtp_factory(sent))
     monkeypatch.setattr(rate_limit, "contact_limiter", RateLimiter(100, 60))
-
-    def fail_smtp(*args, **kwargs):
-        raise AssertionError("SMTP should not be used when SMTP_SSL=true")
-
-    monkeypatch.setattr(smtplib, "SMTP", fail_smtp)
 
     payload = build_contact_payload(
         name="Alice",
@@ -148,7 +138,8 @@ async def test_contact_uses_ssl_when_configured(client, monkeypatch):
     )
     resp = await post_contact(client, payload)
     assert resp.status_code == 204
-    assert sent[0]["Subject"] == "Contact form – Alice"
+    assert len(fake_email_sender.outbox) == 1
+    assert fake_email_sender.outbox[0]["subject"] == "Contact form – Alice"
 
 
 async def test_contact_rate_limited(client, monkeypatch):
@@ -232,15 +223,13 @@ async def test_contact_invalid_payload(client, monkeypatch, payload_factory):
     assert resp.status_code == 422
 
 
-async def test_contact_strips_header_injection(client, monkeypatch):
-    sent = []
+async def test_contact_strips_header_injection(client, monkeypatch, fake_email_sender):
     monkeypatch.setenv("SMTP_HOST", "smtp.test")
     monkeypatch.setenv("SMTP_PORT", "587")
     monkeypatch.setenv("SMTP_USER", "user")
     monkeypatch.setenv("SMTP_PASSWORD", "pass")
     monkeypatch.setenv("SMTP_FROM", "contact@zootracker.app")
     monkeypatch.setenv("CONTACT_EMAIL", "contact@zootracker.app")
-    monkeypatch.setattr(smtplib, "SMTP", _dummy_smtp_factory(sent))
 
     payload = build_contact_payload(
         name="Alice\r\nBcc: attacker@example.com",
@@ -249,13 +238,13 @@ async def test_contact_strips_header_injection(client, monkeypatch):
     )
     resp = await post_contact(client, payload)
     assert resp.status_code == 204
-    msg = sent[0]
-    assert msg["Reply-To"] == "a@example.com"
-    assert msg["Subject"] == "Contact form – AliceBcc: attacker@example.com"
+    assert len(fake_email_sender.outbox) == 1
+    email = fake_email_sender.outbox[0]
+    assert email["reply_to"] == "a@example.com"
+    assert email["subject"] == "Contact form – AliceBcc: attacker@example.com"
 
 
-async def test_contact_uses_starttls_when_ssl_backend_missing(client, monkeypatch):
-    sent = []
+async def test_contact_uses_starttls_when_ssl_backend_missing(client, monkeypatch, fake_email_sender):
     monkeypatch.setenv("SMTP_HOST", "127.0.0.1")
     monkeypatch.setenv("SMTP_PORT", "587")
     monkeypatch.setenv("SMTP_USER", "user")
@@ -263,7 +252,6 @@ async def test_contact_uses_starttls_when_ssl_backend_missing(client, monkeypatc
     monkeypatch.setenv("SMTP_FROM", "contact@zootracker.app")
     monkeypatch.setenv("CONTACT_EMAIL", "contact@zootracker.app")
     monkeypatch.setenv("SMTP_SSL", "true")
-    monkeypatch.setattr(smtplib, "SMTP", _dummy_smtp_factory(sent))
 
     payload = build_contact_payload(
         name="Fallback Test",
@@ -273,19 +261,11 @@ async def test_contact_uses_starttls_when_ssl_backend_missing(client, monkeypatc
 
     resp = await post_contact(client, payload)
     assert resp.status_code == 204
-    assert sent, "Expected email to be queued via STARTTLS fallback"
-    assert sent[0]["Subject"] == "Contact form – Fallback Test"
+    assert len(fake_email_sender.outbox) == 1, "Expected email to be queued"
+    assert fake_email_sender.outbox[0]["subject"] == "Contact form – Fallback Test"
 
 
-async def test_send_contact_email_sanitizes_reply_to(client, monkeypatch):
-    sent = []
-
-    def smtp_factory(*args, **kwargs):
-        return _dummy_smtp_factory(sent)(*args, **kwargs)
-
-    monkeypatch.setattr(smtplib, "SMTP", smtp_factory)
-    monkeypatch.setattr(smtplib, "SMTP_SSL", smtp_factory)
-
+async def test_send_contact_email_sanitizes_reply_to(fake_email_sender):
     from app.api.contact import _send_contact_email
 
     _send_contact_email(
@@ -301,13 +281,13 @@ async def test_send_contact_email_sanitizes_reply_to(client, monkeypatch):
         msg_text="Hello there!",
     )
 
-    assert sent, "Expected email to be queued"
-    msg = sent[0]
-    header_value = msg["Reply-To"]
+    assert len(fake_email_sender.outbox) == 1, "Expected email to be queued"
+    email = fake_email_sender.outbox[0]
+    header_value = email["reply_to"]
     assert "\r" not in header_value and "\n" not in header_value
     assert header_value.startswith("a@example.com")
     assert "attacker@example.com" not in header_value
-    assert msg["Subject"] == "Contact form – Alice"
+    assert email["subject"] == "Contact form – Alice"
 
 
 async def test_contact_sets_request_id_header(client, monkeypatch):

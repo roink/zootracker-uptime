@@ -12,6 +12,8 @@ from email.message import EmailMessage
 from email.utils import formatdate, make_msgid
 from typing import Any
 
+from ..email_protocol import EmailSender, get_email_sender
+
 
 @dataclass(slots=True)
 class SMTPSettings:
@@ -125,6 +127,17 @@ def send_email_via_smtp(
     log_extra: dict[str, Any] | None = None,
 ) -> None:
     """Deliver ``message`` using the provided SMTP settings with robust logging."""
+
+    # Check for test override - if present, intercept and store in memory
+    sender = get_email_sender()
+    if sender is not None:
+        sender.send_email(
+            subject=str(message.get("Subject", "")),
+            to_addr=str(message.get("To", "")),
+            body=str(message.get_content()),
+            reply_to=str(message.get("Reply-To", "") or ""),
+        )
+        return
 
     context = ssl.create_default_context()
     with suppress(AttributeError):  # pragma: no cover - Python < 3.7 compatibility
@@ -241,4 +254,49 @@ def send_email_via_smtp(
                 action=send_failure[1],
             ),
             exc_info=True,
+        )
+
+
+class SMTPEmailSender:
+    """Production email sender using SMTP."""
+
+    def __init__(self, settings: SMTPSettings, logger: logging.Logger):
+        self.settings = settings
+        self.logger = logger
+
+    def send_email(
+        self,
+        *,
+        subject: str,
+        to_addr: str,
+        body: str,
+        reply_to: str | None = None,
+    ) -> None:
+        """Send an email via SMTP."""
+        # Check if we should use the global override (for tests)
+        sender = get_email_sender()
+        if sender is not None:
+            sender.send_email(
+                subject=subject,
+                to_addr=to_addr,
+                body=body,
+                reply_to=reply_to,
+            )
+            return
+
+        # Production: use actual SMTP
+        message = build_email(
+            subject=subject,
+            from_addr=self.settings.from_addr,
+            to_addr=to_addr,
+            body=body,
+            reply_to=reply_to,
+        )
+        send_email_via_smtp(
+            settings=self.settings,
+            message=message,
+            logger=self.logger,
+            auth_error=("SMTP authentication failed", "smtp_auth_failure"),
+            ssl_retry=("SSL delivery failed, trying STARTTLS", "smtp_ssl_retry"),
+            send_failure=("Failed to send email", "smtp_send_failure"),
         )

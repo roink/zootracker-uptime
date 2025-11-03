@@ -480,3 +480,38 @@ async def mark_user_verified(user_id: str | uuid.UUID) -> None:
             )
         )
         await db.commit()
+
+
+# Email testing fixtures
+class InMemoryEmailSender:
+    """Fake email sender that stores messages in memory for test assertions."""
+
+    def __init__(self):
+        self.outbox: list[dict[str, str]] = []
+
+    def send_email(
+        self,
+        *,
+        subject: str,
+        to_addr: str,
+        body: str,
+        reply_to: str | None = None,
+    ) -> None:
+        """Store email in memory instead of sending."""
+        self.outbox.append({
+            "subject": subject,
+            "to": to_addr,
+            "body": body,
+            "reply_to": reply_to or "",
+        })
+
+
+@pytest.fixture(autouse=True)
+def fake_email_sender():
+    """Automatically inject a fake email sender for all tests."""
+    from app.email_protocol import set_email_sender
+
+    sender = InMemoryEmailSender()
+    set_email_sender(sender)
+    yield sender
+    set_email_sender(None)  # Clean up after test
