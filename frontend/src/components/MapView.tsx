@@ -15,7 +15,7 @@ interface MapViewProps {
   zoom?: number;
 }
 
-export default function MapView({ latitude, longitude, zoom = 14 }: MapViewProps) {
+export default function MapView({ latitude, longitude, zoom = 9 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markerRef = useRef<MapLibreMarker | null>(null);

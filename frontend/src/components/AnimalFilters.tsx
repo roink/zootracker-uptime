@@ -101,34 +101,38 @@ export default function AnimalFilters({
               autoComplete="off"
             />
           </div>
-          {showSeenFilter && (
-            <div className="col-6 col-md-4 col-xl-2">
-              <div className="form-check mt-4">
-                <input
-                  className="form-check-input"
-                  type="checkbox"
-                  id="animal-filter-seen"
-                  checked={seenOnly}
-                  onChange={(e) => { handleSeenChange(e.target.checked); }}
-                />
-                <label className="form-check-label" htmlFor="animal-filter-seen">
-                  {t('zoo.filterSeen')}
-                </label>
+          <div className="col-12 col-lg-8">
+            <div className="row g-3">
+              {showSeenFilter && (
+                <div className="col-6 col-md-4">
+                  <div className="form-check">
+                    <input
+                      className="form-check-input"
+                      type="checkbox"
+                      id="animal-filter-seen"
+                      checked={seenOnly}
+                      onChange={(e) => { handleSeenChange(e.target.checked); }}
+                    />
+                    <label className="form-check-label" htmlFor="animal-filter-seen">
+                      {t('zoo.filterSeen')}
+                    </label>
+                  </div>
+                </div>
+              )}
+              <div className="col-6 col-md-4">
+                <div className="form-check">
+                  <input
+                    className="form-check-input"
+                    type="checkbox"
+                    id="animal-filter-favorites"
+                    checked={favoritesOnly}
+                    onChange={(e) => { handleFavoritesChange(e.target.checked); }}
+                  />
+                  <label className="form-check-label" htmlFor="animal-filter-favorites">
+                    {t('zoo.filterFavorites')}
+                  </label>
+                </div>
               </div>
-            </div>
-          )}
-          <div className="col-6 col-md-4 col-xl-2">
-            <div className="form-check mt-4">
-              <input
-                className="form-check-input"
-                type="checkbox"
-                id="animal-filter-favorites"
-                checked={favoritesOnly}
-                onChange={(e) => { handleFavoritesChange(e.target.checked); }}
-              />
-              <label className="form-check-label" htmlFor="animal-filter-favorites">
-                {t('zoo.filterFavorites')}
-              </label>
             </div>
           </div>
         </div>

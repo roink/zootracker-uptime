@@ -75,9 +75,21 @@ export default function ZooDetailPage({ refresh, onLogged }: ZooDetailPageProps)
     [zoo],
   );
   const fallbackName = (displayName || slug || '').trim();
+  
+  // Build name with city for SEO (city: name format)
+  const seoName = useMemo(() => {
+    if (!zoo) return fallbackName;
+    const city = zoo.city?.trim();
+    const name = (zoo.name || fallbackName).trim();
+    if (city && name) {
+      return `${city}: ${name}`;
+    }
+    return name || fallbackName;
+  }, [zoo, fallbackName]);
+  
   const metaDescription = useMemo(() => {
     if (!zoo) {
-      const fallbackCopy = t('zoo.seoFallback', { name: fallbackName });
+      const fallbackCopy = t('zoo.seoFallback', { name: seoName });
       return sanitizeDescription(fallbackCopy);
     }
     const candidates =
@@ -98,10 +110,10 @@ export default function ZooDetailPage({ refresh, onLogged }: ZooDetailPageProps)
       (value) => typeof value === 'string' && value.trim().length > 0,
     );
     const fallbackCopy = t('zoo.seoFallback', {
-      name: (displayName || zoo.name || fallbackName).trim(),
+      name: seoName,
     });
     return sanitizeDescription(chosen ?? fallbackCopy);
-  }, [activeLang, zoo, t, displayName, fallbackName]);
+  }, [activeLang, zoo, t, seoName]);
 
   if (!zoo) {
     const loadingPath = slug ? `/${activeLang}/zoos/${slug}` : `/${activeLang}/zoos`;

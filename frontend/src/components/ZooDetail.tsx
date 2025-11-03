@@ -1,6 +1,25 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
+
+// Media query hook for responsive layout
+function useMediaQuery(query: string) {
+  const [matches, setMatches] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia(query).matches;
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mql = window.matchMedia(query);
+    const handler = (e: MediaQueryListEvent) => { setMatches(e.matches); };
+    setMatches(mql.matches);
+    mql.addEventListener('change', handler);
+    return () => { mql.removeEventListener('change', handler); };
+  }, [query]);
+
+  return matches;
+}
 
 import { API } from '../api';
 import AnimalFilters from './AnimalFilters';
@@ -21,6 +40,7 @@ import type {
 } from '../types/domain';
 import { formatSightingDayLabel } from '../utils/sightingHistory';
 import { getZooDisplayName } from '../utils/zooDisplayName';
+import '../styles/zoo-detail.css';
 
 type HeadingLevel = 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
 
@@ -94,6 +114,11 @@ export default function ZooDetail({
   const [favoriteError, setFavoriteError] = useState('');
   const [authMessage, setAuthMessage] = useState('');
   
+  // Tab/Accordion state
+  const [activeSection, setActiveSection] = useState('overview');
+  const [openSections, setOpenSections] = useState(new Set(['overview']));
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  
   const navigate = useNavigate();
   const { lang: langParam } = useParams();
   const prefix = langParam ? `/${langParam}` : '';
@@ -103,6 +128,43 @@ export default function ZooDetail({
   const zooSlug = zoo.slug ?? null;
   const locale = langParam === 'de' ? 'de-DE' : 'en-US';
   const limit = 50;
+  const isDesktop = useMediaQuery('(min-width: 992px)');
+
+  // Toggle accordion section (mobile)
+  const toggleAccordion = useCallback((sectionId: string) => {
+    setOpenSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(sectionId)) {
+        next.delete(sectionId);
+      } else {
+        next.add(sectionId);
+      }
+      return next;
+    });
+  }, []);
+
+  // Handle tab keyboard navigation (desktop)
+  const handleTabKeyDown = useCallback(
+    (event: React.KeyboardEvent, index: number) => {
+      const { key } = event;
+      let nextIndex = index;
+      if (key === 'ArrowLeft' || key === 'ArrowUp') {
+        event.preventDefault();
+        nextIndex = index > 0 ? index - 1 : tabRefs.current.length - 1;
+      } else if (key === 'ArrowRight' || key === 'ArrowDown') {
+        event.preventDefault();
+        nextIndex = index < tabRefs.current.length - 1 ? index + 1 : 0;
+      } else if (key === 'Home') {
+        event.preventDefault();
+        nextIndex = 0;
+      } else if (key === 'End') {
+        event.preventDefault();
+        nextIndex = tabRefs.current.length - 1;
+      }
+      tabRefs.current[nextIndex]?.focus();
+    },
+    []
+  );
 
   // Reset authentication-required filters when not authenticated
   useEffect(() => {
@@ -456,195 +518,334 @@ export default function ZooDetail({
     ? headingLevel
     : 'h2';
 
+  // Build sections array
+  const sections = useMemo(() => {
+    const result = [
+      {
+        id: 'overview',
+        label: t('zoo.overviewTab'),
+        render: () => (
+          <>
+            {zoo.address && (
+              <div className="text-muted mb-3">
+                📍 {zoo.address}
+              </div>
+            )}
+            {zooDescription && (
+              <div>
+                {needsCollapse ? (
+                  <>
+                    {!descExpanded && (
+                      <p className="pre-wrap">
+                        {zooDescription.slice(0, MAX_DESC)}…
+                      </p>
+                    )}
+                    <p
+                      id="zoo-desc-full"
+                      className={`pre-wrap collapse ${descExpanded ? 'show' : ''}`}
+                    >
+                      {zooDescription}
+                    </p>
+                    <button
+                      className="btn btn-link p-0"
+                      type="button"
+                      onClick={() => { setDescExpanded((v) => !v); }}
+                      aria-expanded={descExpanded}
+                      aria-controls="zoo-desc-full"
+                    >
+                      {descExpanded ? t('zoo.showLess') : t('zoo.showMore')}
+                    </button>
+                  </>
+                ) : (
+                  <p className="pre-wrap">{zooDescription}</p>
+                )}
+              </div>
+            )}
+            <div className="mt-3">
+              <span className="me-3">
+                {t('zoo.visited')} {visited ? `☑️ ${t('zoo.yes')}` : `✘ ${t('zoo.no')}`}
+              </span>
+            </div>
+          </>
+        ),
+      },
+      {
+        id: 'animals',
+        label: t('zoo.animalsTab'),
+        render: () => (
+          <>
+            <div className="animals-section-filters">
+              <AnimalFilters
+                searchInput={filters.searchInput}
+                onSearchChange={filters.setSearchInput}
+                selectedClass={filters.selectedClass}
+                onClassChange={filters.handleClassChange}
+                selectedOrder={filters.selectedOrder}
+                onOrderChange={filters.handleOrderChange}
+                selectedFamily={filters.selectedFamily}
+                onFamilyChange={filters.handleFamilyChange}
+                seenOnly={filters.seenOnly}
+                onSeenChange={filters.setSeenOnly}
+                favoritesOnly={filters.favoritesOnly}
+                onFavoritesChange={filters.setFavoritesOnly}
+                classes={facets.classes}
+                orders={facets.orders}
+                families={facets.families}
+                hasActiveFilters={filters.hasActiveFilters}
+                onClearFilters={filters.clearAllFilters}
+                isAuthenticated={isAuthenticated}
+                lang={langParam || 'en'}
+                showSeenFilter
+                searchLabelKey="zoo.animalSearchLabel"
+                onAuthRequired={setAuthMessage}
+              />
+            </div>
+            {authMessage && (
+              <div className="alert alert-info mt-3" role="status">
+                {authMessage}
+              </div>
+            )}
+            {animalsError && (
+              <div className="alert alert-danger mt-3" role="alert">
+                {animalsError}
+              </div>
+            )}
+            <div className="animals-grid" aria-busy={animalsLoading}>
+              {animals.map((animal) => (
+                <AnimalTile
+                  key={animal.id}
+                  to={`${prefix}/animals/${animal.slug || animal.id}`}
+                  animal={animal}
+                  lang={tileLang}
+                  seen={Boolean(animal.seen)}
+                >
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-outline-secondary action-button-bottom-right"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      if (!isAuthenticated) {
+                        void navigate(`${prefix}/login`);
+                        return;
+                      }
+                      setModalData({
+                        zooId: zoo.id,
+                        zooName: zooDisplayName,
+                        animalId: animal.id,
+                        animalName: getAnimalName(animal),
+                      });
+                    }}
+                    aria-label={t('actions.logSighting')}
+                  >
+                    ➕
+                  </button>
+                </AnimalTile>
+              ))}
+            </div>
+            <div ref={sentinelRef} className="infinite-scroll-sentinel" aria-hidden="true" />
+            {animalsLoading && (
+              <div className="text-center my-3">
+                <div className="spinner-border" role="status" aria-hidden="true" />
+                <span className="visually-hidden">{t('actions.loading')}</span>
+              </div>
+            )}
+            {!animalsLoading && animals.length === 0 && !animalsError && (
+              <div className="alert alert-info mt-3" role="status">
+                {t('zoo.noAnimalsMatch')}
+              </div>
+            )}
+
+          </>
+        ),
+      },
+      {
+        id: 'visits',
+        label: t('zoo.visitsTab'),
+        render: () => (
+          <SightingHistoryList
+            sightings={history}
+            locale={locale}
+            isAuthenticated={isAuthenticated}
+            loading={historyLoading}
+            error={historyError}
+            messages={{
+              login: t('zoo.visitHistoryLogin'),
+              loginCta: t('nav.login'),
+              loading: t('zoo.visitHistoryLoading'),
+              error: t('zoo.visitHistoryError'),
+              empty: t('zoo.visitHistoryEmpty'),
+            }}
+            onLogin={() => {
+              void navigate(`${prefix}/login`);
+            }}
+            formatDay={formatHistoryDay}
+            renderSighting={renderHistoryItem}
+          />
+        ),
+      },
+    ];
+    return result;
+  }, [
+    t,
+    zoo.address,
+    zooDescription,
+    needsCollapse,
+    descExpanded,
+    visited,
+    filters,
+    facets,
+    isAuthenticated,
+    langParam,
+    authMessage,
+    setAuthMessage,
+    animalsError,
+    animalsLoading,
+    animals,
+    prefix,
+    tileLang,
+    navigate,
+    zoo.id,
+    zooDisplayName,
+    getAnimalName,
+    sentinelRef,
+    history,
+    locale,
+    historyLoading,
+    historyError,
+    formatHistoryDay,
+    renderHistoryItem,
+  ]);
+
+  // Map section - only shown on desktop in the right column when overview tab is active
+  const showDesktopMap = isDesktop && activeSection === 'overview' && Number.isFinite(zoo.latitude) && Number.isFinite(zoo.longitude);
+  const mapSection = showDesktopMap ? (
+    <div className="zoo-map-container">
+      <LazyMap latitude={zoo.latitude} longitude={zoo.longitude} />
+    </div>
+  ) : null;
+
   return (
-    <div className="p-3">
-      <HeadingTag className="h3 d-flex align-items-center gap-2">
-        {zooDisplayName}
-        {favorite && (
-          <span className="text-warning" role="img" aria-label={t('zoo.favoriteBadge')}>
-            ★
-          </span>
+    <div className="zoo-detail-container">
+      <div className="zoo-header">
+        <HeadingTag>
+          {zoo.city && <span className="city-prefix">{zoo.city}: </span>}
+          {zoo.name}
+          {favorite && (
+            <span className="text-warning" role="img" aria-label={t('zoo.favoriteBadge')}>
+              ★
+            </span>
+          )}
+        </HeadingTag>
+        <div className="d-flex flex-wrap gap-2 align-items-center mt-2">
+          <button
+            type="button"
+            className={`btn btn-sm favorite-toggle ${favorite ? 'btn-warning' : 'btn-outline-secondary'}`}
+            onClick={handleFavoriteToggle}
+            disabled={favoritePending}
+            aria-pressed={favorite}
+          >
+            <span className="favorite-icon" aria-hidden="true">★</span>
+            <span>{favorite ? t('zoo.removeFavorite') : t('zoo.addFavorite')}</span>
+          </button>
+        </div>
+        {favoriteError && (
+          <div className="text-danger small mt-2" role="status">
+            {favoriteError}
+          </div>
         )}
-      </HeadingTag>
-      {zoo.address && <div className="text-muted">📍 {zoo.address}</div>}
-      {Number.isFinite(zoo.latitude) && Number.isFinite(zoo.longitude) && (
-        <div className="mt-1">
+      </div>
+
+      {/* Mobile: Map always visible below header, above accordion */}
+      {!isDesktop && Number.isFinite(zoo.latitude) && Number.isFinite(zoo.longitude) && (
+        <div className="zoo-map-mobile mb-3">
           <LazyMap latitude={zoo.latitude} longitude={zoo.longitude} />
         </div>
       )}
-      {zooDescription && (
-        <div className="card mt-3">
-          <div className="card-body">
-            <h5 className="card-title">{t('zoo.description')}</h5>
-            {needsCollapse ? (
-              <>
-                {!descExpanded && (
-                  <p className="card-text pre-wrap">
-                    {zooDescription.slice(0, MAX_DESC)}…
-                  </p>
-                )}
-                <p
-                  id="zoo-desc-full"
-                  className={`card-text pre-wrap collapse ${descExpanded ? 'show' : ''}`}
+
+      {/* Desktop: Tabs + content grid with sticky map */}
+      {isDesktop ? (
+        <div
+          className="zoo-desktop-sections mt-3"
+          role="region"
+          aria-label="Zoo sections"
+        >
+          <div className="nav nav-tabs w-100" role="tablist">
+            {sections.map((section, index) => (
+              <button
+                key={section.id}
+                type="button"
+                role="tab"
+                className={`nav-link ${activeSection === section.id ? 'active' : ''}`}
+                id={`${section.id}-tab`}
+                aria-controls={`${section.id}-panel`}
+                aria-selected={activeSection === section.id}
+                onClick={() => { setActiveSection(section.id); }}
+                onKeyDown={(event) => { handleTabKeyDown(event, index); }}
+                ref={(node) => {
+                  tabRefs.current[index] = node;
+                }}
+              >
+                {section.label}
+              </button>
+            ))}
+          </div>
+          <div className="row g-4 g-lg-5 align-items-start mt-3">
+            <div className={`col-12 ${mapSection ? 'col-lg-6 order-lg-1' : ''}`}>
+              {sections.map((section) => (
+                <div
+                  key={section.id}
+                  id={`${section.id}-panel`}
+                  role="tabpanel"
+                  aria-labelledby={`${section.id}-tab`}
+                  className="zoo-tabpanel"
+                  hidden={activeSection !== section.id}
                 >
-                  {zooDescription}
-                </p>
-                <button
-                  className="btn btn-link p-0"
-                  type="button"
-                  data-bs-toggle="collapse"
-                  data-bs-target="#zoo-desc-full"
-                  aria-expanded={descExpanded}
-                  aria-controls="zoo-desc-full"
-                  onClick={() => { setDescExpanded((v) => !v); }}
-                >
-                  {descExpanded ? t('zoo.showLess') : t('zoo.showMore')}
-                </button>
-              </>
-            ) : (
-              <p className="card-text pre-wrap">{zooDescription}</p>
+                  {section.render()}
+                </div>
+              ))}
+            </div>
+            {mapSection && (
+              <div className="col-12 col-lg-6 order-lg-2">
+                <div className="sticky-lg-top" style={{ top: '1rem' }}>
+                  {mapSection}
+                </div>
+              </div>
             )}
           </div>
         </div>
-      )}
-      <div className="mt-2 d-flex flex-wrap gap-2 align-items-center">
-        <span>
-          {t('zoo.visited')} {visited ? `☑️ ${t('zoo.yes')}` : `✘ ${t('zoo.no')}`}
-        </span>
-        <button
-          type="button"
-          className={`btn btn-sm ${favorite ? 'btn-warning' : 'btn-outline-secondary'}`}
-          onClick={handleFavoriteToggle}
-          disabled={favoritePending}
-          aria-pressed={favorite}
-        >
-          {favorite ? t('zoo.removeFavorite') : t('zoo.addFavorite')}
-        </button>
-      </div>
-      {favoriteError && (
-        <div className="text-danger small mt-1" role="status">
-          {favoriteError}
+      ) : (
+        /* Mobile: Accordion sections */
+        <div className="accordion zoo-accordion" id="zoo-detail-sections">
+          {sections.map((section) => {
+            const open = openSections.has(section.id);
+            return (
+              <div className="accordion-item" key={section.id}>
+                <h2 className="accordion-header" id={`${section.id}-heading`}>
+                  <button
+                    className={`accordion-button ${open ? '' : 'collapsed'}`}
+                    type="button"
+                    aria-expanded={open}
+                    aria-controls={`${section.id}-collapse`}
+                    onClick={() => { toggleAccordion(section.id); }}
+                  >
+                    {section.label}
+                  </button>
+                </h2>
+                <div
+                  id={`${section.id}-collapse`}
+                  className={`accordion-collapse collapse ${open ? 'show' : ''}`}
+                  aria-labelledby={`${section.id}-heading`}
+                >
+                  <div className="accordion-body">{section.render()}</div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
-      <div className="mt-3">
-        <h4>{t('zoo.visitHistoryHeading')}</h4>
-        <SightingHistoryList
-          sightings={history}
-          locale={locale}
-          isAuthenticated={isAuthenticated}
-          loading={historyLoading}
-          error={historyError}
-          messages={{
-            login: t('zoo.visitHistoryLogin'),
-            loginCta: t('nav.login'),
-            loading: t('zoo.visitHistoryLoading'),
-            error: t('zoo.visitHistoryError'),
-            empty: t('zoo.visitHistoryEmpty'),
-          }}
-          onLogin={() => {
-            void navigate(`${prefix}/login`);
-          }}
-          formatDay={formatHistoryDay}
-          renderSighting={renderHistoryItem}
-        />
-      </div>
-      {/* visit logging removed - visits are created automatically from sightings */}
-      <div className="mt-3">
-        <h4>{t('zoo.animals')}</h4>
-        <div className="mt-2">
-          <AnimalFilters
-            searchInput={filters.searchInput}
-            onSearchChange={filters.setSearchInput}
-            selectedClass={filters.selectedClass}
-            onClassChange={filters.handleClassChange}
-            selectedOrder={filters.selectedOrder}
-            onOrderChange={filters.handleOrderChange}
-            selectedFamily={filters.selectedFamily}
-            onFamilyChange={filters.handleFamilyChange}
-            seenOnly={filters.seenOnly}
-            onSeenChange={filters.setSeenOnly}
-            favoritesOnly={filters.favoritesOnly}
-            onFavoritesChange={filters.setFavoritesOnly}
-            classes={facets.classes}
-            orders={facets.orders}
-            families={facets.families}
-            hasActiveFilters={filters.hasActiveFilters}
-            onClearFilters={filters.clearAllFilters}
-            isAuthenticated={isAuthenticated}
-            lang={langParam || 'en'}
-            showSeenFilter
-            searchLabelKey="zoo.animalSearchLabel"
-            onAuthRequired={setAuthMessage}
-          />
-        </div>
-        {authMessage && (
-          <div className="alert alert-info mt-3" role="status">
-            {authMessage}
-          </div>
-        )}
-        {animalsError && (
-          <div className="alert alert-danger mt-3" role="alert">
-            {animalsError}
-          </div>
-        )}
-        <div
-          className="animals-grid mt-3"
-          aria-busy={animalsLoading}
-          aria-describedby="zoo-animals-status"
-        >
-          {animals.map((animal) => (
-            <AnimalTile
-              key={animal.id}
-              to={`${prefix}/animals/${animal.slug || animal.id}`}
-              animal={animal}
-              lang={tileLang}
-              seen={Boolean(animal.seen)}
-            >
-              <button
-                type="button"
-                className="btn btn-sm btn-outline-secondary action-button-bottom-right"
-                onClick={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  if (!isAuthenticated) {
-                    void navigate(`${prefix}/login`);
-                    return;
-                  }
-                  setModalData({
-                    zooId: zoo.id,
-                    zooName: zooDisplayName,
-                    animalId: animal.id,
-                    animalName: getAnimalName(animal),
-                  });
-                }}
-                aria-label={t('actions.logSighting')}
-              >
-                ➕
-              </button>
-            </AnimalTile>
-          ))}
-        </div>
-        
-        {/* Infinite scroll sentinel */}
-        <div ref={sentinelRef} className="infinite-scroll-sentinel" aria-hidden="true" />
-        
-        {animalsLoading && (
-          <div className="text-center my-3">
-            <div className="spinner-border" role="status" aria-hidden="true" />
-            <span className="visually-hidden">{t('actions.loading')}</span>
-          </div>
-        )}
-        {!animalsLoading && animals.length === 0 && !animalsError && (
-          <div className="alert alert-info mt-3" role="status">
-            {t('zoo.noAnimalsMatch')}
-          </div>
-        )}
-        {!animalsLoading && !hasMore && animals.length > 0 && (
-          <div className="text-center my-3 text-muted small">
-            {t('zoo.noMoreResults')}
-          </div>
-        )}
-      </div>
+
+      {/* Sighting Modal */}
       {modalData && (
         <SightingModal
           animals={null}
@@ -659,6 +860,8 @@ export default function ZooDetail({
           onClose={() => { setModalData(null); }}
         />
       )}
-      </div>
-    );
-  }
+    </div>
+  );
+}
+
+// Old code to be removed starts here - will be cleaned up below
