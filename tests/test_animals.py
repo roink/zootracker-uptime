@@ -259,8 +259,10 @@ async def test_list_animals_includes_name_de(client, data):
     resp = await client.get("/animals", params={"limit": 1})
     assert resp.status_code == 200
     body = resp.json()
-    assert "name_de" in body[0]
-    assert "slug" in body[0]
+    assert "items" in body
+    assert len(body["items"]) == 1
+    assert "name_de" in body["items"][0]
+    assert "slug" in body["items"][0]
 
 
 async def test_get_animal_detail_with_distance(client, data):
@@ -513,11 +515,12 @@ async def test_list_animals_returns_details_and_pagination(client, data):
     resp = await client.get("/animals", params={"limit": 2, "offset": 0})
     assert resp.status_code == 200
     body = resp.json()
-    assert [a["slug"] for a in body] == [
+    assert "items" in body
+    assert [a["slug"] for a in body["items"]] == [
         data["lion_subspecies"].slug,
         data["animal"].slug,
     ]
-    entries = {item["slug"]: item for item in body}
+    entries = {item["slug"]: item for item in body["items"]}
     lion = entries[data["animal"].slug]
     assert lion["zoo_count"] == 1
     assert lion["slug"]
@@ -533,8 +536,8 @@ async def test_list_animals_returns_details_and_pagination(client, data):
     resp2 = await client.get("/animals", params={"limit": 2, "offset": 2})
     assert resp2.status_code == 200
     body2 = resp2.json()
-    assert len(body2) == 2
-    eagle = body2[0]
+    assert len(body2["items"]) == 2
+    eagle = body2["items"][0]
     assert eagle["scientific_name"] == "Aquila chrysaetos"
     assert eagle["category"] == "Bird"
     assert eagle["default_image_url"].startswith("http://example.com/")
@@ -542,7 +545,7 @@ async def test_list_animals_returns_details_and_pagination(client, data):
     assert eagle["zoo_count"] == 0
     assert eagle["is_favorite"] is False
 
-    tiger = body2[1]
+    tiger = body2["items"][1]
     assert tiger["scientific_name"] == "Panthera tigris"
     assert tiger["slug"]
     assert tiger["zoo_count"] == 0
@@ -577,7 +580,7 @@ async def test_list_animals_tiebreaker_uses_id_when_names_match(client, data):
         resp = await client.get("/animals", params={"limit": 5, "offset": 0})
         assert resp.status_code == 200
         body = resp.json()
-        slugs = [a["slug"] for a in body]
+        slugs = [a["slug"] for a in body["items"]]
         first_index = slugs.index("aardwolf-alpha")
         second_index = slugs.index("aardwolf-beta")
         assert second_index == first_index + 1
@@ -597,7 +600,7 @@ async def test_list_animals_invalid_pagination(client):
 
 
 async def test_list_animals_invalid_pagination_upper_bound(client):
-    resp = await client.get("/animals", params={"limit": 101})
+    resp = await client.get("/animals", params={"limit": 201})
     assert resp.status_code == 422
 
 
@@ -609,20 +612,22 @@ async def test_list_animals_invalid_offset(client):
 async def test_list_animals_category_filter(client):
     resp = await client.get("/animals", params={"category": "Mammal"})
     assert resp.status_code == 200
-    names = [a["name_en"] for a in resp.json()]
+    names = [a["name_en"] for a in resp.json()["items"]]
     assert names == ["Asiatic Lion", "Lion", "Tiger"]
 
     resp = await client.get("/animals", params={"category": "Bird"})
     assert resp.status_code == 200
     body = resp.json()
-    assert len(body) == 1
-    assert body[0]["name_en"] == "Eagle"
+    assert len(body["items"]) == 1
+    assert body["items"][0]["name_en"] == "Eagle"
 
 
 async def test_list_animals_empty_page(client):
     resp = await client.get("/animals", params={"limit": 5, "offset": 10})
     assert resp.status_code == 200
-    assert resp.json() == []
+    result = resp.json()
+    assert result["items"] == []
+    assert result["total"] == 4
 
 
 async def test_taxonomy_endpoints_and_filters(client, data):
@@ -639,15 +644,15 @@ async def test_taxonomy_endpoints_and_filters(client, data):
     assert families == [{"id": 1, "name_de": "Katzen", "name_en": "Cats"}]
 
     resp = await client.get("/animals", params={"class_id": 1})
-    names = [a["name_en"] for a in resp.json()]
+    names = [a["name_en"] for a in resp.json()["items"]]
     assert names == ["Lion"]
 
     resp = await client.get("/animals", params={"order_id": 1})
-    names = [a["name_en"] for a in resp.json()]
+    names = [a["name_en"] for a in resp.json()["items"]]
     assert names == ["Lion"]
 
     resp = await client.get("/animals", params={"family_id": 1})
-    names = [a["name_en"] for a in resp.json()]
+    names = [a["name_en"] for a in resp.json()["items"]]
     assert names == ["Lion"]
 
 
@@ -677,9 +682,9 @@ async def test_animal_favorites_flow(client, data):
     )
     assert fav_resp.status_code == 200
     favorites = fav_resp.json()
-    assert len(favorites) == 1
-    assert favorites[0]["id"] == str(data["animal"].id)
-    assert favorites[0]["is_favorite"] is True
+    assert len(favorites["items"]) == 1
+    assert favorites["items"][0]["id"] == str(data["animal"].id)
+    assert favorites["items"][0]["is_favorite"] is True
 
     detail_resp = await client.get(f"/animals/{data['animal'].slug}", headers=headers)
     assert detail_resp.status_code == 200
@@ -694,7 +699,7 @@ async def test_animal_favorites_flow(client, data):
 
     cleared = await client.get("/animals", params={"favorites_only": "true"}, headers=headers)
     assert cleared.status_code == 200
-    assert cleared.json() == []
+    assert cleared.json()["items"] == []
 
     detail_after = await client.get(f"/animals/{data['animal'].slug}", headers=headers)
     assert detail_after.status_code == 200

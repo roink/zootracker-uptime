@@ -62,23 +62,28 @@ def _get_animal_or_404(animal_slug: str, db: Session) -> models.Animal:
     return animal
 
 
-@router.get("/animals", response_model=list[schemas.AnimalListItem])
+@router.get("/animals", response_model=schemas.AnimalSearchPage)
 def list_animals(
     response: Response,
     q: str = "",
-    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
     category: str | None = None,
     class_id: int | None = None,
     order_id: int | None = None,
     family_id: int | None = None,
     favorites_only: bool = False,
+    seen_only: bool = False,
     db: Session = _db_dependency,
     user: models.User | None = _optional_user_dependency,
-) -> list[schemas.AnimalListItem]:
+) -> schemas.AnimalSearchPage:
     """List animals filtered by search query, taxonomy and pagination."""
 
-    set_personalized_cache_headers(response)
+    # Anonymous users get cacheable responses
+    if user is None:
+        response.headers["Cache-Control"] = "public, max-age=3600"
+    else:
+        set_personalized_cache_headers(response)
 
     # Ensure hierarchical taxonomy parameters are consistent
     if class_id is not None and order_id is not None:
@@ -112,16 +117,43 @@ def list_animals(
         .options(joinedload(models.Animal.category))
     )
 
-    if favorites_only:
-        if user is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Authentication required to filter favorites",
+    # Require authentication for personalized filters
+    if favorites_only and user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required to filter favorites",
+        )
+    if seen_only and user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required to filter seen animals",
+        )
+
+    favorite_ids: set = set()
+    seen_ids: set = set()
+    if user is not None:
+        favorite_ids = {
+            row[0]
+            for row in (
+                db.query(models.UserFavoriteAnimal.animal_id)
+                .filter(models.UserFavoriteAnimal.user_id == user.id)
+                .all()
             )
-        query = query.join(
-            models.UserFavoriteAnimal,
-            models.UserFavoriteAnimal.animal_id == models.Animal.id,
-        ).filter(models.UserFavoriteAnimal.user_id == user.id)
+        }
+        seen_ids = {
+            row[0]
+            for row in (
+                db.query(models.AnimalSighting.animal_id)
+                .filter(models.AnimalSighting.user_id == user.id)
+                .distinct()
+                .all()
+            )
+        }
+
+    if favorites_only:
+        query = query.filter(models.Animal.id.in_(favorite_ids))
+    if seen_only:
+        query = query.filter(models.Animal.id.in_(seen_ids))
 
     if q:
         pattern = f"%{q}%"
@@ -141,6 +173,10 @@ def list_animals(
     if family_id is not None:
         query = query.filter(models.Animal.familie == family_id)
 
+    # Get total count
+    total = query.order_by(None).count()
+
+    # Apply pagination
     animals = (
         query.order_by(
             models.Animal.zoo_count.desc(),
@@ -152,18 +188,9 @@ def list_animals(
         .all()
     )
 
-    favorite_ids: set = set()
-    if user is not None:
-        favorite_ids = {
-            row[0]
-            for row in (
-                db.query(models.UserFavoriteAnimal.animal_id)
-                .filter(models.UserFavoriteAnimal.user_id == user.id)
-                .all()
-            )
-        }
+    response.headers["X-Total-Count"] = str(total)
 
-    return [
+    items = [
         schemas.AnimalListItem(
             id=a.id,
             slug=a.slug,
@@ -179,6 +206,13 @@ def list_animals(
         )
         for a in animals
     ]
+
+    return schemas.AnimalSearchPage(
+        items=items,
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.get("/animals/classes", response_model=list[schemas.TaxonName])

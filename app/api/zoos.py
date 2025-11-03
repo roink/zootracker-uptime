@@ -340,34 +340,68 @@ def list_zoo_animals(
     response: Response,
     zoo_slug: str,
     q: str | None = None,
-    class_filters: list[int] = Query(default_factory=list, alias="class"),
-    order_filters: list[int] = Query(default_factory=list, alias="order"),
-    family_filters: list[int] = Query(default_factory=list, alias="family"),
-    seen: str | None = None,
-    favorites: str | None = None,
+    class_id: int | None = Query(None, alias="class"),
+    order_id: int | None = Query(None, alias="order"),
+    family_id: int | None = Query(None, alias="family"),
+    seen: bool | None = None,
+    favorites: bool | None = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
     db: Session = _db_dependency,
     user: models.User | None = _optional_user_dependency,
 ) -> schemas.ZooAnimalListing:
     """Return animals that are associated with a specific zoo."""
 
-    set_personalized_cache_headers(response)
-
     zoo = _get_zoo_or_404(zoo_slug, db)
 
+    # Anonymous users get cacheable responses
+    if user is None:
+        response.headers["Cache-Control"] = "public, max-age=3600"
+    else:
+        set_personalized_cache_headers(response)
+
     search_text = (q or "").strip().lower()
-    selected_classes = {value for value in class_filters if value is not None}
-    selected_orders = {value for value in order_filters if value is not None}
-    selected_families = {value for value in family_filters if value is not None}
+    require_seen = seen if seen is not None else False
+    require_favorites = favorites if favorites is not None else False
 
-    def _as_bool(value: str | None) -> bool:
-        if value is None:
-            return False
-        lowered = value.strip().lower()
-        return lowered in {"1", "true", "yes", "on"}
+    # Require authentication for personalized filters
+    if require_favorites and user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required to filter favorites",
+        )
+    if require_seen and user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required to filter seen animals",
+        )
 
-    require_seen = _as_bool(seen)
-    require_favorites = _as_bool(favorites)
+    # Build base query for animals at this zoo
+    base_query = (
+        db.query(models.Animal)
+        .join(models.ZooAnimal, models.Animal.id == models.ZooAnimal.animal_id)
+        .filter(models.ZooAnimal.zoo_id == zoo.id)
+    )
 
+    # Apply taxonomy filters
+    if class_id is not None:
+        base_query = base_query.filter(models.Animal.klasse == class_id)
+    if order_id is not None:
+        base_query = base_query.filter(models.Animal.ordnung == order_id)
+    if family_id is not None:
+        base_query = base_query.filter(models.Animal.familie == family_id)
+
+    # Apply text search
+    if search_text:
+        search_pattern = f"%{search_text}%"
+        base_query = base_query.filter(
+            (models.Animal.name_en.ilike(search_pattern))
+            | (models.Animal.name_de.ilike(search_pattern))
+            | (models.Animal.scientific_name.ilike(search_pattern))
+            | (models.Animal.slug.ilike(search_pattern))
+        )
+
+    # Apply personalized filters
     favorite_ids: set = set()
     seen_ids: set = set()
     if user is not None:
@@ -389,11 +423,17 @@ def list_zoo_animals(
             )
         }
 
-    animals_query = (
-        db.query(models.Animal)
-        .join(models.ZooAnimal, models.Animal.id == models.ZooAnimal.animal_id)
-        .filter(models.ZooAnimal.zoo_id == zoo.id)
-        .options(
+        if require_favorites:
+            base_query = base_query.filter(models.Animal.id.in_(favorite_ids))
+        if require_seen:
+            base_query = base_query.filter(models.Animal.id.in_(seen_ids))
+
+    # Get total count before pagination
+    total = base_query.order_by(None).count()
+
+    # Apply ordering and pagination
+    filtered_query = (
+        base_query.options(
             joinedload(models.Animal.klasse_name),
             joinedload(models.Animal.ordnung_name),
             joinedload(models.Animal.familie_name),
@@ -403,76 +443,42 @@ def list_zoo_animals(
             models.Animal.name_en.asc(),
             models.Animal.id.asc(),
         )
+        .limit(limit)
+        .offset(offset)
     )
-    animals = animals_query.all()
 
-    def _matches_search(animal: models.Animal) -> bool:
-        if not search_text:
-            return True
-        candidates = (
-            animal.name_en,
-            animal.name_de,
-            animal.scientific_name,
-            animal.slug,
+    animals = filtered_query.all()
+
+    # Compute facets based on all animals at the zoo (respecting search/personal filters)
+    facet_query = (
+        db.query(models.Animal)
+        .join(models.ZooAnimal, models.Animal.id == models.ZooAnimal.animal_id)
+        .filter(models.ZooAnimal.zoo_id == zoo.id)
+        .options(
+            joinedload(models.Animal.klasse_name),
+            joinedload(models.Animal.ordnung_name),
+            joinedload(models.Animal.familie_name),
         )
-        for candidate in candidates:
-            if candidate and search_text in candidate.lower():
-                return True
-        return False
+    )
 
-    def _matches_filters(animal: models.Animal) -> bool:
-        if require_favorites and animal.id not in favorite_ids:
-            return False
-        if require_seen and animal.id not in seen_ids:
-            return False
-        if selected_classes and (animal.klasse not in selected_classes):
-            return False
-        if selected_orders and (animal.ordnung not in selected_orders):
-            return False
-        if selected_families and (animal.familie not in selected_families):
-            return False
-        return _matches_search(animal)
-
-    def _passes_common_filters(animal: models.Animal) -> bool:
-        if require_favorites and animal.id not in favorite_ids:
-            return False
-        if require_seen and animal.id not in seen_ids:
-            return False
-        return _matches_search(animal)
-
-    filtered_animals = [animal for animal in animals if _matches_filters(animal)]
-
-    def _collect_labels(animal: models.Animal) -> tuple[
-        dict[int, tuple[str | None, str | None]],
-        dict[int, tuple[str | None, str | None]],
-        dict[int, tuple[str | None, str | None]],
-    ]:
-        return (
-            {
-                animal.klasse: (
-                    getattr(animal.klasse_name, "name_de", None),
-                    getattr(animal.klasse_name, "name_en", None),
-                )
-                for _ in [None]
-                if animal.klasse is not None
-            },
-            {
-                animal.ordnung: (
-                    getattr(animal.ordnung_name, "name_de", None),
-                    getattr(animal.ordnung_name, "name_en", None),
-                )
-                for _ in [None]
-                if animal.ordnung is not None
-            },
-            {
-                animal.familie: (
-                    getattr(animal.familie_name, "name_de", None),
-                    getattr(animal.familie_name, "name_en", None),
-                )
-                for _ in [None]
-                if animal.familie is not None
-            },
+    # Apply text search to facets
+    if search_text:
+        search_pattern = f"%{search_text}%"
+        facet_query = facet_query.filter(
+            (models.Animal.name_en.ilike(search_pattern))
+            | (models.Animal.name_de.ilike(search_pattern))
+            | (models.Animal.scientific_name.ilike(search_pattern))
+            | (models.Animal.slug.ilike(search_pattern))
         )
+
+    # Apply personalized filters to facets
+    if user is not None:
+        if require_favorites:
+            facet_query = facet_query.filter(models.Animal.id.in_(favorite_ids))
+        if require_seen:
+            facet_query = facet_query.filter(models.Animal.id.in_(seen_ids))
+
+    facet_animals = facet_query.all()
 
     class_labels: dict[int, tuple[str | None, str | None]] = {}
     order_labels: dict[int, tuple[str | None, str | None]] = {}
@@ -481,33 +487,45 @@ def list_zoo_animals(
     order_counts: dict[int, int] = {}
     family_counts: dict[int, int] = {}
 
-    for animal in animals:
-        cls_label, ord_label, fam_label = _collect_labels(animal)
-        class_labels.update(cls_label)
-        order_labels.update(ord_label)
-        family_labels.update(fam_label)
+    for animal in facet_animals:
+        # Collect labels
+        if animal.klasse is not None:
+            class_labels[animal.klasse] = (
+                getattr(animal.klasse_name, "name_de", None),
+                getattr(animal.klasse_name, "name_en", None),
+            )
+        if animal.ordnung is not None:
+            order_labels[animal.ordnung] = (
+                getattr(animal.ordnung_name, "name_de", None),
+                getattr(animal.ordnung_name, "name_en", None),
+            )
+        if animal.familie is not None:
+            family_labels[animal.familie] = (
+                getattr(animal.familie_name, "name_de", None),
+                getattr(animal.familie_name, "name_en", None),
+            )
 
+        # Count for class facets (exclude selected orders and families)
         if (
-            _passes_common_filters(animal)
-            and (not selected_orders or animal.ordnung in selected_orders)
-            and (not selected_families or animal.familie in selected_families)
-            and animal.klasse is not None
+            animal.klasse is not None
+            and (order_id is None or animal.ordnung == order_id)
+            and (family_id is None or animal.familie == family_id)
         ):
             class_counts[animal.klasse] = class_counts.get(animal.klasse, 0) + 1
 
+        # Count for order facets (exclude selected families)
         if (
-            _passes_common_filters(animal)
-            and (not selected_classes or animal.klasse in selected_classes)
-            and (not selected_families or animal.familie in selected_families)
-            and animal.ordnung is not None
+            animal.ordnung is not None
+            and (class_id is None or animal.klasse == class_id)
+            and (family_id is None or animal.familie == family_id)
         ):
             order_counts[animal.ordnung] = order_counts.get(animal.ordnung, 0) + 1
 
+        # Count for family facets
         if (
-            _passes_common_filters(animal)
-            and (not selected_classes or animal.klasse in selected_classes)
-            and (not selected_orders or animal.ordnung in selected_orders)
-            and animal.familie is not None
+            animal.familie is not None
+            and (class_id is None or animal.klasse == class_id)
+            and (order_id is None or animal.ordnung == order_id)
         ):
             family_counts[animal.familie] = family_counts.get(animal.familie, 0) + 1
 
@@ -568,14 +586,15 @@ def list_zoo_animals(
             familie=animal.familie,
         )
 
-    inventory_items = [_serialize(animal) for animal in animals]
-    filtered_items = [_serialize(animal) for animal in filtered_animals]
+    items = [_serialize(animal) for animal in animals]
+
+    response.headers["X-Total-Count"] = str(total)
 
     return schemas.ZooAnimalListing(
-        items=filtered_items,
-        total=len(filtered_items),
-        available_total=len(inventory_items),
-        inventory=inventory_items,
+        items=items,
+        total=total,
+        available_total=total,
+        inventory=[],
         facets=schemas.ZooAnimalFacets(
             classes=class_facets,
             orders=order_facets,

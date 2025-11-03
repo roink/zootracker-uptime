@@ -1,662 +1,310 @@
-// @ts-nocheck
-import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 
 import { API } from '../api';
 import { useAuth } from '../auth/AuthContext';
+import AnimalFilters from '../components/AnimalFilters';
 import AnimalTile from '../components/AnimalTile';
 import Seo from '../components/Seo';
+import { useAnimalFilters } from '../hooks/useAnimalFilters';
 import useAuthFetch from '../hooks/useAuthFetch';
+import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
+
+interface AnimalListItem {
+  id: string;
+  slug: string;
+  name_en: string;
+  name_de?: string | null;
+  scientific_name?: string | null;
+  default_image_url?: string | null;
+  zoo_count: number;
+  is_favorite: boolean;
+}
+
+interface AnimalSearchPage {
+  items: AnimalListItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+interface TaxonName {
+  id: number;
+  name_de?: string | null;
+  name_en?: string | null;
+}
 
 // Browse all animals with hierarchical taxonomy filters and pagination
 export default function AnimalsPage() {
   const { lang } = useParams();
-  const [searchParams, setSearchParams] = useSearchParams();
   const prefix = `/${lang}`;
-  const initialQ = searchParams.get('q') || '';
-  const initialFavorites = searchParams.get('favorites') === '1';
   const { t } = useTranslation();
-
-  // ------- Snapshot keys (per language + filters) -------
-  const searchParamKey = searchParams.toString();
-  const storageKey = `animals-page:${lang || 'unknown'}:${searchParamKey}`;
-  const restoreFlagKey = `${storageKey}:restore`;
-
-  // Track pagination state without triggering renders on every increment
-  const offsetRef = useRef(0);
-  const sentinelRef = useRef<any>(null);
-  const requestIdRef = useRef(0);
-  const loadingRef = useRef(false);
-  const controllerRef = useRef<any>(null);
-  const initialScrollYRef = useRef(0);
-  const skipInitialFetchRef = useRef(false);
-  const latestStateRef = useRef({
-    animals: [],
-    hasMore: false,
-    statusMessage: '',
-    prefersManualLoading: false,
-  });
-  const scrollPositionRef = useRef(0);
-
-  // ------- Synchronous restore seed (prevents visible jump) -------
-  let seeded = false;
-  if (typeof window !== 'undefined') {
-    try {
-      if (sessionStorage.getItem(restoreFlagKey) === '1') {
-        const raw = sessionStorage.getItem(storageKey);
-        if (raw) {
-          const cached = JSON.parse(raw);
-          seeded = true;
-          offsetRef.current =
-            typeof cached.offset === 'number'
-              ? cached.offset
-              : (cached.animals?.length ?? 0);
-          initialScrollYRef.current =
-            typeof cached.scrollY === 'number' ? cached.scrollY : 0;
-          skipInitialFetchRef.current = true;
-          window.__ANIMALS_SYNC_SEED__ = cached;
-        }
-      }
-    } catch {
-      // ignore storage errors
-    }
-  }
-
-  const seed = (key, fallback) => {
-    if (typeof window === 'undefined') return fallback;
-    const cached = window.__ANIMALS_SYNC_SEED__;
-    return seeded ? cached?.[key] ?? fallback : fallback;
-  };
-
-  const [animals, setAnimals] = useState(() => seed('animals', []));
-  const [hasMore, setHasMore] = useState(() => Boolean(seed('hasMore', false)));
-  const [statusMessage, setStatusMessage] = useState(() => seed('statusMessage', ''));
-  const [prefersManualLoading, setPrefersManualLoading] = useState(() =>
-    Boolean(seed('prefersManualLoading', false))
-  );
-  const [seenAnimals, setSeenAnimals] = useState<any[]>([]);
-  const [search, setSearch] = useState(initialQ);
-  const [query, setQuery] = useState(initialQ);
-  const [classes, setClasses] = useState<any[]>([]);
-  const [orders, setOrders] = useState<any[]>([]);
-  const [families, setFamilies] = useState<any[]>([]);
-  const [classId, setClassId] = useState(searchParams.get('class') || '');
-  const [orderId, setOrderId] = useState(searchParams.get('order') || '');
-  const [familyId, setFamilyId] = useState(searchParams.get('family') || '');
-  const [favoritesOnly, setFavoritesOnly] = useState(initialFavorites);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
   const authFetch = useAuthFetch();
   const { isAuthenticated, user } = useAuth();
-  const uid = user?.id;
-  const limit = 20; // number of animals per page
-  const [supportsIntersectionObserver] = useState(
-    () => typeof window !== 'undefined' && 'IntersectionObserver' in window
-  );
-  const autoLoadingEnabled = useMemo(
-    () => supportsIntersectionObserver && !prefersManualLoading,
-    [prefersManualLoading, supportsIntersectionObserver]
-  );
+  const filters = useAnimalFilters();
 
+  const [animals, setAnimals] = useState<AnimalListItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [authMessage, setAuthMessage] = useState('');
+  const [hasMore, setHasMore] = useState(false);
+  const [offset, setOffset] = useState(0);
+  const [seenAnimals, setSeenAnimals] = useState<string[]>([]);
+  const [classes, setClasses] = useState<TaxonName[]>([]);
+  const [orders, setOrders] = useState<TaxonName[]>([]);
+  const [families, setFamilies] = useState<TaxonName[]>([]);
+
+  const limit = 50;
+  const tileLang = lang === 'de' ? 'de' : 'en';
+
+  // Reset authentication-required filters when not authenticated
   useEffect(() => {
-    if (typeof window === 'undefined' || !('scrollRestoration' in window.history)) {
-      return undefined;
+    if (!isAuthenticated) {
+      if (filters.favoritesOnly) {
+        filters.setFavoritesOnly(false);
+      }
+      if (filters.seenOnly) {
+        filters.setSeenOnly(false);
+      }
+    } else {
+      // Clear auth message when user logs in
+      setAuthMessage('');
     }
+  }, [isAuthenticated, filters]);
 
-    const previous = window.history.scrollRestoration;
-    window.history.scrollRestoration = 'manual';
-
-      return () => {
-        window.history.scrollRestoration = previous;
-      };
-  }, []);
-
-  const withInstantScroll = useCallback((fn) => {
-    if (typeof window === 'undefined') {
-      fn();
-      return;
-    }
-
-    const root = typeof document !== 'undefined' ? document.documentElement : null;
-    if (!root) {
-      fn();
-      return;
-    }
-
-    const previousBehavior = root.style.scrollBehavior;
-    root.style.scrollBehavior = 'auto';
-    try {
-      fn();
-    } finally {
-      root.style.scrollBehavior = previousBehavior || '';
-    }
-  }, []);
-
+  // Clear auth message when filters change
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      delete window.__ANIMALS_SYNC_SEED__;
-    }
-  }, []);
+    setAuthMessage('');
+  }, [
+    filters.query,
+    filters.selectedClass,
+    filters.selectedOrder,
+    filters.selectedFamily,
+  ]);
 
-  // Hydrate local state from the URL whenever search params change
+  // Load taxonomy options
   useEffect(() => {
-    const urlSearch = searchParams.get('q') || '';
-    const urlClass = searchParams.get('class') || '';
-    const urlOrder = searchParams.get('order') || '';
-    const urlFamily = searchParams.get('family') || '';
-    const urlFavorites = searchParams.get('favorites') === '1';
-    if (search !== urlSearch) {
-      setSearch(urlSearch);
-      setQuery(urlSearch);
-    }
-    if (classId !== urlClass) setClassId(urlClass);
-    if (orderId !== urlOrder) setOrderId(urlOrder);
-    if (familyId !== urlFamily) setFamilyId(urlFamily);
-    if (favoritesOnly !== urlFavorites) setFavoritesOnly(urlFavorites);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
-
-  // Persist search and filter selections in the URL
-  useEffect(() => {
-    const params = new URLSearchParams();
-    if (query) params.set('q', query);
-    if (classId) params.set('class', classId);
-    if (orderId) params.set('order', orderId);
-    if (familyId) params.set('family', familyId);
-    if (favoritesOnly) params.set('favorites', '1');
-    const next = params.toString();
-    if (next !== searchParams.toString()) {
-      setSearchParams(params, { replace: true });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, classId, orderId, familyId, favoritesOnly]);
-
-  // Fetch list of classes on mount
-  useEffect(() => {
-    fetch(`${API}/animals/classes`)
+    void fetch(`${API}/animals/classes`)
       .then((r) => (r.ok ? r.json() : []))
-      .then(setClasses)
+      .then((data: TaxonName[]) => { setClasses(data); return undefined; })
       .catch(() => { setClasses([]); });
   }, []);
 
-  // Remember the latest list data so we can persist it to session storage when needed
   useEffect(() => {
-    latestStateRef.current = {
-      animals,
-      hasMore,
-      statusMessage,
-      prefersManualLoading,
-    };
-  }, [animals, hasMore, statusMessage, prefersManualLoading]);
-
-  // Track the scroll position so it can be restored after returning from a detail page
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return undefined;
-    }
-
-    const handleScroll = () => {
-      scrollPositionRef.current = window.scrollY;
-    };
-
-    handleScroll();
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => { window.removeEventListener('scroll', handleScroll); };
-  }, []);
-
-  // Persist the currently loaded animals along with the scroll position
-  const storePageState = useCallback(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-
-    const snapshot = latestStateRef.current;
-    try {
-      sessionStorage.setItem(
-        storageKey,
-          JSON.stringify({
-            animals: snapshot.animals,
-            hasMore: Boolean(snapshot.hasMore),
-            statusMessage: snapshot.statusMessage,
-          prefersManualLoading: Boolean(snapshot.prefersManualLoading),
-          offset: offsetRef.current,
-          scrollY: scrollPositionRef.current,
-        })
-      );
-    } catch {
-      // Ignore storage failures (e.g., Safari private mode)
-    }
-  }, [storageKey]);
-
-  // Mark that the page should restore its state before navigating to a detail page
-  const markRestorePending = useCallback(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-
-    storePageState();
-    try {
-      sessionStorage.setItem(restoreFlagKey, '1');
-    } catch {
-      // Ignore storage failures so navigation is not blocked
-    }
-  }, [restoreFlagKey, storePageState]);
-
-  const onItemKeyDown = useCallback(
-    (event) => {
-      if (event.key === 'Enter' || event.key === ' ') {
-        markRestorePending();
-      }
-    },
-    [markRestorePending]
-  );
-
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return undefined;
-    }
-
-    const handlePageHide = () => {
-      storePageState();
-    };
-
-    window.addEventListener('pagehide', handlePageHide);
-    return () => { window.removeEventListener('pagehide', handlePageHide); };
-  }, [storePageState]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return undefined;
-    }
-
-    const handlePageShow = (event) => {
-      if (event.persisted) {
-        storePageState();
-      }
-    };
-
-    window.addEventListener('pageshow', handlePageShow);
-    return () => { window.removeEventListener('pageshow', handlePageShow); };
-  }, [storePageState]);
-
-  // Pre-paint scroll restoration to avoid visible jumps
-  useLayoutEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-
-    const shouldRestore = sessionStorage.getItem(restoreFlagKey) === '1';
-    if (!shouldRestore) {
-      sessionStorage.removeItem(storageKey);
-      return;
-    }
-
-    const y = initialScrollYRef.current;
-    if (typeof y === 'number' && y > 0) {
-      withInstantScroll(() => {
-        window.scrollTo(0, y);
-      });
-    }
-
-    sessionStorage.removeItem(restoreFlagKey);
-  }, [restoreFlagKey, storageKey, withInstantScroll]);
-
-  // Fetch orders whenever class changes
-  useEffect(() => {
-    if (!classId) {
+    if (!filters.selectedClass) {
       setOrders([]);
-      setFamilies([]);
       return;
     }
-    setOrders([]);
-    fetch(`${API}/animals/orders?class_id=${classId}`)
+    void fetch(`${API}/animals/orders?class_id=${filters.selectedClass}`)
       .then((r) => (r.ok ? r.json() : []))
-      .then(setOrders)
+      .then((data: TaxonName[]) => { setOrders(data); return undefined; })
       .catch(() => { setOrders([]); });
-  }, [classId]);
+  }, [filters.selectedClass]);
 
-  // Fetch families whenever order changes
   useEffect(() => {
-    if (!orderId) {
+    if (!filters.selectedOrder) {
       setFamilies([]);
       return;
     }
-    setFamilies([]);
-    fetch(`${API}/animals/families?order_id=${orderId}`)
+    void fetch(`${API}/animals/families?order_id=${filters.selectedOrder}`)
       .then((r) => (r.ok ? r.json() : []))
-      .then(setFamilies)
+      .then((data: TaxonName[]) => { setFamilies(data); return undefined; })
       .catch(() => { setFamilies([]); });
-  }, [orderId]);
+  }, [filters.selectedOrder]);
 
-  // Debounce the search input to avoid fetching on every keystroke
+  // Load seen animals for current user
   useEffect(() => {
-    const id = setTimeout(() => {
-      setQuery(search);
-    }, 500);
-    return () => { clearTimeout(id); };
-  }, [search]);
+    if (!isAuthenticated || !user?.id) {
+      setSeenAnimals([]);
+      return;
+    }
+    void authFetch(`${API}/users/${user.id}/animals`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: { id: string }[]) => { setSeenAnimals(data.map((a) => a.id)); return undefined; })
+      .catch(() => { setSeenAnimals([]); });
+  }, [isAuthenticated, user?.id, authFetch]);
 
-  // Fetch a page of animals from the API with deterministic pagination
-  const loadAnimals = useCallback(
-    (reset = false) => {
-      if (loadingRef.current && !reset) {
-        return controllerRef.current;
-      }
-
-      if (reset) {
-        controllerRef.current?.abort();
-      }
-
-      const fetchId = requestIdRef.current + 1;
-      requestIdRef.current = fetchId;
-      const currentOffset = reset ? 0 : offsetRef.current;
-
-      if (reset) {
-        offsetRef.current = 0;
-        setAnimals([]);
-        setHasMore(false);
-      }
-
-      const controller = new AbortController();
-      controllerRef.current = controller;
-
-      loadingRef.current = true;
+  // Fetch animals with pagination
+  const fetchAnimals = useCallback(
+    async ({ reset = false, signal }: { reset?: boolean; signal?: AbortSignal } = {}) => {
       setLoading(true);
       setError('');
-      setStatusMessage(t('animal.loadingMore'));
 
-      const params = new URLSearchParams({
-        limit,
-        offset: currentOffset,
-        q: query,
-      });
-      if (classId) params.append('class_id', classId);
-      if (orderId) params.append('order_id', orderId);
-      if (familyId) params.append('family_id', familyId);
-      if (favoritesOnly) params.append('favorites_only', 'true');
+      try {
+        const currentOffset = reset ? 0 : offset;
+        const params = new URLSearchParams();
+        params.set('limit', String(limit));
+        params.set('offset', String(currentOffset));
+        if (filters.query) params.set('q', filters.query);
+        if (filters.selectedClass !== null) params.set('class_id', String(filters.selectedClass));
+        if (filters.selectedOrder !== null) params.set('order_id', String(filters.selectedOrder));
+        if (filters.selectedFamily !== null) params.set('family_id', String(filters.selectedFamily));
+        if (filters.seenOnly) params.set('seen_only', 'true');
+        if (filters.favoritesOnly) params.set('favorites_only', 'true');
 
-      const url = `${API}/animals?${params.toString()}`;
+        const url = `${API}/animals?${params.toString()}`;
+        const response = await authFetch(url, signal ? { signal } : {});
 
-        void (async () => {
-        try {
-          const response = await authFetch(url, { signal: controller.signal });
-          if (!response.ok) {
-            throw new Error('Failed to load');
-          }
-          const data = await response.json();
-          if (fetchId !== requestIdRef.current) {
-            return;
-          }
-          setAnimals((prev) => (reset ? data : [...prev, ...data]));
-          offsetRef.current = currentOffset + data.length;
-          setHasMore(data.length === limit);
-          if (data.length > 0) {
-            const loadedText = t('animal.loadedMore', { count: data.length });
-            if (data.length < limit) {
-              setStatusMessage(
-                `${loadedText} ${t('animal.noMoreAnimals')}`
-              );
-            } else {
-              setStatusMessage(loadedText);
-            }
-          } else {
-            setStatusMessage(t('animal.noMoreAnimals'));
-          }
-        } catch (err) {
-          if (controller.signal.aborted || err.name === 'AbortError') {
-            return;
-          }
-          if (fetchId === requestIdRef.current) {
-            setError('Failed to load animals');
-            setHasMore(false);
-            setStatusMessage(t('animal.loadingError'));
-          }
-        } finally {
-          if (fetchId === requestIdRef.current) {
-            loadingRef.current = false;
-            setLoading(false);
-            if (controllerRef.current === controller) {
-              controllerRef.current = null;
-            }
-          }
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
         }
-        })();
 
-      return controller;
+        const payload = (await response.json()) as AnimalSearchPage;
+        const items = Array.isArray(payload.items) ? payload.items : [];
+        const responseTotal = payload.total || 0;
+
+        if (reset) {
+          setAnimals(items);
+          setOffset(items.length);
+        } else {
+          setAnimals((prev) => [...prev, ...items]);
+          setOffset((prev) => prev + items.length);
+        }
+
+        setHasMore(currentOffset + items.length < responseTotal);
+        setError('');
+      } catch (_err) {
+        if (signal?.aborted) {
+          return;
+        }
+        if (reset) {
+          setAnimals([]);
+        }
+        setError(t('zoo.animalsLoadError'));
+        setHasMore(false);
+      } finally {
+        if (!signal?.aborted) {
+          setLoading(false);
+        }
+      }
     },
-    [authFetch, classId, familyId, favoritesOnly, limit, orderId, query, t]
+    [
+      authFetch,
+      filters.favoritesOnly,
+      filters.query,
+      filters.selectedClass,
+      filters.selectedFamily,
+      filters.selectedOrder,
+      filters.seenOnly,
+      limit,
+      offset,
+      t,
+    ],
   );
 
-  // Initial load and reset when search or filters change
-  useEffect(() => {
-    if (skipInitialFetchRef.current) {
-      skipInitialFetchRef.current = false;
-      return () => {};
+  // Load more handler for infinite scroll
+  const loadMore = useCallback(() => {
+    if (!loading && hasMore) {
+      void fetchAnimals({ reset: false });
     }
+  }, [loading, fetchAnimals, hasMore]);
 
-    const controller = loadAnimals(true);
+  // Use infinite scroll hook
+  const sentinelRef = useInfiniteScroll({
+    hasMore,
+    loading,
+    onLoadMore: loadMore,
+  });
+
+  // Reset and load animals when filters change
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetchAnimals({ reset: true, signal: controller.signal });
     return () => {
-      controller?.abort();
+      controller.abort();
     };
-  }, [loadAnimals]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    filters.query,
+    filters.selectedClass,
+    filters.selectedOrder,
+    filters.selectedFamily,
+    filters.seenOnly,
+    filters.favoritesOnly,
+  ]);
 
-  useEffect(() => () => {
-    controllerRef.current?.abort();
-  }, []);
-
-  // Observe when the user nears the end of the list and fetch the next page
-  useEffect(() => {
-    const sentinel = sentinelRef.current;
-    if (!sentinel || !hasMore || !autoLoadingEnabled) {
-      return undefined;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const [entry] = entries;
-        if (entry.isIntersecting) {
-          loadAnimals(false);
-        }
-      },
-      { rootMargin: '200px' }
-    );
-
-    observer.observe(sentinel);
-
-    return () => {
-      observer.disconnect();
-    };
-  }, [autoLoadingEnabled, hasMore, loadAnimals]);
-
-  // load animals seen by the current user
-  useEffect(() => {
-    if (!isAuthenticated || !uid) return;
-    authFetch(`${API}/users/${uid}/animals`)
-      .then((r) => (r.ok ? r.json() : []))
-      .then(setSeenAnimals)
-      .catch(() => { setSeenAnimals([]); });
-  }, [isAuthenticated, uid, authFetch]);
-
-  useEffect(() => {
-    if (!isAuthenticated && favoritesOnly) {
-      setFavoritesOnly(false);
-    }
-  }, [isAuthenticated, favoritesOnly]);
-
-  const seenIds = useMemo(() => new Set(seenAnimals.map((a) => a.id)), [seenAnimals]);
-
-  const localizedName = (item) =>
-    lang === 'de' ? item.name_de || item.name_en : item.name_en || item.name_de;
+  const seenIds = new Set(seenAnimals);
 
   return (
     <div className="container">
       <Seo
-        title="Animals"
+        title={t('nav.animals')}
         description="Browse animals and track the ones you've seen."
       />
-      <div className="row mb-3">
-        <div className="col-md-3 mb-2">
-          <input
-            className="form-control"
-            placeholder={t('nav.search')}
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setAnimals([]);
-              offsetRef.current = 0;
-              setHasMore(false);
-            }}
-          />
-        </div>
-        <div className="col-md-3 mb-2">
-          <select
-            className="form-select"
-            value={classId}
-            onChange={(e) => {
-              setClassId(e.target.value);
-              setOrderId('');
-              setFamilyId('');
-            }}
-          >
-            <option value="">{t('animal.allClasses')}</option>
-            {classes.map((c) => (
-              <option key={c.id} value={c.id}>
-                {localizedName(c)}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="col-md-3 mb-2">
-          <select
-            className="form-select"
-            value={orderId}
-            onChange={(e) => {
-              setOrderId(e.target.value);
-              setFamilyId('');
-            }}
-            disabled={!classId}
-          >
-            <option value="">{t('animal.allOrders')}</option>
-            {orders.map((o) => (
-              <option key={o.id} value={o.id}>
-                {localizedName(o)}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="col-md-3 mb-2">
-          <select
-            className="form-select"
-            value={familyId}
-            onChange={(e) => { setFamilyId(e.target.value); }}
-            disabled={!orderId}
-          >
-            <option value="">{t('animal.allFamilies')}</option>
-            {families.map((f) => (
-              <option key={f.id} value={f.id}>
-                {localizedName(f)}
-              </option>
-            ))}
-          </select>
-        </div>
-        {isAuthenticated && (
-          <div className="col-md-3 mb-2">
-            <div className="form-check mt-2">
-              <input
-                className="form-check-input"
-                type="checkbox"
-                id="animals-favorites-only"
-                checked={favoritesOnly}
-                onChange={(e) => {
-                  setFavoritesOnly(e.target.checked);
-                  setAnimals([]);
-                  offsetRef.current = 0;
-                  setHasMore(false);
-                }}
-              />
-              <label className="form-check-label" htmlFor="animals-favorites-only">
-                {t('animal.favoritesOnly')}
-              </label>
-            </div>
-          </div>
-        )}
+      
+      <h1>{t('nav.animals')}</h1>
+      
+      <div className="mt-3">
+        <AnimalFilters
+          searchInput={filters.searchInput}
+          onSearchChange={filters.setSearchInput}
+          selectedClass={filters.selectedClass}
+          onClassChange={filters.handleClassChange}
+          selectedOrder={filters.selectedOrder}
+          onOrderChange={filters.handleOrderChange}
+          selectedFamily={filters.selectedFamily}
+          onFamilyChange={filters.handleFamilyChange}
+          seenOnly={filters.seenOnly}
+          onSeenChange={filters.setSeenOnly}
+          favoritesOnly={filters.favoritesOnly}
+          onFavoritesChange={filters.setFavoritesOnly}
+          classes={classes}
+          orders={orders}
+          families={families}
+          hasActiveFilters={filters.hasActiveFilters}
+          onClearFilters={filters.clearAllFilters}
+          isAuthenticated={isAuthenticated}
+          lang={lang || 'en'}
+          showSeenFilter
+          searchLabelKey="zoo.animalSearchLabelGlobal"
+          onAuthRequired={setAuthMessage}
+        />
       </div>
+
+      {authMessage && (
+        <div className="alert alert-info mt-3" role="status">
+          {authMessage}
+        </div>
+      )}
+
       {error && (
-        <div className="alert alert-danger" role="alert">
+        <div className="alert alert-danger mt-3" role="alert">
           {error}
         </div>
       )}
-      <div
-        className="animals-grid"
-        aria-describedby="animals-status"
-        aria-busy={loading}
-      >
-        {animals.map((a) => (
+
+      <div className="animals-grid mt-3" aria-busy={loading}>
+        {animals.map((animal) => (
           <AnimalTile
-            key={a.id}
-            to={`${prefix}/animals/${a.slug || a.id}`}
-            animal={a}
-            lang={lang}
-            seen={seenIds.has(a.id)}
-            onClick={markRestorePending}
-            onKeyDown={onItemKeyDown}
+            key={animal.id}
+            to={`${prefix}/animals/${animal.slug || animal.id}`}
+            animal={animal}
+            lang={tileLang}
+            seen={seenIds.has(animal.id)}
           />
         ))}
       </div>
-      <div
-        id="animals-status"
-        role="status"
-        aria-live="polite"
-        className="visually-hidden"
-      >
-        {statusMessage}
-      </div>
-      <div
-        ref={sentinelRef}
-        className="infinite-scroll-sentinel"
-        aria-hidden="true"
-      />
-      {hasMore && supportsIntersectionObserver && !prefersManualLoading && (
-        <div className="text-center my-3">
-          <button
-            type="button"
-            className="btn btn-link btn-sm"
-            onClick={() => { setPrefersManualLoading(true); }}
-          >
-            {t('animal.useManualLoading')}
-          </button>
-        </div>
-      )}
-      {hasMore && (!supportsIntersectionObserver || prefersManualLoading) && (
-        <div className="text-center my-3">
-          <button
-            type="button"
-            className="btn btn-outline-primary"
-            onClick={() => loadAnimals(false)}
-            disabled={loading}
-          >
-            {loading ? t('actions.loading') : t('actions.loadMore')}
-          </button>
-        </div>
-      )}
-      {prefersManualLoading && supportsIntersectionObserver && (
-        <div className="text-center mb-3">
-          <button
-            type="button"
-            className="btn btn-link btn-sm"
-            onClick={() => { setPrefersManualLoading(false); }}
-            disabled={loading}
-          >
-            {t('animal.enableAutoLoading')}
-          </button>
-        </div>
-      )}
+
+      {/* Infinite scroll sentinel */}
+      <div ref={sentinelRef} className="infinite-scroll-sentinel" aria-hidden="true" />
+
       {loading && (
         <div className="text-center my-3">
           <div className="spinner-border" role="status" aria-hidden="true" />
           <span className="visually-hidden">{t('actions.loading')}</span>
+        </div>
+      )}
+
+      {!loading && animals.length === 0 && !error && (
+        <div className="alert alert-info mt-3" role="status">
+          {t('zoo.noAnimalsMatch')}
+        </div>
+      )}
+
+      {!loading && !hasMore && animals.length > 0 && (
+        <div className="text-center my-3 text-muted small">
+          {t('zoo.noMoreResults')}
         </div>
       )}
     </div>

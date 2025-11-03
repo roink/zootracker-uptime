@@ -426,6 +426,13 @@
   flex-direction: column;
   gap: 0;
   flex: 1 1 auto;
+  position: relative;
+}
+
+.animal-card-body .action-button-bottom-right {
+  position: absolute;
+  bottom: 0.5rem;
+  right: 0.5rem;
 }
 
 .animal-card .seen-badge {

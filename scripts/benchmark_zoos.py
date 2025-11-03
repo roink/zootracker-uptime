@@ -27,6 +27,209 @@ from typing import Any, Dict, Iterable, List, Optional
 
 import httpx
 
+PAIRS_TSV = """
+continent	country	n_zoos
+1	4	1
+1	19	4
+1	23	1
+1	29	3
+1	32	1
+1	37	1
+1	47	2
+1	49	2
+1	67	1
+1	70	9
+1	83	6
+1	87	4
+1	88	5
+1	94	1
+1	103	20
+1	117	1
+1	118	1
+1	121	8
+1	125	2
+1	127	1
+1	128	7
+1	132	1
+1	136	4
+1	139	52
+1	143	2
+1	145	4
+1	148	12
+1	150	5
+1	172	10
+1	173	2
+2	1	1
+2	6	5
+2	7	2
+2	11	6
+2	12	9
+2	16	1
+2	21	4
+2	25	118
+2	26	4
+2	27	1
+2	54	60
+2	55	51
+2	56	3
+2	57	2
+2	60	68
+2	63	287
+2	64	2
+2	65	8
+2	66	3
+2	69	13
+2	71	1
+2	76	4
+2	77	1
+2	79	1
+2	84	63
+2	85	2
+2	93	3
+2	95	5
+2	104	2
+2	107	6
+2	108	1
+2	114	12
+2	122	8
+2	129	12
+2	134	7
+2	138	1
+2	140	19
+2	141	1
+2	142	22
+2	144	35
+2	149	23
+2	155	9
+2	158	20
+2	168	13
+3	8	114
+3	9	1
+3	39	1
+3	43	1
+3	46	2
+3	96	43
+3	109	3
+3	111	2
+3	156	3
+3	161	1
+4	2	6
+4	3	1
+4	13	22
+4	14	45
+4	18	6
+4	22	26
+4	30	1068
+4	33	107
+4	34	1
+4	38	9
+4	40	37
+4	41	186
+4	48	10
+4	50	21
+4	58	30
+4	59	2
+4	61	76
+4	73	3
+4	74	21
+4	78	22
+4	80	2
+4	81	17
+4	82	4
+4	86	8
+4	90	4
+4	91	2
+4	92	5
+4	98	120
+4	105	6
+4	106	16
+4	115	70
+4	116	27
+4	119	46
+4	120	142
+4	123	75
+4	124	101
+4	126	26
+4	130	33
+4	131	13
+4	133	92
+4	147	188
+4	151	24
+4	152	9
+4	153	57
+4	162	357
+4	163	1
+4	166	1
+4	167	1
+4	169	9
+4	170	1
+4	174	117
+5	10	5
+5	15	1
+5	28	20
+5	31	3
+5	36	2
+5	44	1
+5	45	1
+5	51	2
+5	52	1
+5	53	2
+5	62	2
+5	68	65
+5	75	10
+5	89	57
+5	97	1
+5	102	1
+5	110	5
+5	135	1
+5	159	885
+5	160	1
+5	164	2
+5	165	2
+6	5	11
+6	17	5
+6	20	46
+6	24	16
+6	35	9
+6	42	1
+6	72	20
+6	99	4
+6	100	1
+6	101	1
+6	112	4
+6	113	21
+6	137	3
+6	146	1
+6	154	7
+6	157	13
+""".strip()
+
+def _parse_pairs(ts: str) -> list[tuple[int, int, int]]:
+    pairs: list[tuple[int, int, int]] = []
+    for line in ts.splitlines():
+        # skip header / empty lines
+        if not line.strip() or line.lower().startswith("continent"):
+            continue
+        a, b, w = line.split()
+        pairs.append((int(a), int(b), int(w)))
+    return pairs
+
+PAIR_TUPLES = _parse_pairs(PAIRS_TSV)  # [(continent, country, weight), ...]
+PAIR_CHOICES = [(c, k) for c, k, _ in PAIR_TUPLES]
+PAIR_WEIGHTS = [w for _, _, w in PAIR_TUPLES]
+
+def sample_valid_pairs(k: int) -> list[dict[str, Any]]:
+    picked = random.choices(PAIR_CHOICES, weights=PAIR_WEIGHTS, k=k)  # weighted by n_zoos
+    return [
+        {
+            "latitude": "51.0",
+            "longitude": "6.9",
+            "continent_id": str(continent),
+            "country_id": str(country),
+        }
+        for (continent, country) in picked
+    ]
+
 
 # Queries reproduced from the supplied log snippet. The categories ensure we
 # exercise latitude/longitude lookups, text filtering, and continent/country
@@ -88,29 +291,36 @@ class RequestResult:
     error: Optional[BaseException] = None
 
 
-def build_request_plan(total: int) -> List[Dict[str, Any]]:
-    """Return a shuffled list of query parameter dictionaries."""
-
+def build_request_plan(total: int) -> list[dict[str, Any]]:
     if total <= 0:
         raise ValueError("Total number of requests must be positive")
 
-    plan: List[Dict[str, Any]] = []
-    category_plan = [
-        (LAT_LON_VARIANTS, 0.25),
-        (SEARCH_VARIANTS, 0.25),
-        (CONTINENT_VARIANTS, 0.25),
-        (CONTINENT_COUNTRY_VARIANTS, 0.25),
-    ]
+    plan: list[dict[str, Any]] = []
+    # Keep your 25/25/25/25 mix (adjust if you like)
+    n_latlon   = max(1, int(total * 0.25))
+    n_search   = max(1, int(total * 0.25))
+    n_continent= max(1, int(total * 0.25))
+    n_pairs    = max(1, int(total * 0.25))
 
-    for variants, fraction in category_plan:
-        count = max(1, int(total * fraction))
-        plan.extend(dict(random.choice(variants)) for _ in range(count))
+    # 1) plain lat/lon
+    plan.extend(dict(random.choice(LAT_LON_VARIANTS)) for _ in range(n_latlon))
 
+    # 2) search queries (leave as-is)
+    plan.extend(dict(random.choice(SEARCH_VARIANTS)) for _ in range(n_search))
+
+    # 3) continent-only filters (still valid)
+    plan.extend(dict(random.choice(CONTINENT_VARIANTS)) for _ in range(n_continent))
+
+    # 4) continent+country (weighted, *always* valid)
+    plan.extend(sample_valid_pairs(n_pairs))
+
+    # Top-up if rounding left us short
     while len(plan) < total:
-        plan.append(dict(random.choice(ALL_VARIANTS)))
+        plan.append(random.choice(plan))
 
     random.shuffle(plan)
     return plan[:total]
+
 
 
 async def send_request(

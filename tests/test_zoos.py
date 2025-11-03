@@ -24,10 +24,8 @@ async def test_get_animals_for_zoo(client, data):
     assert resp.status_code == 200
     payload = resp.json()
     assert payload["total"] == 2
-    assert payload["available_total"] == 2
     items = payload["items"]
     assert len(items) == 2
-    assert len(payload["inventory"]) == payload["available_total"]
     slugs = {animal["slug"] for animal in items}
     assert slugs == {data["animal"].slug, data["lion_subspecies"].slug}
     lion_entry = next(a for a in items if a["id"] == str(data["animal"].id))

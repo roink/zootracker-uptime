@@ -4,7 +4,8 @@
 async def test_animal_search_returns_results(client, data):
     resp = await client.get('/animals', params={'q': 'Lion', 'limit': 5})
     assert resp.status_code == 200
-    animals = resp.json()
+    body = resp.json()
+    animals = body['items']
     assert any(a['id'] == str(data['animal'].id) for a in animals)
     lion = next((a for a in animals if a['id'] == str(data['animal'].id)), None)
     assert lion is not None
@@ -14,8 +15,8 @@ async def test_animal_search_returns_results(client, data):
 async def test_animal_search_limit(client, data):
     resp = await client.get('/animals', params={'limit': 1})
     assert resp.status_code == 200
-    animals = resp.json()
-    assert len(animals) == 1
+    body = resp.json()
+    assert len(body['items']) == 1
 
 
 async def test_zoo_search_returns_results(client, data):

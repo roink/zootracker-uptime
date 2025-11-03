@@ -17,37 +17,9 @@ Project structure overview:
 
 ## Running tests
 
-The backend test suite now runs against PostgreSQL by default so contributors
-exercise the same database driver and extensions used in production. Start the
-database locally and run the suite with:
-
-```bash
-docker compose up -d db
-pytest -q
-```
-
-Tests that specifically exercise PostgreSQL behaviours are still marked with
-`@pytest.mark.postgres`. When you want to point the suite at a different
-database instance, set `DATABASE_URL` accordingly, for example:
-
-```bash
-DATABASE_URL=postgresql+psycopg_async://postgres:postgres@localhost:5432/postgres pytest -q
-```
-
-Frontend clustering is covered by dedicated tests. To confirm the structural
-setup of the clustered GeoJSON source and layers, run the standard frontend
-suite (Vitest followed by Playwright):
-
-```bash
-npm --prefix frontend test
-```
-
-Run the suites individually when needed:
-
-```bash
-npm --prefix frontend run test:unit
-npm --prefix frontend run test:e2e
-```
+For detailed instructions on running and validating tests:
+- **Backend tests**: See `app/AGENTS.md`
+- **Frontend tests**: See `frontend/AGENTS.md`
 
 Always run the relevant tests after making changes.
 
@@ -66,10 +38,10 @@ If you need to recreate the environment, run:
 ```
 This uses `requirements.txt` which must list all Python packages like `fastapi` needed to execute the backend and test suite.
 
-### Linting
+## Linting and validation
 
-- Python: `ruff check .`
-- Frontend: `npm --prefix frontend ci && npm --prefix frontend run lint`
+- **Backend**: See `app/AGENTS.md` for Python linting and type checking
+- **Frontend**: See `frontend/AGENTS.md` for JavaScript/TypeScript linting and type checking
 
 
 ## Translations

@@ -1,14 +1,17 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 
 import { API } from '../api';
+import AnimalFilters from './AnimalFilters';
 import AnimalTile from './AnimalTile';
 import LazyMap from './LazyMap';
 import SightingHistoryList from './SightingHistoryList';
 import SightingModal from './SightingModal';
 import { useAuth } from '../auth/AuthContext';
+import { useAnimalFilters } from '../hooks/useAnimalFilters';
 import useAuthFetch from '../hooks/useAuthFetch';
+import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 import type {
   Sighting,
   ZooAnimalFacetOption,
@@ -54,24 +57,6 @@ type ZooAnimalFacetsState = {
   families: ZooAnimalFacetOption[];
 };
 
-// Normalize URL parameters so filter comparisons stay stable.
-function parseNumericParams(values: string[]): number[] {
-  return values
-    .map((value) => Number.parseInt(value, 10))
-    .filter((value) => !Number.isNaN(value));
-}
-
-function normalizeNumericList(values: number[]): number[] {
-  return Array.from(new Set(values)).sort((a, b) => a - b);
-}
-
-function arraysEqual(a: number[], b: number[]): boolean {
-  if (a.length !== b.length) {
-    return false;
-  }
-  return a.every((value, index) => value === b[index]);
-}
-
 // Detailed view for a single zoo with a list of resident animals.
 // Used by the ZooDetailPage component.
 export default function ZooDetail({
@@ -82,22 +67,11 @@ export default function ZooDetail({
   onLogged,
   onFavoriteChange,
 }: ZooDetailProps) {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const initialQuery = searchParams.get('q') || '';
-  const initialClasses = normalizeNumericList(parseNumericParams(searchParams.getAll('class')));
-  const initialOrders = normalizeNumericList(parseNumericParams(searchParams.getAll('order')));
-  const initialFamilies = normalizeNumericList(parseNumericParams(searchParams.getAll('family')));
-  const initialSeenOnly = searchParams.get('seen') === '1';
-  const initialFavoritesOnly = searchParams.get('favorites') === '1';
-  const [searchInput, setSearchInput] = useState(initialQuery);
-  const [query, setQuery] = useState(initialQuery.trim());
-  const [selectedClasses, setSelectedClasses] = useState<number[]>(initialClasses);
-  const [selectedOrders, setSelectedOrders] = useState<number[]>(initialOrders);
-  const [selectedFamilies, setSelectedFamilies] = useState<number[]>(initialFamilies);
-  const [seenOnly, setSeenOnly] = useState(initialSeenOnly);
-  const [favoritesOnly, setFavoritesOnly] = useState(initialFavoritesOnly);
+  // Use shared filter hook
+  const filters = useAnimalFilters();
+  
+  // Local state
   const [animals, setAnimals] = useState<ZooAnimalTile[]>([]);
-  const [inventoryAnimals, setInventoryAnimals] = useState<ZooAnimalTile[]>([]);
   const [facets, setFacets] = useState<ZooAnimalFacetsState>({
     classes: [],
     orders: [],
@@ -105,11 +79,21 @@ export default function ZooDetail({
   });
   const [animalsLoading, setAnimalsLoading] = useState(false);
   const [animalsError, setAnimalsError] = useState('');
+  const [hasMore, setHasMore] = useState(false);
+  const [offset, setOffset] = useState(0);
+  const [_total, setTotal] = useState(0);
+  
   const [visited, setVisited] = useState(false);
   const [history, setHistory] = useState<Sighting[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState(false);
   const [modalData, setModalData] = useState<ModalState | null>(null);
+  const [descExpanded, setDescExpanded] = useState(false);
+  const [favorite, setFavorite] = useState(false);
+  const [favoritePending, setFavoritePending] = useState(false);
+  const [favoriteError, setFavoriteError] = useState('');
+  const [authMessage, setAuthMessage] = useState('');
+  
   const navigate = useNavigate();
   const { lang: langParam } = useParams();
   const prefix = langParam ? `/${langParam}` : '';
@@ -118,100 +102,32 @@ export default function ZooDetail({
   const { isAuthenticated } = useAuth();
   const zooSlug = zoo.slug ?? null;
   const locale = langParam === 'de' ? 'de-DE' : 'en-US';
-  const [descExpanded, setDescExpanded] = useState(false); // track full description visibility
-  const [favorite, setFavorite] = useState(false);
-  const [favoritePending, setFavoritePending] = useState(false);
-  const [favoriteError, setFavoriteError] = useState('');
-  const searchParamsSnapshot = useMemo(() => searchParams.toString(), [searchParams]);
+  const limit = 50;
 
+  // Reset authentication-required filters when not authenticated
   useEffect(() => {
-    const urlQuery = searchParams.get('q') || '';
-    if (urlQuery !== searchInput) {
-      setSearchInput(urlQuery);
+    if (!isAuthenticated) {
+      if (filters.favoritesOnly) {
+        filters.setFavoritesOnly(false);
+      }
+      if (filters.seenOnly) {
+        filters.setSeenOnly(false);
+      }
+    } else {
+      // Clear auth message when user logs in
+      setAuthMessage('');
     }
-    const trimmedUrlQuery = urlQuery.trim();
-    setQuery((prev) => (prev === trimmedUrlQuery ? prev : trimmedUrlQuery));
+  }, [isAuthenticated, filters]);
 
-    const nextClasses = normalizeNumericList(parseNumericParams(searchParams.getAll('class')));
-    if (!arraysEqual(nextClasses, selectedClasses)) {
-      setSelectedClasses(nextClasses);
-    }
-    const nextOrders = normalizeNumericList(parseNumericParams(searchParams.getAll('order')));
-    if (!arraysEqual(nextOrders, selectedOrders)) {
-      setSelectedOrders(nextOrders);
-    }
-    const nextFamilies = normalizeNumericList(parseNumericParams(searchParams.getAll('family')));
-    if (!arraysEqual(nextFamilies, selectedFamilies)) {
-      setSelectedFamilies(nextFamilies);
-    }
-    const nextSeen = searchParams.get('seen') === '1';
-    if (nextSeen !== seenOnly) {
-      setSeenOnly(nextSeen);
-    }
-    const nextFavorites = searchParams.get('favorites') === '1';
-    if (nextFavorites !== favoritesOnly) {
-      setFavoritesOnly(nextFavorites);
-    }
+  // Clear auth message when filters change
+  useEffect(() => {
+    setAuthMessage('');
   }, [
-    favoritesOnly,
-    searchInput,
-    searchParams,
-    selectedClasses,
-    selectedFamilies,
-    selectedOrders,
-    seenOnly,
+    filters.query,
+    filters.selectedClass,
+    filters.selectedOrder,
+    filters.selectedFamily,
   ]);
-
-  useEffect(() => {
-    const handle = window.setTimeout(() => {
-      const trimmed = searchInput.trim();
-      setQuery((prev) => (prev === trimmed ? prev : trimmed));
-    }, 250);
-    return () => {
-      window.clearTimeout(handle);
-    };
-  }, [searchInput]);
-
-  useEffect(() => {
-    const params = new URLSearchParams();
-    if (query) {
-      params.set('q', query);
-    }
-    selectedClasses.forEach((value) => {
-      params.append('class', String(value));
-    });
-    selectedOrders.forEach((value) => {
-      params.append('order', String(value));
-    });
-    selectedFamilies.forEach((value) => {
-      params.append('family', String(value));
-    });
-    if (seenOnly) {
-      params.set('seen', '1');
-    }
-    if (favoritesOnly) {
-      params.set('favorites', '1');
-    }
-    const next = params.toString();
-    if (next !== searchParamsSnapshot) {
-      setSearchParams(params, { replace: true });
-    }
-  }, [
-    favoritesOnly,
-    query,
-    searchParamsSnapshot,
-    selectedClasses,
-    selectedFamilies,
-    selectedOrders,
-    seenOnly,
-    setSearchParams,
-  ]);
-
-  useEffect(() => {
-    if (!isAuthenticated && favoritesOnly) {
-      setFavoritesOnly(false);
-    }
-  }, [favoritesOnly, isAuthenticated]);
   // Helper: pick animal name in current language
   const getAnimalName = useCallback(
     (animal: ZooAnimalTile) =>
@@ -262,79 +178,6 @@ export default function ZooDetail({
 
   const tileLang = langParam === 'de' ? 'de' : 'en';
 
-  const formatFacetLabel = useCallback(
-    (facet: ZooAnimalFacetOption) =>
-      langParam === 'de'
-        ? facet.name_de || facet.name_en || String(facet.id)
-        : facet.name_en || facet.name_de || String(facet.id),
-    [langParam],
-  );
-
-  const toggleClassFacet = useCallback((value: number) => {
-    setSelectedClasses((prev) =>
-      normalizeNumericList(prev.includes(value) ? prev.filter((id) => id !== value) : [...prev, value]),
-    );
-  }, []);
-
-  const toggleOrderFacet = useCallback((value: number) => {
-    setSelectedOrders((prev) =>
-      normalizeNumericList(prev.includes(value) ? prev.filter((id) => id !== value) : [...prev, value]),
-    );
-  }, []);
-
-  const toggleFamilyFacet = useCallback((value: number) => {
-    setSelectedFamilies((prev) =>
-      normalizeNumericList(prev.includes(value) ? prev.filter((id) => id !== value) : [...prev, value]),
-    );
-  }, []);
-
-  const renderFacetGroup = (
-    group: 'classes' | 'orders' | 'families',
-    options: ZooAnimalFacetOption[],
-    selected: number[],
-    onToggle: (value: number) => void,
-    title: string,
-    ariaKey: string,
-  ) => {
-    if (options.length === 0) {
-      return null;
-    }
-    return (
-      <fieldset className="mb-0">
-        <legend className="fs-6 mb-1">{title}</legend>
-        <div className="d-flex flex-wrap gap-2">
-          {options.map((facet) => {
-            const label = formatFacetLabel(facet);
-            const isSelected = selected.includes(facet.id);
-            const controlId = `facet-${group}-${facet.id}`;
-            return (
-              <div className="form-check form-check-inline" key={controlId}>
-                <input
-                  className="form-check-input"
-                  type="checkbox"
-                  id={controlId}
-                  checked={isSelected}
-                  onChange={() => {
-                    onToggle(facet.id);
-                  }}
-                  aria-label={t(ariaKey, { classification: label })}
-                />
-                <label className="form-check-label" htmlFor={controlId}>
-                  {label}
-                  <span className="ms-1 text-muted small">({facet.count})</span>
-                </label>
-              </div>
-            );
-          })}
-        </div>
-      </fieldset>
-    );
-  };
-
-  const animalsStatus = animalsLoading
-    ? t('actions.loading')
-    : t('zoo.animalsCount', { count: animals.length });
-
   const handleFavoriteToggle = useCallback(async () => {
     if (!zooSlug) return;
     if (!isAuthenticated) {
@@ -361,69 +204,87 @@ export default function ZooDetail({
     }
   }, [authFetch, favorite, isAuthenticated, navigate, onFavoriteChange, prefix, t, zooSlug]);
 
+  // Fetch animals with pagination support
   const fetchZooAnimals = useCallback(
-    async ({ signal }: { signal?: AbortSignal } = {}) => {
+    async ({ reset = false, signal }: { reset?: boolean; signal?: AbortSignal } = {}) => {
       if (!zooSlug) {
         setAnimals([]);
-        setInventoryAnimals([]);
         setFacets({ classes: [], orders: [], families: [] });
         setAnimalsError('');
         setAnimalsLoading(false);
+        setHasMore(false);
         return;
       }
+
       setAnimalsLoading(true);
       setAnimalsError('');
+
       try {
+        const currentOffset = reset ? 0 : offset;
         const params = new URLSearchParams();
-        if (query) params.set('q', query);
-        selectedClasses.forEach((value) => {
-          params.append('class', String(value));
-        });
-        selectedOrders.forEach((value) => {
-          params.append('order', String(value));
-        });
-        selectedFamilies.forEach((value) => {
-          params.append('family', String(value));
-        });
-        if (seenOnly) params.set('seen', '1');
-        if (favoritesOnly) params.set('favorites', '1');
-        const baseUrl = `${API}/zoos/${zooSlug}/animals`;
-        const url = params.size ? `${baseUrl}?${params.toString()}` : baseUrl;
+        params.set('limit', String(limit));
+        params.set('offset', String(currentOffset));
+        if (filters.query) params.set('q', filters.query);
+        if (filters.selectedClass !== null) params.set('class', String(filters.selectedClass));
+        if (filters.selectedOrder !== null) params.set('order', String(filters.selectedOrder));
+        if (filters.selectedFamily !== null) params.set('family', String(filters.selectedFamily));
+        if (filters.seenOnly) params.set('seen', '1');
+        if (filters.favoritesOnly) params.set('favorites', '1');
+
+        const url = `${API}/zoos/${zooSlug}/animals?${params.toString()}`;
         const response = await authFetch(url, signal ? { signal } : {});
+
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);
         }
+
         const payload = (await response.json()) as ZooAnimalListing;
         const items = Array.isArray(payload.items) ? payload.items : [];
-        const inventory = Array.isArray(payload.inventory) ? payload.inventory : [];
-        setAnimals(items);
-        setInventoryAnimals(inventory);
-        const rawFacets = (payload as { facets?: unknown }).facets;
-        const safeFacets =
-          rawFacets && typeof rawFacets === 'object'
-            ? (rawFacets as Partial<Record<'classes' | 'orders' | 'families', unknown>>)
-            : {};
-        const nextFacets: ZooAnimalFacetsState = {
-          classes: Array.isArray(safeFacets.classes)
-            ? (safeFacets.classes as ZooAnimalFacetOption[])
-            : [],
-          orders: Array.isArray(safeFacets.orders)
-            ? (safeFacets.orders as ZooAnimalFacetOption[])
-            : [],
-          families: Array.isArray(safeFacets.families)
-            ? (safeFacets.families as ZooAnimalFacetOption[])
-            : [],
-        };
-        setFacets(nextFacets);
+        const responseTotal = payload.total || 0;
+
+        if (reset) {
+          setAnimals(items);
+          setOffset(items.length);
+        } else {
+          setAnimals((prev) => [...prev, ...items]);
+          setOffset((prev) => prev + items.length);
+        }
+
+        setTotal(responseTotal);
+        setHasMore(currentOffset + items.length < responseTotal);
+
+        // Update facets (only on reset/initial load)
+        if (reset) {
+          const rawFacets = (payload as { facets?: unknown }).facets;
+          const safeFacets =
+            rawFacets && typeof rawFacets === 'object'
+              ? (rawFacets as Partial<Record<'classes' | 'orders' | 'families', unknown>>)
+              : {};
+          const nextFacets: ZooAnimalFacetsState = {
+            classes: Array.isArray(safeFacets.classes)
+              ? (safeFacets.classes as ZooAnimalFacetOption[])
+              : [],
+            orders: Array.isArray(safeFacets.orders)
+              ? (safeFacets.orders as ZooAnimalFacetOption[])
+              : [],
+            families: Array.isArray(safeFacets.families)
+              ? (safeFacets.families as ZooAnimalFacetOption[])
+              : [],
+          };
+          setFacets(nextFacets);
+        }
+
         setAnimalsError('');
       } catch (_err) {
         if (signal?.aborted) {
           return;
         }
-        setAnimals([]);
-        setInventoryAnimals([]);
-        setFacets({ classes: [], orders: [], families: [] });
+        if (reset) {
+          setAnimals([]);
+          setFacets({ classes: [], orders: [], families: [] });
+        }
         setAnimalsError(t('zoo.animalsLoadError'));
+        setHasMore(false);
       } finally {
         if (!signal?.aborted) {
           setAnimalsLoading(false);
@@ -432,16 +293,32 @@ export default function ZooDetail({
     },
     [
       authFetch,
-      favoritesOnly,
-      query,
-      selectedClasses,
-      selectedFamilies,
-      selectedOrders,
-      seenOnly,
+      filters.favoritesOnly,
+      filters.query,
+      filters.selectedClass,
+      filters.selectedFamily,
+      filters.selectedOrder,
+      filters.seenOnly,
+      limit,
+      offset,
       t,
       zooSlug,
     ],
   );
+
+  // Load more handler for infinite scroll
+  const loadMore = useCallback(() => {
+    if (!animalsLoading && hasMore) {
+      void fetchZooAnimals({ reset: false });
+    }
+  }, [animalsLoading, fetchZooAnimals, hasMore]);
+
+  // Use infinite scroll hook
+  const sentinelRef = useInfiniteScroll({
+    hasMore,
+    loading: animalsLoading,
+    onLoadMore: loadMore,
+  });
 
   const loadVisited = useCallback(async () => {
     if (!isAuthenticated || !zooSlug) {
@@ -526,19 +403,29 @@ export default function ZooDetail({
   );
 
   const reloadLocalData = useCallback(() => {
-    void fetchZooAnimals();
+    void fetchZooAnimals({ reset: true });
     void loadVisited();
     void loadHistory();
   }, [fetchZooAnimals, loadVisited, loadHistory]);
 
-  // Load animals for this zoo whenever filters or refresh token change
+  // Reset and load animals when filters change
   useEffect(() => {
     const controller = new AbortController();
-    void fetchZooAnimals({ signal: controller.signal });
+    void fetchZooAnimals({ reset: true, signal: controller.signal });
     return () => {
       controller.abort();
     };
-  }, [fetchZooAnimals, refresh]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    filters.query,
+    filters.selectedClass,
+    filters.selectedOrder,
+    filters.selectedFamily,
+    filters.seenOnly,
+    filters.favoritesOnly,
+    zooSlug,
+    refresh,
+  ]);
 
   useEffect(() => {
     setFavorite(Boolean(zoo.is_favorite));
@@ -664,101 +551,37 @@ export default function ZooDetail({
       {/* visit logging removed - visits are created automatically from sightings */}
       <div className="mt-3">
         <h4>{t('zoo.animals')}</h4>
-        <div className="card mt-2">
-          <div className="card-body">
-            <div className="row g-3 align-items-end">
-              <div className="col-12 col-lg-4">
-                <label className="form-label" htmlFor="zoo-animal-search">
-                  {t('zoo.animalSearchLabel')}
-                </label>
-                  <input
-                    id="zoo-animal-search"
-                    type="search"
-                    className="form-control"
-                    value={searchInput}
-                    onChange={(event) => {
-                      setSearchInput(event.target.value);
-                    }}
-                    placeholder={t('zoo.animalSearchPlaceholder')}
-                    autoComplete="off"
-                  />
-              </div>
-              <div className="col-6 col-md-4 col-xl-2">
-                <div className="form-check mt-4">
-                    <input
-                      className="form-check-input"
-                      type="checkbox"
-                      id="zoo-animal-filter-seen"
-                      checked={seenOnly}
-                      onChange={(event) => {
-                        setSeenOnly(event.target.checked);
-                      }}
-                    />
-                  <label className="form-check-label" htmlFor="zoo-animal-filter-seen">
-                    {t('zoo.filterSeen')}
-                  </label>
-                </div>
-              </div>
-              {isAuthenticated && (
-                <div className="col-6 col-md-4 col-xl-2">
-                  <div className="form-check mt-4">
-                      <input
-                        className="form-check-input"
-                        type="checkbox"
-                        id="zoo-animal-filter-favorites"
-                        checked={favoritesOnly}
-                        onChange={(event) => {
-                          setFavoritesOnly(event.target.checked);
-                        }}
-                      />
-                    <label className="form-check-label" htmlFor="zoo-animal-filter-favorites">
-                      {t('zoo.filterFavorites')}
-                    </label>
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className="row g-3 mt-2">
-              {facets.classes.length > 0 && (
-                <div className="col-12 col-lg-4">
-                  {renderFacetGroup(
-                    'classes',
-                    facets.classes,
-                    selectedClasses,
-                    toggleClassFacet,
-                    t('zoo.filterClasses'),
-                    'animal.filterByClass',
-                  )}
-                </div>
-              )}
-              {facets.orders.length > 0 && (
-                <div className="col-12 col-lg-4">
-                  {renderFacetGroup(
-                    'orders',
-                    facets.orders,
-                    selectedOrders,
-                    toggleOrderFacet,
-                    t('zoo.filterOrders'),
-                    'animal.filterByOrder',
-                  )}
-                </div>
-              )}
-              {facets.families.length > 0 && (
-                <div className="col-12 col-lg-4">
-                  {renderFacetGroup(
-                    'families',
-                    facets.families,
-                    selectedFamilies,
-                    toggleFamilyFacet,
-                    t('zoo.filterFamilies'),
-                    'animal.filterByFamily',
-                  )}
-                </div>
-              )}
-            </div>
-            <p className="mt-3 mb-0 text-muted small">{animalsStatus}</p>
-          </div>
+        <div className="mt-2">
+          <AnimalFilters
+            searchInput={filters.searchInput}
+            onSearchChange={filters.setSearchInput}
+            selectedClass={filters.selectedClass}
+            onClassChange={filters.handleClassChange}
+            selectedOrder={filters.selectedOrder}
+            onOrderChange={filters.handleOrderChange}
+            selectedFamily={filters.selectedFamily}
+            onFamilyChange={filters.handleFamilyChange}
+            seenOnly={filters.seenOnly}
+            onSeenChange={filters.setSeenOnly}
+            favoritesOnly={filters.favoritesOnly}
+            onFavoritesChange={filters.setFavoritesOnly}
+            classes={facets.classes}
+            orders={facets.orders}
+            families={facets.families}
+            hasActiveFilters={filters.hasActiveFilters}
+            onClearFilters={filters.clearAllFilters}
+            isAuthenticated={isAuthenticated}
+            lang={langParam || 'en'}
+            showSeenFilter
+            searchLabelKey="zoo.animalSearchLabel"
+            onAuthRequired={setAuthMessage}
+          />
         </div>
+        {authMessage && (
+          <div className="alert alert-info mt-3" role="status">
+            {authMessage}
+          </div>
+        )}
         {animalsError && (
           <div className="alert alert-danger mt-3" role="alert">
             {animalsError}
@@ -777,40 +600,34 @@ export default function ZooDetail({
               lang={tileLang}
               seen={Boolean(animal.seen)}
             >
-              <div className="mt-2 d-flex justify-content-end">
-                <button
-                  type="button"
-                  className="btn btn-sm btn-outline-secondary"
-                  onClick={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    if (!isAuthenticated) {
-                      void navigate(`${prefix}/login`);
-                      return;
-                    }
-                    setModalData({
-                      zooId: zoo.id,
-                      zooName: zooDisplayName,
-                      animalId: animal.id,
-                      animalName: getAnimalName(animal),
-                    });
-                  }}
-                  aria-label={t('actions.logSighting')}
-                >
-                  ➕
-                </button>
-              </div>
+              <button
+                type="button"
+                className="btn btn-sm btn-outline-secondary action-button-bottom-right"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  if (!isAuthenticated) {
+                    void navigate(`${prefix}/login`);
+                    return;
+                  }
+                  setModalData({
+                    zooId: zoo.id,
+                    zooName: zooDisplayName,
+                    animalId: animal.id,
+                    animalName: getAnimalName(animal),
+                  });
+                }}
+                aria-label={t('actions.logSighting')}
+              >
+                ➕
+              </button>
             </AnimalTile>
           ))}
         </div>
-        <div
-          id="zoo-animals-status"
-          role="status"
-          aria-live="polite"
-          className="visually-hidden"
-        >
-          {animalsStatus}
-        </div>
+        
+        {/* Infinite scroll sentinel */}
+        <div ref={sentinelRef} className="infinite-scroll-sentinel" aria-hidden="true" />
+        
         {animalsLoading && (
           <div className="text-center my-3">
             <div className="spinner-border" role="status" aria-hidden="true" />
@@ -822,10 +639,15 @@ export default function ZooDetail({
             {t('zoo.noAnimalsMatch')}
           </div>
         )}
+        {!animalsLoading && !hasMore && animals.length > 0 && (
+          <div className="text-center my-3 text-muted small">
+            {t('zoo.noMoreResults')}
+          </div>
+        )}
       </div>
       {modalData && (
         <SightingModal
-          animals={inventoryAnimals.length > 0 ? inventoryAnimals : null}
+          animals={null}
           defaultZooId={modalData.zooId}
           defaultAnimalId={modalData.animalId}
           defaultZooName={modalData.zooName}
