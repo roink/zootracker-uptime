@@ -1,3 +1,4 @@
+import { Helmet, HelmetProvider } from '@dr.pogodin/react-helmet';
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
 import type { Query } from '@tanstack/query-core';
 import { QueryClient } from '@tanstack/react-query';
@@ -7,7 +8,6 @@ import {
 } from '@tanstack/react-query-persist-client';
 import { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom/client';
-import { Helmet, HelmetProvider } from 'react-helmet-async';
 import { useTranslation } from 'react-i18next';
 import {
   BrowserRouter,

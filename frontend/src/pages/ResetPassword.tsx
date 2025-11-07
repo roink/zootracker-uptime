@@ -149,9 +149,9 @@ export default function ResetPasswordPage() {
         }
       } catch (error) {
         if (!cancelled) {
-          const networkError = error instanceof Error ? error : new Error(String(error));
+          const message = error instanceof Error ? error.message : 'Unknown error';
           setTokenStatus('error');
-          setTokenError(t('auth.common.networkError', { message: networkError.message }));
+          setTokenError(t('auth.common.networkError', { message }));
         }
       }
     };
@@ -305,9 +305,9 @@ export default function ResetPasswordPage() {
         }
       }
     } catch (error) {
-      const networkError = error instanceof Error ? error : new Error(String(error));
+      const message = error instanceof Error ? error.message : 'Unknown error';
       setStatus('error');
-      setStatusMessage(t('auth.common.networkError', { message: networkError.message }));
+      setStatusMessage(t('auth.common.networkError', { message }));
     } finally {
       setSubmitting(false);
     }

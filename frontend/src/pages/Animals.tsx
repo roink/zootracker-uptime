@@ -134,12 +134,12 @@ export default function AnimalsPage() {
       try {
         const currentOffset = reset ? 0 : offset;
         const params = new URLSearchParams();
-        params.set('limit', String(limit));
-        params.set('offset', String(currentOffset));
+        params.set('limit', `${limit}`);
+        params.set('offset', `${currentOffset}`);
         if (filters.query) params.set('q', filters.query);
-        if (filters.selectedClass !== null) params.set('class_id', String(filters.selectedClass));
-        if (filters.selectedOrder !== null) params.set('order_id', String(filters.selectedOrder));
-        if (filters.selectedFamily !== null) params.set('family_id', String(filters.selectedFamily));
+        if (filters.selectedClass !== null) params.set('class_id', `${filters.selectedClass}`);
+        if (filters.selectedOrder !== null) params.set('order_id', `${filters.selectedOrder}`);
+        if (filters.selectedFamily !== null) params.set('family_id', `${filters.selectedFamily}`);
         if (filters.seenOnly) params.set('seen_only', 'true');
         if (filters.favoritesOnly) params.set('favorites_only', 'true');
 

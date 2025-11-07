@@ -1,4 +1,3 @@
-import PropTypes from 'prop-types';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import MapView from './MapView';
@@ -12,7 +11,10 @@ const resolveCoordinates = (value?: number | null): number | null =>
   typeof value === 'number' && Number.isFinite(value) ? value : null;
 
 // Wrapper that loads the map only when scrolled into view to save resources.
-export default function LazyMap({ latitude, longitude }: LazyMapProps) {
+export default function LazyMap({
+  latitude,
+  longitude
+}: LazyMapProps) {
   const holderRef = useRef<HTMLDivElement | null>(null);
   const [visible, setVisible] = useState(false);
   const coords = useMemo(() => {
@@ -46,9 +48,4 @@ export default function LazyMap({ latitude, longitude }: LazyMapProps) {
     </div>
   );
 }
-
-LazyMap.propTypes = {
-  latitude: PropTypes.number,
-  longitude: PropTypes.number,
-};
 

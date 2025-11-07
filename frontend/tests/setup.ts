@@ -5,6 +5,11 @@ import { beforeEach, afterEach, vi } from 'vitest';
 import { loadLocale } from '../src/i18n.js';
 import { clearStoredAuth } from '../src/test-utils/auth.js';
 
+// Set React act environment flag for React 19
+if (!globalThis.IS_REACT_ACT_ENVIRONMENT) {
+  globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+}
+
 // Provide a minimal URL API so maplibre can initialize in the test environment.
 if (typeof window !== 'undefined') {
   type URLWithBlobHelpers = typeof window.URL & {

@@ -73,7 +73,7 @@ describe('ZooDetailPage', () => {
 
     const lastCall = seoSpy.mock.calls.at(-1)[0];
     expect(lastCall.title).toBe('berlin-zoo');
-    expect(lastCall.description).toBe('Learn about berlin-zoo and plan your visit.');
+    expect(lastCall.description).toBe('Explore the complete animal inventory of berlin-zoo. Keep a log of your visits and track which animals you have seen.');
     expect(lastCall.canonical).toBe('/en/zoos/berlin-zoo');
     expect(lastCall.jsonLd).toBeUndefined();
     expect(zooDetailSpy).not.toHaveBeenCalled();

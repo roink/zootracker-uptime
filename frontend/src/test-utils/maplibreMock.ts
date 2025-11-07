@@ -13,7 +13,7 @@ if (typeof window !== 'undefined') {
   }
 }
 
-const mockMaps = [] as any[];
+const mockMaps: MockMap[] = [];
 
 class MockMap {
   constructor({ container, center = [0, 0], zoom = 0, bearing = 0, pitch = 0 }) {
@@ -65,7 +65,7 @@ class MockMap {
 
   once(event, handler) {
     if (!this.events[event]) {
-      this.events[event] = [] as any[];
+      this.events[event] = [];
     }
     this.events[event].push({ handler, once: true, layerId: null });
   }
@@ -78,7 +78,7 @@ class MockMap {
       handler = maybeHandler;
     }
     if (!this.events[event]) {
-      this.events[event] = [] as any[];
+      this.events[event] = [];
     }
     this.events[event].push({ handler, once: false, layerId });
   }
@@ -211,7 +211,7 @@ class MockMap {
           });
         }
       }),
-      getClusterExpansionZoom: async () => 10,
+      getClusterExpansionZoom: () => Promise.resolve(10),
     };
     this.sourceSetDataSpies.set(id, source.setData);
     this.sources.set(id, source);
@@ -275,8 +275,8 @@ const maplibreMock = {
   Map: MockMap,
   Marker: MockMarker,
   LngLatBounds: MockLngLatBounds,
-  NavigationControl: class {},
-  AttributionControl: class {},
+  NavigationControl: class NavigationControl {},
+  AttributionControl: class AttributionControl {},
   __getMaps: () => mockMaps,
 };
 

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -42,22 +41,30 @@ type AnimalLocationState = {
   redirectTo?: string;
 };
 
-function sanitizeCameraView(view) {
-  if (!view) return null;
-  const center = Array.isArray(view.center) ? view.center : null;
+type CameraView = {
+  center: [number, number];
+  zoom?: number;
+  bearing?: number;
+  pitch?: number;
+};
+
+function sanitizeCameraView(view: unknown): CameraView | null {
+  if (!view || typeof view !== 'object') return null;
+  const viewObj = view as Record<string, unknown>;
+  const center = Array.isArray(viewObj['center']) ? viewObj['center'] : null;
   if (!center || center.length !== 2) return null;
   const [lon, lat] = center;
   if (!Number.isFinite(lon) || !Number.isFinite(lat)) return null;
-  const safeView = {
+  const safeView: CameraView = {
     center: [Number(lon), Number(lat)],
   };
-  if (Number.isFinite(view.zoom)) safeView.zoom = Number(view.zoom);
-  if (Number.isFinite(view.bearing)) safeView.bearing = Number(view.bearing);
-  if (Number.isFinite(view.pitch)) safeView.pitch = Number(view.pitch);
+  if (Number.isFinite(viewObj['zoom'])) safeView.zoom = Number(viewObj['zoom']);
+  if (Number.isFinite(viewObj['bearing'])) safeView.bearing = Number(viewObj['bearing']);
+  if (Number.isFinite(viewObj['pitch'])) safeView.pitch = Number(viewObj['pitch']);
   return safeView;
 }
 
-function cameraViewsEqual(a, b) {
+function cameraViewsEqual(a: unknown, b: unknown): boolean {
   const left = sanitizeCameraView(a);
   const right = sanitizeCameraView(b);
   if (!left && !right) return true;
@@ -76,7 +83,7 @@ function cameraViewsEqual(a, b) {
   return pitchA === pitchB;
 }
 
-function useMediaQuery(query) {
+function useMediaQuery(query: string): boolean {
   const [matches, setMatches] = useState(() => {
     if (typeof window === 'undefined') {
       return false;
@@ -110,27 +117,109 @@ function useMediaQuery(query) {
   return matches;
 }
 
+type ImageVariant = {
+  width: number;
+  height: number;
+  thumb_url: string;
+};
+
+type AnimalImage = {
+  mid?: string;
+  original_url?: string;
+  variants?: ImageVariant[];
+};
+
+type AnimalDetail = {
+  id: string;
+  slug?: string;
+  name_en?: string | null;
+  name_de?: string | null;
+  scientific_name?: string | null;
+  subspecies?: string | null;
+  class_id?: number | null;
+  class_name_en?: string | null;
+  class_name_de?: string | null;
+  order_id?: number | null;
+  order_name_en?: string | null;
+  order_name_de?: string | null;
+  family_id?: number | null;
+  family_name_en?: string | null;
+  family_name_de?: string | null;
+  description_en?: string | null;
+  description_de?: string | null;
+  iucn_conservation_status?: string | null;
+  default_image_url?: string | null;
+  images?: AnimalImage[];
+  seen?: boolean;
+  is_favorite?: boolean;
+  parent?: {
+    id: string;
+    slug?: string;
+    name_en?: string | null;
+    name_de?: string | null;
+    scientific_name?: string | null;
+  } | null;
+};
+
+type ZooWithDistance = {
+  id: string;
+  name: string;
+  slug?: string;
+  city?: string | null;
+  latitude: number;
+  longitude: number;
+  distance_km?: number;
+  is_favorite?: boolean;
+};
+
+type UserLocation = {
+  lat: number;
+  lon: number;
+};
+
+type HistoryItem = {
+  id: string;
+  sighting_datetime: string;
+  zoo_id: string;
+  animal_id: string;
+  zoo_name?: string | null;
+  notes?: string | null;
+  photo_url?: string | null;
+};
+
+type ModalData = {
+  zooId?: string | undefined;
+  zooName?: string | undefined;
+  animalId?: string | undefined;
+  animalName?: string | undefined;
+};
+
+type AnimalDetailPageProps = {
+  refresh?: number;
+  onLogged?: () => void;
+};
+
 // Detailed page showing an animal along with nearby zoos and user sightings
 
-export default function AnimalDetailPage({ refresh, onLogged }: any) {
-  const { slug, lang } = useParams();
+export default function AnimalDetailPage({ refresh, onLogged }: AnimalDetailPageProps) {
+  const { slug, lang } = useParams<{ slug: string; lang: string }>();
   const navigate = useNavigate();
   const routerLocation = useLocation();
   const routerState = routerLocation.state as AnimalLocationState | undefined;
-  const prefix = `/${lang}`;
+  const prefix = `/${lang ?? 'en'}`;
   const { t } = useTranslation();
   const authFetch = useAuthFetch();
   const { isAuthenticated } = useAuth();
   const locale = lang === 'de' ? 'de-DE' : 'en-US';
   const initialViewMode = routerState?.animalViewMode === 'map' ? 'map' : 'list';
   const initialMapView = sanitizeCameraView(routerState?.animalMapView);
-  const [animal, setAnimal] = useState<any>(null);
-  const [history, setHistory] = useState<any[]>([]);
+  const [animal, setAnimal] = useState<AnimalDetail | null>(null);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState(false);
-  const [userLocation, setUserLocation] = useState<any>(null);
-  const [zoos, setZoos] = useState<any[]>([]);
-  const [modalData, setModalData] = useState<any>(null);
+  const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
+  const [zoos, setZoos] = useState<ZooWithDistance[]>([]);
+  const [modalData, setModalData] = useState<ModalData | null>(null);
   const [zooFilter, setZooFilter] = useState('');
   const [descOpen, setDescOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -195,15 +284,24 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
       return { class: null, order: null, family: null };
     }
 
-    const makeLink = ({ classId, orderId, familyId }: any) => {
-      const filtered = [
+    const makeLink = ({ 
+      classId, 
+      orderId, 
+      familyId 
+    }: { 
+      classId?: number | null; 
+      orderId?: number | null; 
+      familyId?: number | null;
+    }) => {
+      const entries: Array<[string, number | null | undefined]> = [
         ['class', classId],
         ['order', orderId],
         ['family', familyId],
-      ].filter(([, value]) => value != null && value !== '');
-      const params = createSearchParams(
-        filtered.map(([key, value]) => [key, String(value)])
-      );
+      ];
+      const filtered: [string, string][] = entries
+        .filter((pair): pair is [string, number] => pair[1] != null && typeof pair[1] === 'number')
+        .map(([key, value]) => [key, `${value}`]);
+      const params = createSearchParams(filtered);
       const query = params.toString();
       return `${prefix}/animals${query ? `?${query}` : ''}`;
     };
@@ -257,7 +355,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
   }, [animal?.subspecies, lang]);
 
   useEffect(() => {
-    const params = [] as any[];
+    const params: string[] = [];
     if (userLocation) {
       params.push(`latitude=${userLocation.lat}`);
       params.push(`longitude=${userLocation.lon}`);
@@ -294,20 +392,20 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
   }, [slug, userLocation, authFetch]);
 
   const fetchHistory = useCallback(
-    async ({ signal, limit, offset } = {}) => {
+    async ({ signal, limit, offset }: { signal?: AbortSignal; limit?: number; offset?: number } = {}) => {
       if (!slug) {
         return [];
       }
       const params = new URLSearchParams();
       if (typeof limit === 'number') {
-        params.set('limit', String(limit));
+        params.set('limit', `${limit}`);
       }
       if (typeof offset === 'number' && offset > 0) {
-        params.set('offset', String(offset));
+        params.set('offset', `${offset}`);
       }
       const baseUrl = `${API}/animals/${slug}/sightings`;
       const url = params.size ? `${baseUrl}?${params.toString()}` : baseUrl;
-      const response = await authFetch(url, { signal });
+      const response = await authFetch(url, signal ? { signal } : {});
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
@@ -321,7 +419,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
   );
 
   const loadHistory = useCallback(
-    async ({ signal } = {}) => {
+    async ({ signal }: { signal?: AbortSignal } = {}) => {
       if (!isAuthenticated || !slug) {
         setHistory([]);
         setHistoryError(false);
@@ -331,7 +429,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
       setHistoryLoading(true);
       setHistoryError(false);
       try {
-        const items = await fetchHistory({ signal });
+        const items = signal ? await fetchHistory({ signal }) : await fetchHistory();
         setHistory(items);
         setHistoryError(false);
       } catch (err) {
@@ -410,8 +508,8 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
       );
     }
     list.sort((a, b) => {
-      const da = Number.isFinite(a.distance_km) ? a.distance_km : Number.POSITIVE_INFINITY;
-      const db = Number.isFinite(b.distance_km) ? b.distance_km : Number.POSITIVE_INFINITY;
+      const da = Number.isFinite(a.distance_km) ? (a.distance_km ?? Number.POSITIVE_INFINITY) : Number.POSITIVE_INFINITY;
+      const db = Number.isFinite(b.distance_km) ? (b.distance_km ?? Number.POSITIVE_INFINITY) : Number.POSITIVE_INFINITY;
       if (da !== db) {
         return da - db;
       }
@@ -568,13 +666,12 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
 
   const userSightings = Array.isArray(history) ? history : [];
   const seen = userSightings.length > 0;
-  const firstSeen = seen
-    ? new Date(
-        userSightings
-          .map((s) => s.sighting_datetime)
-          .sort()[0]
-      ).toLocaleDateString()
-    : null;
+  const firstSeenDate = seen
+    ? userSightings
+        .map((s) => s.sighting_datetime)
+        .sort()[0]
+    : undefined;
+  const firstSeen = firstSeenDate ? new Date(firstSeenDate).toLocaleDateString() : null;
   const gallery = userSightings.filter((s) => s.photo_url);
   const animalImages = Array.isArray(animal?.images) ? animal.images : [];
   const hasGallery = animalImages.length > 0;
@@ -642,8 +739,8 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
                 );
                 const fallback = sorted[0];
                 const fallbackSrc = fallback?.thumb_url || img.original_url;
-                const uniqueByWidth = [] as any[];
-                const seenSet = new Set();
+                const uniqueByWidth: typeof sorted = [];
+                const seenSet = new Set<number>();
                 for (const v of sorted) {
                   if (!seenSet.has(v.width)) {
                     uniqueByWidth.push(v);
@@ -703,7 +800,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
                           decoding="async"
                           loading={loadingAttr}
                           fetchPriority={fetchPri}
-                          alt={animalName}
+                          alt={animalName ?? ''}
                           draggable="false"
                           className="animal-media-ambient__img"
                         />
@@ -759,7 +856,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
             />
             <img
               src={animal.default_image_url}
-              alt={animalName}
+              alt={animalName ?? ''}
               decoding="async"
               loading="lazy"
               draggable="false"
@@ -1127,8 +1224,8 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
               {gallery.map((g, idx) => (
                 <img
                   key={idx}
-                  src={g.photo_url}
-                  alt={t('animal.sightingsGalleryAlt', { animal: animalName })}
+                  src={g.photo_url ?? ''}
+                  alt={t('animal.sightingsGalleryAlt', { animal: animalName ?? '' })}
                   className="gallery-img"
                 />
               ))}
@@ -1185,18 +1282,19 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
       return;
     }
     const ids = sections.map((section) => section.id);
-    if (!ids.includes(activeSection)) {
-      setActiveSection(ids[0]);
+    const firstId = ids[0];
+    if (firstId && !ids.includes(activeSection)) {
+      setActiveSection(firstId);
     }
     setOpenSections((prev) => {
-      const next = new Set();
+      const next = new Set<string>();
       prev.forEach((id) => {
         if (ids.includes(id)) {
           next.add(id);
         }
       });
-      if (prev.size > 0 && next.size === 0) {
-        next.add(ids[0]);
+      if (prev.size > 0 && next.size === 0 && firstId) {
+        next.add(firstId);
       }
       if (next.size === prev.size && [...next].every((id) => prev.has(id))) {
         return prev;
@@ -1206,7 +1304,7 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
   }, [sections, activeSection]);
 
   const handleTabKeyDown = useCallback(
-    (event, index) => {
+    (event: React.KeyboardEvent, index: number) => {
       if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') {
         return;
       }
@@ -1214,10 +1312,12 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
       const direction = event.key === 'ArrowRight' ? 1 : -1;
       const nextIndex = (index + direction + sections.length) % sections.length;
       const nextSection = sections[nextIndex];
-      setActiveSection(nextSection.id);
-      const node = tabRefs.current[nextIndex];
-      if (node) {
-        node.focus();
+      if (nextSection) {
+        setActiveSection(nextSection.id);
+        const node = tabRefs.current[nextIndex];
+        if (node) {
+          node.focus();
+        }
       }
     },
     [sections]
@@ -1244,10 +1344,10 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
     }
     const defaultZoo = closestZoo;
     setModalData({
-      animalId: animalId,
-      animalName: animalName,
+      animalId: animalId ?? undefined,
+      animalName: animalName ?? undefined,
       zooId: defaultZoo ? defaultZoo.id : undefined,
-      zooName: defaultZoo ? getZooDisplayName(defaultZoo) : undefined,
+      zooName: defaultZoo ? (getZooDisplayName(defaultZoo) || undefined) : undefined,
     });
   }, [animal, animalId, animalName, closestZoo, handleLoginRedirect, isAuthenticated]);
 
@@ -1268,12 +1368,8 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
   return (
     <div className="page-container animal-detail-page">
       <Seo
-        title={animal ? animalName : 'Animal'}
-        description={
-          animal
-            ? `Discover where to see ${animalName} and log your sightings.`
-            : 'Animal details on ZooTracker.'
-        }
+        title={animalName ?? ''}
+        description={`Discover where to see ${animalName ?? ''} and log your sightings.`}
       />
       <header className="animal-header d-flex flex-column flex-lg-row gap-3 align-items-lg-start">
         <div className="flex-grow-1">
@@ -1411,13 +1507,13 @@ export default function AnimalDetailPage({ refresh, onLogged }: any) {
       {modalData && (
         <SightingModal
           zoos={zoos}
-          defaultZooId={modalData.zooId}
-          defaultAnimalId={modalData.animalId}
-          defaultZooName={modalData.zooName}
-          defaultAnimalName={modalData.animalName}
+          defaultZooId={modalData.zooId ?? ''}
+          defaultAnimalId={modalData.animalId ?? ''}
+          defaultZooName={modalData.zooName ?? ''}
+          defaultAnimalName={modalData.animalName ?? ''}
           onLogged={() => {
             void loadHistory();
-            onLogged && onLogged();
+            if (onLogged) onLogged();
           }}
           onClose={() => { setModalData(null); }}
         />

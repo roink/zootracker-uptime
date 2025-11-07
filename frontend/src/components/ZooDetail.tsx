@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 
 // Media query hook for responsive layout
-function useMediaQuery(query: string) {
+function useMediaQuery(query: string): boolean {
   const [matches, setMatches] = useState(() => {
     if (typeof window === 'undefined') return false;
     return window.matchMedia(query).matches;
@@ -13,7 +13,6 @@ function useMediaQuery(query: string) {
     if (typeof window === 'undefined') return;
     const mql = window.matchMedia(query);
     const handler = (e: MediaQueryListEvent) => { setMatches(e.matches); };
-    setMatches(mql.matches);
     mql.addEventListener('change', handler);
     return () => { mql.removeEventListener('change', handler); };
   }, [query]);

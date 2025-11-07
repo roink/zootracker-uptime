@@ -1,7 +1,5 @@
 import type { Feature, FeatureCollection, Point } from 'geojson';
 import type * as maplibre from 'maplibre-gl';
-import PropTypes from 'prop-types';
-import type { MutableRefObject } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -85,11 +83,11 @@ export default function ZoosMap({
   ariaLabel,
   onMapReady,
   disableClusterCount = false,
-  onContextLostChange,
+  onContextLostChange
 }: ZoosMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MaplibreMap | null>(null);
-  const maplibreRef: MutableRefObject<MaplibreModule | null> = useRef(null);
+  const maplibreRef = useRef<MaplibreModule | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const setDataFrameRef = useRef<ScheduledFrame | null>(null);
   const onSelectRef = useRef<ZoosMapProps['onSelect']>(onSelect);
@@ -830,44 +828,4 @@ export default function ZoosMap({
     />
   );
 }
-
-ZoosMap.propTypes = {
-  zoos: PropTypes.arrayOf(
-    PropTypes.shape({
-      id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
-      name: PropTypes.string,
-      slug: PropTypes.string,
-      latitude: PropTypes.number,
-      longitude: PropTypes.number,
-      lat: PropTypes.number,
-      lon: PropTypes.number,
-      lng: PropTypes.number,
-      location: PropTypes.shape({
-        latitude: PropTypes.number,
-        longitude: PropTypes.number,
-        lat: PropTypes.number,
-        lon: PropTypes.number,
-        lng: PropTypes.number,
-      }),
-    })
-  ),
-  center: PropTypes.shape({
-    lat: PropTypes.number,
-    lon: PropTypes.number,
-  }),
-  onSelect: PropTypes.func,
-  resizeToken: PropTypes.number,
-  initialView: PropTypes.shape({
-    center: PropTypes.arrayOf(PropTypes.number),
-    zoom: PropTypes.number,
-    bearing: PropTypes.number,
-    pitch: PropTypes.number,
-  }),
-  suppressAutoFit: PropTypes.bool,
-  onViewChange: PropTypes.func,
-  ariaLabel: PropTypes.string,
-  onMapReady: PropTypes.func,
-  disableClusterCount: PropTypes.bool,
-  onContextLostChange: PropTypes.func,
-};
 

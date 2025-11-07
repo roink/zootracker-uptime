@@ -964,8 +964,8 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
       geolocation.getCurrentPosition(
         (pos) => {
           if (!active) return;
-          const lat = Number(pos.coords.latitude);
-          const lon = Number(pos.coords.longitude);
+          const lat = pos.coords.latitude;
+          const lon = pos.coords.longitude;
           if (Number.isFinite(lat) && Number.isFinite(lon)) {
             const loc = { lat, lon };
             setLocation(loc);
@@ -1066,8 +1066,8 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
       return zoos;
     }
     return zoos.filter((z) => {
-      if (visitFilter === 'visited') return visitedSet.has(String(z.id));
-      if (visitFilter === 'not') return !visitedSet.has(String(z.id));
+      if (visitFilter === 'visited') return visitedSet.has(z.id);
+      if (visitFilter === 'not') return !visitedSet.has(z.id);
       return true;
     });
   }, [zoos, visitFilter, visitedSet, isServerFilteredByVisit]);
@@ -1077,8 +1077,8 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
       return mapZoos;
     }
     return mapZoos.filter((z) => {
-      if (visitFilter === 'visited') return visitedSet.has(String(z.id));
-      if (visitFilter === 'not') return !visitedSet.has(String(z.id));
+      if (visitFilter === 'visited') return visitedSet.has(z.id);
+      if (visitFilter === 'not') return !visitedSet.has(z.id);
       return true;
     });
   }, [mapZoos, visitFilter, visitedSet, isServerFilteredByVisit]);
@@ -1381,7 +1381,7 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
                               {z.distance_km.toFixed(1)} km
                             </div>
                           )}
-                          {visitedSet.has(String(z.id)) && (
+                          {visitedSet.has(z.id) && (
                             <span className="badge bg-success mt-1">
                               {t('zoo.visitedOnly')}
                             </span>

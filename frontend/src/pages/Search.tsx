@@ -44,11 +44,11 @@ export default function SearchPage() {
     const limit = 50;
     const zooParams = new URLSearchParams({
       q: normalizedQuery,
-      limit: String(limit),
+      limit: `${limit}`,
     });
     const animalParams = new URLSearchParams({
       q: normalizedQuery,
-      limit: String(limit),
+      limit: `${limit}`,
     });
 
     setIsLoading(true);

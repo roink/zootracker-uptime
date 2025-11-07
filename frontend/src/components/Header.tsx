@@ -59,7 +59,6 @@ export default function Header() {
     const menu = collapseRef.current;
     if (menu && menu.classList.contains('show')) {
       hideCollapse(menu);
-      setMenuOpen(false);
     }
   }, [hideCollapse, location]);
 
@@ -77,7 +76,6 @@ export default function Header() {
         (!toggle || !toggle.contains(target))
       ) {
         hideCollapse(menu);
-        setMenuOpen(false);
       }
     };
     document.addEventListener('click', handle);
@@ -189,36 +187,27 @@ export default function Header() {
     return list;
   }, [getAnimalName, results.animals, results.zoos, suggestionListId, t]);
 
+  // Compute the valid active index based on current state
+  const validActiveIndex = useMemo(() => {
+    if (!suggestionsOpen) return -1;
+    if (activeIndex >= options.length && options.length > 0) return options.length - 1;
+    if (activeIndex < 0) return -1;
+    return activeIndex;
+  }, [activeIndex, options.length, suggestionsOpen]);
+
   const activeOption =
-    activeIndex >= 0 && activeIndex < options.length ? options[activeIndex] : undefined;
+    validActiveIndex >= 0 && validActiveIndex < options.length ? options[validActiveIndex] : undefined;
   const activeOptionId = activeOption?.id;
-
-  useEffect(() => {
-    if (!suggestionsOpen) {
-      setActiveIndex(-1);
-    }
-  }, [suggestionsOpen]);
-
-  useEffect(() => {
-    if (activeIndex >= options.length) {
-      setActiveIndex(options.length - 1);
-    }
-  }, [activeIndex, options.length]);
-
-  useEffect(() => {
-    setActiveIndex(-1);
-  }, [query]);
 
   useEffect(() => {
     if (liveRegionTimeout.current) {
       window.clearTimeout(liveRegionTimeout.current);
     }
-    if (!query.trim()) {
-      setLiveMessage('');
-      return;
-    }
     liveRegionTimeout.current = window.setTimeout(() => {
-      if (!query.trim()) return;
+      if (!query.trim()) {
+        setLiveMessage('');
+        return;
+      }
       setLiveMessage(
         options.length
           ? t('nav.searchSuggestionCount', { count: options.length })
@@ -399,6 +388,7 @@ export default function Header() {
               value={query}
               onChange={(event: ChangeEvent<HTMLInputElement>) => {
                 setQuery(event.target.value);
+                setActiveIndex(-1);
               }}
               onFocus={() => {
                 // cancel pending blur when focusing again

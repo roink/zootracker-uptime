@@ -8,7 +8,11 @@ export default defineConfig({
     host: true
   },
   plugins: [
-    react(),
+    react({
+      babel: {
+        plugins: ['babel-plugin-react-compiler'],
+      },
+    }),
     checker({
       typescript: true,
       eslint: {

@@ -1,4 +1,3 @@
-import PropTypes from 'prop-types';
 import type { CSSProperties, KeyboardEventHandler, MouseEventHandler, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
@@ -32,7 +31,7 @@ export default function AnimalTile({
   children = null,
   className = '',
   onClick,
-  onKeyDown,
+  onKeyDown
 }: AnimalTileProps) {
   const { t } = useTranslation();
   const localizedName =
@@ -94,22 +93,3 @@ export default function AnimalTile({
     </Link>
   );
 }
-
-AnimalTile.propTypes = {
-  to: PropTypes.string.isRequired,
-  animal: PropTypes.shape({
-    id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
-    slug: PropTypes.string,
-    name_en: PropTypes.string,
-    name_de: PropTypes.string,
-    scientific_name: PropTypes.string,
-    default_image_url: PropTypes.string,
-    is_favorite: PropTypes.bool,
-  }).isRequired,
-  lang: PropTypes.string.isRequired,
-  seen: PropTypes.bool,
-  children: PropTypes.node,
-  className: PropTypes.string,
-  onClick: PropTypes.func,
-  onKeyDown: PropTypes.func,
-};

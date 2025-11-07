@@ -1,21 +1,40 @@
-// @ts-nocheck
 import { useEffect, useState } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
 
 import { API } from '../api';
 import Seo from '../components/Seo';
 
+type ImageVariant = {
+  width: number;
+  height: number;
+  thumb_url: string;
+};
+
+type ImageData = {
+  mid: string;
+  commons_title?: string;
+  original_url: string;
+  variants?: ImageVariant[];
+  author?: string;
+  license?: string;
+  license_url?: string;
+  attribution_text?: string;
+  credit_line?: string;
+  attribution_required?: boolean;
+  commons_page_url?: string;
+};
+
 // Page showing an image alongside attribution metadata
 export default function ImageAttributionPage() {
   const { mid, lang } = useParams();
   const location = useLocation();
-  const animalName = location.state?.name;
-  const [image, setImage] = useState<any>(null);
+  const animalName = location.state?.name as string | undefined;
+  const [image, setImage] = useState<ImageData | null>(null);
   const [error, setError] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
-    setError(false);
+    queueMicrotask(() => { setError(false); });
     fetch(`${API}/images?mid=${mid}`, { signal: controller.signal })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then(setImage)
@@ -38,8 +57,8 @@ export default function ImageAttributionPage() {
   const sorted = [...(image.variants || [])].sort((a, b) => a.width - b.width);
   const fallback = sorted[0];
   const fallbackSrc = fallback?.thumb_url || image.original_url;
-  const unique = [] as any[];
-  const seen = new Set();
+  const unique: ImageVariant[] = [];
+  const seen = new Set<number>();
   for (const v of sorted) {
     if (!seen.has(v.width)) {
       unique.push(v);
@@ -111,7 +130,7 @@ export default function ImageAttributionPage() {
             </dd>
           </>
         )}
-        {image.attribution_required !== null && (
+        {image.attribution_required !== undefined && (
           <>
             <dt className="col-sm-3">Attribution required</dt>
             <dd className="col-sm-9">{image.attribution_required ? 'Yes' : 'No'}</dd>

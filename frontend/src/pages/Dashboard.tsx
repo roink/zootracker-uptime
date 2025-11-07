@@ -136,7 +136,7 @@ export default function Dashboard({ refresh, onUpdate }: DashboardProps) {
     queryKey: ['user', uid, 'achievements'],
     // Placeholder query: achievements endpoint is not yet available so we
     // avoid calling it and just return an empty list for now.
-    queryFn: async () => [],
+    queryFn: () => Promise.resolve([]),
     enabled: false,
     initialData: [] as Achievement[],
     staleTime: Infinity,

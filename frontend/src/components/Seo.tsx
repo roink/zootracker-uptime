@@ -1,5 +1,4 @@
-import PropTypes from 'prop-types';
-import { Helmet } from 'react-helmet-async';
+import { Helmet } from '@dr.pogodin/react-helmet';
 import { useParams } from 'react-router-dom';
 
 interface SeoProps {
@@ -18,7 +17,7 @@ export default function Seo({
   image,
   canonical,
   jsonLd,
-  robots,
+  robots
 }: SeoProps) {
   const HelmetComponent = Helmet;
   const { lang } = useParams();
@@ -76,12 +75,3 @@ export default function Seo({
     </HelmetComponent>
   );
 }
-
-Seo.propTypes = {
-  title: PropTypes.string.isRequired,
-  description: PropTypes.string,
-  image: PropTypes.string,
-  canonical: PropTypes.string,
-  jsonLd: PropTypes.oneOfType([PropTypes.object, PropTypes.array]),
-  robots: PropTypes.string,
-};

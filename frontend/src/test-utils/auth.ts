@@ -30,7 +30,8 @@ export function setStoredAuth(auth: TestAuthState): void {
 }
 
 export function clearStoredAuth(): void {
-  delete (globalThis as Record<string, unknown>)[TEST_AUTH_KEY];
+  const global = globalThis as Record<string, unknown>;
+  global[TEST_AUTH_KEY] = undefined;
 }
 
 export function getStoredAuth(): TestAuthState {

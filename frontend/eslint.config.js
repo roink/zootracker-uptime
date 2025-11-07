@@ -7,7 +7,7 @@ import react from 'eslint-plugin-react';
 import reactHooks from 'eslint-plugin-react-hooks';
 import jsxA11y from 'eslint-plugin-jsx-a11y';
 import importPlugin from 'eslint-plugin-import';
-import prettier from 'eslint-config-prettier';
+import prettier from 'eslint-config-prettier/flat';
 import reactRefresh from 'eslint-plugin-react-refresh';
 import promise from 'eslint-plugin-promise';
 import unicorn from 'eslint-plugin-unicorn';
@@ -35,6 +35,8 @@ export default tseslint.config(
     extends: [
       react.configs.flat.recommended,
       react.configs.flat['jsx-runtime'],
+      { plugins: { 'react-hooks': reactHooks },
+        rules: reactHooks.configs.recommended.rules },
       jsxA11y.flatConfigs.recommended,
       importRecommended,
       importTypescript,
@@ -65,8 +67,6 @@ export default tseslint.config(
       'react/jsx-uses-react': 'off',
       'react/react-in-jsx-scope': 'off',
       'react/prop-types': 'off',
-      'react-hooks/rules-of-hooks': 'error',
-      'react-hooks/exhaustive-deps': 'error',
       'react-refresh/only-export-components': [
         'error',
         {

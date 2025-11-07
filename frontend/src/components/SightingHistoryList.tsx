@@ -1,4 +1,3 @@
-import PropTypes from 'prop-types';
 import type { ReactNode } from 'react';
 import { useMemo, useCallback, Fragment } from 'react';
 
@@ -17,8 +16,8 @@ interface RenderHelpers {
   formatTime: (value: string | number | Date | null | undefined) => string | null;
 }
 
-export interface SightingHistoryListProps<T extends Sighting = Sighting> {
-  sightings?: T[];
+export interface SightingHistoryListProps {
+  sightings?: Sighting[];
   locale: string;
   isAuthenticated: boolean;
   loading: boolean;
@@ -26,14 +25,14 @@ export interface SightingHistoryListProps<T extends Sighting = Sighting> {
   messages: SightingHistoryMessages;
   onLogin?: () => void;
   formatDay: (day: string) => string;
-  renderSighting: (sighting: T, helpers: RenderHelpers) => ReactNode;
+  renderSighting: (sighting: Sighting, helpers: RenderHelpers) => ReactNode;
   unauthenticatedContent?: ReactNode;
 }
 
 // Generic list component to render sighting history grouped by day.
 // NOTE: React plans to remove support for defaultProps on function components.
 // Use JS default parameters instead: https://react.dev/learn/passing-props-to-a-component
-export default function SightingHistoryList<T extends Sighting = Sighting>({
+export default function SightingHistoryList({
   sightings = [],
   locale,
   isAuthenticated,
@@ -43,8 +42,8 @@ export default function SightingHistoryList<T extends Sighting = Sighting>({
   onLogin,
   formatDay,
   renderSighting,
-  unauthenticatedContent = null,
-}: SightingHistoryListProps<T>) {
+  unauthenticatedContent = null
+}: SightingHistoryListProps) {
   // Pre-compute groups so renderers can focus on UI.
   const groups = useMemo(() => groupSightingsByDay(sightings), [sightings]);
 
@@ -108,23 +107,4 @@ export default function SightingHistoryList<T extends Sighting = Sighting>({
     </ul>
   );
 }
-
-SightingHistoryList.propTypes = {
-  sightings: PropTypes.arrayOf(PropTypes.object),
-  locale: PropTypes.string.isRequired,
-  isAuthenticated: PropTypes.bool.isRequired,
-  loading: PropTypes.bool.isRequired,
-  error: PropTypes.bool.isRequired,
-  messages: PropTypes.shape({
-    login: PropTypes.string,
-    loginCta: PropTypes.string,
-    loading: PropTypes.string,
-    error: PropTypes.string,
-    empty: PropTypes.string,
-  }).isRequired,
-  onLogin: PropTypes.func,
-  formatDay: PropTypes.func.isRequired,
-  renderSighting: PropTypes.func.isRequired,
-  unauthenticatedContent: PropTypes.node,
-};
 

@@ -54,21 +54,21 @@ describe('Dashboard', () => {
 
   beforeEach(() => {
     auth = { token: createTestToken(), user: { id: 'u1', email: 'user@example.com' }, expiresIn: 3600 };
-    global.fetch = vi.fn(async (url) => {
+    global.fetch = vi.fn((url) => {
       if (url.endsWith('/auth/refresh')) {
-        return { ok: false, status: 401, json: () => Promise.resolve({}) };
+        return Promise.resolve({ ok: false, status: 401, json: () => Promise.resolve({}) });
       }
       if (url.endsWith('/auth/logout')) {
-        return { ok: true, json: () => Promise.resolve({}) };
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
       }
-      if (url.endsWith('/zoos')) return { ok: true, json: () => Promise.resolve([]) };
-      if (url.endsWith('/animals')) return { ok: true, json: () => Promise.resolve([]) };
-      if (url.endsWith('/visits')) return { ok: true, json: () => Promise.resolve([]) };
+      if (url.endsWith('/zoos')) return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      if (url.endsWith('/animals')) return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      if (url.endsWith('/visits')) return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
       if (url.includes('/animals/count'))
-        return { ok: true, json: () => Promise.resolve({ count: 0 }) };
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ count: 0 }) });
       if (url.endsWith('/sightings'))
-        return { ok: true, json: () => Promise.resolve([sighting]) };
-      return { ok: true, json: () => Promise.resolve([]) };
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([sighting]) });
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
     });
   });
 

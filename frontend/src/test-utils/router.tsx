@@ -2,7 +2,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render } from '@testing-library/react';
 import type { PropsWithChildren, ReactElement, ReactNode } from 'react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 
 import { getStoredAuth } from './auth';
@@ -15,17 +15,20 @@ interface AuthSeedProps extends PropsWithChildren {
 
 function AuthSeed({ auth, children }: AuthSeedProps): ReactNode {
   const { login, token, hydrated } = useAuth();
-  const seededRef = useRef(false);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    if (auth && auth.token && !seededRef.current) {
+    if (auth && auth.token) {
       login(auth);
-      seededRef.current = true;
+      // Wait for the next tick to mark as ready
+      queueMicrotask(() => { setReady(true); });
+    } else if (!auth?.token) {
+      queueMicrotask(() => { setReady(true); });
     }
   }, [auth, login]);
 
   if (auth?.token) {
-    if (!seededRef.current || !token) {
+    if (!ready || !token) {
       return null;
     }
   } else if (!hydrated) {

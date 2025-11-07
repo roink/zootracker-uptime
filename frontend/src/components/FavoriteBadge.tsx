@@ -1,4 +1,3 @@
-import PropTypes from 'prop-types';
 import { useTranslation } from 'react-i18next';
 
 interface FavoriteBadgeProps {
@@ -6,8 +5,16 @@ interface FavoriteBadgeProps {
   srLabel?: string;
 }
 
+interface FavoriteBadgeProps {
+  isFavorite?: boolean;
+  srLabel?: string;
+}
+
 // Display a consistent star badge when an item is marked as a favorite.
-export default function FavoriteBadge({ isFavorite = false, srLabel }: FavoriteBadgeProps) {
+export default function FavoriteBadge({
+  isFavorite = false,
+  srLabel
+}: FavoriteBadgeProps) {
   const { t } = useTranslation();
   const ariaLabel = srLabel ?? t('zoo.favoriteBadge');
 
@@ -21,9 +28,4 @@ export default function FavoriteBadge({ isFavorite = false, srLabel }: FavoriteB
     </span>
   );
 }
-
-FavoriteBadge.propTypes = {
-  isFavorite: PropTypes.bool,
-  srLabel: PropTypes.string,
-};
 
