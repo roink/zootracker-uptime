@@ -56,7 +56,6 @@ def load_target_animals(db_path: Path, limit: Optional[int]) -> list[TargetAnima
         LEFT JOIN familie_name AS fn ON a.familie = fn.familie
         WHERE ((a.description_en IS NULL OR TRIM(a.description_en) = '')
            OR (a.description_de IS NULL OR TRIM(a.description_de) = ''))
-          AND a.zoo_count > 0
           AND a.klasse <= 6
         ORDER BY a.zoo_count DESC, a.art ASC
     """
