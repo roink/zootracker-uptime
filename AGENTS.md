@@ -4,22 +4,25 @@ This repository provides a FastAPI backend for tracking zoo visits and animal si
 
 Project structure overview:
 
-- `app/` – FastAPI application code
-- `frontend/` – React/Vite web client
+- `apps/backend/` – FastAPI backend application
+  - `app/` – FastAPI application code
+  - `tests/` – pytest suite for the backend
+  - `requirements.txt` – Python dependencies
+  - `setup_env.sh` – virtual environment setup script
+- `apps/frontend/` – React/Vite web client
   - `src/components/` – shared React components
   - `src/pages/` – route pages
-  - `src/styles/` – custom CSS loaded by `main.jsx`
-- `tests/` – pytest suite for the backend
+  - `src/styles/` – custom CSS loaded by `main.tsx`
 - `docs/` – architecture and planning documents
 - `deploy/` – Ansible inventories, playbooks, and nginx templates used to provision the production server. See `deploy/AGENTS.md`
   for a detailed overview of the deployment assets and configuration guidance.
-- `schema.sql` – database schema
+- `schema.sql` – reference database schema (maintained in root for documentation)
 
 ## Running tests
 
 For detailed instructions on running and validating tests:
-- **Backend tests**: See `app/AGENTS.md`
-- **Frontend tests**: See `frontend/AGENTS.md`
+- **Backend tests**: See `apps/backend/app/AGENTS.md`
+- **Frontend tests**: See `apps/frontend/AGENTS.md`
 
 Always run the relevant tests after making changes.
 
@@ -28,20 +31,20 @@ Always run the relevant tests after making changes.
 Activate the provided virtual environment before running tests, linting, or the app. All required Python packages are already installed there.
 
 ```bash
-source venv/bin/activate
+source apps/backend/venv/bin/activate
 ```
 
 If you need to recreate the environment, run:
 
 ```bash
-./setup_env.sh
+cd apps/backend && ./setup_env.sh
 ```
-This uses `requirements.txt` which must list all Python packages like `fastapi` needed to execute the backend and test suite.
+This uses `apps/backend/requirements.txt` which must list all Python packages like `fastapi` needed to execute the backend and test suite.
 
 ## Linting and validation
 
-- **Backend**: See `app/AGENTS.md` for Python linting and type checking
-- **Frontend**: See `frontend/AGENTS.md` for JavaScript/TypeScript linting and type checking
+- **Backend**: See `apps/backend/app/AGENTS.md` for Python linting and type checking
+- **Frontend**: See `apps/frontend/AGENTS.md` for JavaScript/TypeScript linting and type checking
 
 ## Package manager
 
@@ -50,7 +53,7 @@ The frontend uses **pnpm** instead of npm. All `npm` commands should be replaced
 
 ## Translations
 
-All user-facing strings in the frontend live in `frontend/src/locales/<lang>/common.json`. When adding new UI text:
+All user-facing strings in the frontend live in `apps/frontend/src/locales/<lang>/common.json`. When adding new UI text:
 
 - Add keys to both the English and German files with descriptive names (e.g. `actions.logSighting`).
 - Use `useTranslation` and `t()` in components instead of hardcoded strings.
@@ -60,7 +63,7 @@ See `docs/i18n.md` for more details on the translation workflow.
 
 ## Frontend overlays
 
-A generic modal layout is provided in `frontend/src/styles/app.css` using the
+A generic modal layout is provided in `apps/frontend/src/styles/app.css` using the
 `.modal-overlay` and `.modal-box` classes. Components can use these classes to
 present forms as centered overlays. Keep the modal contents narrow (max-width
 around 500px) so they do not fill the entire screen on large monitors. When

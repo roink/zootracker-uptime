@@ -11,9 +11,13 @@ environment variable to connect.
 ### Local Setup
 
 ```bash
+cd apps/backend
 ./setup_env.sh
 cp .env.example .env
+cd ../..
 docker compose up -d db
+cd apps/backend
+source venv/bin/activate
 python -m app.create_tables
 gunicorn -k uvicorn_worker.UvicornWorker -w 5 app.main:app
 ```
@@ -23,6 +27,8 @@ These commands create the tables and enable the required `postgis` extension.
 You can verify the connection with a quick Python shell:
 
 ```python
+import sys
+sys.path.insert(0, '/home/philipp/projekte/zoo_tracker_server/apps/backend')
 from app.database import SessionLocal
 from app import models
 session = SessionLocal()
@@ -66,6 +72,8 @@ Start the database and run the test suite against PostgreSQL:
 
 ```bash
 docker compose up -d db
+cd apps/backend
+source venv/bin/activate
 pytest
 ```
 
@@ -79,7 +87,7 @@ MapLibre clustering is guarded by two dedicated test suites:
 * Run the full suite (Vitest + Playwright) in one go:
 
   ```bash
-  npm --prefix frontend test
+  pnpm --filter zoo-tracker-frontend test
   ```
 
   This command first executes the structural ZoosMap clustering spec in Vitest
@@ -88,16 +96,16 @@ MapLibre clustering is guarded by two dedicated test suites:
 * To run only the structural assertions:
 
   ```bash
-  npm --prefix frontend run test:unit
+  pnpm --filter zoo-tracker-frontend run test:unit
   ```
 
 * To run only the WebGL checks (Chromium only):
 
   ```bash
-  npm --prefix frontend run test:e2e
+  pnpm --filter zoo-tracker-frontend run test:e2e
   ```
 
-  The Playwright project now resides under `frontend/` next to the Vite app.
+  The Playwright project now resides under `apps/frontend/` next to the Vite app.
   Ensure Chromium dependencies are installed when running in CI containers or
   other headless environments.
 
@@ -107,9 +115,9 @@ The frontend uses [Vite](https://vitejs.dev/) during development. Install the
 dependencies once and start the dev server:
 
 ```bash
-cd frontend
-npm install
-npm run dev
+cd apps/frontend
+pnpm install
+pnpm run dev
 ```
 
 Vite will serve the application on <http://localhost:5173> by default with the
@@ -122,7 +130,7 @@ the box as long as the backend port is reachable. You can still override the API
 location if needed:
 
 ```bash
-VITE_API_URL=http://192.168.1.29:8000 npm run dev -- --host
+VITE_API_URL=http://192.168.1.29:8000 pnpm run dev -- --host
 ```
 
 Replace `192.168.1.29` with your computer's actual IP if it differs. Setting
@@ -139,7 +147,7 @@ If unset the frontend falls back to the OpenFreeMap "liberty" tiles.
 
 ### Internationalization
 
-The frontend supports English and German. Routes are prefixed with the language code (e.g. `/en/animals`). Translations live in `frontend/src/locales`. See [docs/i18n.md](docs/i18n.md) for details on adding or updating strings.
+The frontend supports English and German. Routes are prefixed with the language code (e.g. `/en/animals`). Translations live in `apps/frontend/src/locales`. See [docs/i18n.md](docs/i18n.md) for details on adding or updating strings.
 
 ### Authentication
 
@@ -295,10 +303,12 @@ error.
 
 ### Importing data from a SQLite dump
 
-Use ``app/import_simple_sqlite_data.py`` to populate the database from a
+Use ``apps/backend/app/import_simple_sqlite_data.py`` to populate the database from a
 SQLite dataset with a minimal schema:
 
 ```bash
+cd apps/backend
+source venv/bin/activate
 python -m app.import_simple_sqlite_data path/to/data.db
 ```
 
