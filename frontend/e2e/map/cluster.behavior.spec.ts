@@ -2,6 +2,8 @@
 import { test, expect } from '@playwright/test';
 import { promises as fs } from 'node:fs';
 
+import { mockLocationEstimate } from '../fixtures/api-mocks';
+
 type ZooPoint = {
   id: string;
   name: string;
@@ -36,6 +38,9 @@ test.describe('ZoosMap clustering behaviour', () => {
       fs.readFile(STYLE_URL, 'utf-8'),
       fs.readFile(ZOOS_FIXTURE_URL, 'utf-8'),
     ]);
+
+    // Mock API endpoints for deterministic tests
+    await mockLocationEstimate(page);
 
     await page.route('**/__map-style', (route) =>
       route.fulfill({

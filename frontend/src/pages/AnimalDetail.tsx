@@ -17,9 +17,10 @@ import SightingModal from '../components/SightingModal';
 import ZoosMap from '../components/ZoosMap';
 import useAuthFetch from '../hooks/useAuthFetch';
 import { normalizeCoordinates } from '../utils/coordinates';
-import '../styles/animal-detail.css';
+import { getCurrentPosition, DEFAULT_GEO_OPTIONS } from '../utils/geolocation';
 import { formatSightingDayLabel } from '../utils/sightingHistory';
 import { getZooDisplayName } from '../utils/zooDisplayName';
+import '../styles/animal-detail.css';
 
 // Map IUCN codes to labels and bootstrap badge classes
 const IUCN = {
@@ -483,19 +484,10 @@ export default function AnimalDetailPage({ refresh, onLogged }: AnimalDetailPage
   }, [routerState, slug]);
 
     useEffect(() => {
-      const geolocation = (globalThis as { navigator?: Navigator }).navigator?.geolocation;
-      if (!geolocation) {
-        return;
-      }
-      geolocation.getCurrentPosition(
-        (pos) => {
-          setUserLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude });
-        },
-        () => {
-          setUserLocation(null);
-        },
-        { enableHighAccuracy: false, timeout: 3000, maximumAge: 600000 }
-      );
+      void getCurrentPosition(DEFAULT_GEO_OPTIONS).then((coords) => {
+        setUserLocation(coords);
+        return undefined;
+      });
     }, []);
 
   // Keep sort default in sync with location availability

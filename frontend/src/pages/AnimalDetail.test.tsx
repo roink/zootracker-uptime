@@ -41,20 +41,6 @@ describe('AnimalDetailPage', () => {
 
   beforeEach(async () => {
     await loadLocale('en');
-    vi.stubGlobal('navigator', { geolocation: { getCurrentPosition: (_s, e) => e() } });
-    Object.defineProperty(global.window, 'matchMedia', {
-      writable: true,
-      value: vi.fn().mockImplementation((query) => ({
-        matches: false,
-        media: query,
-        onchange: null,
-        addListener: vi.fn(),
-        removeListener: vi.fn(),
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-        dispatchEvent: vi.fn(),
-      })),
-    });
     mapMock.mockClear();
   });
 

@@ -107,15 +107,6 @@ describe('ZoosPage', () => {
 
   beforeEach(() => {
     stubIntersectionObserver();
-    vi.stubGlobal('navigator', {
-      geolocation: {
-        getCurrentPosition: (_success: PositionCallback, error?: PositionErrorCallback | null) => {
-          if (error) {
-            error({} as GeolocationPositionError);
-          }
-        },
-      },
-    });
     vi.spyOn(window.HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => null);
     if (typeof URL !== 'undefined') {
       const urlCtor = URL as typeof URL & {

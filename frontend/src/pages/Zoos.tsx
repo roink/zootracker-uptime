@@ -29,6 +29,7 @@ import type {
   ZooListItem,
 } from '../types/zoos';
 import { normalizeCoordinates } from '../utils/coordinates';
+import { getCurrentPositionWithFallback, DEFAULT_GEO_OPTIONS } from '../utils/geolocation';
 import { getZooDisplayName } from '../utils/zooDisplayName';
 
 interface ZoosPageProps {
@@ -278,7 +279,6 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
   ); // all | visited | not
   const [favoritesOnly, setFavoritesOnly] = useState(initialFavorites);
   const [visitedLoading, setVisitedLoading] = useState(true);
-  const [estimatedLocation, setEstimatedLocation] = useState<LocationEstimate | null>(null);
   const [location, setLocation] = useState(() => readStoredLocation());
   const authFetch = useAuthFetch();
   const { isAuthenticated, user } = useAuth();
@@ -738,8 +738,8 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
   }, [search]);
 
   const activeLocation = useMemo<LocationEstimate | null>(
-    () => location || estimatedLocation,
-    [location, estimatedLocation]
+    () => location,
+    [location]
   );
 
     const listFilters = useMemo<ListFilters>(() => {
@@ -920,75 +920,31 @@ export default function ZoosPage(_props: ZoosPageProps = {}) {
     return () => { observer.disconnect(); };
   }, [viewMode, loadNextPage]);
 
+  // Get user location with GPS + Cloudflare fallback
   useEffect(() => {
     if (estimateAttemptedRef.current) return;
     estimateAttemptedRef.current = true;
 
+    let active = true;
     const controller = new AbortController();
 
-    const estimateLocation = async () => {
-      try {
-        const response = await fetch(`${API}/location/estimate`, { signal: controller.signal });
-        const data = response.ok ? ((await response.json()) as unknown) : null;
-        if (controller.signal.aborted) {
-          return;
-        }
-        const record = isRecord(data) ? data : null;
-        const lat = record ? toOptionalNumber(record['latitude']) : null;
-        const lon = record ? toOptionalNumber(record['longitude']) : null;
-        if (lat !== null && lon !== null) {
-          setEstimatedLocation({ lat, lon });
-        } else {
-          setEstimatedLocation(null);
-        }
-      } catch {
-        if (!controller.signal.aborted) {
-          setEstimatedLocation(null);
-        }
+    void getCurrentPositionWithFallback(DEFAULT_GEO_OPTIONS, controller.signal).then((result) => {
+      if (!active || controller.signal.aborted) return undefined;
+      
+      const { coords } = result;
+      if (coords) {
+        setLocation(coords);
+        writeStoredLocation(coords);
+      } else {
+        setLocation(null);
+        writeStoredLocation(null);
       }
-    };
-
-    void estimateLocation();
-
-    return () => {
-      controller.abort();
-    };
-  }, []);
-
-    useEffect(() => {
-      const geolocation = (globalThis as { navigator?: Navigator }).navigator?.geolocation;
-      if (!geolocation) return;
-
-    let active = true;
-    try {
-      geolocation.getCurrentPosition(
-        (pos) => {
-          if (!active) return;
-          const lat = pos.coords.latitude;
-          const lon = pos.coords.longitude;
-          if (Number.isFinite(lat) && Number.isFinite(lon)) {
-            const loc = { lat, lon };
-            setLocation(loc);
-            writeStoredLocation(loc);
-          } else {
-            setLocation(null);
-            writeStoredLocation(null);
-          }
-        },
-        () => {
-          if (!active) return;
-          setLocation(null);
-          writeStoredLocation(null);
-        },
-        { enableHighAccuracy: false, timeout: 3000, maximumAge: 600000 }
-      );
-    } catch (_error) {
-      setLocation(null);
-      writeStoredLocation(null);
-    }
+      return undefined;
+    });
 
     return () => {
       active = false;
+      controller.abort();
     };
   }, []);
 

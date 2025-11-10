@@ -21,6 +21,7 @@ import type {
 } from './types';
 import { API } from '../../api';
 import Seo from '../../components/Seo';
+import { getCurrentPosition, DEFAULT_GEO_OPTIONS } from '../../utils/geolocation';
 
 const STORAGE_KEY = 'zt-landing-recents';
 const DEFAULT_COORDS: LandingMapCoordinates = { lat: 50.9394, lon: 6.9583 };
@@ -174,20 +175,13 @@ export default function Landing() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const { navigator } = window;
-    if (!('geolocation' in navigator)) {
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
-          setMapCoords({ lat: latitude, lon: longitude });
-        }
-      },
-      () => undefined,
-      { enableHighAccuracy: false, timeout: 4000, maximumAge: 600000 }
-    );
+    
+    void getCurrentPosition(DEFAULT_GEO_OPTIONS).then((coords) => {
+      if (coords) {
+        setMapCoords(coords);
+      }
+      return undefined;
+    });
   }, []);
 
   const recordRecent = useCallback((term: string) => {
