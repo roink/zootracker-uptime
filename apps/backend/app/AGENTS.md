@@ -24,3 +24,4 @@ The agent environment has PostgreSQL installed. When making changes to the backe
 3. **Type checking**: `mypy app`
 
 Ensure the virtual environment is activated with `source venv/bin/activate` before running these commands.
+All commands should be run from the `apps/backend` directory.

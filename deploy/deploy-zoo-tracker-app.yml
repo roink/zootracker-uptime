@@ -8,6 +8,7 @@
     venv_path: /opt/zoo_tracker/venv
     python_executable: /usr/bin/python3.14
     local_project_path: "{{ playbook_dir | path_join('..') | realpath }}"
+    local_backend_path: "{{ playbook_dir | path_join('..', 'apps', 'backend') | realpath }}"
 
   tasks:
     - name: Ensure Deadsnakes PPA is configured
@@ -42,9 +43,9 @@
         group: root
         mode: "0755"
 
-    - name: Synchronize application source to server
+    - name: Synchronize backend source to server
       ansible.posix.synchronize:
-        src: "{{ local_project_path }}/"
+        src: "{{ local_backend_path }}/"
         dest: "{{ app_root }}/"
         delete: true
         mode: push
@@ -55,8 +56,9 @@
           - --chmod=D755,F644
           - --exclude=.git
           - --exclude=venv
-          - --exclude=frontend/node_modules
           - --exclude=.pytest_cache
+          - --exclude=.mypy_cache
+          - --exclude=.ruff_cache
           - --exclude=*.pyc
           - --exclude=*.pyo
           - --exclude=app.log

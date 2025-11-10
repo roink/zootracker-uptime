@@ -35,3 +35,16 @@ ignore = [
 
 [tool.ruff.lint.pep8-naming]
 classmethod-decorators = ["classmethod", "field_validator"]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zootracker-backend"
+version = "0.1.0"
+requires-python = ">=3.12"
+
+[tool.setuptools]
+packages = ["app"]  # this tells setuptools to package the 'app' package in this folder
+
