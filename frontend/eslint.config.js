@@ -14,6 +14,7 @@ import unicorn from 'eslint-plugin-unicorn';
 import sonarjs from 'eslint-plugin-sonarjs';
 import testingLibrary from 'eslint-plugin-testing-library';
 import jestDom from 'eslint-plugin-jest-dom';
+import { defineConfig, globalIgnores } from 'eslint/config';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -23,9 +24,9 @@ const { plugins: _importTsPlugins, ...importTypescript } = importPlugin.flatConf
 void _importPlugins;
 void _importTsPlugins;
 
-export default tseslint.config(
+const tsConfigs = tseslint.config(
   {
-    ignores: ['dist', 'build', 'node_modules', 'eslint.config.js'],
+    ignores: [],
     linterOptions: { reportUnusedDisableDirectives: true }
   },
   js.configs.recommended,
@@ -236,3 +237,17 @@ export default tseslint.config(
   },
   prettier
 );
+export default defineConfig([
+  // Don’t lint build output or native projects (Capacitor)
+  globalIgnores([
+    // build output
+    'dist/', 'build/',
+    // native projects
+    'ios/', 'android/',
+    // copied web assets inside native projects
+    'ios/App/App/public/', 'android/app/src/main/assets/public/',
+    // don’t lint the config itself
+    'eslint.config.*'
+  ]),
+  ...tsConfigs
+]);

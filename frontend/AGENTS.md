@@ -14,8 +14,8 @@ Key directories:
 
 When making changes to the frontend, always run:
 
-1. **Linting**: `npm --prefix frontend run lint`
-2. **Type checking**: `npm --prefix frontend run typecheck`
-3. **Tests**: `npm --prefix frontend run test`
+1. **Linting**: `pnpm --filter zoo-tracker-frontend run lint`
+2. **Type checking**: `pnpm --filter zoo-tracker-frontend run typecheck`
+3. **Tests**: `pnpm --filter zoo-tracker-frontend run test`
 
 The test command runs both unit tests (Vitest) and end-to-end tests (Playwright).

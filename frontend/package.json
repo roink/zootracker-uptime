@@ -20,6 +20,9 @@
     "format": "prettier -w ."
   },
   "dependencies": {
+    "@capacitor/android": "^7.4.4",
+    "@capacitor/core": "^7.4.4",
+    "@capacitor/ios": "^7.4.4",
     "@dr.pogodin/react-helmet": "3.0.4",
     "@tanstack/query-async-storage-persister": "^5.90.5",
     "@tanstack/react-query": "^5.90.5",
@@ -35,11 +38,14 @@
     "react-router-dom": "^7.9.1"
   },
   "devDependencies": {
+    "@capacitor/cli": "^7.4.4",
     "@eslint/js": "^9.34.0",
     "@playwright/test": "^1.49.1",
+    "@tanstack/query-core": "^5.90.7",
     "@testing-library/jest-dom": "^6.5.0",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.5.2",
+    "@types/geojson": "^7946.0.16",
     "@types/node": "^22.18.13",
     "@types/react": "19.2.2",
     "@types/react-dom": "19.2.2",

@@ -43,6 +43,10 @@ This uses `requirements.txt` which must list all Python packages like `fastapi` 
 - **Backend**: See `app/AGENTS.md` for Python linting and type checking
 - **Frontend**: See `frontend/AGENTS.md` for JavaScript/TypeScript linting and type checking
 
+## Package manager
+
+The frontend uses **pnpm** instead of npm. All `npm` commands should be replaced with `pnpm --filter zoo-tracker-frontend` when working in the root directory, or simply `pnpm` when working inside the `frontend/` directory.
+
 
 ## Translations
 
