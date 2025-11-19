@@ -76,6 +76,7 @@ async function main() {
     const ctx = canvas.getContext("2d");
     const failureLinePlugin = {
       id: "failureLines",
+      // Expects failedTimes to contain Date instances for the current view.
       afterDatasetsDraw(chart) {
         if (!failedTimes.length) return;
 
@@ -83,19 +84,19 @@ async function main() {
         const yScale = chart.scales.y;
         if (!xScale || !yScale) return;
 
-        const top = yScale.getPixelForValue(yScale.max);
-        const bottom = yScale.getPixelForValue(yScale.min);
-        if (!Number.isFinite(top) || !Number.isFinite(bottom)) return;
-
+        const minVisible = xScale.min;
+        const maxVisible = xScale.max;
         const { ctx } = chart;
         ctx.save();
         ctx.strokeStyle = "red";
-        ctx.lineWidth = 1;
+        ctx.lineWidth = 1.25;
         failedTimes.forEach(time => {
+          const t = time.getTime();
+          if (t < minVisible || t > maxVisible) return;
           const x = xScale.getPixelForValue(time);
           ctx.beginPath();
-          ctx.moveTo(x, top);
-          ctx.lineTo(x, bottom);
+          ctx.moveTo(x, yScale.top);
+          ctx.lineTo(x, yScale.bottom);
           ctx.stroke();
         });
         ctx.restore();
@@ -130,6 +131,9 @@ async function main() {
 
     function updateMetrics(entriesSubset) {
       const statsValues = computeResponseStats(entriesSubset);
+      const total = entriesSubset.length;
+      const failures = entriesSubset.filter(e => !e.ok).length;
+      const noSuccessful = statsValues.mean === null && total > 0;
       metricsEl.innerHTML = `
         <div class="metric">
           <span class="metric-label">Mean</span>
@@ -143,6 +147,11 @@ async function main() {
           <span class="metric-label">P95</span>
           <span class="metric-value">${formatMs(statsValues.p95)}</span>
         </div>
+        <div class="metric">
+          <span class="metric-label">Failures</span>
+          <span class="metric-value">${failures} / ${total}</span>
+        </div>
+        ${noSuccessful ? "<div class=\"metric note\"><span class=\"metric-label\">Note</span><span class=\"metric-value\">No successful checks in window</span></div>" : ""}
       `;
     }
 
@@ -176,6 +185,7 @@ async function main() {
         <div class="label">${w}</div>
         <div class="value">${s.uptimePercent === null ? "—" : s.uptimePercent.toFixed(3) + "%"}</div>
         <div class="${badgeClass}">${s.total} checks</div>
+        <div class="detail">avg ${formatMs(s.avgMs)}</div>
       `;
       btn.addEventListener("click", () => applyWindow(w));
       stats.appendChild(btn);
