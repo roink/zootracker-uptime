@@ -1,0 +1,69 @@
+:root { --fg:#eaeef2; --bg:#0b1220; --muted:#9aa4b2; }
+* { box-sizing: border-box; }
+html, body { margin:0; padding:0; background:var(--bg); color:var(--fg); font: 14px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji"; }
+header { padding: 24px 16px; border-bottom: 1px solid #1d263b; }
+h1 { margin:0 0 6px; font-size: 22px; }
+#last-run { color: var(--muted); font-size: 12px; }
+main { padding: 16px; max-width: 1100px; margin: 0 auto; display: grid; gap: 16px; }
+.card { background:#0f172a; border:1px solid #1d263b; border-radius:16px; padding:16px; }
+.card h2 { margin: 0 0 12px; font-size: 18px; }
+.stats { display:grid; grid-template-columns: repeat(auto-fit,minmax(120px,1fr)); gap: 10px; margin-bottom: 12px; }
+.stat-button {
+  background:#0b1220;
+  border:1px solid #1d263b;
+  border-radius:12px;
+  padding:10px;
+  text-align:center;
+  color: inherit;
+  width: 100%;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+.stat-button .label { color: var(--muted); font-size: 11px; }
+.stat-button .value { font-size: 18px; margin-top: 4px; }
+.stat-button.active {
+  border-color: #334155;
+  background: #111b2f;
+}
+.stat-button:focus {
+  outline: 2px solid #475569;
+  outline-offset: 2px;
+}
+.stat-button .badge { margin-top: 6px; }
+canvas { width: 100%; height: 280px; }
+footer { color: var(--muted); text-align: center; padding: 20px; border-top:1px solid #1d263b; margin-top: 12px; }
+.badge { display:inline-block; padding:2px 8px; border-radius:999px; border:1px solid #263049; font-size:12px; color:#dbeafe; }
+.badge.up { background: rgba(34,197,94,0.15); border-color: rgba(34,197,94,0.35); color:#bbf7d0; }
+.badge.down { background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.35); color:#fecaca; }
+.url { color:#a5b4fc; text-decoration:none; }
+.url:hover { text-decoration:underline; }
+
+.metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid #1d263b;
+  margin-bottom: 12px;
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+  min-width: 100px;
+}
+
+.metric-label {
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.metric-value {
+  font-size: 18px;
+  margin-top: 4px;
+}
+
