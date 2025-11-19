@@ -18,6 +18,7 @@ function formatMs(value) {
 
 function computeResponseStats(entries) {
   const values = entries
+    .filter(e => e.ok)
     .map(e => e.ms)
     .filter(v => typeof v === "number" && Number.isFinite(v));
   if (!values.length) {
@@ -70,8 +71,37 @@ async function main() {
     const entries = (data.series[c.name] || []).map(entry => ({ ...entry, date: new Date(entry.t) }));
     const windows = ["24h", "7d", "30d", "365d", "all"].filter(w => data.summary[c.name][w] !== undefined);
     const buttons = new Map();
+    let failedTimes = [];
 
     const ctx = canvas.getContext("2d");
+    const failureLinePlugin = {
+      id: "failureLines",
+      // Expects failedTimes to contain Date instances for the current view.
+      afterDatasetsDraw(chart) {
+        if (!failedTimes.length) return;
+
+        const xScale = chart.scales.x;
+        const yScale = chart.scales.y;
+        if (!xScale || !yScale) return;
+
+        const minVisible = xScale.min;
+        const maxVisible = xScale.max;
+        const { ctx } = chart;
+        ctx.save();
+        ctx.strokeStyle = "red";
+        ctx.lineWidth = 1.25;
+        failedTimes.forEach(time => {
+          const t = time.getTime();
+          if (t < minVisible || t > maxVisible) return;
+          const x = xScale.getPixelForValue(time);
+          ctx.beginPath();
+          ctx.moveTo(x, yScale.top);
+          ctx.lineTo(x, yScale.bottom);
+          ctx.stroke();
+        });
+        ctx.restore();
+      }
+    };
     const chart = new Chart(ctx, {
       type: "line",
       data: {
@@ -81,6 +111,7 @@ async function main() {
           fill: false,
           tension: 0.2,
           pointRadius: 0,
+          spanGaps: false,
           borderWidth: 1.5
         }]
       },
@@ -94,11 +125,15 @@ async function main() {
         plugins: {
           legend: { display: true }
         }
-      }
+      },
+      plugins: [failureLinePlugin]
     });
 
     function updateMetrics(entriesSubset) {
       const statsValues = computeResponseStats(entriesSubset);
+      const total = entriesSubset.length;
+      const failures = entriesSubset.filter(e => !e.ok).length;
+      const noSuccessful = statsValues.mean === null && total > 0;
       metricsEl.innerHTML = `
         <div class="metric">
           <span class="metric-label">Mean</span>
@@ -112,6 +147,11 @@ async function main() {
           <span class="metric-label">P95</span>
           <span class="metric-value">${formatMs(statsValues.p95)}</span>
         </div>
+        <div class="metric">
+          <span class="metric-label">Failures</span>
+          <span class="metric-value">${failures} / ${total}</span>
+        </div>
+        ${noSuccessful ? "<div class=\"metric note\"><span class=\"metric-label\">Note</span><span class=\"metric-value\">No successful checks in window</span></div>" : ""}
       `;
     }
 
@@ -121,7 +161,8 @@ async function main() {
       const subset = !isFinite(duration)
         ? entries
         : entries.filter(e => now - e.date.getTime() <= duration);
-      const points = subset.map(p => ({ x: p.date, y: p.ms }));
+      failedTimes = subset.filter(e => !e.ok).map(e => e.date);
+      const points = subset.map(p => (p.ok ? { x: p.date, y: p.ms } : { x: p.date, y: null }));
       chart.data.datasets[0].data = points;
       chart.update();
       buttons.forEach((btn, key) => {
@@ -144,6 +185,7 @@ async function main() {
         <div class="label">${w}</div>
         <div class="value">${s.uptimePercent === null ? "—" : s.uptimePercent.toFixed(3) + "%"}</div>
         <div class="${badgeClass}">${s.total} checks</div>
+        <div class="detail">avg ${formatMs(s.avgMs)}</div>
       `;
       btn.addEventListener("click", () => applyWindow(w));
       stats.appendChild(btn);
