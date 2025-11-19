@@ -72,36 +72,126 @@ async function main() {
     const windows = ["24h", "7d", "30d", "365d", "all"].filter(w => data.summary[c.name][w] !== undefined);
     const buttons = new Map();
     let failedTimes = [];
+    let failureRanges = [];
 
     const ctx = canvas.getContext("2d");
     const failureLinePlugin = {
       id: "failureLines",
-      // Expects failedTimes to contain Date instances for the current view.
+      // Draw semi-transparent red stripes over failure ranges.
       afterDatasetsDraw(chart) {
-        if (!failedTimes.length) return;
-
+        if (!failureRanges.length) return;
+    
         const xScale = chart.scales.x;
         const yScale = chart.scales.y;
         if (!xScale || !yScale) return;
-
+    
         const minVisible = xScale.min;
         const maxVisible = xScale.max;
         const { ctx } = chart;
+    
         ctx.save();
-        ctx.strokeStyle = "red";
-        ctx.lineWidth = 1.25;
-        failedTimes.forEach(time => {
-          const t = time.getTime();
-          if (t < minVisible || t > maxVisible) return;
-          const x = xScale.getPixelForValue(time);
+    
+        failureRanges.forEach(range => {
+          const startT = range.start.getTime();
+          const endT = range.end.getTime();
+    
+          // Skip if completely outside current view
+          if (endT < minVisible || startT > maxVisible) return;
+    
+          // Clamp to visible window
+          const clampedStart = new Date(Math.max(startT, minVisible));
+          const clampedEnd = new Date(Math.min(endT, maxVisible));
+    
+          const xStart = xScale.getPixelForValue(clampedStart);
+          const xEnd = xScale.getPixelForValue(clampedEnd);
+          const width = xEnd - xStart;
+          if (width <= 0) return;
+    
+          const top = yScale.top;
+          const bottom = yScale.bottom;
+          const height = bottom - top;
+    
+          // Nice gradient / soft edges (sort of "gamma" look)
+          const gradient = ctx.createLinearGradient(xStart, 0, xEnd, 0);
+          gradient.addColorStop(0.0, "rgba(255, 0, 0, 0.0)");
+          gradient.addColorStop(0.2, "rgba(255, 0, 0, 0.10)");
+          gradient.addColorStop(0.5, "rgba(255, 0, 0, 0.18)");
+          gradient.addColorStop(0.8, "rgba(255, 0, 0, 0.10)");
+          gradient.addColorStop(1.0, "rgba(255, 0, 0, 0.0)");
+    
+          ctx.fillStyle = gradient;
+          ctx.fillRect(xStart, top, width, height);
+    
+          // Optional subtle border (can be removed if you don’t like it)
+          ctx.strokeStyle = "rgba(255, 0, 0, 0.3)";
+          ctx.lineWidth = 1;
           ctx.beginPath();
-          ctx.moveTo(x, yScale.top);
-          ctx.lineTo(x, yScale.bottom);
+          ctx.moveTo(xStart, top);
+          ctx.lineTo(xStart, bottom);
+          ctx.moveTo(xEnd, top);
+          ctx.lineTo(xEnd, bottom);
           ctx.stroke();
         });
+    
         ctx.restore();
       }
     };
+    function computeFailureRangesForSubset(subset) {
+      const ranges = [];
+      if (!subset.length) return ranges;
+    
+      let i = 0;
+      while (i < subset.length) {
+        if (subset[i].ok) {
+          i++;
+          continue;
+        }
+    
+        // Start of a consecutive failure block
+        const startIndex = i;
+        while (i + 1 < subset.length && !subset[i + 1].ok) {
+          i++;
+        }
+        const endIndex = i;
+    
+        const firstFail = subset[startIndex].date;
+        const lastFail = subset[endIndex].date;
+        const prev = startIndex > 0 ? subset[startIndex - 1].date : null;
+        const next = endIndex < subset.length - 1 ? subset[endIndex + 1].date : null;
+    
+        let startTime;
+        let endTime;
+    
+        if (prev && next) {
+          // Normal case: failures between two successful checks
+          startTime = new Date((prev.getTime() + firstFail.getTime()) / 2);
+          endTime = new Date((next.getTime() + lastFail.getTime()) / 2);
+        } else if (prev && !next) {
+          // Failures at the right edge of the window
+          const leftMid = (prev.getTime() + firstFail.getTime()) / 2;
+          const extra = lastFail.getTime() - prev.getTime();
+          startTime = new Date(leftMid);
+          endTime = new Date(lastFail.getTime() + extra / 2);
+        } else if (!prev && next) {
+          // Failures at the left edge of the window
+          const rightMid = (next.getTime() + lastFail.getTime()) / 2;
+          const extra = next.getTime() - firstFail.getTime();
+          startTime = new Date(firstFail.getTime() - extra / 2);
+          endTime = new Date(rightMid);
+        } else {
+          // All entries in the window are failures
+          startTime = new Date(firstFail.getTime());
+          endTime = new Date(lastFail.getTime());
+        }
+    
+        ranges.push({ start: startTime, end: endTime });
+    
+        i++;
+      }
+    
+      return ranges;
+    }
+
     const chart = new Chart(ctx, {
       type: "line",
       data: {
@@ -161,15 +251,28 @@ async function main() {
       const subset = !isFinite(duration)
         ? entries
         : entries.filter(e => now - e.date.getTime() <= duration);
+    
+      // Keep timestamps around if you still want them, but they’re not
+      // needed for drawing anymore:
       failedTimes = subset.filter(e => !e.ok).map(e => e.date);
-      const points = subset.map(p => (p.ok ? { x: p.date, y: p.ms } : { x: p.date, y: null }));
+    
+      // New: compute failure ranges for the plugin
+      failureRanges = computeFailureRangesForSubset(subset);
+    
+      const points = subset.map(p =>
+        p.ok ? { x: p.date, y: p.ms } : { x: p.date, y: null }
+      );
+    
       chart.data.datasets[0].data = points;
       chart.update();
+    
       buttons.forEach((btn, key) => {
         btn.classList.toggle("active", key === windowKey);
       });
+    
       updateMetrics(subset);
     }
+
 
     for (const w of windows) {
       const s = data.summary[c.name][w];
