@@ -1,0 +1,72 @@
+name: Uptime monitor and deploy
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"   # every 5 minutes (UTC)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: uptime-pages
+  cancel-in-progress: false
+
+jobs:
+  check_build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Optional: cache npm to keep installs fast (evicts if not hit for 7 days)
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Cache npm
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: npm-${{ runner.os }}-
+
+      - name: Install deps (none required)
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          fi
+
+      - name: Run check + build data
+        run: node scripts/check.mjs
+
+      - name: Commit updated history
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/checks.json
+          git commit -m "chore: record uptime [skip ci]" || echo "No changes"
+          git push
+
+      - name: Build static site
+        run: node scripts/build-site.mjs
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: check_build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+

@@ -1,0 +1,14 @@
+{
+  "siteName": "ZooTracker Uptime",
+  "baseUrl": "/zootracker-uptime",
+  "checks": [
+    {
+      "name": "ZooTracker",
+      "url": "https://zootracker.app",
+      "method": "GET",
+      "timeoutMs": 10000
+    }
+  ],
+  "timespans": ["24h", "7d", "30d", "365d", "all"]
+}
+
