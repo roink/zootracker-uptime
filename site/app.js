@@ -18,6 +18,7 @@ function formatMs(value) {
 
 function computeResponseStats(entries) {
   const values = entries
+    .filter(e => e.ok)
     .map(e => e.ms)
     .filter(v => typeof v === "number" && Number.isFinite(v));
   if (!values.length) {
@@ -70,8 +71,36 @@ async function main() {
     const entries = (data.series[c.name] || []).map(entry => ({ ...entry, date: new Date(entry.t) }));
     const windows = ["24h", "7d", "30d", "365d", "all"].filter(w => data.summary[c.name][w] !== undefined);
     const buttons = new Map();
+    let failedTimes = [];
 
     const ctx = canvas.getContext("2d");
+    const failureLinePlugin = {
+      id: "failureLines",
+      afterDatasetsDraw(chart) {
+        if (!failedTimes.length) return;
+
+        const xScale = chart.scales.x;
+        const yScale = chart.scales.y;
+        if (!xScale || !yScale) return;
+
+        const top = yScale.getPixelForValue(yScale.max);
+        const bottom = yScale.getPixelForValue(yScale.min);
+        if (!Number.isFinite(top) || !Number.isFinite(bottom)) return;
+
+        const { ctx } = chart;
+        ctx.save();
+        ctx.strokeStyle = "red";
+        ctx.lineWidth = 1;
+        failedTimes.forEach(time => {
+          const x = xScale.getPixelForValue(time);
+          ctx.beginPath();
+          ctx.moveTo(x, top);
+          ctx.lineTo(x, bottom);
+          ctx.stroke();
+        });
+        ctx.restore();
+      }
+    };
     const chart = new Chart(ctx, {
       type: "line",
       data: {
@@ -81,6 +110,7 @@ async function main() {
           fill: false,
           tension: 0.2,
           pointRadius: 0,
+          spanGaps: false,
           borderWidth: 1.5
         }]
       },
@@ -94,7 +124,8 @@ async function main() {
         plugins: {
           legend: { display: true }
         }
-      }
+      },
+      plugins: [failureLinePlugin]
     });
 
     function updateMetrics(entriesSubset) {
@@ -121,7 +152,8 @@ async function main() {
       const subset = !isFinite(duration)
         ? entries
         : entries.filter(e => now - e.date.getTime() <= duration);
-      const points = subset.map(p => ({ x: p.date, y: p.ms }));
+      failedTimes = subset.filter(e => !e.ok).map(e => e.date);
+      const points = subset.map(p => (p.ok ? { x: p.date, y: p.ms } : { x: p.date, y: null }));
       chart.data.datasets[0].data = points;
       chart.update();
       buttons.forEach((btn, key) => {
