@@ -115,6 +115,7 @@ def import_images(
             "credit_line": _clean_text(row.get("credit_line")),
             "source": source,
             "retrieved_at": retrieved_at,
+            "s3_path": _clean_text(row.get("s3_path")),
         }
 
         if mid in existing:
@@ -152,6 +153,7 @@ def import_images(
                 width=row.get("width"),
                 height=row.get("height"),
                 thumb_url=row.get("thumb_url"),
+                s3_path=_clean_text(row.get("s3_path")),
             )
         )
         animal_id = mid_to_animal.get(mid)

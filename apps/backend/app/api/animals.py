@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, joinedload, load_only
 from .. import models, schemas
 from ..auth import get_current_user, get_optional_user
 from ..database import get_db
+from ..image_urls import get_image_url, get_variant_url
 from ..utils.geometry import query_zoos_with_distance
 from ..utils.http import set_personalized_cache_headers
 from ..utils.images import build_unique_variants
@@ -477,8 +478,15 @@ def get_animal_detail(
     images = [
         schemas.ImageRead(
             mid=i.mid,
-            original_url=i.original_url,
-            variants=build_unique_variants(i.variants),
+            original_url=get_image_url(i.original_url, i.s3_path, i.mime),
+            variants=[
+                schemas.ImageVariant(
+                    width=v.width,
+                    height=v.height,
+                    thumb_url=get_variant_url(v.thumb_url, v.s3_path, i.s3_path, i.mime),
+                )
+                for v in build_unique_variants(i.variants)
+            ],
         )
         for i in animal.images
     ]

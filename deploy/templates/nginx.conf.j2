@@ -24,6 +24,14 @@ http {
                    inactive=60m
                    use_temp_path=off;
 
+  # ---- Public images cache (S3 proxy) ----
+  proxy_cache_path /var/cache/nginx/zootracker_public
+                   levels=1:2
+                   keys_zone=zoo_public:10m
+                   max_size=10g
+                   inactive=30d
+                   use_temp_path=off;
+
   # Bypass cache on authenticated requests
   map $http_authorization $skip_cache { "" 0; default 1; }
 

@@ -48,6 +48,13 @@ JWT_KID = _get_env("JWT_KID")
 ACCESS_TOKEN_TTL = _get_int("ACCESS_TOKEN_TTL", 900)
 ACCESS_TOKEN_LEEWAY = _get_int("ACCESS_TOKEN_LEEWAY", 60)
 
+def _normalize_str_env(name: str, default: str) -> str:
+    """Get string environment variable and normalize it (strip whitespace, uppercase)."""
+    value = _get_env(name, default=default)
+    if value is None:
+        return default
+    return value.strip().upper()
+
 # Preserve legacy configuration import paths used in the existing codebase/tests.
 ACCESS_TOKEN_EXPIRE_MINUTES = max(1, ACCESS_TOKEN_TTL // 60)
 
@@ -177,3 +184,8 @@ REFERRER_POLICY = _read_header("REFERRER_POLICY", DEFAULT_REFERRER_POLICY)
 
 if REFERRER_POLICY:
     SECURITY_HEADERS["Referrer-Policy"] = REFERRER_POLICY
+
+# Image serving mode: WIKIMEDIA (dev, hotlink from Commons) or S3 (prod, self-hosted)
+IMAGE_URL_MODE = _normalize_str_env("IMAGE_URL_MODE", default="WIKIMEDIA")
+if IMAGE_URL_MODE not in {"WIKIMEDIA", "S3"}:
+    raise RuntimeError("IMAGE_URL_MODE must be either WIKIMEDIA or S3")
