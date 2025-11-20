@@ -75,9 +75,18 @@ function computeStats(entries, windows) {
     const winMs = parseDuration(w);
     const subset = !isFinite(winMs) ? entries : entries.filter(e => (now - Date.parse(e.t)) <= winMs);
     const total = subset.length;
-    const up = subset.filter(e => e.ok).length;
+
+    const successes = subset.filter(
+      e => e.ok && typeof e.ms === "number" && Number.isFinite(e.ms)
+    );
+
+    const up = successes.length;
     const uptime = total ? +(100 * up / total).toFixed(3) : null;
-    const avgMs = total ? Math.round(subset.reduce((s, e) => s + (e.ms ?? 0), 0) / total) : null;
+
+    const avgMs = successes.length
+      ? Math.round(successes.reduce((sum, e) => sum + e.ms, 0) / successes.length)
+      : null;
+
     byWindow[w] = { total, up, uptimePercent: uptime, avgMs };
   }
   return byWindow;
