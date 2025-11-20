@@ -60,6 +60,7 @@ class Image(Base):
     retrieved_at = Column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+    s3_path = Column(Text)
 
     animal = relationship("Animal", back_populates="images")
     variants = relationship(
@@ -81,6 +82,7 @@ class ImageVariant(Base):
     width = Column(Integer, primary_key=True)
     height = Column(Integer, nullable=False)
     thumb_url = Column(Text, nullable=False)
+    s3_path = Column(Text)
 
     image = relationship("Image", back_populates="variants")
 

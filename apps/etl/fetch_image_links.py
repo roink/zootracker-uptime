@@ -652,21 +652,22 @@ async def process_animal(
             if not mid:
                 continue
 
-            # Thumbnail variants
-            for w in THUMB_WIDTHS:
-                try:
-                    th = await commons_thumb_for_width(client, file_title, w)
-                    if not th or not th.get("thumb_url"):
-                        continue
-                    await upsert_variant(
-                        db,
-                        mid,
-                        th.get("thumb_width") or w,
-                        th.get("thumb_height") or 0,
-                        th["thumb_url"],
-                    )
-                except Exception as e:
-                    print(f"[WARN] thumb {w}px for {file_title} failed: {e}")
+            # Thumbnail variants (skip for SVG - they scale infinitely)
+            if mime != "image/svg+xml":
+                for w in THUMB_WIDTHS:
+                    try:
+                        th = await commons_thumb_for_width(client, file_title, w)
+                        if not th or not th.get("thumb_url"):
+                            continue
+                        await upsert_variant(
+                            db,
+                            mid,
+                            th.get("thumb_width") or w,
+                            th.get("thumb_height") or 0,
+                            th["thumb_url"],
+                        )
+                    except Exception as e:
+                        print(f"[WARN] thumb {w}px for {file_title} failed: {e}")
 
             await db.commit()
             print(f"[OK]   {latin_name or art}: {file_title} ({mid}) from {source}")

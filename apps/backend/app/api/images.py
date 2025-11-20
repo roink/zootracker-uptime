@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from .. import models, schemas
 from ..database import get_db
+from ..image_urls import get_image_url, get_variant_url
 from ..utils.images import build_unique_variants
 
 router = APIRouter()
@@ -40,7 +41,7 @@ def get_image_metadata(
     response.headers["Cache-Control"] = "public, max-age=86400"
     return schemas.ImageAttribution(
         mid=image.mid,
-        original_url=image.original_url,
+        original_url=get_image_url(image.original_url, image.s3_path, image.mime),
         commons_page_url=image.commons_page_url,
         commons_title=image.commons_title,
         author=author,
@@ -48,5 +49,12 @@ def get_image_metadata(
         license_url=image.license_url,
         credit_line=image.credit_line,
         attribution_required=image.attribution_required,
-        variants=build_unique_variants(image.variants),
+        variants=[
+            schemas.ImageVariant(
+                width=v.width,
+                height=v.height,
+                thumb_url=get_variant_url(v.thumb_url, v.s3_path, image.s3_path, image.mime),
+            )
+            for v in build_unique_variants(image.variants)
+        ],
     )

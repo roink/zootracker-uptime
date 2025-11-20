@@ -26,6 +26,10 @@ For detailed instructions on running and validating tests:
 
 Always run the relevant tests after making changes.
 
+## Git commits
+
+**IMPORTANT**: Never commit changes yourself. Always leave commits to the user. Stage changes with `git add` if requested, but never run `git commit`.
+
 ## Environment setup
 
 Activate the provided virtual environment before running tests, linting, or the app. All required Python packages are already installed there.
