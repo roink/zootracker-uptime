@@ -1,0 +1,12 @@
+{
+  "name": "zootracker-uptime",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node scripts/check.mjs",
+    "build": "node scripts/build-site.mjs",
+    "dev:once": "node scripts/check.mjs && node scripts/build-site.mjs"
+  },
+  "devDependencies": {}
+}
+
