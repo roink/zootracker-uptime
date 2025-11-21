@@ -81,3 +81,17 @@ animal or date. The form offers **Cancel**, **Apply changes** and **Delete**
 actions and is implemented using the existing `LogSighting` component. The
 overlay page is mounted at `/sightings/:id/edit`.
 
+## PWA Assets
+
+The frontend is configured as a Progressive Web App (PWA) with icons and manifest generated from `apps/frontend/public/Buch.svg`.
+
+- **Icon generation**: PWA assets are generated using `@vite-pwa/assets-generator` with the `minimal-2023` preset
+- **Configuration**: See `apps/frontend/pwa-assets.config.js`
+- **Regenerate assets**: Run `pnpm --filter zoo-tracker-frontend generate:pwa-assets` from root, or `pnpm generate:pwa-assets` from `apps/frontend/`
+- **Generated files**: `pwa-64x64.png`, `pwa-192x192.png`, `pwa-512x512.png`, `maskable-icon-512x512.png`, `apple-touch-icon-180x180.png`, and `favicon.ico` in `apps/frontend/public/`
+- **SVG favicon**: `favicon.svg` (copy of `Buch.svg`) provides modern SVG icon support
+- **Manifest**: `apps/frontend/public/manifest.webmanifest` defines PWA metadata with both raster and SVG icon references, includes `id`, `scope`, `lang`, and `orientation` for best practices
+- **HTML links**: `apps/frontend/index.html` includes multi-size ICO favicon, SVG favicon, apple-touch-icon, manifest link, and theme-color meta tag
+
+The uptime monitor uses `favicon.ico` in `uptime-monitor/site/` but does not require PWA configuration.
+

@@ -17,7 +17,8 @@
     "test:e2e": "playwright test",
     "test": "npm run test:unit && npm run test:e2e",
     "typecheck": "tsc --noEmit",
-    "format": "prettier -w ."
+    "format": "prettier -w .",
+    "generate:pwa-assets": "pwa-assets-generator"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.4",
@@ -50,6 +51,7 @@
     "@types/node": "^22.18.13",
     "@types/react": "19.2.2",
     "@types/react-dom": "19.2.2",
+    "@vite-pwa/assets-generator": "^1.0.2",
     "@vitejs/plugin-react": "^5.0.0",
     "babel-plugin-react-compiler": "^1.0.0",
     "cross-env": "^10.1.0",

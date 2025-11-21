@@ -308,11 +308,17 @@ export default function Header() {
     <nav className="navbar navbar-expand-lg navbar-dark bg-success mb-3">
       <div className="container-fluid">
         <Link
-          className="navbar-brand"
+          className="navbar-brand d-flex align-items-center"
           to={prefix}
           onMouseEnter={prefetchLandingData}
           onFocus={prefetchLandingData}
         >
+          <img 
+            src="/paw-logo.svg" 
+            alt="" 
+            className="me-2" 
+            style={{ height: '1.2em' }}
+          />
           ZooTracker
         </Link>
         <button
