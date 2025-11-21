@@ -49,7 +49,10 @@ function formatLastUpdated(dateString) {
 
 async function main() {
   const data = await fetch("./data/data.json", { cache: "no-store" }).then(r => r.json());
-  document.querySelector("#title").textContent = data.siteName || "Uptime";
+  const titleEl = document.querySelector("#title");
+  const img = titleEl.querySelector("img");
+  titleEl.textContent = data.siteName || "Uptime";
+  if (img) titleEl.prepend(img);
   document.querySelector("#last-run").textContent = formatLastUpdated(data.lastRunUTC);
 
   const container = document.querySelector("#checks");
