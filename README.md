@@ -1,375 +1,76 @@
-# Zoo Tracker Server
+# ZooTracker Uptime
 
-This repository contains planning materials and a basic backend scaffold for the Zoo Visit and Animal Tracking service. Documentation for the architecture and user stories can be found in the `docs/` directory. The initial PostgreSQL schema is located in `schema.sql`.
+**Live status:**  **https://roink.github.io/zootracker-uptime/**  
+**ZooTracker app:**  **https://zootracker.app/**
 
-## Development
+A minimal uptime monitor powered by **GitHub Actions** and **GitHub Pages**. It pings your endpoint every 5 minutes, commits a history to `data/checks.json`, and publishes a static status site (`/site` → `dist/`) showing uptime (24h / 7d / 30d / 1y / all) and response-time charts.
 
-A `docker-compose.yml` file is provided to run a PostGIS-enabled PostgreSQL
-database. Start the API separately with Uvicorn using the `DATABASE_URL`
-environment variable to connect.
+---
 
-### Local Setup
+## Features
 
-```bash
-cd apps/backend
-./setup_env.sh
-cp .env.example .env
-cd ../..
-docker compose up -d db
-cd apps/backend
-source venv/bin/activate
-python -m app.create_tables
-gunicorn -k uvicorn_worker.UvicornWorker -w 5 app.main:app
-```
+- 5-minute scheduled checks (best-effort, UTC)  
+- History persisted in Git (simple, portable)  
+- Static status site (no backend) with Chart.js graphs  
+- Lightweight Node script (`scripts/check.mjs`) using `fetch` + 10s timeout  
+- GitHub Actions cache for speed (auto-evicts if idle)
 
-The API will be available at `http://localhost:8000` and the database listens on `localhost:5432`.
-These commands create the tables and enable the required `postgis` extension.
-You can verify the connection with a quick Python shell:
+---
 
-```python
-import sys
-sys.path.insert(0, '/home/philipp/projekte/zoo_tracker_server/apps/backend')
-from app.database import SessionLocal
-from app import models
-session = SessionLocal()
-print(session.query(models.Zoo).all())
-```
+## How it works
 
+- **Schedule:** A workflow runs on cron `*/5 * * * *` (UTC). Minute-level timing can drift slightly under load.  
+- **Ping:** `scripts/check.mjs` performs a request with a 10s timeout and appends records like `{ t, ok, status, ms }` to `data/checks.json`.  
+- **History:** Response-time data lives in Git for long-term retention.  
+- **Site build:** The script also writes `dist/data/data.json`. The static site (`/site`) uses Chart.js (CDN) for charts.  
+- **Deploy:** The workflow uploads the built site with `actions/upload-pages-artifact` and deploys using `actions/deploy-pages` in a dedicated job.  
 
-### Database Credentials
+---
 
-Zoo Tracker no longer ships with a weak `postgres:postgres` fallback. Create a
-dedicated PostgreSQL role and password for every environment and expose it via
-`DATABASE_URL` before starting the API. For example, inside `psql` you can run:
+## Quick start
 
-```sql
-CREATE USER zoo_app_user WITH PASSWORD 'replace-with-a-long-random-string';
-CREATE DATABASE zoo_app OWNER zoo_app_user;
-```
+1. **Create a repo** (e.g., `zootracker-uptime`) and copy these files.  
+2. **Configure** `config.json`  
+   - `baseUrl`: `/<repo-name>` (change if using a custom domain).  
+   - Update your checks list if needed.  
+3. **Enable Pages:** _Settings → Pages_ → **Build and deployment** = **GitHub Actions**.  
+4. **Push to `main`:** The workflow will:  
+   - Run every 5 minutes (and on manual dispatch)  
+   - Commit growing history to `data/checks.json`  
+   - Build and deploy the status site  
+5. **Open the live status:** Use the Pages URL printed by the deploy job output (also shown in _Settings → Pages_).
 
-Then point the backend at those credentials, either in your shell or in a
-`.env` file loaded by your process manager:
+---
 
-```bash
-export DATABASE_URL=postgresql+psycopg_async://zoo_app_user:strong-password@localhost:5432/zoo_app
-```
+## Local development
 
-Zoo Tracker accepts either `postgresql+psycopg://…` or `postgresql+psycopg_async://…`
-connection strings. When the synchronous driver is supplied, the backend
-normalises it to the async variant internally and still exposes a synchronous
-engine for administrative scripts. Use the `_async` suffix when you want to
-explicitly opt into the async driver supported by SQLAlchemy.
+- Install deps: `npm ci` (or `npm install`)  
+- Run a one-off check (if you expose a script/flag): `node scripts/check.mjs`  
+- Build the site data (if separate): `node scripts/build-site.mjs`  
+- Preview `site/index.html` (open in a local static server)
 
-The application refuses to start if `DATABASE_URL` is unset. When `APP_ENV` is
-`production` (the default), it will also refuse to start when the URL still uses
-the legacy `postgres:postgres` placeholder so misconfigured deployments fail
-fast.
+---
 
+## Uptime math
 
-### Running Tests
+For each window (24h, 7d, 30d, 365d, all):
 
-Start the database and run the test suite against PostgreSQL:
+- **Uptime %** = `up / total * 100`, where `up` = number of checks with `response.ok === true`.  
+  (Timeouts or network errors count as **down**.)  
+- **avgMs** = mean of response times within the window.
 
-```bash
-docker compose up -d db
-cd apps/backend
-source venv/bin/activate
-pytest
-```
+---
 
-Running tests against PostgreSQL will drop and recreate all tables to ensure a
-clean state. The old `--pg` flag is still accepted but no longer required.
+## Customizing the UI
 
-#### Frontend clustering tests
+- Tweak styles in `site/styles.css` and markup in `site/index.html`.  
+- `site/app.js` renders per-check cards and a Chart.js line chart.
 
-MapLibre clustering is guarded by two dedicated test suites:
+---
 
-* Run the full suite (Vitest + Playwright) in one go:
+## Caveats & tips
 
-  ```bash
-  pnpm --filter zoo-tracker-frontend test
-  ```
-
-  This command first executes the structural ZoosMap clustering spec in Vitest
-  and then launches the Chromium Playwright checks against the harness page.
-
-* To run only the structural assertions:
-
-  ```bash
-  pnpm --filter zoo-tracker-frontend run test:unit
-  ```
-
-* To run only the WebGL checks (Chromium only):
-
-  ```bash
-  pnpm --filter zoo-tracker-frontend run test:e2e
-  ```
-
-  The Playwright project now resides under `apps/frontend/` next to the Vite app.
-  Ensure Chromium dependencies are installed when running in CI containers or
-  other headless environments.
-
-### Running the Frontend
-
-The frontend uses [Vite](https://vitejs.dev/) during development. Install the
-dependencies once and start the dev server:
-
-```bash
-cd apps/frontend
-pnpm install
-pnpm run dev
-```
-
-Vite will serve the application on <http://localhost:5173> by default with the
-correct CORS and MIME headers so it can communicate with the API on port
-`8000`.
-
-When using `--host` the frontend automatically sends requests to the same
-hostname on port `8000`. This means testing from a phone generally works out of
-the box as long as the backend port is reachable. You can still override the API
-location if needed:
-
-```bash
-VITE_API_URL=http://192.168.1.29:8000 pnpm run dev -- --host
-```
-
-Replace `192.168.1.29` with your computer's actual IP if it differs. Setting
-`VITE_API_URL` is only required when the backend runs on a different host or
-port.
-
-Customize the map appearance by providing a tile style URL:
-
-```
-VITE_MAP_STYLE_URL=https://tiles.openfreemap.org/styles/liberty
-```
-
-If unset the frontend falls back to the OpenFreeMap "liberty" tiles.
-
-### Internationalization
-
-The frontend supports English and German. Routes are prefixed with the language code (e.g. `/en/animals`). Translations live in `apps/frontend/src/locales`. See [docs/i18n.md](docs/i18n.md) for details on adding or updating strings.
-
-### Authentication
-
-The `/auth/login` endpoint includes the authenticated user’s `user_id` in the
-JSON response so clients can identify the user without an extra lookup.
-Authorization checks on the sighting endpoints ensure each user may only read,
-update, or delete their own records without privileged overrides.
-
-See [docs/auth.md](docs/auth.md) for details on configuring the rotating
-refresh-token flow in development (localhost) and in production deployments.
-
-### Contact Form Email
-
-The `/contact` endpoint sends messages via SMTP using credentials from
-environment variables. Provide them in a `.env` file or your shell before
-starting the server:
-
-```
-SMTP_HOST=smtppro.zoho.com
-SMTP_PORT=465
-SMTP_SSL=true
-SMTP_USER=username
-SMTP_PASSWORD=password
-SMTP_FROM=contact@zootracker.app
-CONTACT_EMAIL=contact@zootracker.app
-CONTACT_RATE_LIMIT=5
-```
-
-Set `SMTP_SSL=true` when your provider requires an SSL connection (such as Zoho
-on port 465); otherwise the server will use STARTTLS.
-
-The visitor's address is included as the `Reply-To` header and the subject line
-uses their name (e.g. "Contact form – Alice"). `CONTACT_RATE_LIMIT` controls
-how many submissions are accepted per minute from a single IP. The server checks
-for `SMTP_HOST` and `CONTACT_EMAIL` at startup and will refuse to run if either
-is missing. Rate-limited responses include `X-RateLimit-Remaining` and
-`Retry-After` headers to aid debugging.
-
-### Structured Logging & Observability
-
-Backend logs are emitted in [ECS](https://www.elastic.co/guide/en/ecs/current/index.html)
-compatible JSON so they can be shipped directly into Elastic, Loki or other
-machine parsers. A single configuration drives Gunicorn, Uvicorn and the
-application loggers which means **all** events share the same structure and
-request identifiers. Key fields include `@timestamp`, `log.level`,
-`http.request.method`, `url.path`, `http.response.status_code`,
-`event.duration` (nanoseconds), `client.ip`, `user.id`, and `http.request.id`.
-Authentication and audit events add `authentication.method`,
-`authentication.outcome.reason` and `event.kind=audit` respectively.
-
-Configure logging behaviour with environment variables:
-
-| Variable | Description |
-| --- | --- |
-| `LOG_LEVEL` | Global log level (default `INFO`). |
-| `LOG_JSON` | Toggle JSON formatting (`true` by default). |
-| `LOG_FILE_ANON` | Optional anonymized log file path (ECS JSON, rewrites `client.ip` to `/24` or `/64`). |
-| `LOG_FILE_RAW` | Optional raw log file path that always retains the full client IP for security forensics. |
-| `LOG_FILE` | Legacy single-log fallback when you only need one file sink. |
-| `ACCESS_LOG_SAMPLE` | Fraction of 2xx/3xx requests to log (default `1.0`). |
-| `SLOW_REQUEST_MS` | Always log requests slower than this threshold (default `500`). |
-| `LOG_IP_MODE` | `full`, `anonymized` (/24 or /64) or `off` to drop client IPs. |
-
-Sensitive headers such as `Authorization` and `Cookie` are redacted automatically
-and long payloads are truncated to keep entries GDPR-friendly. When the service
-runs behind Nginx and Cloudflare the middleware trusts `request.client.host`
-(`real_ip_header CF-Connecting-IP`) and consults only the left-most value of
-`X-Forwarded-For` for connections that originate from private proxy ranges.
-Cloudflare-specific headers are intentionally ignored because Nginx already
-normalises the client address. Choose `LOG_IP_MODE=anonymized` in regions where
-full IP addresses are considered personal data; anonymized addresses are emitted
-as `/24` (IPv4) or `/64` (IPv6) network prefixes. When both `LOG_FILE_ANON` and
-`LOG_FILE_RAW` are configured the anonymized file honours those prefixes while
-the raw file keeps the exact IP regardless of `LOG_IP_MODE` so you can retain a
-short-lived forensic trail alongside long-term privacy-preserving analytics.
-
-All file sinks use a `WatchedFileHandler`, which plays nicely with system-wide
-rotation tools such as `logrotate`. The handler recreates files automatically
-after rotation and forces restrictive `0600` permissions so only the service
-user (and privileged administrators) can read historical logs.
-
-### CORS Origins
-
-The API only responds to cross-origin requests from whitelisted domains. Set
-the `ALLOWED_ORIGINS` environment variable to a comma separated list of allowed
-origins. For example, during local development:
-
-```
-ALLOWED_ORIGINS=http://localhost:5173
-```
-
-In production provide your public domains, such as:
-
-```
-ALLOWED_ORIGINS=https://zootracker.app,https://admin.zootracker.app
-```
-
-Requests from other origins will fail CORS preflight checks and browsers will
-block access to the API.
-
-### Public site base URLs
-
-Two environment variables control how the backend builds absolute links for
-outbound communication and crawlers:
-
-- `APP_BASE_URL` – the canonical origin for email verification and password
-  reset links.
-- `SITE_BASE_URL` – the public marketing domain that hosts the front-end site.
-- `SITE_LANGUAGES` – comma-separated list of locale codes served by the
-  marketing site. The first language becomes the canonical sitemap `<loc>` and
-  `x-default` entry, while every language is emitted as an `<xhtml:link`>
-  alternate.
-
-Both default to `http://localhost:5173` for local development. In production set
-`SITE_BASE_URL` to the public marketing host (for example,
-`https://www.zootracker.app`). The sitemap index exposed at `/sitemap.xml` and
-the `/robots.txt` asset use this value when advertising animal and zoo detail
-pages, so keeping it accurate ensures search engines crawl the correct domain.
-
-**Requirements & limits**
-
-- `SITE_BASE_URL` **must be an absolute** `http(s)` URL (for example:
-  `https://www.zootracker.app`). Sitemap `<loc>` values are always absolute.
-- `SITE_LANGUAGES` must contain at least one valid [BCP 47][bcp47] language tag.
-  Separate entries with commas (for example, `en,de` or `en,de-AT`).
-- Each sitemap is limited to **50,000 URLs** and **50 MB uncompressed**. If the
-  animals or zoos sitemap grows beyond that, shard into multiple files
-  (e.g., `animals-0001.xml`, `animals-0002.xml`, …) and list them in
-  `/sitemap.xml`.
-
-### Animals API
-
-`GET /animals` now returns detailed animal information including scientific
-name, category and image URL. The endpoint accepts `limit` and `offset`
-parameters for pagination so clients can request results in smaller batches.
-Results are sorted by English name for stable paging and can be further
-filtered by `q` and an optional `category` name. `limit` must be between 1 and
-100 and `offset` cannot be negative:
-
-```http
-GET /animals?limit=20&offset=0
-```
-
-Providing a search query via `q` filters the results by English or German name. Each page
-contains at most `limit` records and an empty response indicates there are no
-more animals.
-
-### Password Requirements
-
-When registering a new account the API enforces a minimum password length of
-eight characters. Submitting a shorter password will result in a 422 validation
-error.
-
-### Importing data from a SQLite dump
-
-Use ``apps/backend/app/import_simple_sqlite_data.py`` to populate the database from a
-SQLite dataset with a minimal schema:
-
-```bash
-cd apps/backend
-source venv/bin/activate
-python -m app.import_simple_sqlite_data path/to/data.db
-```
-
-## Production Security Notes
-
-The API now refuses to start unless `SECRET_KEY` is defined. Supply a long,
-random value before booting the service—`openssl rand -hex 32` is a convenient
-way to generate a 64-character (32-byte) hex string. Weak or short secrets make
-HS256 JWTs trivial to brute-force, so avoid anything guessable or reused.
-
-When running the API on the public internet remember to:
-
-- Serve all traffic over **HTTPS** to protect credentials and tokens.
-- Regularly apply operating system and dependency updates.
-- Enable rate limiting (for example via a reverse proxy) to prevent abuse.
-- Keep JWT verification pinned to the expected algorithm (`algorithms=["HS256"]`)
-  to avoid algorithm-confusion attacks.
-- Provide environment variables through your process manager (for example,
-  `uvicorn app.main:app --reload --env-file .env` locally or `EnvironmentFile=/opt/zoo_tracker/.env`
-  in systemd). Application modules do not attempt to load a `.env` file automatically.
-
-### HTTP security headers
-
-The API ships with strict defaults for the browser security headers injected by
-`SecureHeadersMiddleware`. Override them only when absolutely necessary.
-
-| Environment variable | Production default |
-| -------------------- | ------------------ |
-| `STRICT_TRANSPORT_SECURITY` | `max-age=63072000; includeSubDomains; preload` |
-| `CONTENT_SECURITY_POLICY` | `default-src 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'` |
-
-For **HTTP-only localhost testing** (FastAPI on `http://127.0.0.1:8000` and the
-Vite dev server on `http://localhost:5173`) add the following overrides to your
-`.env` file:
-
-```
-STRICT_TRANSPORT_SECURITY=
-CONTENT_SECURITY_POLICY=default-src 'self'; img-src 'self' data:; connect-src 'self' http://localhost:5173
-```
-
-Setting `STRICT_TRANSPORT_SECURITY` to an empty value stops browsers from
-caching an HTTPS requirement that you cannot satisfy locally, while the CSP
-example keeps the interactive docs working. Cross-origin requests from the Vite
-dev server to the API are controlled by CORS (see `ALLOWED_ORIGINS`). Frame and
-content-type protections are enforced directly in code
-(`X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`) so you do not need
-matching environment variables and should not attempt to disable them.
-
-Removing or weakening these headers makes the application vulnerable to
-clickjacking, MIME sniffing, or malicious resource injection. Prefer temporary
-overrides in local `.env` files and revert to the secure defaults before
-deploying to staging or production.
-
-### SECRET_KEY requirements
-
-- **Minimum:** 32 bytes for HS256 (per RFC 7518). That corresponds to at least
-  64 hexadecimal characters or roughly 43 URL-safe Base64 characters.
-- Preferred formats: hex (`openssl rand -hex 32`) or URL-safe Base64
-  (`python -c "import secrets; print(secrets.token_urlsafe(32))"`).
-- **Never reuse** the same key across environments (production, staging,
-  development). Generate a new one for each deployment.
-
-[bcp47]: https://www.rfc-editor.org/rfc/bcp47
+- **Schedules are best-effort & UTC.** The shortest supported interval is 5 minutes; runs may drift slightly.  
+- **Caches are ephemeral.** GitHub evicts cache entries not accessed for ~7 days and caps repo cache storage; your durable data is the Git history.  
+- **Deploy from a dedicated job.** Use `upload-pages-artifact` + `deploy-pages` for the recommended Pages flow.  
 
