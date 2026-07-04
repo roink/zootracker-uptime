@@ -6,7 +6,7 @@ import { performance } from "node:perf_hooks";
 
 const CONFIG_PATH = "config.json";
 const HISTORY_PATH = "data/checks.json";
-const BUILD_DATA_PATH = "dist/data/data.json";
+const BUILD_DATA_PATH = "data/data.json";
 const HEADER_ALLOWLIST = [
   "server",
   "content-type",

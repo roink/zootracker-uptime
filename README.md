@@ -3,7 +3,7 @@
 **Live status:**  **https://roink.github.io/zootracker-uptime/**  
 **ZooTracker app:**  **https://zootracker.app/**
 
-A minimal uptime monitor powered by **GitHub Actions** and **GitHub Pages**. It pings your endpoint every 5 minutes, commits a history to `data/checks.json`, and publishes a static status site (`/site` → `dist/`) showing uptime (24h / 7d / 30d / 1y / all) and response-time charts.
+A minimal uptime monitor powered by **GitHub Actions** and **GitHub Pages**. It pings your endpoint every 5 minutes, commits history and site data (`data/checks.json`, `data/data.json`), and publishes a static status site (`/site` → `dist/`) showing uptime (24h / 7d / 30d / 1y / all) and response-time charts.
 
 ---
 
@@ -22,8 +22,8 @@ A minimal uptime monitor powered by **GitHub Actions** and **GitHub Pages**. It 
 - **Schedule:** A workflow runs on cron `*/5 * * * *` (UTC). Minute-level timing can drift slightly under load.  
 - **Ping:** `scripts/check.mjs` performs a request with a 10s timeout and appends records like `{ t, ok, status, ms }` to `data/checks.json`.  
 - **History:** Response-time data lives in Git for long-term retention.  
-- **Site build:** The script also writes `dist/data/data.json`. The static site (`/site`) uses Chart.js (CDN) for charts.  
-- **Deploy:** The workflow uploads the built site with `actions/upload-pages-artifact` and deploys using `actions/deploy-pages` in a dedicated job.  
+- **Site data:** The check script writes `data/data.json` for the frontend.  
+- **Deploy:** Publishing runs in a separate workflow that builds `dist/`, uploads with `actions/upload-pages-artifact`, and deploys with `actions/deploy-pages`.  
 
 ---
 
@@ -34,11 +34,11 @@ A minimal uptime monitor powered by **GitHub Actions** and **GitHub Pages**. It 
    - `baseUrl`: `/<repo-name>` (change if using a custom domain).  
    - Update your checks list if needed.  
 3. **Enable Pages:** _Settings → Pages_ → **Build and deployment** = **GitHub Actions**.  
-4. **Push to `main`:** The workflow will:  
+4. **Push to `main`:** The monitor workflow will:  
    - Run every 5 minutes (and on manual dispatch)  
-   - Commit growing history to `data/checks.json`  
-   - Build and deploy the status site  
-5. **Open the live status:** Use the Pages URL printed by the deploy job output (also shown in _Settings → Pages_).
+   - Commit growing history to `data/checks.json` and `data/data.json`  
+5. **Pages publishing:** The publish workflow runs on pushes that change site or generated data and deploys to GitHub Pages.  
+6. **Open the live status:** Use the Pages URL printed by the publish workflow output (also shown in _Settings → Pages_).
 
 ---
 
@@ -73,4 +73,3 @@ For each window (24h, 7d, 30d, 365d, all):
 - **Schedules are best-effort & UTC.** The shortest supported interval is 5 minutes; runs may drift slightly.  
 - **Caches are ephemeral.** GitHub evicts cache entries not accessed for ~7 days and caps repo cache storage; your durable data is the Git history.  
 - **Deploy from a dedicated job.** Use `upload-pages-artifact` + `deploy-pages` for the recommended Pages flow.  
-
