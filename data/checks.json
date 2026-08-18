@@ -136868,6 +136868,26 @@
         "detail": null,
         "bodySample": null,
         "error": null
+      },
+      {
+        "t": "2026-08-18T11:34:41.788Z",
+        "ok": true,
+        "status": 200,
+        "ms": 829,
+        "method": "GET",
+        "phase": "frontend",
+        "finalUrl": "https://zootracker.app/",
+        "headers": {
+          "server": "cloudflare",
+          "content-type": "text/html",
+          "cache-control": "no-store",
+          "cf-cache-status": "DYNAMIC",
+          "cf-ray": "a2d09c5b1abe52ab-SEA"
+        },
+        "assertion": null,
+        "detail": null,
+        "bodySample": null,
+        "error": null
       }
     ],
     "API Root": [
@@ -189681,6 +189701,27 @@
           "x-cache-status": "MISS",
           "cf-cache-status": "DYNAMIC",
           "cf-ray": "a2d06d4ce8a3eafc-ORD"
+        },
+        "assertion": null,
+        "detail": null,
+        "bodySample": null,
+        "error": null
+      },
+      {
+        "t": "2026-08-18T11:34:42.040Z",
+        "ok": true,
+        "status": 200,
+        "ms": 176,
+        "method": "GET",
+        "phase": "api-shallow",
+        "finalUrl": "https://zootracker.app/api/",
+        "headers": {
+          "server": "cloudflare",
+          "content-type": "application/json",
+          "x-request-id": "56e3842d-340b-44c8-83ef-4577c1d47922",
+          "x-cache-status": "MISS",
+          "cf-cache-status": "DYNAMIC",
+          "cf-ray": "a2d09c5fabc552ab-SEA"
         },
         "assertion": null,
         "detail": null,
@@ -244975,6 +245016,28 @@
           "x-cache-status": "STALE",
           "cf-cache-status": "DYNAMIC",
           "cf-ray": "a2d06d506a89eafc-ORD"
+        },
+        "assertion": null,
+        "detail": null,
+        "bodySample": null,
+        "error": null
+      },
+      {
+        "t": "2026-08-18T11:34:42.273Z",
+        "ok": true,
+        "status": 200,
+        "ms": 158,
+        "method": "GET",
+        "phase": "api-shallow",
+        "finalUrl": "https://zootracker.app/api/site/config",
+        "headers": {
+          "server": "cloudflare",
+          "content-type": "application/json",
+          "cache-control": "public, max-age=300",
+          "x-request-id": "18764f74-4ab0-4b4e-8990-b6210654d482",
+          "x-cache-status": "STALE",
+          "cf-cache-status": "DYNAMIC",
+          "cf-ray": "a2d09c613e8952ab-SEA"
         },
         "assertion": null,
         "detail": null,
@@ -300302,6 +300365,28 @@
         "detail": null,
         "bodySample": null,
         "error": null
+      },
+      {
+        "t": "2026-08-18T11:34:42.522Z",
+        "ok": true,
+        "status": 200,
+        "ms": 173,
+        "method": "GET",
+        "phase": "api-shallow",
+        "finalUrl": "https://zootracker.app/api/location/estimate",
+        "headers": {
+          "server": "cloudflare",
+          "content-type": "application/json",
+          "cache-control": "private, no-store",
+          "x-request-id": "81b51516-b453-4be0-932c-aa73edc1b5c4",
+          "x-cache-status": "MISS",
+          "cf-cache-status": "DYNAMIC",
+          "cf-ray": "a2d09c62b99b52ab-SEA"
+        },
+        "assertion": null,
+        "detail": null,
+        "bodySample": null,
+        "error": null
       }
     ],
     "Site Summary": [
@@ -355596,6 +355681,28 @@
         "detail": null,
         "bodySample": null,
         "error": null
+      },
+      {
+        "t": "2026-08-18T11:34:42.765Z",
+        "ok": true,
+        "status": 200,
+        "ms": 167,
+        "method": "GET",
+        "phase": "api-db",
+        "finalUrl": "https://zootracker.app/api/site/summary",
+        "headers": {
+          "server": "cloudflare",
+          "content-type": "application/json",
+          "cache-control": "public, max-age=300, stale-while-revalidate=600",
+          "x-request-id": "1b3423ae-b214-44e9-9317-000de8b4eb28",
+          "x-cache-status": "STALE",
+          "cf-cache-status": "DYNAMIC",
+          "cf-ray": "a2d09c644c9352ab-SEA"
+        },
+        "assertion": null,
+        "detail": null,
+        "bodySample": null,
+        "error": null
       }
     ],
     "Zoos Search": [
@@ -410882,6 +410989,28 @@
         "detail": null,
         "bodySample": null,
         "error": null
+      },
+      {
+        "t": "2026-08-18T11:34:43.010Z",
+        "ok": true,
+        "status": 200,
+        "ms": 170,
+        "method": "GET",
+        "phase": "api-db",
+        "finalUrl": "https://zootracker.app/api/zoos?limit=1",
+        "headers": {
+          "server": "cloudflare",
+          "content-type": "application/json",
+          "cache-control": "public, max-age=86400",
+          "x-request-id": "52d3e98f-e3e3-42d5-aeef-82d9d760f012",
+          "x-cache-status": "HIT",
+          "cf-cache-status": "DYNAMIC",
+          "cf-ray": "a2d09c65cf4d52ab-SEA"
+        },
+        "assertion": null,
+        "detail": null,
+        "bodySample": null,
+        "error": null
       }
     ],
     "Animals Search": [
@@ -466163,6 +466292,28 @@
           "x-cache-status": "HIT",
           "cf-cache-status": "DYNAMIC",
           "cf-ray": "a2d06d555fc4eafc-ORD"
+        },
+        "assertion": null,
+        "detail": null,
+        "bodySample": null,
+        "error": null
+      },
+      {
+        "t": "2026-08-18T11:34:43.253Z",
+        "ok": true,
+        "status": 200,
+        "ms": 168,
+        "method": "GET",
+        "phase": "api-db",
+        "finalUrl": "https://zootracker.app/api/animals?limit=1",
+        "headers": {
+          "server": "cloudflare",
+          "content-type": "application/json",
+          "cache-control": "public, max-age=86400",
+          "x-request-id": "127bdb9c-a12b-414a-af79-1c24c3114904",
+          "x-cache-status": "HIT",
+          "cf-cache-status": "DYNAMIC",
+          "cf-ray": "a2d09c6749e152ab-SEA"
         },
         "assertion": null,
         "detail": null,
@@ -523969,6 +524120,29 @@
           "x-cache-status": "STALE",
           "cf-cache-status": "DYNAMIC",
           "cf-ray": "a2d06d569ac5eafc-ORD"
+        },
+        "assertion": null,
+        "detail": null,
+        "bodySample": null,
+        "error": null
+      },
+      {
+        "t": "2026-08-18T11:34:43.496Z",
+        "ok": true,
+        "status": 200,
+        "ms": 167,
+        "method": "GET",
+        "phase": "seo",
+        "finalUrl": "https://zootracker.app/sitemap.xml",
+        "headers": {
+          "server": "cloudflare",
+          "content-type": "application/xml; charset=utf-8",
+          "cache-control": "public, max-age=900, stale-while-revalidate=1800",
+          "etag": "W/\"8fa351a181c7e24a08d03fb443e4447baa7096fb4c5d47c4622768909a516c2f\"",
+          "x-request-id": "394f9dcc-ab41-4a29-899d-a335b4d28f48",
+          "x-cache-status": "HIT",
+          "cf-cache-status": "DYNAMIC",
+          "cf-ray": "a2d09c68dcc052ab-SEA"
         },
         "assertion": null,
         "detail": null,
@@ -584152,6 +584326,30 @@
           "x-cache-status": "HIT",
           "cf-cache-status": "HIT",
           "cf-ray": "a2d06d57ce00eafc-ORD"
+        },
+        "assertion": null,
+        "detail": null,
+        "bodySample": null,
+        "error": null
+      },
+      {
+        "t": "2026-08-18T11:34:43.587Z",
+        "ok": true,
+        "status": 200,
+        "ms": 16,
+        "method": "HEAD",
+        "phase": "storage",
+        "finalUrl": "https://zootracker.app/assets/animals/indian-peafowl/M45509204_320w.jpg",
+        "headers": {
+          "server": "cloudflare",
+          "content-type": "image/jpeg",
+          "cache-control": "public, max-age=31536000, immutable",
+          "content-length": "21740",
+          "etag": "\"0561817d963b792d5f4055712ddafe6e\"",
+          "age": "939392",
+          "x-cache-status": "HIT",
+          "cf-cache-status": "HIT",
+          "cf-ray": "a2d09c6a5ff152ab-SEA"
         },
         "assertion": null,
         "detail": null,
